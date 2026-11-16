@@ -35,12 +35,16 @@ export function createWorld(canvas) {
   const wall = buildWall();
   scene.add(wall);
 
-  const chars = [makeCharacter('#e0333c'), makeCharacter('#2f6fd0')];
-  chars.forEach((c, i) => {
-    c.group.position.set(0, 0, sideSign(i) * (HIT_Z + 0.42));
-    c.group.rotation.y = i === 0 ? 0 : Math.PI;
+  // team[side][slot]: 2v2용으로 한쪽에 두 명씩. chars = 각 쪽 1번 선수 (1v1·벽치기용)
+  const team = [0, 1].map((side) => [0, 1].map((slot) => {
+    const c = makeCharacter(side === 0 ? PADDLE_COLOR.me : PADDLE_COLOR.opp);
+    c.group.position.set(0, 0, sideSign(side) * CHAR_Z);
+    c.group.rotation.y = side === 0 ? 0 : Math.PI;
+    c.group.visible = slot === 0;
     scene.add(c.group);
-  });
+    return c;
+  }));
+  const chars = [team[0][0], team[1][0]];
 
   // 공 + 잔상 + 그림자
   const ball = new THREE.Mesh(new THREE.SphereGeometry(0.028, 14, 10), new THREE.MeshLambertMaterial({ color: '#fffaf0', emissive: '#ff9a40', emissiveIntensity: 0.25 }));
@@ -86,16 +90,21 @@ export function createWorld(canvas) {
   let camInit = false;
 
   return {
-    renderer, scene, camera, chars, ball, shadow, ring, ringMove, aim, wall,
+    renderer, scene, camera, chars, team, ball, shadow, ring, ringMove, aim, wall,
     shake: 0,
     kick(amount) { this.shake = Math.max(this.shake, amount); },
     // ballX: 공이 지금 있는 좌우 위치 (공 따라가기용)
-    updateCamera(side, charX, dt, ballX = 0) {
+    // charZ: 내 캐릭터가 테이블에서 떨어진 거리 (2v2에서 뒤로 물러나면 카메라도 같이)
+    updateCamera(side, charX, dt, ballX = 0, charZ = CHAR_Z) {
       const s = sideSign(side);
       const P = CAM;
       const fx = charX * P.followChar + ballX * P.followBall;
-      const tp = new THREE.Vector3(fx + s * P.x, P.y, s * (HIT_Z + P.back));
-      const tl = new THREE.Vector3(charX * 0.2 + ballX * P.followBall * 0.6, P.lookY, -s * P.lookZ);
+      // b: 2v2에서 팀원 차례라 뒤로 물러난 정도 (0~1). 물러나 있으면 카메라를 내 몸 안쪽(탁구대 가운데 쪽)으로 옮기고
+      // 탁구대 가운데를 본다. 반투명한 내 몸이 탁구대를 가리지 않게
+      const b = Math.max(0, Math.min(1, (charZ - CHAR_Z) / 0.6));
+      const inX = charX - Math.sign(charX) * Math.min(Math.abs(charX), 0.3);
+      const tp = new THREE.Vector3((fx + s * P.x) * (1 - b) + inX * b, P.y, s * (charZ - CHAR_Z + HIT_Z + P.back));
+      const tl = new THREE.Vector3((charX * 0.2 + ballX * P.followBall * 0.6) * (1 - b) + ballX * P.followBall * 0.6 * b, P.lookY, -s * P.lookZ);
       if (!camInit) { camPos.copy(tp); camLook.copy(tl); camInit = true; }
       const k = 1 - Math.exp(-dt * P.lerp);
       camPos.lerp(tp, k);
@@ -290,6 +299,7 @@ export function makeCharacter(paddleColor) {
   body.add(arm);
   const handle = add(new THREE.BoxGeometry(0.025, 0.1, 0.02), new THREE.MeshLambertMaterial({ color: '#c99560' }), 0, 0.05, -0.4, arm);
   const paddleMat = new THREE.MeshLambertMaterial({ color: paddleColor });
+  const setPaddleColor = (color) => paddleMat.color.set(color);
   const blade = add(new THREE.CylinderGeometry(0.078, 0.078, 0.012, 20), [paddleMat, paddleMat, new THREE.MeshLambertMaterial({ color: '#222' })], 0, 0.15, -0.4, arm);
   blade.rotation.x = Math.PI / 2;
   const setOpacity = (bodyOp, paddleOp) => {
@@ -308,8 +318,48 @@ export function makeCharacter(paddleColor) {
       }
     });
   };
-  return { group, body, arm, head, handle, blade, swingT: -1, setOpacity };
+  // 머리 위 이름표 (2v2). text가 없으면 숨김, on이면 '다음에 칠 사람'으로 노랗게 강조
+  let tag = null;
+  const setTag = (text, on = false) => {
+    const key = text ? `${text}/${on}` : '';
+    if (group.userData.tag === key) return;
+    group.userData.tag = key;
+    if (!text) { if (tag) tag.visible = false; return; }
+    if (!tag) {
+      const c = document.createElement('canvas');
+      c.width = 512; c.height = 128;
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      // 거리와 상관없이 화면에서 같은 크기로 보이게 (sizeAttenuation 끔)
+      tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
+      tag.renderOrder = 20;
+      tag.scale.set(0.15, 0.0375, 1);
+      tag.position.set(0, 1.52, 0);
+      group.add(tag);
+    }
+    const c = tag.material.map.image;
+    const g = c.getContext('2d');
+    g.clearRect(0, 0, c.width, c.height);
+    g.font = 'bold 64px Jua, sans-serif';
+    const w = Math.min(500, g.measureText(text).width + 56);
+    g.fillStyle = on ? 'rgba(255,214,61,0.95)' : 'rgba(43,42,51,0.55)';
+    g.beginPath();
+    g.roundRect((c.width - w) / 2, 14, w, 100, 50);
+    g.fill();
+    g.fillStyle = on ? '#2b2a33' : '#ffffff';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(text, c.width / 2, 68, 470);
+    tag.material.map.needsUpdate = true;
+    tag.visible = true;
+  };
+  return { group, body, arm, head, handle, blade, swingT: -1, setOpacity, setPaddleColor, setTag };
 }
+
+// 탁구채 색: 지금은 모두 빨강 (나중에 꾸미기에서 색·모양을 바꿀 수 있게 할 예정)
+export const PADDLE_COLOR = { me: '#e0333c', mate: '#e0333c', opp: '#e0333c' };
+// 캐릭터가 서는 기본 위치 (테이블 중심에서의 거리)
+export const CHAR_Z = HIT_Z + 0.42;
 
 // 라켓이 몸 기준 어디에 오는지 (준비 자세 기준 오프셋)
 export const PADDLE_OFFSET = { right: 0.38, fwd: 0.42 };

@@ -17,6 +17,7 @@
     <div id="stats"></div>
     <div id="hint"></div>
     <div id="judge"></div>
+    <div id="turn"></div>
     <div id="toast"></div>
     <button id="exit" class="small">로비로</button>
   </div>
@@ -30,7 +31,7 @@
       </label>
       <button id="btn-wall" class="big">🏓 혼자 벽치기 연습</button>
       <div class="row">
-        <button id="btn-create">방 만들기 (1v1)</button>
+        <button id="btn-create">방 만들기</button>
         <button id="btn-join">코드로 입장</button>
       </div>
       <p class="note soon" id="mode-note"></p>
@@ -69,6 +70,13 @@
       <p class="sub center">방 코드</p>
       <div class="code-row"><div id="room-code" class="code">----</div><button id="btn-copy" class="small">복사</button></div>
       <p id="room-result" class="result hidden"></p>
+      <div id="mode-pick" class="row seg"><button data-mode="1v1">1v1</button><button data-mode="2v2">2v2</button></div>
+      <p id="mode-pick-note" class="note tiny"></p>
+      <div id="teams" class="teams hidden">
+        <div class="team t0"><h3>A팀</h3><ul id="team-0" class="members"></ul><button id="btn-team-0" class="small">A팀 고르기</button></div>
+        <div class="team t1"><h3>B팀</h3><ul id="team-1" class="members"></ul><button id="btn-team-1" class="small">B팀 고르기</button></div>
+      </div>
+      <p id="room-members-title" class="note tiny"></p>
       <ul id="room-members" class="members"></ul>
       <p id="room-tip" class="note"></p>
       <button id="btn-ready" class="big">준비!</button>

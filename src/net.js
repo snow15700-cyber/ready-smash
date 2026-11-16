@@ -6,6 +6,12 @@ const URL = import.meta.env.VITE_SUPABASE_URL;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 export const ONLINE = !!(URL && KEY);
 
+// Vercel 미리보기(테스트 브랜치) 배포에서는 방 채널 이름을 따로 써서 실제 게임 방과 섞이지 않게 한다.
+// (Vercel이 Vite 프로젝트에 VITE_VERCEL_ENV = production | preview | development 를 자동으로 넣어 준다)
+const VERCEL_ENV = import.meta.env.VITE_VERCEL_ENV;
+export const IS_TEST = !!VERCEL_ENV && VERCEL_ENV !== 'production';
+const ROOM_PREFIX = IS_TEST ? 'pingpong-test-room-' : 'pingpong-room-';
+
 let client = null;
 function getClient() {
   if (!client) client = createClient(URL, KEY, { realtime: { params: { eventsPerSecond: 40 } } });
@@ -28,7 +34,7 @@ export function joinRoom(code, me, handlers) {
 }
 
 function joinSupabase(code, me, h) {
-  const ch = getClient().channel(`pingpong-room-${code}`, {
+  const ch = getClient().channel(`${ROOM_PREFIX}${code}`, {
     config: { broadcast: { self: false, ack: false }, presence: { key: me.id } },
   });
   ch.on('broadcast', { event: 'm' }, ({ payload }) => h.onMsg(payload));
@@ -53,10 +59,12 @@ function joinSupabase(code, me, h) {
 
 // 로컬 테스트: BroadcastChannel + 1초마다 '나 여기 있어요' 신호로 접속자 목록을 만든다
 function joinLocal(code, me, h) {
-  const bc = new BroadcastChannel(`pingpong-room-${code}`);
+  const bc = new BroadcastChannel(`${ROOM_PREFIX}${code}`);
   const lag = Number(new URLSearchParams(location.search).get('lag') || 0) / 1000; // 지연 흉내 (ms)
   const members = new Map();
   const seen = new Map();
+  let closed = false;
+  const post = (d) => { if (!closed) bc.postMessage(d); };
   members.set(me.id, me);
   let lastKey = '';
   const emitMembers = () => {
@@ -68,25 +76,25 @@ function joinLocal(code, me, h) {
     const d = e.data;
     if (d.k === '_hb') {
       seen.set(d.me.id, performance.now());
-      if (!members.has(d.me.id)) { members.set(d.me.id, d.me); emitMembers(); bc.postMessage({ k: '_hb', me }); }
+      if (!members.has(d.me.id)) { members.set(d.me.id, d.me); emitMembers(); post({ k: '_hb', me }); }
     } else if (d.k === '_bye') {
       members.delete(d.id); seen.delete(d.id); emitMembers();
     } else h.onMsg(d);
   };
   const hb = setInterval(() => {
-    bc.postMessage({ k: '_hb', me });
+    post({ k: '_hb', me });
     const now = performance.now();
     for (const [id, t] of seen) if (now - t > 3500) { members.delete(id); seen.delete(id); }
     emitMembers();
   }, 1000);
-  setTimeout(() => { bc.postMessage({ k: '_hb', me }); h.onStatus('ok'); emitMembers(); }, 50);
-  const bye = () => bc.postMessage({ k: '_bye', id: me.id });
+  setTimeout(() => { if (closed) return; post({ k: '_hb', me }); h.onStatus('ok'); emitMembers(); }, 50);
+  const bye = () => post({ k: '_bye', id: me.id });
   window.addEventListener('beforeunload', bye);
   return {
     send(payload) {
-      if (lag) setTimeout(() => bc.postMessage(payload), lag * 1000);
-      else bc.postMessage(payload);
+      if (lag) setTimeout(() => post(payload), lag * 1000);
+      else post(payload);
     },
-    leave() { bye(); clearInterval(hb); bc.close(); window.removeEventListener('beforeunload', bye); },
+    leave() { bye(); closed = true; clearInterval(hb); bc.close(); window.removeEventListener('beforeunload', bye); },
   };
 }
