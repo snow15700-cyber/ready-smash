@@ -174,7 +174,6 @@ const SHOT = {
   good:    { T: 0.62, depth: 0.95, aim: 0.5, jit: 0.15 },
   bad:     { T: 0.98, depth: 0.5, aim: 0.3, jit: 0.22 },
   block:   { T: 0.85, depth: 0.62, aim: 0.38, jit: 0.08 },
-  wall:    { T: 0.66, depth: 1.0, aim: 0.45, jit: 0.25 },
   out:     { T: 0.6, depth: 1.95, aim: 0.45, jit: 0.2 }, // 스매시를 어설프게 받음: 테이블 끝을 넘겨 아웃
 };
 
@@ -186,12 +185,10 @@ export function planShot(from, hitter, grade, dir, seed, serve = false, speed = 
   const cfg = SHOT[grade];
   const rs = sideSign(1 - hitter); // 받는 쪽 z 부호
   const mirror = hitter === 0 ? 1 : -1;
-  let x;
-  if (grade === 'wall') x = (r() * 2 - 1) * cfg.aim;
-  else x = dir * cfg.aim * mirror + (r() * 2 - 1) * cfg.jit;
+  let x = dir * cfg.aim * mirror + (r() * 2 - 1) * cfg.jit;
   x = Math.max(-0.66, Math.min(0.66, x));
   const target = [x, TY + R, rs * cfg.depth];
-  let T = (cfg.T + (serve ? 0.1 : 0) + (grade === 'wall' ? r() * 0.12 : 0)) / speed;
+  let T = (cfg.T + (serve ? 0.1 : 0)) / speed;
   let v;
   for (let k = 0; k < 25; k++) {
     v = [

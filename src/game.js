@@ -12,7 +12,7 @@ const PRE = 0.15;
 const RING = { minDist: 1.1, safe: 3, pad: 0.03 };
 // 찬스볼 신호음 간격(초): 칠 타이밍 3박 전부터 똑·똑·똑, 그 타이밍에 높은 '띵'
 const CUE_GAP = 0.3;
-// 몰입 연출(에코·어두워짐): 랠리 FOCUS.from회부터 서서히, FOCUS.to회에 최대. 점수가 나면 약 1초에 걸쳐 원래대로 (벽치기 제외)
+// 몰입 연출(에코·어두워짐): 랠리 FOCUS.from회부터 서서히, FOCUS.to회에 최대. 점수가 나면 약 1초에 걸쳐 원래대로 
 const FOCUS = { from: 6, to: 15, up: 0.6, down: 1 };
 const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 
@@ -52,18 +52,18 @@ export class Game {
     this.tossX = 0;
     this.pendingHit = null; // 클릭 후 방향 판단을 기다리는 타격
     this.holdPos = null;
-    world.wall.visible = mode === 'wall';
     // 내 캐릭터는 반투명 (공과 상대가 가려지지 않게). 채 색: 나 빨강, 팀원, 상대 파랑
     for (const side of [0, 1]) for (const slot of [0, 1]) {
       const c = world.team[side][slot];
       const isMe = side === mySide && slot === mySlot;
-      c.group.visible = slot === 0 ? !(mode === 'wall' && side === 1) : mode === '2v2';
+      c.group.visible = slot === 0 || mode === '2v2';
       c.setOpacity(isMe ? 0.38 : 1, isMe ? 0.9 : 1);
       c.fade = isMe ? null : 1; // 카메라 바로 옆에 오면 흐리게 (2v2에서 뒤로 물러난 팀원)
       c.setPaddleColor(isMe ? PADDLE_COLOR.me : side === mySide ? PADDLE_COLOR.mate : PADDLE_COLOR.opp);
       c.group.position.z = sideSign(side) * CHAR_Z;
       c.setTag(null);
     }
+    if (mode === 'ai') world.team[1][0].setTag(names[1]); // AI 이름표
 
     this.onMove = (e) => {
       const t = e.timeStamp / 1000 + this.offset;
@@ -171,7 +171,7 @@ export class Game {
     const { dir, up } = this.readStroke(h.t, h.x, h.y);
     const grade = judge(h.t - ex.t, up);
     if (!up) this.charOf(me, this.mySlot).swingBlock = true;
-    const smash = this.mode !== 'wall' && this.net.incoming === 'chance' && grade === 'perfect';
+    const smash = this.net.incoming === 'chance' && grade === 'perfect';
     this.hud.judge(grade, (smash ? 'SMASH!' : ({ perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK' })[grade]) + ARROW[dir]);
     if (grade === 'perfect') {
       this.stats.perfectStreak++;
@@ -200,7 +200,7 @@ export class Game {
 
   // 몰입 연출: 랠리가 길어질수록 에코가 커지고 배경이 어두워진다. 천천히 따라가고, 점수가 나면 빠르게 돌아온다
   updateFocus(dt) {
-    const r = this.mode === 'wall' ? 0 : this.focusRally;
+    const r = this.focusRally;
     const target = Math.max(0, Math.min(1, (r - FOCUS.from) / (FOCUS.to - FOCUS.from)));
     const rate = target > this.focus ? FOCUS.up : FOCUS.down;
     this.focus += Math.sign(target - this.focus) * Math.min(Math.abs(target - this.focus), rate * dt);
@@ -235,7 +235,7 @@ export class Game {
         this.net.seed = ev.seed;
         this.net.nextIdx = ev.shotIdx || 0;
         this.score = ev.score;
-        if (this.mode !== 'wall') this.hud.score(this.score);
+        if (this.mode !== 'ai') this.hud.score(this.score);
         break;
       case 'serveReady':
         this.phase = 'serve';
@@ -292,11 +292,12 @@ export class Game {
           this.hud.toast('찬스볼! 소리에 맞춰 쳐 보세요');
           this.playCue(this.expect.t);
         } else if (ev.kind === 'smash' && !mine) this.hud.toast('스매시!');
+        else if (ev.kind === 'out' && !mine && this.mode === 'ai') this.hud.toast(`${this.names[1]}의 공이 밖으로!`);
         if (mine) {
           this.stats.rally = ev.rally;
           this.hud.hint('');
         }
-        this.stats.rally = this.mode === 'wall' ? Math.ceil(ev.rally / 2) : ev.rally;
+        this.stats.rally = this.mode === 'ai' ? Math.ceil(ev.rally / 2) : ev.rally;
         this.hud.stats(this.stats);
         if (ev.speedLv > (this.speedLv || 0)) this.hud.toast(`속도 UP! Lv.${ev.speedLv + 1}`);
         this.speedLv = ev.speedLv;
@@ -304,6 +305,7 @@ export class Game {
       }
       case 'whiff':
         if (this.expect && this.expect.side === ev.side && this.expect.slot === (ev.slot ?? 0)) this.expect.whiffed = true;
+        if (!this.isMe(ev.side, ev.slot ?? 0)) this.charOf(ev.side, ev.slot ?? 0).swingT = performance.now() / 1000;
         break;
       case 'miss':
         if (this.predicted && this.isMe(ev.side, ev.slot ?? 0)) {
@@ -318,7 +320,7 @@ export class Game {
         if (this.isMe(ev.side, ev.slot ?? 0)) {
           this.hud.judge('miss');
           this.stats.perfectStreak = 0;
-        }
+        } else if (this.mode === 'ai') this.hud.toast(`${this.names[1]}이 놓쳤어요!`);
         break;
       case 'serveMiss':
         this.expect = null;

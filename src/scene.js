@@ -44,10 +44,7 @@ export function createWorld(canvas) {
   let focusK = 0;
   buildTable(scene);
 
-  const wall = buildWall();
-  scene.add(wall);
-
-  // team[side][slot]: 2v2용으로 한쪽에 두 명씩. chars = 각 쪽 1번 선수 (1v1·벽치기용)
+  // team[side][slot]: 2v2용으로 한쪽에 두 명씩. chars = 각 쪽 1번 선수 (1v1·AI용)
   const team = [0, 1].map((side) => [0, 1].map((slot) => {
     const c = makeCharacter(side === 0 ? PADDLE_COLOR.me : PADDLE_COLOR.opp);
     c.group.position.set(0, 0, sideSign(side) * CHAR_Z);
@@ -102,7 +99,7 @@ export function createWorld(canvas) {
   let camInit = false;
 
   return {
-    renderer, scene, camera, chars, team, ball, shadow, ring, ringMove, aim, wall,
+    renderer, scene, camera, chars, team, ball, shadow, ring, ringMove, aim,
     shake: 0,
     // 몰입 정도 k (0~1): 체육관을 어둡게 해서 선수·탁구대·공만 보이게
     setFocus(k) {
@@ -279,24 +276,6 @@ function buildTable(scene) {
     post.position.set(x, TY + NET_H / 2, 0);
     scene.add(post);
   }
-}
-
-function buildWall() {
-  const g = new THREE.Group();
-  const tex = canvasTex(512, 320, (c, w, h) => {
-    c.fillStyle = '#4f9a6a'; c.fillRect(0, 0, w, h);
-    c.strokeStyle = '#ffffff'; c.lineWidth = 8; c.strokeRect(10, 10, w - 20, h - 20);
-  });
-  const board = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.6, 0.06), [mat('#3c7a52'), mat('#3c7a52'), mat('#3c7a52'), mat('#3c7a52'), new THREE.MeshLambertMaterial({ map: tex }), mat('#3c7a52')]);
-  board.position.set(0, 1.45, -(HIT_Z + 0.05));
-  board.receiveShadow = true;
-  g.add(board);
-  for (const x of [-1.2, 1.2]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), mat('#2b2f3a'));
-    leg.position.set(x, 0.35, -(HIT_Z + 0.05));
-    g.add(leg);
-  }
-  return g;
 }
 
 // 단순한 흰색 캐릭터 (앞쪽 = -z): 몸통 + 머리 + 떠 있는 탁구채
