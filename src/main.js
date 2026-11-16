@@ -30,16 +30,27 @@ if (!ONLINE) $('login-offline').classList.remove('hidden');
 const GRADE_TEXT = { perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK', miss: 'MISS' };
 let toastTimer = 0;
 
+let lastScore = null; // 점수가 바뀐 쪽 숫자만 통통 튀게
+let resultTimer = 0;
 const hud = {
   score(s, deuce) {
     if (!game) return;
     const me = game.mySide, op = 1 - me;
-    $('scoreboard').innerHTML = `<small>${game.mode === '2v2' ? '우리 팀' : '나'}</small> ${s[me]} : ${s[op]} <small>${esc(game.names[op])}</small>${deuce ? ' <em>듀스!</em>' : ''}`;
+    const bump = (side) => (lastScore && lastScore[side] !== s[side] ? ' bump' : '');
+    $('scoreboard').innerHTML = `<div class="sb t${me}"><span>${game.mode === '2v2' ? '우리 팀' : '나'}</span><b class="${bump(me)}">${s[me]}</b></div>`
+      + '<i class="sb-colon">:</i>'
+      + `<div class="sb t${op}"><b class="${bump(op)}">${s[op]}</b><span>${esc(game.names[op])}</span></div>`
+      + (deuce ? '<em class="sb-deuce">듀스!</em>' : '');
+    lastScore = [...s];
   },
   stats(st) {
     if (!game) return;
-    if (game.mode === 'ai') $('stats').innerHTML = `랠리<br><b>${st.rally}</b><br>최고 ${st.best} · Perfect ${st.perfects}${account.loggedIn ? `<br>🪙 +${aiCoins}` : ''}`;
-    else $('stats').innerHTML = `랠리<br><b>${st.rally}</b>`;
+    const hot = st.rally >= 6 ? ' hot' : ''; // 랠리 6회부터 몰입 연출과 함께 🔥
+    let html = `<div class="st-rally${hot}"><span>${hot ? '🔥 ' : ''}랠리</span><b>${st.rally}</b></div>`;
+    if (game.mode === 'ai') {
+      html += `<div class="st-sub"><span>🏅 최고 ${st.best}</span><span>✨ Perfect ${st.perfects}</span>${account.loggedIn ? `<span class="coin">🪙 +${aiCoins}</span>` : ''}</div>`;
+    }
+    $('stats').innerHTML = html;
   },
   hint(text) { $('hint').textContent = text; },
   turn(text) {
@@ -65,7 +76,13 @@ const hud = {
   },
   gameOver(win, score) {
     const me = game.mySide;
-    hud.toast(win ? `승리! ${score[me]} : ${score[1 - me]}` : `패배… ${score[me]} : ${score[1 - me]}`, 2600);
+    // 가운데 큰 결과 띠 (약 2.6초 뒤 대기실로)
+    const el = $('result');
+    el.className = win ? 'win' : 'lose';
+    $('result-title').textContent = win ? '🏆 승리!' : '😢 아쉬워요';
+    $('result-score').textContent = `${score[me]} : ${score[1 - me]}`;
+    clearTimeout(resultTimer);
+    resultTimer = setTimeout(() => el.classList.add('hidden'), 2700);
     if (room) {
       saveResult(room.mode, win, game.stats);
       room.result = win ? `🏆 승리! ${score[me]} : ${score[1 - me]}` : `😢 패배 ${score[me]} : ${score[1 - me]}`;
@@ -101,6 +118,8 @@ function stopGame() {
   $('hint').textContent = '';
   $('stats').textContent = '';
   $('scoreboard').textContent = '';
+  $('result').classList.add('hidden');
+  lastScore = null;
 }
 
 /* ───────── 혼자 하기 (AI 상대) ───────── */
@@ -843,11 +862,6 @@ const SHOP_MSG = {
   no_session: '로그인이 풀렸어요. 다시 로그인해 주세요',
 };
 const CAT_ICON = { paddle: '🏓', head: '🎩', body: '👕', trail: '✨', table: '🟦', bg: '🏟️', ball: '⚪' };
-// 탁구채마다 칠 때 나는 소리 (items.js의 sound → audio.js의 HIT_SKINS)
-const SOUND_TEXT = {
-  bread: '빵처럼 푸석', melon: '수박 베어 무는 소리', fish: '고등어 철썩', plastic: '플라스틱 톡', sponge: '수세미 푸석',
-  pan: "프라이팬 '댕~'", guitar: '통기타 화음', keyboard: "키보드 '찰칵'", mouse: "마우스 '딸깍'", phone: "'톡' + 알림음", duck: "고무 오리 '꽥'", hammer: "뿅망치 '뿅'",
-};
 
 function needLogin() {
   if (account.loggedIn) return false;
@@ -965,7 +979,7 @@ function renderSpot() {
   $('spot-grade').textContent = gradeName(it.grade);
   $('spot-name').textContent = it.name;
   const status = isOn ? '장착 중' : have ? '가지고 있어요' : '입어 보는 중';
-  const snd = it.cat === 'paddle' ? ` · 🔊 ${SOUND_TEXT[it.sound] || '기본 타구음'}` : '';
+  const snd = it.sound ? ' · 🔊 특별한 소리' : ''; // 소리 이름은 보여 주지 않는다 (사용자 결정)
   $('spot-desc').textContent = status + snd;
   let acts = '';
   if (isOn) acts += '<span class="pill">✓ 장착 중</span>';
