@@ -1,4 +1,5 @@
 import { createWorld, CHAR_Z } from './scene.js';
+import { createLobbyDemo, LOBBY_CAM } from './lobbyDemo.js';
 import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, setEcho } from './audio.js';
@@ -9,6 +10,7 @@ import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLoo
 
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('c'));
+const lobbyDemo = createLobbyDemo();
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 if (IS_TEST) {
@@ -542,7 +544,22 @@ function renderMe() {
   $('me-stats').innerHTML = p
     ? `<span>1v1 <b>${p.wins_1v1}승</b></span><span>2v2 <b>${p.wins_2v2}승</b></span><span>최장 랠리 <b>${p.best_rally}</b></span>` // 패 수는 보여 주지 않는다 (사용자 결정, 상대 전적만 승패 둘 다)
     : '<span class="guest">손님은 전적·코인이 저장되지 않아요</span>';
+  $('me-menu').classList.add('hidden');
+  $('howto').classList.add('hidden');
 }
+
+// 로비: ⚙️ 내 계정 메뉴 (PIN 바꾸기·로그아웃), ❓ 치는 방법 창
+$('btn-me-menu').addEventListener('click', (e) => {
+  e.stopPropagation();
+  playUI('click');
+  $('me-menu').classList.toggle('hidden');
+});
+document.addEventListener('click', (e) => {
+  if (!$('me-menu').contains(e.target)) $('me-menu').classList.add('hidden');
+});
+$('btn-howto').addEventListener('click', () => { playUI('click'); $('howto').classList.remove('hidden'); });
+$('btn-howto-close').addEventListener('click', () => { playUI('click'); $('howto').classList.add('hidden'); });
+$('howto').addEventListener('click', (e) => { if (e.target === $('howto')) $('howto').classList.add('hidden'); });
 const showLobby = () => show('lobby');
 
 // 로그인하면 하루 첫 접속 코인 받기 (한국 시간으로 하루 한 번)
@@ -1035,24 +1052,26 @@ function loop() {
   if (game) game.update(now + game.offset);
   else if (preview) previewFrame(now);
   else {
-    // 로비 배경: 천천히 도는 카메라
+    // 로비 배경: 두 캐릭터가 랠리를 주고받고, 카메라는 옆에서 천천히 흔들린다
     world.setFocus(0);
     setEcho(0);
-    const a = now * 0.08;
-    world.camera.position.set(Math.sin(a) * 4.2, 2.4, Math.cos(a) * 4.2);
-    world.camera.lookAt(0, 0.8, 0);
-    world.setBall([0, -1, 0], false);
+    const L = LOBBY_CAM;
+    const a = L.angle + Math.sin(now * L.speed) * L.sway;
+    world.camera.position.set(Math.sin(a) * L.dist, L.y, Math.cos(a) * L.dist);
+    world.camera.lookAt(0, L.lookY, 0);
+    // 메뉴가 왼쪽에 있으니 탁구대를 화면 오른쪽으로 비켜 보이게 (카메라를 옆으로 민다)
+    if (innerWidth >= 760) world.camera.translateX(-L.shift * Math.min(1, innerWidth / innerHeight / 1.6));
     world.ring.visible = false;
     world.aim.visible = false;
     applyLook(world.team[0][0], myEquip());
     applyLook(world.team[1][0], {});
-    world.team[0][0].group.rotation.y = 0;
-    world.team[0][0].group.position.set(0, 0, CHAR_Z);
     for (const side of [0, 1]) {
       world.team[side][0].group.visible = true;
       world.team[side][0].setOpacity(1, 1);
+      world.team[side][0].setTag(null);
       world.team[side][1].group.visible = false;
     }
+    lobbyDemo.update(now, world.chars, world);
   }
   world.render();
   requestAnimationFrame(loop);

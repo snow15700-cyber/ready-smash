@@ -125,33 +125,49 @@
     </div>
   </div>
 
-  <div id="lobby" class="screen hidden">
-    <div class="panel">
-      <h1>준비하시고,<br /><span>스매시!</span></h1>
-      <p class="sub">마우스 하나로 즐기는 ASMR 탁구</p>
-      <div class="me-bar">
-        <span id="me-name" class="me-name"></span>
-        <span id="me-coins" class="me-coins hidden"></span>
-        <button id="btn-pin" class="small">PIN 바꾸기</button>
-        <button id="btn-logout" class="small">로그아웃</button>
-      </div>
-      <div id="me-stats" class="me-stats"></div>
-      <button id="btn-ai" class="big">🏓 혼자 하기 (AI 상대)</button>
-      <div class="row">
-        <button id="btn-create-1v1">1v1 방 만들기</button>
-        <button id="btn-create-2v2">2v2 방 만들기</button>
-      </div>
-      <div class="row">
-        <button id="btn-join">코드로 입장</button>
-        <button id="btn-rank">🏆 랭킹</button>
-      </div>
-      <div class="row">
-        <button id="btn-shop">🛍️ 상점</button>
-        <button id="btn-closet">👕 옷장</button>
+  <div id="lobby" class="screen lobby hidden">
+    <!-- 왼쪽: 제목 + 놀이 메뉴 -->
+    <div class="lb-left">
+      <h1 class="logo">준비하시고,<span>스매시!</span></h1>
+      <p class="lb-sub">마우스 하나로 즐기는 ASMR 탁구</p>
+      <button id="btn-ai" class="big lb-play"><span class="lb-ico">🏓</span>혼자 하기<small>AI 탁구왕 김제빵과 연습</small></button>
+      <div class="lb-friends">
+        <div class="lb-label">👥 친구랑 하기</div>
+        <div class="row">
+          <button id="btn-create-1v1" class="blue">1 대 1<small>방 만들기</small></button>
+          <button id="btn-create-2v2" class="blue">2 대 2<small>방 만들기</small></button>
+        </div>
+        <button id="btn-join">🔑 코드로 입장</button>
       </div>
       <p class="note soon" id="mode-note"></p>
+    </div>
+
+    <!-- 오른쪽 위: 내 정보 -->
+    <div class="lb-me">
+      <div class="me-chip">
+        <span id="me-name" class="me-name"></span>
+        <span id="me-coins" class="me-coins hidden"></span>
+        <button id="btn-me-menu" class="gear" title="내 계정">⚙️</button>
+        <div id="me-menu" class="me-menu hidden">
+          <button id="btn-pin" class="small">🔒 PIN 바꾸기</button>
+          <button id="btn-logout" class="small">로그아웃</button>
+        </div>
+      </div>
+      <div id="me-stats" class="me-stats"></div>
+    </div>
+
+    <!-- 오른쪽 아래: 랭킹·상점·옷장 -->
+    <div class="lb-icons">
+      <button id="btn-rank" class="icon-btn"><i>🏆</i>랭킹</button>
+      <button id="btn-shop" class="icon-btn"><i>🛍️</i>상점</button>
+      <button id="btn-closet" class="icon-btn"><i>👕</i>옷장</button>
+    </div>
+
+    <!-- 왼쪽 아래: 치는 방법 -->
+    <button id="btn-howto" class="lb-help">❓ 치는 방법</button>
+    <div id="howto" class="howto-pop hidden">
       <div class="howto">
-        <b>치는 방법은 딱 하나!</b>
+        <b class="howto-title">치는 방법은 딱 하나!</b>
         <div class="swing-demo">
           <div class="mouse">🖱️<span class="drag">⬆</span></div>
           <p><b>마우스를 누른 채로<br />위로 쓱 밀어 올리기</b></p>
@@ -164,8 +180,9 @@
           <li>서브: 한 번 클릭하면 공이 떠요 → 떨어질 때 똑같이 밀기</li>
           <li>캐릭터는 자동으로 움직여요. 밀지 않고 누르기만 하면 약한 블록</li>
         </ul>
+        <p class="note">🎧 이어폰을 끼고 즐겨 보세요</p>
+        <button id="btn-howto-close" class="big">알겠어요!</button>
       </div>
-      <p class="note">🎧 이어폰을 끼고 즐겨 보세요</p>
     </div>
   </div>
 
