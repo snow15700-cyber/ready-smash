@@ -41,7 +41,7 @@
   - 로컬 테스트에서 탭마다 다른 계정: 주소에 `?acct=2`(로그인 열쇠를 따로 보관).
 - 3단계 랭킹: `supabase/03_ranking.sql`의 `pingpong_ranking('wins'|'rally')`(로그인 없이 호출, 닉네임과 숫자만, 상위 50, 같은 기록은 공동 등수). 로비 '🏆 랭킹' 버튼 → `#rank` 화면(승수/최장 랠리 탭, 1~3위 메달, 내 줄 강조). `main.js`의 `showRank`.
 - 알려진 문제: Vercel 미리보기(test)에서 Supabase 환경 변수가 안 들어가 '테스트 모드' 경고가 뜬다(사용자가 Preview 체크했는데도 원인 미해결). 서버 기능은 main 배포에서 확인.
-- 새 SQL은 `07_...sql`처럼 새 파일로 추가. SQL은 로컬 PostgreSQL 16으로 먼저 시험할 수 있다(`service postgresql start`, `extensions` 스키마와 `anon` 역할을 만들어 흉내).
+- 새 SQL은 `08_...sql`처럼 새 파일로 추가. SQL은 로컬 PostgreSQL 16으로 먼저 시험할 수 있다(`service postgresql start`, `extensions` 스키마와 `anon` 역할을 만들어 흉내).
 
 ## 상점·꾸미기 (① 코인, ② 상점·옷장 완료 — test에서 사용자 테스트 중)
 - 설계는 기획서 4장. 순서: ① 코인 벌기 → ② 상점·옷장 화면 → ③ 카테고리 하나씩(탁구채부터). 단계마다 사용자 테스트.
@@ -55,6 +55,11 @@
 - **② 상점·옷장**: `supabase/06_shop.sql`(05 다음). 표 `pingpong_items`(서버 쪽 아이템 목록: id·pool·cat·grade·on_sale)·`pingpong_inventory`, 선수에 `pieces`·`pity_char`·`pity_arena`·`equip`(jsonb). 함수 `pingpong_shop`·`gacha(pool, 1|10)`·`buy(item, 'coins'|'pieces')`·`equip(cat, item|null)`. 뽑기는 서버 `random()`, 그 등급에 아이템이 없으면 있는 등급에서. 기본 아이템(`DEFAULTS`)은 표에 없고 장착 해제 = 기본.
   - **아이템 목록은 두 곳**: `src/items.js`(이름·색·모양, `GRADES`·`CATS`·`POOLS`)와 06_shop.sql의 insert. 추가할 때 둘 다 고친다(SQL은 새 파일로 insert만 해도 됨).
   - 지금 아이템: 탁구채 색 일반 5종(파랑·초록·노랑·검정·분홍) + 고급 2종(황금·네온, 빛남). 경기장 뽑기는 비어 있어 '곧 열려요'.
+- **③ 탁구채 1차 (test에서 사용자 테스트 중)**: 사용자 확정 = 옷장에 바로 넣기, 탁구채를 두 번에 나눔(1차 무늬+개그 15종, 2차 전설 7종 + 전용 타구음). 몸은 한 칸(한 벌씩, 몸통에 색·무늬 칠하기).
+  - 무늬 4종(줄무늬·물방울·하트·번개) **일반**, 개그 15종(식빵·바게트·도넛·피자·수박·와플·고등어·밥주걱·삼선 슬리퍼·파리채·태극 부채·수세미·탁구 교재·칠판지우개·도마) **고급** — 등급은 Claude가 정한 초안. `supabase/07_paddles.sql`(06 다음).
+  - 구현: 아이템의 `model` → `items.js`의 `PADDLE_MODELS`(판 가운데 = 원점, 면 ±z, +z가 내 쪽, 손잡이 -y). `applyLook`은 바뀐 게 없으면 아무것도 안 함(미리보기에서 매 프레임 불림) → `char.setPaddleModel(group|null)`(scene.js, 불투명도 다시 적용). 탁구채 부품은 반투명이어도 depthWrite.
+  - 목록 그림: `paddleImage(it, px)`가 작은 WebGL로 3D 탁구채를 찍어 data URL로 캐시 → `swatch`.
+  - 다른 카테고리용 모형 시안(모자·몸 칠하기·공 궤적)이 커밋 8a2c2f8(`src/items.js`, 원격 브랜치 `claude/nice-franklin-robva2`)에 있음. 해당 카테고리를 만들 때 옮겨 쓴다.
   - 화면: 로비 '🛍️ 상점'/'👕 옷장'(손님은 안내 토스트). `#shop`(캐릭터 뽑기/경기장 뽑기/골라 사기 탭, 카드가 차례로 뒤집히며 `playUI('card'|'rare'|'legend')`, 사기는 두 번 눌러야 삼), `#closet`(카테고리 탭, 가진 것 클릭 = 바로 장착, 없는 것 = 🔒 입어 보기만). 둘 다 `.screen.side`로 패널이 오른쪽, 왼쪽에 내 캐릭터 미리보기(`previewFrame`, 카메라 `PV`).
   - 꾸미기 적용: `items.applyLook(char, equip)` → `char.setPaddle`. 방에서는 presence의 `look`(입장할 때의 장착)을 `looks()`로 모아 `Game`의 `looks[side][slot]`에. AI는 기본. 로비 배경 캐릭터도 내 장착.
   - 혼자 하기 코인(사용자 확정, 1v1·2v2 분당 코인의 약 50%): **내가 친 4번마다 1코인**. `supabase/05_ai_coins.sql`의 `pingpong_ai_start`(시작 시각)·`pingpong_ai_rally(hits)`(랠리 끝마다, 서버가 경과 초+1번까지만 인정, 나머지 `ai_rem` 이월). 화면은 `Game`의 `onRally` → `aiRally`, HUD에 `🪙 +N`, 나갈 때 토스트.

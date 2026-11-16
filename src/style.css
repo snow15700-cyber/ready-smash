@@ -198,3 +198,4 @@ button.big small { display: block; font-size: 15px; opacity: .9; }
 .item-grid li.locked .nm { color: #a89a86; }
 .item-grid li .badge { position: absolute; top: 4px; right: 6px; font-size: 12px; }
 .item-grid li.empty-msg { grid-column: 1 / -1; background: none; color: #8a7a66; cursor: default; }
+.sw.img { border-radius: 0; background: none; width: 44px; height: 44px; object-fit: contain; }

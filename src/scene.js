@@ -308,18 +308,44 @@ export function makeCharacter(paddleColor) {
   };
   const blade = add(new THREE.CylinderGeometry(0.078, 0.078, 0.012, 20), [paddleMat, paddleMat, new THREE.MeshLambertMaterial({ color: '#222' })], 0, 0.15, -0.4, arm);
   blade.rotation.x = Math.PI / 2;
+  // 모양이 다른 탁구채 (items.js의 makePaddle): 판 가운데가 기본 탁구채 판 자리. null이면 기본 탁구채
+  const custom = new THREE.Group();
+  custom.position.set(0, 0.15, -0.4);
+  arm.add(custom);
+  let lastOp = null;
+  const setPaddleModel = (model) => {
+    for (const o of [...custom.children]) {
+      custom.remove(o);
+      o.traverse((m) => {
+        if (m.geometry) m.geometry.dispose();
+        for (const mt of [].concat(m.material || [])) { if (mt.map) mt.map.dispose(); mt.dispose(); }
+      });
+    }
+    if (model) {
+      model.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+      custom.add(model);
+    }
+    handle.visible = blade.visible = !model;
+    if (lastOp) { group.userData.op = null; setOpacity(...lastOp); }
+  };
+  const isPaddlePart = (o) => {
+    for (let p = o; p; p = p.parent) if (p === custom) return true;
+    return o === handle || o === blade;
+  };
   const setOpacity = (bodyOp, paddleOp) => {
+    lastOp = [bodyOp, paddleOp];
     const key = bodyOp + '/' + paddleOp;
     if (group.userData.op === key) return;
     group.userData.op = key;
     group.traverse((o) => {
       if (!o.isMesh) return;
-      const isPaddle = o === handle || o === blade;
+      const isPaddle = isPaddlePart(o);
       const op = isPaddle ? paddleOp : bodyOp;
       for (const m of [].concat(o.material)) {
         m.transparent = op < 1;
         m.opacity = op;
-        m.depthWrite = op >= 1;
+        // 탁구채는 거의 불투명(0.9)이라 깊이를 써서 부품끼리 앞뒤가 맞게 보이게 한다
+        m.depthWrite = op >= 1 || isPaddle;
         m.needsUpdate = true;
       }
     });
@@ -359,7 +385,7 @@ export function makeCharacter(paddleColor) {
     tag.material.map.needsUpdate = true;
     tag.visible = true;
   };
-  return { group, body, arm, head, handle, blade, swingT: -1, setOpacity, setPaddleColor, setPaddle, setTag };
+  return { group, body, arm, head, handle, blade, swingT: -1, setOpacity, setPaddleColor, setPaddle, setPaddleModel, setTag };
 }
 
 // 탁구채 색: 지금은 모두 빨강 (나중에 꾸미기에서 색·모양을 바꿀 수 있게 할 예정)
