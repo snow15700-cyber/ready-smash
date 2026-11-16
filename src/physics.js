@@ -20,6 +20,8 @@ export const HOLD = 0.09;
 export const WIN = { perfect: 0.045, good: 0.1, bad: 0.17, whiff: 0.5 };
 
 const E_TABLE = 0.8;
+// 스매시는 상대 탁구대에 처음 맞을 때 덜 튀어서 낮고 빠르게 깔려 온다 (높이 뜨지 않게)
+export const E_SMASH = 0.4;
 const E_FLOOR = 0.72;
 
 export function posAt(seg, t) {
@@ -70,12 +72,22 @@ export function simulate(p, v, t0, ev, extra = {}, maxDur = 4) {
     const [vx, vy, vz] = s.v;
     let best = null;
 
-    // 테이블 윗면
-    if (y0 >= TY + R - 1e-4) {
+    // 테이블 윗면. 탁구대 높이보다 낮은 곳에서 친 공(낮은 스매시를 받을 때)도
+    // 탁구대 바깥에서 위로 떠올라 윗면 높이를 넘었다면 탁구대에 떨어질 수 있다
+    const inside = (x, z) => Math.abs(x) <= HALF_W + R && Math.abs(z) <= HALF_L + R;
+    let above = y0 >= TY + R - 1e-4;
+    if (!above && vy > 0) {
+      const disc = vy * vy - 2 * G * (TY + R - y0);
+      if (disc >= 0) {
+        const du = (vy - Math.sqrt(disc)) / G; // 위로 올라가며 윗면 높이를 지나는 순간
+        above = !inside(x0 + vx * du, z0 + vz * du);
+      }
+    }
+    if (above) {
       const d = timeToHeight(y0, vy, TY + R);
       if (d) {
         const x = x0 + vx * d, z = z0 + vz * d;
-        if (Math.abs(x) <= HALF_W + R && Math.abs(z) <= HALF_L + R) best = { d, type: 'table' };
+        if (inside(x, z)) best = { d, type: 'table' };
       }
     }
     // 네트
@@ -104,7 +116,8 @@ export function simulate(p, v, t0, ev, extra = {}, maxDur = 4) {
     let speed = Math.hypot(nv[0], nv[1], nv[2]);
     if (best.type === 'table') {
       np[1] = TY + R;
-      segs.push({ t0: t, p: np, v: [nv[0] * 0.98, -nv[1] * E_TABLE, nv[2] * 0.98], ev: 'table', speed });
+      const e = segs[0].smash && !segs.some((g) => g.ev === 'table') ? E_SMASH : E_TABLE;
+      segs.push({ t0: t, p: np, v: [nv[0] * 0.98, -nv[1] * e, nv[2] * 0.98], ev: 'table', speed });
     } else if (best.type === 'net') {
       np[2] = -Math.sign(vz) * 0.02;
       segs.push({ t0: t, p: np, v: [nv[0] * 0.3, Math.min(nv[1], 0) * 0.3, -nv[2] * 0.12], ev: 'net', speed });
