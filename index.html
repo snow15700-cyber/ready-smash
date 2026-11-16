@@ -77,15 +77,19 @@
   </div>
 
   <div id="rank" class="screen hidden">
-    <div class="panel">
-      <h2>🏆 랭킹</h2>
-      <div class="tabs">
-        <button id="rank-tab-wins" class="small on">승수</button>
-        <button id="rank-tab-rally" class="small">최장 랠리</button>
+    <div class="panel rank-panel">
+      <div class="rank-top">
+        <button id="btn-rank-back" class="small ghost">← 로비로</button>
+        <h2>🏆 랭킹</h2>
       </div>
-      <p id="rank-desc" class="note tiny-note"></p>
+      <div class="seg">
+        <button id="rank-tab-wins" class="on">🏓 승수</button>
+        <button id="rank-tab-rally">🔥 최장 랠리</button>
+      </div>
+      <p id="rank-desc" class="rank-desc"></p>
+      <div id="rank-podium" class="podium"></div>
       <ol id="rank-list" class="rank-list"></ol>
-      <button id="btn-rank-back">뒤로</button>
+      <div id="rank-me" class="rank-me"></div>
     </div>
   </div>
 
