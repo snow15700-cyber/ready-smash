@@ -36,6 +36,11 @@
 - 상대 PC는 자기 타격을 `computeShot`으로 먼저 계산해 보여 주고, 방장 결과가 오면 맞춘다. 방장은 원격 선수 입력을 0.45초 더 기다린다.
 - 매 프레임 `game.decideHit` → `match.update` → `game.update` 순서를 지킬 것(느린 PC에서 늦은 스윙이 버려지지 않게).
 
+## 배포 흐름 (사용자가 확정)
+- 새 작업은 **항상 `test` 브랜치에 먼저 올린다**(작업 브랜치에서 커밋 후 `git push origin HEAD:test`). Vercel 미리보기 주소에서 사용자가 테스트한다.
+- **`main`으로 합치는 건 사용자가 직접 한다.** Claude는 `main`에 push·merge하지 않는다.
+- 미리보기 배포(`VITE_VERCEL_ENV`가 production이 아님)에서는 상단에 '🧪 테스트 버전' 표시가 뜨고, 방 채널이 `pingpong-test-room-XXXX`로 분리된다(`src/net.js`의 `IS_TEST`).
+
 ## 환경 변수 / 배포
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`(publishable, 공개용). 로컬은 `.env.local`(git 제외), 배포는 Vercel 프로젝트 설정.
 - GitHub `main`에 올리면 Vercel이 자동 배포한다. 다른 브랜치는 미리보기(Preview) 주소가 생긴다.
