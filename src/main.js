@@ -2,7 +2,7 @@ import { createWorld } from './scene.js';
 import { Game } from './game.js';
 import { Match } from './match.js';
 import { initAudio, playUI } from './audio.js';
-import { ONLINE, joinRoom, makeCode, normalizeCode } from './net.js';
+import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
 
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('c'));
@@ -10,6 +10,12 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 
 const NICK_KEY = 'smash-nick';
 try { $('nick').value = localStorage.getItem(NICK_KEY) || ''; } catch {}
+if (IS_TEST) {
+  const tag = document.createElement('div');
+  tag.textContent = '🧪 테스트 버전';
+  tag.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:9999;padding:4px 12px;border-radius:999px;background:#ffcc00;color:#222;font:bold 13px sans-serif;pointer-events:none;';
+  document.body.appendChild(tag);
+}
 if (!ONLINE) $('mode-note').textContent = '⚠️ 서버 설정이 없어 로컬 테스트 모드예요 (같은 브라우저의 탭끼리만 연결)';
 
 const GRADE_TEXT = { perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK', miss: 'MISS' };

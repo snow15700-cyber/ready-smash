@@ -6,6 +6,12 @@ const URL = import.meta.env.VITE_SUPABASE_URL;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 export const ONLINE = !!(URL && KEY);
 
+// Vercel 미리보기(테스트 브랜치) 배포에서는 방 채널 이름을 따로 써서 실제 게임 방과 섞이지 않게 한다.
+// (Vercel이 Vite 프로젝트에 VITE_VERCEL_ENV = production | preview | development 를 자동으로 넣어 준다)
+const VERCEL_ENV = import.meta.env.VITE_VERCEL_ENV;
+export const IS_TEST = !!VERCEL_ENV && VERCEL_ENV !== 'production';
+const ROOM_PREFIX = IS_TEST ? 'pingpong-test-room-' : 'pingpong-room-';
+
 let client = null;
 function getClient() {
   if (!client) client = createClient(URL, KEY, { realtime: { params: { eventsPerSecond: 40 } } });
@@ -28,7 +34,7 @@ export function joinRoom(code, me, handlers) {
 }
 
 function joinSupabase(code, me, h) {
-  const ch = getClient().channel(`pingpong-room-${code}`, {
+  const ch = getClient().channel(`${ROOM_PREFIX}${code}`, {
     config: { broadcast: { self: false, ack: false }, presence: { key: me.id } },
   });
   ch.on('broadcast', { event: 'm' }, ({ payload }) => h.onMsg(payload));
@@ -53,7 +59,7 @@ function joinSupabase(code, me, h) {
 
 // 로컬 테스트: BroadcastChannel + 1초마다 '나 여기 있어요' 신호로 접속자 목록을 만든다
 function joinLocal(code, me, h) {
-  const bc = new BroadcastChannel(`pingpong-room-${code}`);
+  const bc = new BroadcastChannel(`${ROOM_PREFIX}${code}`);
   const lag = Number(new URLSearchParams(location.search).get('lag') || 0) / 1000; // 지연 흉내 (ms)
   const members = new Map();
   const seen = new Map();
