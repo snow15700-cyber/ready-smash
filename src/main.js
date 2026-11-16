@@ -495,7 +495,7 @@ function renderMe() {
   $('btn-logout').textContent = account.guest ? '로그인' : '로그아웃';
   const p = account.player;
   $('me-stats').innerHTML = p
-    ? `<span>1v1 <b>${p.wins_1v1}승 ${p.losses_1v1}패</b></span><span>2v2 <b>${p.wins_2v2}승 ${p.losses_2v2}패</b></span><span>최장 랠리 <b>${p.best_rally}</b></span>`
+    ? `<span>1v1 <b>${p.wins_1v1}승</b></span><span>2v2 <b>${p.wins_2v2}승</b></span><span>최장 랠리 <b>${p.best_rally}</b></span>` // 패 수는 보여 주지 않는다 (사용자 결정, 상대 전적만 승패 둘 다)
     : '<span class="guest">손님은 전적이 저장되지 않아요</span>';
 }
 const showLobby = () => show('lobby');
