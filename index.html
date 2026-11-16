@@ -93,44 +93,45 @@
     </div>
   </div>
 
-  <div id="shop" class="screen side hidden">
-    <div class="panel">
-      <div class="shop-head"><h2>🛍️ 상점</h2><span class="wallet"><span id="shop-coins"></span><span id="shop-pieces"></span></span></div>
-      <div class="tabs">
-        <button id="shop-tab-char" class="small on">🎽 캐릭터 뽑기</button>
-        <button id="shop-tab-arena" class="small">🏟️ 경기장 뽑기</button>
-        <button id="shop-tab-buy" class="small">🛒 골라 사기</button>
+  <!-- 꾸미기 (옷장·뽑기·골라 사기를 한 화면에). 패널은 오른쪽, 왼쪽에 내 캐릭터 + 고른 아이템 크게 보기 -->
+  <div id="dress" class="screen side hidden">
+    <div class="panel dress-panel">
+      <div class="dress-head">
+        <button id="btn-dress-back" class="small ghost">← 로비로</button>
+        <h2>꾸미기</h2>
+        <span class="wallet"><span id="shop-coins"></span><span id="shop-pieces"></span></span>
       </div>
-      <div id="shop-gacha" class="stack">
-        <p id="gacha-desc" class="gacha-desc"></p>
-        <div class="row">
+      <div class="seg">
+        <button id="tab-closet">👕 옷장</button>
+        <button id="tab-gacha">🎁 뽑기</button>
+        <button id="tab-buy">🛒 골라 사기</button>
+      </div>
+      <div id="cat-chips" class="chips"></div>
+
+      <div id="pane-gacha" class="pane">
+        <div class="seg sub">
+          <button id="shop-tab-char">🎽 캐릭터</button>
+          <button id="shop-tab-arena">🏟️ 경기장</button>
+        </div>
+        <div id="gacha-desc" class="gacha-desc"></div>
+        <div class="gbtns">
           <button id="btn-gacha-1" class="big">1회 뽑기<small>🪙 100</small></button>
-          <button id="btn-gacha-10" class="big">10회 뽑기<small>🪙 900</small></button>
+          <button id="btn-gacha-10" class="big ten">10회 뽑기<small>🪙 900</small></button>
         </div>
         <ul id="gacha-result" class="gacha-result"></ul>
+        <button id="btn-test-coins" class="small hidden">🧪 테스트 코인 +1000 (이 브라우저에서만)</button>
       </div>
-      <div id="shop-buy" class="hidden">
-        <p class="note tiny-note">아이템을 누르면 입어 볼 수 있어요. 코인으로 사거나, 중복으로 모은 🧩 조각으로 바꿔요</p>
-        <ul id="buy-list" class="item-list"></ul>
-      </div>
-      <p id="shop-msg" class="msg"></p>
-      <button id="btn-test-coins" class="small hidden">🧪 테스트 코인 +1000 (이 브라우저에서만)</button>
-      <div class="row">
-        <button id="btn-shop-closet">👕 옷장</button>
-        <button id="btn-shop-back">뒤로</button>
-      </div>
+      <ul id="item-grid" class="item-grid"></ul>
+      <p id="dress-msg" class="msg"></p>
     </div>
-  </div>
 
-  <div id="closet" class="screen side hidden">
-    <div class="panel">
-      <div class="shop-head"><h2>👕 옷장</h2></div>
-      <div id="closet-tabs" class="tabs wrap"></div>
-      <ul id="closet-list" class="item-grid"></ul>
-      <p id="closet-msg" class="msg"></p>
-      <div class="row">
-        <button id="btn-closet-shop">🛍️ 상점</button>
-        <button id="btn-closet-back">뒤로</button>
+    <div id="spot" class="spot hidden">
+      <div class="spot-pic" id="spot-pic"></div>
+      <div class="spot-info">
+        <span id="spot-grade" class="gbadge"></span>
+        <div id="spot-name" class="spot-name"></div>
+        <div id="spot-desc" class="spot-desc"></div>
+        <div id="spot-acts" class="spot-acts"></div>
       </div>
     </div>
   </div>
