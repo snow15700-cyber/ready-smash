@@ -1,7 +1,7 @@
 import { createWorld } from './scene.js';
 import { Game } from './game.js';
 import { Match } from './match.js';
-import { initAudio, playUI } from './audio.js';
+import { initAudio, playUI, setEcho } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
 
 const $ = (id) => document.getElementById(id);
@@ -481,6 +481,8 @@ function loop() {
   if (game) game.update(now + game.offset);
   else {
     // 로비 배경: 천천히 도는 카메라
+    world.setFocus(0);
+    setEcho(0);
     const a = now * 0.08;
     world.camera.position.set(Math.sin(a) * 4.2, 2.4, Math.cos(a) * 4.2);
     world.camera.lookAt(0, 0.8, 0);

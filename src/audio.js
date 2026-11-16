@@ -1,6 +1,7 @@
 // Web Audio API로 탁구 소리를 실시간 합성 (녹음 파일 없이)
 let ctx = null;
 let master, dryBus, revSend, noiseBuf;
+let echoIn, echoFb, echoLevel = 0; // 몰입 에코 (랠리가 길어질수록 커짐)
 let listener = { pos: [0, 1.7, 3.6], right: [1, 0, 0] };
 
 export function initAudio() {
@@ -27,6 +28,20 @@ export function initAudio() {
   revSend = ctx.createGain();
   revSend.gain.value = 0.22;
   revSend.connect(conv).connect(master);
+
+  // 몰입 에코: 짧은 메아리가 몇 번 되풀이 (setEcho로 양 조절, 처음엔 0)
+  echoIn = ctx.createGain();
+  echoIn.gain.value = 0;
+  const dl = ctx.createDelay(1);
+  dl.delayTime.value = 0.17;
+  echoFb = ctx.createGain();
+  echoFb.gain.value = 0.3;
+  const elp = ctx.createBiquadFilter();
+  elp.type = 'lowpass';
+  elp.frequency.value = 2600;
+  echoIn.connect(dl).connect(elp).connect(echoFb).connect(dl);
+  elp.connect(conv);
+  elp.connect(master);
 
   noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
   const d = noiseBuf.getChannelData(0);
@@ -55,6 +70,16 @@ export function setListener(pos, right) {
   listener.right = right;
 }
 
+// 몰입 정도 k (0~1): 타구음·바운드음의 메아리와 잔향을 키운다
+export function setEcho(k) {
+  if (!ctx || Math.abs(k - echoLevel) < 0.005) return;
+  echoLevel = k;
+  const t = ctx.currentTime;
+  echoIn.gain.setTargetAtTime(k * 0.45, t, 0.1);
+  echoFb.gain.setTargetAtTime(0.3 + k * 0.25, t, 0.1);
+  revSend.gain.setTargetAtTime(0.22 + k * 0.18, t, 0.1);
+}
+
 export const audioNow = () => (ctx ? ctx.currentTime : 0);
 
 // 소리 위치 → 좌우, 거리감
@@ -70,7 +95,7 @@ function spatial(pos) {
 }
 
 // 한 소리를 만들 출력 체인
-function chain(when, pos, wet = 1) {
+function chain(when, pos, wet = 1, echo = false) {
   const sp = spatial(pos);
   const out = ctx.createGain();
   out.gain.value = sp.gain;
@@ -84,6 +109,7 @@ function chain(when, pos, wet = 1) {
   const send = ctx.createGain();
   send.gain.value = wet * (0.6 + (1 - sp.gain) * 0.8); // 멀수록 잔향 비율 증가
   pan.connect(send).connect(revSend);
+  if (echo) pan.connect(echoIn);
   return out;
 }
 
@@ -130,7 +156,7 @@ export function playHit(grade, pos, when) {
   const t = at(when);
   const p = jitter(0.04);
   const v = jitter(0.04);
-  const out = chain(t, pos, 0.9);
+  const out = chain(t, pos, 0.9, true);
   if (grade === 'perfect') {
     // 맑고 단단한 "톡"
     mode(out, t, 1180 * p, 0.55 * v, 0.016, 0.06);
@@ -182,7 +208,7 @@ export function playTable(speed, pos, when) {
   const s = Math.max(0, Math.min(1, (speed - 1.5) / 5));
   const p = jitter(0.03);
   const amp = (0.35 + 0.65 * s) * jitter(0.04);
-  const out = chain(t, pos, 1);
+  const out = chain(t, pos, 1, true);
   const f = ctx.createBiquadFilter();
   f.type = 'lowpass';
   f.frequency.value = 2200 + 7000 * s;
@@ -243,6 +269,21 @@ export function playWhoosh(pos) {
   g.gain.linearRampToValueAtTime(0, t + 0.17);
   s.connect(f).connect(g).connect(out);
   s.start(t, 0, 0.2);
+}
+
+// 찬스볼 타이밍 신호: 나무 실로폰처럼 작고 둥근 '똑 똑 똑 띵' (high = 마지막 높은 음 = 칠 타이밍)
+export function playCue(when, high = false) {
+  if (!ctx) return;
+  const t = at(when);
+  const out = chain(t, null, 0.15);
+  out.gain.value = 0.55;
+  if (high) {
+    mode(out, t, 1568, 0.07, 0.11);
+    mode(out, t, 3136, 0.012, 0.04);
+  } else {
+    mode(out, t, 1047, 0.05, 0.045);
+    mode(out, t, 2094, 0.008, 0.02);
+  }
 }
 
 // UI: 작고 부드럽게

@@ -7,6 +7,13 @@ import * as A from './audio.js';
 // 스윙 동작은 '클릭 직전 0.15초 ~ 클릭 직후 HOLD초' 동안의 마우스 움직임으로 판단한다.
 // 위로 올렸으면 스윙(아니면 블록), 그 움직임이 왼쪽 위/위/오른쪽 위 중 어디냐로 방향을 정한다.
 const PRE = 0.15;
+// 타이밍 링이 화면 밖으로 나가지 않게: 카메라에서 최소 이만큼(m) 떨어뜨려 너무 커지지 않게 하고,
+// 가운데 흰 링의 SAFE배 크기가 화면 안에 다 들어오도록 가장자리에서 띄운다
+const RING = { minDist: 1.1, safe: 3, pad: 0.03 };
+// 찬스볼 신호음 간격(초): 칠 타이밍 3박 전부터 똑·똑·똑, 그 타이밍에 높은 '띵'
+const CUE_GAP = 0.3;
+// 몰입 연출(에코·어두워짐): 랠리 FOCUS.from회부터 서서히, FOCUS.to회에 최대. 점수가 나면 약 1초에 걸쳐 원래대로 (벽치기 제외)
+const FOCUS = { from: 6, to: 15, up: 0.6, down: 1 };
 const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 
 export class Game {
@@ -17,7 +24,9 @@ export class Game {
     this.names = names;
     this.playerNames = playerNames;
     this.offset = 0; // 방장 시계 - 내 시계 (초)
-    this.net = { seed: 0, nextIdx: 0, rally: 0 };
+    this.net = { seed: 0, nextIdx: 0, rally: 0, incoming: null };
+    this.focus = 0; // 몰입 정도 (0~1)
+    this.focusRally = 0; // 몰입 연출 기준 랠리 수 (점수 나면 0)
     this.predicted = null;
     this.w = world;
     this.mySide = mySide;
@@ -162,21 +171,23 @@ export class Game {
     const { dir, up } = this.readStroke(h.t, h.x, h.y);
     const grade = judge(h.t - ex.t, up);
     if (!up) this.charOf(me, this.mySlot).swingBlock = true;
-    this.hud.judge(grade, ({ perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK' })[grade] + ARROW[dir]);
+    const smash = this.mode !== 'wall' && this.net.incoming === 'chance' && grade === 'perfect';
+    this.hud.judge(grade, (smash ? 'SMASH!' : ({ perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK' })[grade]) + ARROW[dir]);
     if (grade === 'perfect') {
       this.stats.perfectStreak++;
       this.stats.perfects++;
     } else this.stats.perfectStreak = 0;
     this.hud.stats(this.stats);
-    if (!this.authority) this.predictHit(h.t, grade, dir);
+    if (!this.authority) this.predictHit(h.t, grade, dir, h.t - ex.t);
     this.send.swing(me, h.t, dir, up, this.mySlot);
   }
 
   // 상대 PC(방장 아님): 방장 응답을 기다리지 않고 내 타격 결과를 똑같은 공식으로 먼저 계산해 보여준다
-  predictHit(t, grade, dir) {
+  predictHit(t, grade, dir, dt = 0) {
     const shot = computeShot({
       mode: this.mode, seed: this.net.seed, shotIdx: this.net.nextIdx, rally: this.net.rally,
       segs: this.segs, serve: this.phase === 'toss', side: this.mySide, t, grade, dir, hold: HOLD,
+      incoming: this.net.incoming, dt,
     });
     this.predicted = { t, prevSegs: this.segs, prevExpect: this.expect, prevTurn: this.turn };
     this.segs = shot.segs;
@@ -185,6 +196,27 @@ export class Game {
     this.expect = shot.next ? { ...shot.next, slot: this.order[this.turn].slot, whiffed: false } : null;
     this.phase = 'rally';
     this.holdPos = null;
+  }
+
+  // 몰입 연출: 랠리가 길어질수록 에코가 커지고 배경이 어두워진다. 천천히 따라가고, 점수가 나면 빠르게 돌아온다
+  updateFocus(dt) {
+    const r = this.mode === 'wall' ? 0 : this.focusRally;
+    const target = Math.max(0, Math.min(1, (r - FOCUS.from) / (FOCUS.to - FOCUS.from)));
+    const rate = target > this.focus ? FOCUS.up : FOCUS.down;
+    this.focus += Math.sign(target - this.focus) * Math.min(Math.abs(target - this.focus), rate * dt);
+    this.w.setFocus(this.focus);
+    A.setEcho(this.focus);
+  }
+
+  // 찬스볼: 칠 타이밍(방장 시계 tHit)에 맞춰 똑·똑·똑·띵. 이미 지나간 박자는 건너뜀
+  playCue(tHit) {
+    const now = performance.now() / 1000 + this.offset;
+    const base = A.audioNow() + (tHit - now);
+    for (let i = 3; i >= 0; i--) {
+      const when = base - i * CUE_GAP;
+      if (when < A.audioNow() - 0.01) continue;
+      A.playCue(when, i === 0);
+    }
   }
 
   startSwing(char, t, block = false) {
@@ -215,6 +247,8 @@ export class Game {
         this.stats.rally = 0;
         this.speedLv = 0;
         this.net.rally = 0;
+        this.net.incoming = null;
+        this.focusRally = 0;
         this.predicted = null;
         this.hud.stats(this.stats);
         {
@@ -239,6 +273,8 @@ export class Game {
         this.phase = 'rally';
         this.net.nextIdx = (ev.idx ?? this.net.nextIdx) + 1;
         this.net.rally = ev.rally;
+        this.focusRally = ev.rally;
+        this.net.incoming = ev.kind === 'chance' || ev.kind === 'smash' ? ev.kind : null;
         const mine = this.isMe(ev.side, ev.slot ?? 0);
         const wasPredicted = this.predicted && mine && Math.abs(this.predicted.t - ev.t) < 1e-6;
         this.predicted = null;
@@ -250,7 +286,12 @@ export class Game {
         this.turn = ev.turn ?? (this.turn + 1) % this.order.length;
         const next = findIdealHit(this.segs, 1 - ev.side);
         this.expect = next ? { ...next, slot: this.order[this.turn].slot, whiffed: false } : null;
-        if (!mine && this.expect && this.isMe(this.expect.side, this.expect.slot)) this.announceTurn(false);
+        const toMe = this.expect && this.isMe(this.expect.side, this.expect.slot);
+        if (!mine && toMe) this.announceTurn(false);
+        if (ev.kind === 'chance' && toMe) {
+          this.hud.toast('찬스볼! 소리에 맞춰 쳐 보세요');
+          this.playCue(this.expect.t);
+        } else if (ev.kind === 'smash' && !mine) this.hud.toast('스매시!');
         if (mine) {
           this.stats.rally = ev.rally;
           this.hud.hint('');
@@ -293,11 +334,13 @@ export class Game {
         break;
       }
       case 'point':
+        this.focusRally = 0;
         this.score = ev.score;
         this.hud.score(this.score, ev.deuce);
         A.playUI(ev.winner === me ? 'point' : 'lose');
         break;
       case 'gameOver':
+        this.focusRally = 0;
         this.phase = 'over';
         A.playUI(ev.winner === me ? 'win' : 'lose');
         this.hud.gameOver(ev.winner === me, ev.score);
@@ -312,6 +355,7 @@ export class Game {
     const me = this.mySide;
 
     this.decideHit(now);
+    this.updateFocus(dt);
     // 공
     if (this.holdPos) {
       w.setBall(this.holdPos);
@@ -386,8 +430,20 @@ export class Game {
     const remain = ex ? ex.t - now : 9;
     if (showRing && remain < 0.95 && remain > -WIN.bad) {
       w.ring.visible = true;
-      w.ring.position.set(ex.pos[0], ex.pos[1], ex.pos[2]);
-      w.ring.lookAt(cam.position);
+      // 칠 자리가 화면 밖(사이드)이어도 링은 화면 안 가장자리에 붙여서 보이게 한다
+      // (카메라 기준 좌표로 바꿔서: 너무 가깝거나 뒤에 있으면 앞으로 밀고, 화면 밖이면 가장자리 안쪽으로)
+      const p = w.ring.position.set(ex.pos[0], ex.pos[1], ex.pos[2]);
+      cam.updateMatrixWorld();
+      cam.worldToLocal(p);
+      const depth = Math.max(RING.minDist, -p.z);
+      const th = Math.tan((cam.fov * Math.PI) / 360), tw = th * cam.aspect;
+      const r = (0.072 * RING.safe) / (depth * th); // 화면 높이 기준 링 반지름
+      const ey = Math.max(0.3, 1 - r - RING.pad), ex2 = Math.max(0.3, 1 - r / cam.aspect - RING.pad);
+      const nx = p.z < 0 ? p.x / (-p.z * tw) : Math.sign(p.x) * 9; // 화면 가로 위치 (-1~1이 화면 안)
+      const ny = p.z < 0 ? p.y / (-p.z * th) : Math.sign(p.y) * 9;
+      p.set(Math.max(-ex2, Math.min(ex2, nx)) * depth * tw, Math.max(-ey, Math.min(ey, ny)) * depth * th, -depth);
+      cam.localToWorld(p);
+      w.ring.quaternion.copy(cam.quaternion); // 화면을 정면으로 보게 (가장자리에서도 동그랗게)
       const k = 1 + Math.max(0, remain) * 3.4;
       w.ringMove.scale.setScalar(k);
       const col = Math.abs(remain) <= WIN.perfect ? '#5dff8a' : Math.abs(remain) <= WIN.good ? '#ffe24d' : '#ffb347';

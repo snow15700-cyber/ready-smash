@@ -1,24 +1,42 @@
 // 경기 진행 (방장 PC 또는 혼자 모드에서만 실행되는 '기준' 로직)
 // 모든 결과는 emit(event)으로 알리고, 화면 쪽은 이벤트만 보고 그린다.
-import { simulate, findIdealHit, tossSegs, planShot, judge, ballPos, WIN, HOLD } from './physics.js';
+import { simulate, findIdealHit, tossSegs, planShot, judge, ballPos, rng, WIN, HOLD } from './physics.js';
 
 export const WIN_SCORE = 5;
 // 랠리 3회마다 공 속도 4%씩 증가 (최대 10단계 = 40%)
 export const SPEED_STEP = 0; // 지금은 속도 증가 없음 (예: 0.04 = 3회마다 4%)
 export const SPEED_MAX_LV = 10;
 
+// 찬스볼·스매시 (1v1·2v2만, 벽치기 제외)
+// 랠리가 CHANCE_RALLY회를 넘은 뒤 BAD로 친 공 = 찬스볼 (받는 사람에게 타이밍 소리를 들려줌)
+// 찬스볼을 PERFECT로 받아치면 스매시 (그 공만 SMASH_SPEED 범위의 랜덤 배수만큼 빠름)
+// 스매시를 어설프게(BAD, 또는 GOOD 범위 밖 블록) 받으면 아웃
+export const CHANCE_RALLY = 6;
+export const SMASH_SPEED = [1.2, 1.4]; // 이 사이에서 랜덤 (seed로 정해서 모든 PC가 같은 값)
+export const SMASH_OUT = true;
+
 // 한 번의 타격 결과 계산. 방장과 상대 PC가 같은 입력이면 똑같은 결과가 나온다 (상대 PC의 예측용)
-export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, grade, dir, hold }) {
+// incoming: 지금 받는 공의 종류 ('chance' | 'smash' | null), dt: 이상적인 타격 시각과의 차이
+export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, grade, dir, hold, incoming = null, dt = 0 }) {
   const from = ballPos(segs, t);
   const s = (seed + shotIdx * 7919) >>> 0;
   // 랠리 수: 벽치기는 내가 친 횟수, 1v1은 양쪽 합계
   const rallyNow = rally + 1;
   const shown = mode === 'wall' ? Math.ceil(rallyNow / 2) : rallyNow;
   const speedLv = SPEED_STEP > 0 ? Math.min(SPEED_MAX_LV, Math.floor(shown / 3)) : 0;
-  const v = planShot(from, side, grade, dir, s, serve, 1 + speedLv * SPEED_STEP);
+  let kind = null;
+  if (mode !== 'wall' && !serve) {
+    const poor = grade === 'bad' || (grade === 'block' && Math.abs(dt) > WIN.good);
+    if (incoming === 'smash' && SMASH_OUT && poor) kind = 'out';
+    else if (incoming === 'chance' && grade === 'perfect') kind = 'smash';
+    else if (grade === 'bad' && rallyNow > CHANCE_RALLY) kind = 'chance';
+  }
+  const smashK = kind === 'smash' ? SMASH_SPEED[0] + rng((s ^ 0x5bd1e995) >>> 0)() * (SMASH_SPEED[1] - SMASH_SPEED[0]) : 1;
+  const speed = (1 + speedLv * SPEED_STEP) * smashK;
+  const v = planShot(from, side, kind === 'out' ? 'out' : grade, dir, s, serve, speed);
   const t0 = t + hold;
   const out = simulate(from, v, t0, 'hit', { side, grade });
-  return { from, v, t0, segs: out, speedLv, shotIdx, next: findIdealHit(out, 1 - side) };
+  return { from, v, t0, segs: out, speedLv, shotIdx, kind, next: findIdealHit(out, 1 - side) };
 }
 
 // 치는 순서 (선수 = {side, slot}). 2v2는 A1 → B1 → A2 → B2, 1v1·벽치기는 두 명이 번갈아
@@ -44,6 +62,7 @@ export class Match {
     this.segs = null;
     this.expect = null;
     this.rally = 0;
+    this.incoming = null; // 지금 날아가는 공의 종류 ('chance' | 'smash' | null)
     this.pending = null; // 예약된 다음 동작 {t, fn}
   }
 
@@ -58,6 +77,7 @@ export class Match {
     this.segs = null;
     this.expect = null;
     this.rally = 0;
+    this.incoming = null;
     this.emit({ type: 'serveReady', server: this.server, turn: this.turn, score: [...this.score] });
   }
 
@@ -86,15 +106,16 @@ export class Match {
       }
       return;
     }
-    this.hit(side, t, grade, dir, HOLD, slot);
+    this.hit(side, t, grade, dir, HOLD, slot, t - ex.t);
   }
 
   // hold: 사람이 친 공은 방향을 읽는 동안 잠깐 라켓에 머문 뒤 출발
-  hit(side, t, grade, dir, hold = 0, slot = 0) {
+  hit(side, t, grade, dir, hold = 0, slot = 0, dt = 0) {
     const shot = computeShot({
       mode: this.mode, seed: this.seed, shotIdx: this.shotIdx, rally: this.rally,
-      segs: this.segs, serve: this.phase === 'toss', side, t, grade, dir, hold,
+      segs: this.segs, serve: this.phase === 'toss', side, t, grade, dir, hold, incoming: this.incoming, dt,
     });
+    this.incoming = shot.kind === 'out' ? null : shot.kind;
     this.shotIdx++;
     this.segs = shot.segs;
     this.phase = 'rally';
@@ -102,7 +123,7 @@ export class Match {
     this.turn = (this.turn + 1) % this.order.length;
     const nextSlot = this.order[this.turn].slot;
     this.expect = shot.next ? { ...shot.next, slot: nextSlot, whiffed: false } : null;
-    this.emit({ type: 'shot', side, slot, turn: this.turn, t, t0: shot.t0, p: shot.from, v: shot.v, grade, rally: this.rally, speedLv: shot.speedLv, idx: shot.shotIdx });
+    this.emit({ type: 'shot', side, slot, turn: this.turn, t, t0: shot.t0, p: shot.from, v: shot.v, grade, rally: this.rally, speedLv: shot.speedLv, idx: shot.shotIdx, kind: shot.kind });
     if (!shot.next) this.pointTo(1 - side, shot.t0 + 0.8, 'fault');
   }
 
