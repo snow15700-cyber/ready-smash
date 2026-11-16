@@ -3,7 +3,7 @@ import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, setEcho } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
-import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, recordRally, getH2H } from './account.js';
+import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, recordRally, getH2H } from './account.js';
 
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('c'));
@@ -58,7 +58,7 @@ const hud = {
     const me = game.mySide;
     hud.toast(win ? `승리! ${score[me]} : ${score[1 - me]}` : `패배… ${score[me]} : ${score[1 - me]}`, 2600);
     if (room) {
-      saveResult(room.mode, win);
+      saveResult(room.mode, win, game.stats);
       room.result = win ? `🏆 승리! ${score[me]} : ${score[1 - me]}` : `😢 패배 ${score[me]} : ${score[1 - me]}`;
       setTimeout(() => { if (room && room.inGame) backToRoom(); }, 2800);
     }
@@ -342,6 +342,7 @@ function beginRoomGame(players) {
   room.inGame = true;
   room.players = players;
   room.result = '';
+  room.coins = null;
   stopGame();
 }
 
@@ -396,6 +397,7 @@ function backToRoom() {
   stopGame();
   renderRoom();
   show('room');
+  if (room.coins) playUI('coin');
 }
 
 function renderPing() {
@@ -406,15 +408,32 @@ function renderPing() {
 
 /* ───────── 전적 ───────── */
 // 경기가 끝나면 내 PC가 내 결과만 기록한다. 1v1이면 상대의 선수 번호(pid)도 함께 (상대 전적)
-async function saveResult(mode, win) {
+async function saveResult(mode, win, stats) {
   if (!account.loggedIn) return;
   const r0 = room;
   const opp = mode === '1v1' ? oppMember() : null;
-  const r = await recordMatch(mode, win, opp?.pid);
+  const bonus = { perfect3: stats.perfect3, rally10: stats.rally10 };
+  let r = await finishMatch(mode, win, opp?.pid, bonus);
+  // 서버에 코인 기능(03_coins.sql)이 아직 없으면 전적만이라도 저장 (10초 규칙이 두 번 저장을 막는다)
+  if (r.status === 'error') r = await recordMatch(mode, win, opp?.pid);
   if (r.status === 'ok') {
     if (opp?.pid && r.h2h && r0) r0.h2h[opp.pid] = r.h2h;
-    if (room === r0) renderRoom();
+    if (r.coins && r0) r0.coins = r.coins;
+    if (room === r0) {
+      renderRoom();
+      if (r.coins && !room.inGame) playUI('coin');
+    }
   } else if (r.status !== 'too_soon') hud.toast('전적을 저장하지 못했어요 (인터넷 연결 확인)', 2600);
+}
+
+// 방금 경기에서 받은 코인 (대기실 결과 아래)
+function renderCoins() {
+  const el = $('room-coins');
+  const c = room.result && room.coins;
+  if (!room.result) el.innerHTML = '';
+  else if (!account.loggedIn) el.innerHTML = '<small>로그인하면 경기마다 코인을 모을 수 있어요</small>';
+  else if (!c) el.innerHTML = '<small>코인 정산 중…</small>';
+  else el.innerHTML = `<b>🪙 +${c.total} 코인</b><small>${c.items.map((i) => `${esc(i.label)} +${i.coins}`).join(' · ')}</small>`;
 }
 
 // 1v1 방의 상대 (나 말고 다른 한 사람)
@@ -447,6 +466,7 @@ function renderRoom() {
   $('room-mode').textContent = room.mode ? `${room.mode} 방 · ${room.members.length}/${capacity()}명` : '방 정보를 불러오는 중…';
   $('room-result').textContent = room.result;
   $('room-result').classList.toggle('hidden', !room.result);
+  renderCoins();
 
   const row = (m, inTeam, i) => `<li><span>${inTeam && room.mode === '2v2' ? `${i + 1}번 · ` : ''}${m.host ? '방장' : '참가자'}${m.guest ? ' · 손님' : ''}${m.id === myId ? ' (나)' : ''}</span><b>${esc(m.nick)}</b>${inTeam ? '<i class="on">준비 완료</i>' : ''}</li>`;
   const empty = '<li class="empty"><span></span><b>빈자리</b></li>';
@@ -492,13 +512,23 @@ function renderMe() {
     ? `${esc(account.nick)}<small>손님</small>`
     : `${esc(account.nick)}<small>님</small>`;
   $('btn-pin').classList.toggle('hidden', account.guest);
+  $('me-coins').classList.toggle('hidden', account.guest);
+  $('me-coins').textContent = `🪙 ${account.player?.coins ?? 0}`;
   $('btn-logout').textContent = account.guest ? '로그인' : '로그아웃';
   const p = account.player;
   $('me-stats').innerHTML = p
     ? `<span>1v1 <b>${p.wins_1v1}승 ${p.losses_1v1}패</b></span><span>2v2 <b>${p.wins_2v2}승 ${p.losses_2v2}패</b></span><span>최장 랠리 <b>${p.best_rally}</b></span>`
-    : '<span class="guest">손님은 전적이 저장되지 않아요</span>';
+    : '<span class="guest">손님은 전적·코인이 저장되지 않아요</span>';
 }
 const showLobby = () => show('lobby');
+
+// 로그인하면 하루 첫 접속 코인 받기 (한국 시간으로 하루 한 번)
+async function checkDaily() {
+  const got = await claimDaily();
+  if (!got) return;
+  if (!$('lobby').classList.contains('hidden')) renderMe();
+  setTimeout(() => { playUI('coin'); hud.toast(`🎁 오늘 첫 접속! +${got} 코인`, 2600); }, 1200);
+}
 
 function showLogin(msg = '') {
   $('login-form').classList.remove('hidden');
@@ -523,7 +553,7 @@ async function doLogin() {
   msg.textContent = '확인 중…';
   const r = await login(nick, pin);
   busy = false;
-  if (r.status === 'ok') { msg.textContent = ''; showLobby(); hud.toast(`어서 와요, ${account.nick}님!`); return; }
+  if (r.status === 'ok') { msg.textContent = ''; showLobby(); hud.toast(`어서 와요, ${account.nick}님!`); checkDaily(); return; }
   if (r.status === 'no_user') {
     msg.textContent = '';
     $('signup-nick').textContent = `'${nick}'`;
@@ -555,7 +585,7 @@ async function doSignup() {
   msg.textContent = '가입 중…';
   const r = await signup($('login-nick').value, $('login-pin').value);
   busy = false;
-  if (r.status === 'ok') { msg.textContent = ''; showLobby(); hud.toast(`가입 완료! 반가워요, ${account.nick}님`, 2400); return; }
+  if (r.status === 'ok') { msg.textContent = ''; showLobby(); hud.toast(`가입 완료! 반가워요, ${account.nick}님`, 2400); checkDaily(); return; }
   msg.textContent = LOGIN_MSG[r.status] || LOGIN_MSG.error;
 }
 
@@ -613,7 +643,7 @@ $('btn-pin-cancel').addEventListener('click', () => { playUI('click'); showLobby
 // 처음 열면: 기억해 둔 열쇠가 있으면 자동 로그인, 없으면 로그인 화면
 (async () => {
   const r = await autoLogin();
-  if (r === 'ok') showLobby();
+  if (r === 'ok') { showLobby(); checkDaily(); }
   else showLogin(r === 'error' ? '서버에 연결하지 못해 자동 로그인을 못 했어요. 다시 로그인하거나 손님으로 해 주세요' : '');
 })();
 

@@ -118,6 +118,12 @@ button.big.on { background: #8a7a66; box-shadow: 0 5px 0 #5f5243; }
 .me-name { flex: 1; min-width: 0; font-size: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .me-name small { font-size: 13px; color: #8a7a66; margin-left: 4px; }
 .me-bar button.small { font-size: 13px; padding: 6px 9px; }
+.me-coins { font-size: 17px; color: #b8860b; background: #fff6d6; border-radius: 10px; padding: 4px 9px; white-space: nowrap; }
+.coins-got { margin: -6px 0 0; text-align: center; display: flex; flex-direction: column; gap: 2px; }
+.coins-got:empty { display: none; }
+.coins-got b { font-weight: normal; font-size: 22px; color: #b8860b; animation: coinPop .5s ease-out; }
+.coins-got small { font-size: 13px; color: #8a7a66; }
+@keyframes coinPop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); } }
 .msg.ok { color: #2f9c56; }
 .me-stats { display: flex; gap: 6px; margin-top: -6px; }
 .me-stats span { flex: 1; text-align: center; background: #fff; border-radius: 10px; padding: 5px 2px; font-size: 13px; color: #8a7a66; white-space: nowrap; }

@@ -297,6 +297,10 @@ export function playUI(kind = 'click') {
     // 2v2 '내 차례!': 짧고 맑은 두 음
     mode(out, t, 1175, 0.045, 0.1);
     mode(out, t + 0.07, 1568, 0.04, 0.14);
+  } else if (kind === 'coin') {
+    // 코인 획득: 작고 맑은 '띠링'
+    mode(out, t, 1319, 0.035, 0.08);
+    mode(out, t + 0.06, 1976, 0.03, 0.18);
   } else if (kind === 'win') {
     [660, 830, 990, 1320].forEach((f, i) => mode(out, t + i * 0.1, f, 0.06, 0.18));
   }

@@ -47,7 +47,8 @@ export class Game {
     this.charX = [[0, 0], [0, 0]];
     this.charZ = [[CHAR_Z, CHAR_Z], [CHAR_Z, CHAR_Z]];
     this.mouse = { x: innerWidth / 2, y: innerHeight / 2, hist: [] };
-    this.stats = { rally: 0, best: 0, perfectStreak: 0, perfects: 0 };
+    // perfect3 = 퍼펙트 3연속 횟수, rally10 = 랠리 10회 이상 이어 간 횟수 (경기 끝나고 코인 정산용)
+    this.stats = { rally: 0, best: 0, perfectStreak: 0, perfects: 0, perfect3: 0, rally10: 0 };
     // 혼자 하기 최고 기록: 처음 값과 새 기록 저장은 main.js가 정한다(로그인 = 서버, 손님 = 브라우저)
     if (mode === 'ai') this.stats.best = best;
     this.onBest = onBest;
@@ -179,6 +180,7 @@ export class Game {
     if (grade === 'perfect') {
       this.stats.perfectStreak++;
       this.stats.perfects++;
+      if (this.stats.perfectStreak % 3 === 0) this.stats.perfect3++;
     } else this.stats.perfectStreak = 0;
     this.hud.stats(this.stats);
     if (!this.authority) this.predictHit(h.t, grade, dir, h.t - ex.t);
@@ -300,6 +302,7 @@ export class Game {
           this.hud.hint('');
         }
         this.stats.rally = this.mode === 'ai' ? Math.ceil(ev.rally / 2) : ev.rally;
+        if (ev.rally === 10 && this.mode !== 'ai') this.stats.rally10++;
         this.hud.stats(this.stats);
         if (ev.speedLv > (this.speedLv || 0)) this.hud.toast(`속도 UP! Lv.${ev.speedLv + 1}`);
         this.speedLv = ev.speedLv;
