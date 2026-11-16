@@ -150,7 +150,7 @@ function at(when) {
   return when == null ? ctx.currentTime : Math.max(ctx.currentTime, when);
 }
 
-// 라켓 타구음. grade: perfect | good | bad | block | wall
+// 라켓 타구음. grade: perfect | good | bad | block
 export function playHit(grade, pos, when) {
   if (!ctx) return;
   const t = at(when);
@@ -191,13 +191,6 @@ export function playHit(grade, pos, when) {
     mode(f, t, 880 * p, 0.38 * v, 0.014);
     mode(f, t, 1900 * p, 0.14 * v, 0.007);
     tick(f, t, 1500 * p, 1, 0.2 * v, 0.004);
-  } else if (grade === 'wall') {
-    // 연습용 나무판
-    mode(out, t, 640 * p, 0.45 * v, 0.022);
-    mode(out, t, 1480 * p, 0.25 * v, 0.012);
-    mode(out, t, 3100 * p, 0.08 * v, 0.005);
-    mode(out, t, 170 * p, 0.35 * v, 0.025);
-    tick(out, t, 1800 * p, 1, 0.3 * v, 0.005);
   }
 }
 

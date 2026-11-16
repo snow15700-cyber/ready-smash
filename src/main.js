@@ -1,6 +1,6 @@
 import { createWorld } from './scene.js';
 import { Game } from './game.js';
-import { Match } from './match.js';
+import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, setEcho } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
 
@@ -29,7 +29,7 @@ const hud = {
   },
   stats(st) {
     if (!game) return;
-    if (game.mode === 'wall') $('stats').innerHTML = `랠리<br><b>${st.rally}</b><br>최고 ${st.best} · Perfect ${st.perfects}`;
+    if (game.mode === 'ai') $('stats').innerHTML = `랠리<br><b>${st.rally}</b><br>최고 ${st.best} · Perfect ${st.perfects}`;
     else $('stats').innerHTML = `랠리<br><b>${st.rally}</b>`;
   },
   hint(text) { $('hint').textContent = text; },
@@ -88,8 +88,8 @@ function stopGame() {
   $('scoreboard').textContent = '';
 }
 
-/* ───────── 혼자 벽치기 ───────── */
-function startWall() {
+/* ───────── 혼자 하기 (AI 상대) ───────── */
+function startAI(level = 'normal') {
   initAudio();
   playUI('click');
   saveNick();
@@ -97,14 +97,15 @@ function startWall() {
   show('hud');
   game = new Game(world, {
     mySide: 0,
-    mode: 'wall',
+    mode: 'ai',
+    names: ['나', AI_NAME],
     hud,
     send: {
       toss: (side, t, x, slot) => match.toss(side, t, x, slot),
       swing: (side, t, dir, isSwing, slot) => match.swing(side, t, dir, isSwing, slot),
     },
   });
-  match = new Match({ mode: 'wall', emit: (ev) => game.onEvent(ev) });
+  match = new Match({ mode: 'ai', level, emit: (ev) => game.onEvent(ev) });
   hud.stats(game.stats);
   match.start(performance.now() / 1000);
 }
@@ -433,7 +434,7 @@ function renderRoom() {
 
 
 /* ───────── 버튼 ───────── */
-$('btn-wall').addEventListener('click', startWall);
+$('btn-ai').addEventListener('click', () => startAI());
 $('btn-create-1v1').addEventListener('click', () => enterRoom(makeCode(), true, '1v1'));
 $('btn-create-2v2').addEventListener('click', () => enterRoom(makeCode(), true, '2v2'));
 $('btn-join').addEventListener('click', () => {
@@ -470,7 +471,7 @@ $('exit').addEventListener('click', exitGame);
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && game && !room) exitGame();
 });
-$('nick').addEventListener('keydown', (e) => { if (e.key === 'Enter') startWall(); });
+$('nick').addEventListener('keydown', (e) => { if (e.key === 'Enter') startAI(); });
 
 /* ───────── 매 프레임 ───────── */
 function loop() {
@@ -489,7 +490,6 @@ function loop() {
     world.setBall([0, -1, 0], false);
     world.ring.visible = false;
     world.aim.visible = false;
-    world.wall.visible = false;
     for (const side of [0, 1]) {
       world.team[side][0].group.visible = true;
       world.team[side][0].setOpacity(1, 1);

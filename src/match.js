@@ -7,7 +7,7 @@ export const WIN_SCORE = 5;
 export const SPEED_STEP = 0; // 지금은 속도 증가 없음 (예: 0.04 = 3회마다 4%)
 export const SPEED_MAX_LV = 10;
 
-// 찬스볼·스매시 (1v1·2v2만, 벽치기 제외)
+// 찬스볼·스매시 (1v1·2v2·AI 모두)
 // 랠리가 CHANCE_RALLY회를 넘은 뒤 BAD로 친 공 = 찬스볼 (받는 사람에게 타이밍 소리를 들려줌)
 // 찬스볼을 PERFECT로 받아치면 스매시 (그 공만 SMASH_SPEED 범위의 랜덤 배수만큼 빠름)
 // 스매시를 어설프게(BAD, 또는 GOOD 범위 밖 블록) 받으면 아웃
@@ -17,15 +17,17 @@ export const SMASH_OUT = true;
 
 // 한 번의 타격 결과 계산. 방장과 상대 PC가 같은 입력이면 똑같은 결과가 나온다 (상대 PC의 예측용)
 // incoming: 지금 받는 공의 종류 ('chance' | 'smash' | null), dt: 이상적인 타격 시각과의 차이
-export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, grade, dir, hold, incoming = null, dt = 0 }) {
+// forceOut: AI가 실수로 공을 테이블 밖으로 보냄
+export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, grade, dir, hold, incoming = null, dt = 0, forceOut = false }) {
   const from = ballPos(segs, t);
   const s = (seed + shotIdx * 7919) >>> 0;
-  // 랠리 수: 벽치기는 내가 친 횟수, 1v1은 양쪽 합계
+  // 랠리 수: AI 모드는 내가 친 횟수, 1v1은 양쪽 합계
   const rallyNow = rally + 1;
-  const shown = mode === 'wall' ? Math.ceil(rallyNow / 2) : rallyNow;
+  const shown = mode === 'ai' ? Math.ceil(rallyNow / 2) : rallyNow;
   const speedLv = SPEED_STEP > 0 ? Math.min(SPEED_MAX_LV, Math.floor(shown / 3)) : 0;
   let kind = null;
-  if (mode !== 'wall' && !serve) {
+  if (forceOut) kind = 'out';
+  else if (!serve) {
     const poor = grade === 'bad' || (grade === 'block' && Math.abs(dt) > WIN.good);
     if (incoming === 'smash' && SMASH_OUT && poor) kind = 'out';
     else if (incoming === 'chance' && grade === 'perfect') kind = 'smash';
@@ -39,7 +41,35 @@ export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, 
   return { from, v, t0, segs: out, speedLv, shotIdx, kind, next: findIdealHit(out, 1 - side) };
 }
 
-// 치는 순서 (선수 = {side, slot}). 2v2는 A1 → B1 → A2 → B2, 1v1·벽치기는 두 명이 번갈아
+// AI(탁구왕 김제빵) 실력: 공이 올 때마다 아래 확률로 어떻게 칠지 정한다
+// miss = 헛스윙(놓침), out = 쳤지만 테이블 밖으로. smash = 찬스볼이 오면 스매시로 받아칠 확률
+// dir = 왼쪽/가운데/오른쪽으로 보낼 확률
+export const AI_NAME = '탁구왕 김제빵';
+export const AI_LEVEL = {
+  normal: { perfect: 0.2, good: 0.4, block: 0.2, bad: 0.1, out: 0.05, miss: 0.05, smash: 0.5, dir: [0.35, 0.3, 0.35] },
+};
+const AI_DT = { perfect: [0, 0.02], good: [0.05, 0.09], bad: [0.11, 0.16], block: [0, 0.04], out: [0.05, 0.09] };
+
+function aiPlan(level, incoming) {
+  const L = AI_LEVEL[level] || AI_LEVEL.normal;
+  let grade;
+  if (incoming === 'chance' && Math.random() < L.smash) grade = 'perfect';
+  else {
+    let r = Math.random() * (L.perfect + L.good + L.block + L.bad + L.out + L.miss);
+    for (const g of ['perfect', 'good', 'block', 'bad', 'out', 'miss']) {
+      grade = g;
+      if ((r -= L[g]) < 0) break;
+    }
+  }
+  if (grade === 'miss') return { grade };
+  const [a, b] = AI_DT[grade];
+  const dt = (a + Math.random() * (b - a)) * (Math.random() < 0.5 ? -1 : 1);
+  const d = Math.random();
+  const dir = d < L.dir[0] ? -1 : d < L.dir[0] + L.dir[1] ? 0 : 1;
+  return { grade, dt, dir };
+}
+
+// 치는 순서 (선수 = {side, slot}). 2v2는 A1 → B1 → A2 → B2, 1v1·AI는 두 명이 번갈아
 export function hitOrder(mode) {
   return mode === '2v2'
     ? [{ side: 0, slot: 0 }, { side: 1, slot: 0 }, { side: 0, slot: 1 }, { side: 1, slot: 1 }]
@@ -48,9 +78,10 @@ export function hitOrder(mode) {
 
 export class Match {
   // isRemote(side, slot): 네트워크 너머에 있는 선수인지 (입력이 늦게 도착하므로 판정 대기 시간을 늘림)
-  constructor({ mode, emit, seed = (Math.random() * 1e9) | 0, isRemote = () => false }) {
+  constructor({ mode, emit, seed = (Math.random() * 1e9) | 0, isRemote = () => false, level = 'normal' }) {
     this.isRemote = isRemote;
-    this.mode = mode; // 'wall' | '1v1' | '2v2'
+    this.mode = mode; // 'ai' | '1v1' | '2v2'
+    this.level = level; // AI 난이도
     this.order = hitOrder(mode);
     this.turn = 0; // 다음에 칠 사람 (order의 번호)
     this.emit = emit;
@@ -72,7 +103,7 @@ export class Match {
   }
 
   readyServe(now) {
-    if (this.mode === 'wall') this.turn = 0; // 벽치기는 항상 내가 서브
+    if (this.mode === 'ai') this.turn = 0; // AI 모드는 항상 내가 서브
     this.phase = 'serve';
     this.segs = null;
     this.expect = null;
@@ -110,10 +141,10 @@ export class Match {
   }
 
   // hold: 사람이 친 공은 방향을 읽는 동안 잠깐 라켓에 머문 뒤 출발
-  hit(side, t, grade, dir, hold = 0, slot = 0, dt = 0) {
+  hit(side, t, grade, dir, hold = 0, slot = 0, dt = 0, forceOut = false) {
     const shot = computeShot({
       mode: this.mode, seed: this.seed, shotIdx: this.shotIdx, rally: this.rally,
-      segs: this.segs, serve: this.phase === 'toss', side, t, grade, dir, hold, incoming: this.incoming, dt,
+      segs: this.segs, serve: this.phase === 'toss', side, t, grade, dir, hold, incoming: this.incoming, dt, forceOut,
     });
     this.incoming = shot.kind === 'out' ? null : shot.kind;
     this.shotIdx++;
@@ -123,6 +154,8 @@ export class Match {
     this.turn = (this.turn + 1) % this.order.length;
     const nextSlot = this.order[this.turn].slot;
     this.expect = shot.next ? { ...shot.next, slot: nextSlot, whiffed: false } : null;
+    // AI 차례면 이번 공을 어떻게 칠지 미리 정해 둔다
+    if (this.mode === 'ai' && this.expect && this.expect.side === 1) this.expect.ai = aiPlan(this.level, this.incoming);
     this.emit({ type: 'shot', side, slot, turn: this.turn, t, t0: shot.t0, p: shot.from, v: shot.v, grade, rally: this.rally, speedLv: shot.speedLv, idx: shot.shotIdx, kind: shot.kind });
     if (!shot.next) this.pointTo(1 - side, shot.t0 + 0.8, 'fault');
   }
@@ -133,7 +166,7 @@ export class Match {
     this.pending = {
       t: at,
       fn: (now) => {
-        if (this.mode === 'wall') {
+        if (this.mode === 'ai') {
           this.emit({ type: 'rallyEnd', rally: this.rally });
           this.pending = { t: now + 1.0, fn: (n) => this.readyServe(n) };
           return;
@@ -163,10 +196,16 @@ export class Match {
     }
     const ex = this.expect;
     if (!ex) return;
-    // 벽치기: 벽이 자동으로 받아침
-    if (this.mode === 'wall' && ex.side === 1 && now >= ex.t) {
-      this.hit(1, ex.t, 'wall', 0);
+    // AI가 받아침 (miss로 정했으면 그냥 놓쳐서 아래 시간 초과로 처리)
+    const ai = ex.ai;
+    if (ai && ai.grade !== 'miss' && now >= ex.t + ai.dt) {
+      const out = ai.grade === 'out';
+      this.hit(1, ex.t + ai.dt, out ? 'good' : ai.grade, ai.dir, 0, 0, ai.dt, out);
       return;
+    }
+    if (ai && ai.grade === 'miss' && !ex.whiffed && now >= ex.t - 0.12) {
+      ex.whiffed = true; // 살짝 일찍 휘둘러서 헛스윙
+      this.emit({ type: 'whiff', side: 1, slot: 0, t: now });
     }
     const margin = this.isRemote(ex.side, ex.slot) ? 0.45 : 0.12; // 네트워크 지연 여유
     if (now > ex.t + WIN.bad + HOLD + margin) {
