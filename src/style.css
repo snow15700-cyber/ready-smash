@@ -135,3 +135,16 @@ button.big.on { background: #8a7a66; box-shadow: 0 5px 0 #5f5243; }
 .h2h em { font-style: normal; color: #ff6a2a; font-size: 20px; }
 .offline { margin: 0; text-align: center; font-size: 15px; line-height: 1.5; color: #8a3a12; background: #ffe0cc; border: 2px dashed #ff8a3d; border-radius: 12px; padding: 8px 10px; }
 .offline b { font-weight: normal; color: #d2451c; }
+/* 랭킹 */
+.tabs { display: flex; gap: 8px; }
+.tabs button { flex: 1; }
+.tabs button.on { background: #ff8a3d; color: #fff; box-shadow: 0 4px 0 #c9621f; }
+.rank-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-height: 120px; }
+.rank-list li { display: flex; align-items: center; gap: 10px; background: #f4ead6; border-radius: 12px; padding: 8px 14px; }
+.rank-list li.me { background: #fff1c9; box-shadow: inset 0 0 0 2px #ffb36b; }
+.rank-list .no { width: 34px; text-align: center; font-size: 18px; color: #8a7a66; }
+.rank-list .no.medal { font-size: 24px; }
+.rank-list .who { flex: 1; min-width: 0; font-size: 19px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-list .who small { display: block; font-size: 12px; color: #8a7a66; }
+.rank-list .val { font-size: 20px; color: #ff6a2a; white-space: nowrap; }
+.rank-list li.msg-row { justify-content: center; background: none; color: #8a7a66; font-size: 16px; text-align: center; }
