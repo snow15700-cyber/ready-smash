@@ -14,6 +14,7 @@ const RING = { minDist: 1.1, safe: 3, pad: 0.03 };
 const CUE_GAP = 0.3;
 // 몰입 연출(에코·어두워짐): 랠리 FOCUS.from회부터 서서히, FOCUS.to회에 최대. 점수가 나면 약 1초에 걸쳐 원래대로 
 const FOCUS = { from: 6, to: 15, up: 0.6, down: 1 };
+const BEST_KEY = 'smash-ai-best'; // 혼자 하기 최고 랠리 기록 (이 브라우저에 저장)
 const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 
 export class Game {
@@ -48,6 +49,7 @@ export class Game {
     this.charZ = [[CHAR_Z, CHAR_Z], [CHAR_Z, CHAR_Z]];
     this.mouse = { x: innerWidth / 2, y: innerHeight / 2, hist: [] };
     this.stats = { rally: 0, best: 0, perfectStreak: 0, perfects: 0 };
+    if (mode === 'ai') try { this.stats.best = +localStorage.getItem(BEST_KEY) || 0; } catch {}
     this.lastNow = performance.now() / 1000;
     this.tossX = 0;
     this.pendingHit = null; // 클릭 후 방향 판단을 기다리는 타격
@@ -292,7 +294,6 @@ export class Game {
           this.hud.toast('찬스볼! 소리에 맞춰 쳐 보세요');
           this.playCue(this.expect.t);
         } else if (ev.kind === 'smash' && !mine) this.hud.toast('스매시!');
-        else if (ev.kind === 'out' && !mine && this.mode === 'ai') this.hud.toast(`${this.names[1]}의 공이 밖으로!`);
         if (mine) {
           this.stats.rally = ev.rally;
           this.hud.hint('');
@@ -320,7 +321,7 @@ export class Game {
         if (this.isMe(ev.side, ev.slot ?? 0)) {
           this.hud.judge('miss');
           this.stats.perfectStreak = 0;
-        } else if (this.mode === 'ai') this.hud.toast(`${this.names[1]}이 놓쳤어요!`);
+        }
         break;
       case 'serveMiss':
         this.expect = null;
@@ -330,6 +331,7 @@ export class Game {
         const r = this.stats.rally;
         if (r > this.stats.best) {
           this.stats.best = r;
+          try { localStorage.setItem(BEST_KEY, r); } catch {}
           if (r >= 3) this.hud.toast(`최고 기록! ${r}회 랠리`);
         }
         this.hud.stats(this.stats);

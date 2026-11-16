@@ -17,8 +17,7 @@ export const SMASH_OUT = true;
 
 // 한 번의 타격 결과 계산. 방장과 상대 PC가 같은 입력이면 똑같은 결과가 나온다 (상대 PC의 예측용)
 // incoming: 지금 받는 공의 종류 ('chance' | 'smash' | null), dt: 이상적인 타격 시각과의 차이
-// forceOut: AI가 실수로 공을 테이블 밖으로 보냄
-export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, grade, dir, hold, incoming = null, dt = 0, forceOut = false }) {
+export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, grade, dir, hold, incoming = null, dt = 0 }) {
   const from = ballPos(segs, t);
   const s = (seed + shotIdx * 7919) >>> 0;
   // 랠리 수: AI 모드는 내가 친 횟수, 1v1은 양쪽 합계
@@ -26,8 +25,7 @@ export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, 
   const shown = mode === 'ai' ? Math.ceil(rallyNow / 2) : rallyNow;
   const speedLv = SPEED_STEP > 0 ? Math.min(SPEED_MAX_LV, Math.floor(shown / 3)) : 0;
   let kind = null;
-  if (forceOut) kind = 'out';
-  else if (!serve) {
+  if (!serve) {
     const poor = grade === 'bad' || (grade === 'block' && Math.abs(dt) > WIN.good);
     if (incoming === 'smash' && SMASH_OUT && poor) kind = 'out';
     else if (incoming === 'chance' && grade === 'perfect') kind = 'smash';
@@ -41,31 +39,28 @@ export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, 
   return { from, v, t0, segs: out, speedLv, shotIdx, kind, next: findIdealHit(out, 1 - side) };
 }
 
-// AI(탁구왕 김제빵) 실력: 공이 올 때마다 아래 확률로 어떻게 칠지 정한다
-// miss = 헛스윙(놓침), out = 쳤지만 테이블 밖으로. smash = 찬스볼이 오면 스매시로 받아칠 확률
-// dir = 왼쪽/가운데/오른쪽으로 보낼 확률
+// AI(탁구왕 김제빵): 연습 상대라서 절대 실수하지 않는다 (헛스윙·아웃 없음, 스매시도 다 받아냄)
+// 공이 올 때마다 아래 확률로 어떻게 칠지 정한다. 가끔 BAD(약한 공)를 줘서 찬스볼 연습이 되게
+// smash = 내 찬스볼이 오면 스매시로 받아칠 확률, dir = 왼쪽/가운데/오른쪽으로 보낼 확률
 export const AI_NAME = '탁구왕 김제빵';
-export const AI_LEVEL = {
-  normal: { perfect: 0.2, good: 0.4, block: 0.2, bad: 0.1, out: 0.05, miss: 0.05, smash: 0.5, dir: [0.35, 0.3, 0.35] },
-};
-const AI_DT = { perfect: [0, 0.02], good: [0.05, 0.09], bad: [0.11, 0.16], block: [0, 0.04], out: [0.05, 0.09] };
+export const AI = { perfect: 0.25, good: 0.45, block: 0.2, bad: 0.1, smash: 0.5, dir: [0.35, 0.3, 0.35] };
+const AI_DT = { perfect: [0, 0.02], good: [0.05, 0.09], bad: [0.11, 0.16], block: [0, 0.04] };
 
-function aiPlan(level, incoming) {
-  const L = AI_LEVEL[level] || AI_LEVEL.normal;
+function aiPlan(incoming) {
   let grade;
-  if (incoming === 'chance' && Math.random() < L.smash) grade = 'perfect';
+  if (incoming === 'chance' && Math.random() < AI.smash) grade = 'perfect';
   else {
-    let r = Math.random() * (L.perfect + L.good + L.block + L.bad + L.out + L.miss);
-    for (const g of ['perfect', 'good', 'block', 'bad', 'out', 'miss']) {
+    let r = Math.random() * (AI.perfect + AI.good + AI.block + AI.bad);
+    for (const g of ['perfect', 'good', 'block', 'bad']) {
       grade = g;
-      if ((r -= L[g]) < 0) break;
+      if ((r -= AI[g]) < 0) break;
     }
   }
-  if (grade === 'miss') return { grade };
+  if (incoming === 'smash' && grade === 'bad') grade = 'good'; // 스매시를 BAD로 받으면 아웃이 되므로
   const [a, b] = AI_DT[grade];
   const dt = (a + Math.random() * (b - a)) * (Math.random() < 0.5 ? -1 : 1);
   const d = Math.random();
-  const dir = d < L.dir[0] ? -1 : d < L.dir[0] + L.dir[1] ? 0 : 1;
+  const dir = d < AI.dir[0] ? -1 : d < AI.dir[0] + AI.dir[1] ? 0 : 1;
   return { grade, dt, dir };
 }
 
@@ -78,10 +73,9 @@ export function hitOrder(mode) {
 
 export class Match {
   // isRemote(side, slot): 네트워크 너머에 있는 선수인지 (입력이 늦게 도착하므로 판정 대기 시간을 늘림)
-  constructor({ mode, emit, seed = (Math.random() * 1e9) | 0, isRemote = () => false, level = 'normal' }) {
+  constructor({ mode, emit, seed = (Math.random() * 1e9) | 0, isRemote = () => false }) {
     this.isRemote = isRemote;
     this.mode = mode; // 'ai' | '1v1' | '2v2'
-    this.level = level; // AI 난이도
     this.order = hitOrder(mode);
     this.turn = 0; // 다음에 칠 사람 (order의 번호)
     this.emit = emit;
@@ -141,10 +135,10 @@ export class Match {
   }
 
   // hold: 사람이 친 공은 방향을 읽는 동안 잠깐 라켓에 머문 뒤 출발
-  hit(side, t, grade, dir, hold = 0, slot = 0, dt = 0, forceOut = false) {
+  hit(side, t, grade, dir, hold = 0, slot = 0, dt = 0) {
     const shot = computeShot({
       mode: this.mode, seed: this.seed, shotIdx: this.shotIdx, rally: this.rally,
-      segs: this.segs, serve: this.phase === 'toss', side, t, grade, dir, hold, incoming: this.incoming, dt, forceOut,
+      segs: this.segs, serve: this.phase === 'toss', side, t, grade, dir, hold, incoming: this.incoming, dt,
     });
     this.incoming = shot.kind === 'out' ? null : shot.kind;
     this.shotIdx++;
@@ -155,7 +149,7 @@ export class Match {
     const nextSlot = this.order[this.turn].slot;
     this.expect = shot.next ? { ...shot.next, slot: nextSlot, whiffed: false } : null;
     // AI 차례면 이번 공을 어떻게 칠지 미리 정해 둔다
-    if (this.mode === 'ai' && this.expect && this.expect.side === 1) this.expect.ai = aiPlan(this.level, this.incoming);
+    if (this.mode === 'ai' && this.expect && this.expect.side === 1) this.expect.ai = aiPlan(this.incoming);
     this.emit({ type: 'shot', side, slot, turn: this.turn, t, t0: shot.t0, p: shot.from, v: shot.v, grade, rally: this.rally, speedLv: shot.speedLv, idx: shot.shotIdx, kind: shot.kind });
     if (!shot.next) this.pointTo(1 - side, shot.t0 + 0.8, 'fault');
   }
@@ -196,16 +190,10 @@ export class Match {
     }
     const ex = this.expect;
     if (!ex) return;
-    // AI가 받아침 (miss로 정했으면 그냥 놓쳐서 아래 시간 초과로 처리)
-    const ai = ex.ai;
-    if (ai && ai.grade !== 'miss' && now >= ex.t + ai.dt) {
-      const out = ai.grade === 'out';
-      this.hit(1, ex.t + ai.dt, out ? 'good' : ai.grade, ai.dir, 0, 0, ai.dt, out);
+    // AI가 받아침 (항상 받아냄)
+    if (ex.ai && now >= ex.t + ex.ai.dt) {
+      this.hit(1, ex.t + ex.ai.dt, ex.ai.grade, ex.ai.dir, 0, 0, ex.ai.dt);
       return;
-    }
-    if (ai && ai.grade === 'miss' && !ex.whiffed && now >= ex.t - 0.12) {
-      ex.whiffed = true; // 살짝 일찍 휘둘러서 헛스윙
-      this.emit({ type: 'whiff', side: 1, slot: 0, t: now });
     }
     const margin = this.isRemote(ex.side, ex.slot) ? 0.45 : 0.12; // 네트워크 지연 여유
     if (now > ex.t + WIN.bad + HOLD + margin) {

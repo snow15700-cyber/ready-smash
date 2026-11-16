@@ -89,7 +89,7 @@ function stopGame() {
 }
 
 /* ───────── 혼자 하기 (AI 상대) ───────── */
-function startAI(level = 'normal') {
+function startAI() {
   initAudio();
   playUI('click');
   saveNick();
@@ -105,7 +105,7 @@ function startAI(level = 'normal') {
       swing: (side, t, dir, isSwing, slot) => match.swing(side, t, dir, isSwing, slot),
     },
   });
-  match = new Match({ mode: 'ai', level, emit: (ev) => game.onEvent(ev) });
+  match = new Match({ mode: 'ai', emit: (ev) => game.onEvent(ev) });
   hud.stats(game.stats);
   match.start(performance.now() / 1000);
 }
