@@ -74,7 +74,7 @@
   - 시안 보기 페이지 `outfits.html`(`src/outfits-page.js`, vite 빌드 입력에 포함).
   - 상점 연결: `supabase/09_bodies.sql`(08 다음, insert만). `items.js`에 `body_<id>`(`outfit` 필드)·기본 `body_none`(DEFAULTS), `applyLook`이 몸도 입힘, 목록 그림 `outfitImage`(탁구채와 같은 `snap`). `main.js` 루프 끝에서 보이는 캐릭터마다 `tickOutfit`. 대기실 이름표·VS 소개에 탁구채+몸 알약(`lookPills`), 발밑 빛 고리는 탁구채·몸 중 높은 등급(`topGrade`).
   - 병아리: 사용자가 준 참고 그림(동글한 노란 공 + 까만 테두리 + 눈·부리·볼터치 + 손 흔드는 날개 + 삐침 털)대로 다시 만듦. 만화 음영 `TOON`(MeshToonMaterial) + 뒤집힌 껍질 테두리. 칠 때 날개 파닥·통 튐.
-    - A안 `chick`(흰 머리 그대로, 상점에 들어간 것) / B안 `chickB`(흰 머리 숨김 `hideHead`, 시안 페이지에서만 `outfits.html?id=chickB`). 사용자 선택 기다리는 중.
+    - 사용자 확정 = B안: 흰 머리를 숨기고 병아리 한 마리(`HIDE_HEAD` → `makeOutfit`의 `hideHead` → `char.setOutfit`이 `head.visible` 끔). 나중에 머리 아이템을 만들면 병아리를 입었을 때 어떻게 할지 정해야 함(곰 인형탈처럼 세트 처리 등). A안은 `chick(root, char, false)`로 남아 있음.
 
 ## 디자인 손보기 (진행 중, 로비부터 화면별로 — 사용자 확정)
 - 색감은 **지금의 따뜻한 주황 + 파랑 유지**. 색은 `style.css`의 `:root` 변수(`--orange`, `--blue`, `--paper`, `--cream` …)로 쓴다.

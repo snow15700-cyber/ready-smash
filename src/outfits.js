@@ -1215,9 +1215,9 @@ function chick(root, char, headless) {
     tuft.rotation.z = Math.sin(t * 3) * 0.12;
   };
 }
-BUILD.chick = (root, char) => chick(root, char, false);
-BUILD.chickB = (root, char) => chick(root, char, true);
-const HIDE_HEAD = new Set(['chickB']);
+// 사용자 확정: B안(흰 머리를 숨기고 병아리 한 마리). A안은 chick(root, char, false)
+BUILD.chick = (root, char) => chick(root, char, true);
+const HIDE_HEAD = new Set(['chick']);
 
 // 곰젤리: 반투명 빨간 젤리 곰 몸 (배·팔·다리), 설탕 반짝
 BUILD.gummy = (root) => {

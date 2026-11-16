@@ -810,7 +810,7 @@ export function outfitImage(it, px = 128) {
     const g = new THREE.Group();
     if (o) { g.add(o.group); if (o.update) for (let i = 0; i < 10; i++) o.update(1 + i / 30, 1 / 30); }
     else mesh(new THREE.CapsuleGeometry(0.18, 0.62, 6, 16), lam('#f6f5f1'), 0, 0.5, 0, g);
-    mesh(new THREE.SphereGeometry(0.16, 20, 14), lam('#f6f5f1'), 0, 1.17, 0, g);
+    if (!o?.hideHead) mesh(new THREE.SphereGeometry(0.16, 20, 14), lam('#f6f5f1'), 0, 1.17, 0, g);
     g.rotation.y = Math.PI + 0.45; // 앞(-z)이 카메라 쪽으로, 살짝 비스듬히
     thumbs[key] = snap(g, px, 0.66, 1.2);
   } catch {
