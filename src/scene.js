@@ -110,6 +110,31 @@ export function createWorld(canvas) {
       scene.background.copy(bg0).lerp(FOCUS_BG, k);
       scene.fog.color.copy(scene.background);
     },
+    // 대기실 구도: 화면 위쪽 h픽셀(카드 위 공간)을 기준으로 장면을 맞춘다. h가 없으면 원래대로
+    setStageView(h) {
+      const w = window.innerWidth, H = window.innerHeight;
+      if (h) {
+        camera.aspect = w / h;
+        camera.setViewOffset(w, h, 0, 0, w, H);
+      } else {
+        camera.clearViewOffset();
+        camera.aspect = w / H;
+      }
+      camera.updateProjectionMatrix();
+    },
+    // 화면의 점 (px, py)을 지나는 시선이 깊이 z 평면과 만나는 곳의 x (m)
+    screenToX(px, py, z) {
+      camera.updateMatrixWorld();
+      const v = new THREE.Vector3((px / window.innerWidth) * 2 - 1, 1 - (py / window.innerHeight) * 2, 0.5).unproject(camera);
+      const o = camera.position;
+      const d = v.sub(o);
+      return o.x + (d.x * (z - o.z)) / d.z;
+    },
+    // 3D 점 → 화면 좌표(px)
+    toScreen(x, y, z) {
+      const v = new THREE.Vector3(x, y, z).project(camera);
+      return [((v.x + 1) / 2) * window.innerWidth, ((1 - v.y) / 2) * window.innerHeight];
+    },
     kick(amount) { this.shake = Math.max(this.shake, amount); },
     // ballX: 공이 지금 있는 좌우 위치 (공 따라가기용)
     // charZ: 내 캐릭터가 테이블에서 떨어진 거리 (2v2에서 뒤로 물러나면 카메라도 같이)
@@ -338,7 +363,7 @@ export function makeCharacter(paddleColor) {
     if (group.userData.op === key) return;
     group.userData.op = key;
     group.traverse((o) => {
-      if (!o.isMesh) return;
+      if (!o.isMesh || o.userData.keepOp) return;
       const isPaddle = isPaddlePart(o);
       const op = isPaddle ? paddleOp : bodyOp;
       for (const m of [].concat(o.material)) {
@@ -385,7 +410,28 @@ export function makeCharacter(paddleColor) {
     tag.material.map.needsUpdate = true;
     tag.visible = true;
   };
-  return { group, body, arm, head, handle, blade, swingT: -1, setOpacity, setPaddleColor, setPaddle, setPaddleModel, setTag };
+  // 대기실: 탁구채를 몸 옆에 붙여 들기 (팔이 없어서 멀리 띄우면 어색하다). off면 경기 자세로 되돌린다
+  const ARM0 = arm.position.clone();
+  const setHold = (on) => {
+    if (on) arm.position.set(0.27, 0.8, 0);
+    else arm.position.copy(ARM0);
+    for (const k of [handle, blade, custom]) k.position.z = on ? -0.17 : -0.4;
+  };
+  // 대기실: 발밑 빛 고리 (아이템 등급 색). null이면 숨김
+  let glow = null;
+  const setGlow = (color) => {
+    if (!color) { if (glow) glow.visible = false; return; }
+    if (!glow) {
+      glow = new THREE.Mesh(new THREE.RingGeometry(0.25, 0.38, 40), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.7, depthWrite: false }));
+      glow.userData.keepOp = true;
+      glow.rotation.x = -Math.PI / 2;
+      glow.position.y = 0.012;
+      group.add(glow);
+    }
+    glow.material.color.set(color);
+    glow.visible = true;
+  };
+  return { group, body, arm, head, handle, blade, swingT: -1, setOpacity, setPaddleColor, setPaddle, setPaddleModel, setTag, setHold, setGlow };
 }
 
 // 탁구채 색: 지금은 모두 빨강 (나중에 꾸미기에서 색·모양을 바꿀 수 있게 할 예정)

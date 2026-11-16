@@ -226,29 +226,35 @@
     </div>
   </div>
 
-  <div id="room" class="screen hidden">
-    <div class="panel room-panel">
-      <div class="room-top">
-        <button id="btn-room-leave" class="small ghost">← 방 나가기</button>
-        <span id="room-mode" class="room-mode"></span>
-      </div>
-      <div class="ticket">
-        <span class="ticket-lbl">방 코드</span>
-        <div id="room-code" class="code">----</div>
-        <button id="btn-copy" class="small">📋 복사</button>
-      </div>
+  <div id="room" class="screen stage hidden">
+    <!-- 3D 캐릭터 머리 위 이름표·아이템 (매 프레임 자리를 옮긴다) -->
+    <div id="room-labels" class="room-labels"></div>
+    <!-- 경기 결과·코인·상대 전적 (위 가운데) -->
+    <div class="room-news">
       <p id="room-result" class="result hidden"></p>
       <p id="room-coins" class="coins-got"></p>
       <p id="room-h2h" class="h2h"></p>
-      <div id="teams" class="teams">
-        <div class="team t0"><h3>A팀</h3><ul id="team-0" class="members"></ul><button id="btn-team-0" class="small">A팀으로</button></div>
-        <div class="vs">VS</div>
-        <div class="team t1"><h3>B팀</h3><ul id="team-1" class="members"></ul><button id="btn-team-1" class="small">B팀으로</button></div>
+    </div>
+    <div id="room-card" class="panel room-panel">
+      <div class="room-top">
+        <button id="btn-room-leave" class="small ghost">← 방 나가기</button>
+        <div class="ticket">
+          <span class="ticket-lbl">방 코드</span>
+          <div id="room-code" class="code">----</div>
+          <button id="btn-copy" class="small">📋 복사</button>
+        </div>
+        <span id="room-mode" class="room-mode"></span>
       </div>
-      <p id="room-members-title" class="note tiny"></p>
-      <ul id="room-members" class="members waiting"></ul>
-      <p id="room-tip" class="room-tip"></p>
-      <button id="btn-start" class="big hidden">🏓 경기 시작!</button>
+      <div class="slots">
+        <div id="team-0" class="slot-team t0"></div>
+        <div class="vs">VS</div>
+        <div id="team-1" class="slot-team t1"></div>
+      </div>
+      <div class="room-foot">
+        <p id="room-members" class="waiting-list"></p>
+        <p id="room-tip" class="room-tip"></p>
+        <button id="btn-start" class="big hidden">🏓 경기 시작!</button>
+      </div>
       <p id="room-ping" class="note tiny"></p>
     </div>
   </div>
