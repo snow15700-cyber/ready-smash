@@ -13,7 +13,7 @@ export const IS_TEST = !!VERCEL_ENV && VERCEL_ENV !== 'production';
 const ROOM_PREFIX = IS_TEST ? 'pingpong-test-room-' : 'pingpong-room-';
 
 let client = null;
-function getClient() {
+export function getClient() {
   if (!client) client = createClient(URL, KEY, { realtime: { params: { eventsPerSecond: 40 } } });
   return client;
 }

@@ -50,7 +50,7 @@ h1 span { color: #ff6a2a; font-size: 52px; }
 #judge.bad { color: #ff9a3d; }
 #judge.block { color: #8ecbff; }
 #judge.miss { color: #ff5a5a; }
-#toast { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); font-size: 24px; color: #fff; background: #ff8a3d; padding: 8px 18px; border-radius: 14px; opacity: 0; transition: opacity .3s; white-space: nowrap; }
+#toast { position: fixed; z-index: 20; pointer-events: none; top: 20%; left: 50%; transform: translateX(-50%); font-size: 24px; color: #fff; background: #ff8a3d; padding: 8px 18px; border-radius: 14px; opacity: 0; transition: opacity .3s; white-space: nowrap; }
 #toast.show { opacity: 1; }
 @keyframes pop {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); }
@@ -105,3 +105,17 @@ button.big.on { background: #8a7a66; box-shadow: 0 5px 0 #5f5243; }
   75% { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -58%) scale(1); }
 }
+
+/* 계정 */
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.field input.pin { letter-spacing: 10px; font-size: 24px; text-align: center; }
+.tiny-note { font-size: 13px; margin-top: -4px; }
+.or { display: flex; align-items: center; gap: 10px; color: #b3a48e; font-size: 14px; }
+.or::before, .or::after { content: ''; flex: 1; height: 2px; background: #eadfca; }
+.signup-q { margin: 0; text-align: center; font-size: 18px; line-height: 1.5; background: #fff1c9; border-radius: 12px; padding: 10px; }
+.signup-q b { font-weight: normal; color: #ff6a2a; }
+.me-bar { display: flex; align-items: center; gap: 8px; background: #f4ead6; border-radius: 14px; padding: 8px 10px 8px 14px; }
+.me-name { flex: 1; min-width: 0; font-size: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me-name small { font-size: 13px; color: #8a7a66; margin-left: 4px; }
+.me-bar button.small { font-size: 13px; padding: 6px 9px; }
+.msg.ok { color: #2f9c56; }

@@ -3,13 +3,12 @@ import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, setEcho } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
+import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin } from './account.js';
 
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('c'));
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-const NICK_KEY = 'smash-nick';
-try { $('nick').value = localStorage.getItem(NICK_KEY) || ''; } catch {}
 if (IS_TEST) {
   const tag = document.createElement('div');
   tag.textContent = '🧪 테스트 버전';
@@ -68,14 +67,10 @@ let game = null;
 let match = null;
 let room = null;
 
-function saveNick() {
-  const n = $('nick').value.trim().slice(0, 10) || '플레이어';
-  try { localStorage.setItem(NICK_KEY, n); } catch {}
-  return n;
-}
+const myNick = () => account.nick || '플레이어';
 
 function show(screen) {
-  for (const id of ['lobby', 'join', 'room']) $(id).classList.toggle('hidden', id !== screen);
+  for (const id of ['login', 'pin-change', 'lobby', 'join', 'room']) $(id).classList.toggle('hidden', id !== screen);
   $('hud').classList.toggle('hidden', screen !== 'hud');
 }
 
@@ -92,7 +87,6 @@ function stopGame() {
 function startAI() {
   initAudio();
   playUI('click');
-  saveNick();
   stopGame();
   show('hud');
   game = new Game(world, {
@@ -121,9 +115,9 @@ const capacity = () => perTeam() * 2;
 function enterRoom(code, host, mode = null) {
   initAudio();
   playUI('click');
-  const nick = saveNick();
+  const nick = myNick();
   leaveRoom();
-  const me = { id: myId, nick, host, at: Date.now(), ...(host ? { mode } : {}) };
+  const me = { id: myId, nick, host, at: Date.now(), ...(account.guest ? { guest: true } : {}), ...(host ? { mode } : {}) };
   room = {
     code, host, me, mode, members: [], hostM: host ? me : null,
     teams: {}, // id → { team, at }  (at = 팀을 고른 시각: 같은 자리를 동시에 누르면 먼저 누른 사람이 이김)
@@ -404,7 +398,7 @@ function renderRoom() {
   $('room-result').textContent = room.result;
   $('room-result').classList.toggle('hidden', !room.result);
 
-  const row = (m, inTeam, i) => `<li><span>${inTeam && room.mode === '2v2' ? `${i + 1}번 · ` : ''}${m.host ? '방장' : '참가자'}${m.id === myId ? ' (나)' : ''}</span><b>${esc(m.nick)}</b>${inTeam ? '<i class="on">준비 완료</i>' : ''}</li>`;
+  const row = (m, inTeam, i) => `<li><span>${inTeam && room.mode === '2v2' ? `${i + 1}번 · ` : ''}${m.host ? '방장' : '참가자'}${m.guest ? ' · 손님' : ''}${m.id === myId ? ' (나)' : ''}</span><b>${esc(m.nick)}</b>${inTeam ? '<i class="on">준비 완료</i>' : ''}</li>`;
   const empty = '<li class="empty"><span></span><b>빈자리</b></li>';
   const n = room.mode ? perTeam() : 0;
   for (const team of [0, 1]) {
@@ -433,13 +427,148 @@ function renderRoom() {
 }
 
 
+/* ───────── 로그인 (PIN 계정 / 손님) ───────── */
+const LOGIN_MSG = {
+  error: '서버에 연결하지 못했어요. 잠시 뒤 다시 해 보세요',
+  taken: '방금 누가 이 닉네임으로 가입했어요. 다른 닉네임을 써 주세요',
+  bad_nick: '닉네임은 1~10글자로 해 주세요',
+  bad_pin: 'PIN은 숫자 4자리로 해 주세요',
+};
+const waitText = (sec) => (sec >= 60 ? `${Math.ceil(sec / 60)}분` : `${sec}초`);
+let busy = false;
+
+function showLobby() {
+  $('me-name').innerHTML = account.guest
+    ? `${esc(account.nick)}<small>손님</small>`
+    : `${esc(account.nick)}<small>님</small>`;
+  $('btn-pin').classList.toggle('hidden', account.guest);
+  $('btn-logout').textContent = account.guest ? '로그인' : '로그아웃';
+  show('lobby');
+}
+
+function showLogin(msg = '') {
+  $('login-form').classList.remove('hidden');
+  $('signup-form').classList.add('hidden');
+  $('login-nick').value = $('login-nick').value || lastNick();
+  $('login-pin').value = '';
+  $('login-msg').textContent = msg;
+  show('login');
+  ($('login-nick').value ? $('login-pin') : $('login-nick')).focus();
+}
+
+async function doLogin() {
+  if (busy) return;
+  initAudio();
+  playUI('click');
+  const nick = cleanNick($('login-nick').value);
+  const pin = $('login-pin').value;
+  const msg = $('login-msg');
+  if (!nick) { msg.textContent = '닉네임을 입력해 주세요'; $('login-nick').focus(); return; }
+  if (!validPin(pin)) { msg.textContent = 'PIN은 숫자 4자리예요'; $('login-pin').focus(); return; }
+  busy = true;
+  msg.textContent = '확인 중…';
+  const r = await login(nick, pin);
+  busy = false;
+  if (r.status === 'ok') { msg.textContent = ''; showLobby(); hud.toast(`어서 와요, ${account.nick}님!`); return; }
+  if (r.status === 'no_user') {
+    msg.textContent = '';
+    $('signup-nick').textContent = `'${nick}'`;
+    $('signup-pin').value = '';
+    $('signup-msg').textContent = '';
+    $('login-form').classList.add('hidden');
+    $('signup-form').classList.remove('hidden');
+    $('signup-pin').focus();
+    return;
+  }
+  $('login-pin').value = '';
+  if (r.status === 'wrong_pin') msg.textContent = `PIN이 틀렸어요 (${r.left}번 더 틀리면 5분 동안 잠겨요)`;
+  else if (r.status === 'locked') msg.textContent = `PIN을 5번 틀려서 잠겼어요. ${waitText(r.wait)} 뒤에 다시 해 주세요`;
+  else msg.textContent = LOGIN_MSG[r.status] || LOGIN_MSG.error;
+  $('login-pin').focus();
+}
+
+async function doSignup() {
+  if (busy) return;
+  playUI('click');
+  const msg = $('signup-msg');
+  if ($('signup-pin').value !== $('login-pin').value) {
+    msg.textContent = '처음 입력한 PIN과 달라요. 다시 입력해 주세요';
+    $('signup-pin').value = '';
+    $('signup-pin').focus();
+    return;
+  }
+  busy = true;
+  msg.textContent = '가입 중…';
+  const r = await signup($('login-nick').value, $('login-pin').value);
+  busy = false;
+  if (r.status === 'ok') { msg.textContent = ''; showLobby(); hud.toast(`가입 완료! 반가워요, ${account.nick}님`, 2400); return; }
+  msg.textContent = LOGIN_MSG[r.status] || LOGIN_MSG.error;
+}
+
+function doGuest() {
+  initAudio();
+  playUI('click');
+  const nick = cleanNick($('login-nick').value);
+  if (!nick) { $('login-msg').textContent = '손님도 닉네임은 입력해 주세요'; $('login-nick').focus(); return; }
+  playAsGuest(nick);
+  showLobby();
+}
+
+async function doChangePin() {
+  if (busy) return;
+  playUI('click');
+  const a = $('pin-new').value, b = $('pin-new2').value, msg = $('pin-msg');
+  if (!validPin(a)) { msg.textContent = 'PIN은 숫자 4자리예요'; $('pin-new').focus(); return; }
+  if (a !== b) { msg.textContent = '두 번 입력한 PIN이 달라요'; $('pin-new2').value = ''; $('pin-new2').focus(); return; }
+  busy = true;
+  msg.textContent = '바꾸는 중…';
+  const r = await changePin(a);
+  busy = false;
+  if (r.status === 'ok') { showLobby(); hud.toast('PIN을 바꿨어요'); return; }
+  if (r.status === 'no_session') { showLogin('로그인이 풀렸어요. 다시 로그인해 주세요'); return; }
+  msg.textContent = LOGIN_MSG[r.status] || LOGIN_MSG.error;
+}
+
+const onlyDigits = (e) => { e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4); };
+for (const id of ['login-pin', 'signup-pin', 'pin-new', 'pin-new2']) $(id).addEventListener('input', onlyDigits);
+$('btn-login').addEventListener('click', doLogin);
+$('login-nick').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('login-pin').focus(); });
+$('login-pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+$('btn-signup').addEventListener('click', doSignup);
+$('signup-pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSignup(); });
+$('btn-signup-cancel').addEventListener('click', () => { playUI('click'); showLogin(); });
+$('btn-guest').addEventListener('click', doGuest);
+$('btn-logout').addEventListener('click', async () => {
+  playUI('click');
+  if (!account.guest) { await logout(); showLogin('로그아웃했어요'); }
+  else showLogin();
+});
+$('btn-pin').addEventListener('click', () => {
+  playUI('click');
+  $('pin-new').value = '';
+  $('pin-new2').value = '';
+  $('pin-msg').textContent = '';
+  show('pin-change');
+  $('pin-new').focus();
+});
+$('btn-pin-go').addEventListener('click', doChangePin);
+$('pin-new').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('pin-new2').focus(); });
+$('pin-new2').addEventListener('keydown', (e) => { if (e.key === 'Enter') doChangePin(); });
+$('btn-pin-cancel').addEventListener('click', () => { playUI('click'); showLobby(); });
+
+// 처음 열면: 기억해 둔 열쇠가 있으면 자동 로그인, 없으면 로그인 화면
+(async () => {
+  const r = await autoLogin();
+  if (r === 'ok') showLobby();
+  else showLogin(r === 'error' ? '서버에 연결하지 못해 자동 로그인을 못 했어요. 다시 로그인하거나 손님으로 해 주세요' : '');
+})();
+
 /* ───────── 버튼 ───────── */
 $('btn-ai').addEventListener('click', () => startAI());
 $('btn-create-1v1').addEventListener('click', () => enterRoom(makeCode(), true, '1v1'));
 $('btn-create-2v2').addEventListener('click', () => enterRoom(makeCode(), true, '2v2'));
 $('btn-join').addEventListener('click', () => {
   playUI('click');
-  saveNick();
   $('join-msg').textContent = '';
   $('join-code').value = '';
   show('join');
@@ -471,7 +600,6 @@ $('exit').addEventListener('click', exitGame);
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && game && !room) exitGame();
 });
-$('nick').addEventListener('keydown', (e) => { if (e.key === 'Enter') startAI(); });
 
 /* ───────── 매 프레임 ───────── */
 function loop() {

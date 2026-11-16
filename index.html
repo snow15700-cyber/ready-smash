@@ -18,17 +18,66 @@
     <div id="hint"></div>
     <div id="judge"></div>
     <div id="turn"></div>
-    <div id="toast"></div>
     <button id="exit" class="small">로비로</button>
   </div>
 
-  <div id="lobby" class="screen">
+  <div id="toast"></div>
+
+  <div id="login" class="screen hidden">
+    <div class="panel">
+      <h1>준비하시고,<br /><span>스매시!</span></h1>
+      <p class="sub">닉네임과 PIN(숫자 4자리)으로 로그인하세요</p>
+      <div id="login-form" class="stack">
+        <label class="field">닉네임
+          <input id="login-nick" maxlength="10" placeholder="예: 탁구왕" autocomplete="off" />
+        </label>
+        <label class="field">PIN (숫자 4자리)
+          <input id="login-pin" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
+        </label>
+        <p id="login-msg" class="msg"></p>
+        <button id="btn-login" class="big">로그인</button>
+        <p class="note tiny-note">처음이면 쓰고 싶은 닉네임과 PIN을 넣고 로그인을 누르면 가입돼요</p>
+      </div>
+      <div id="signup-form" class="stack hidden">
+        <p class="signup-q"><b id="signup-nick"></b>은(는) 처음 보는 닉네임이에요.<br />이 닉네임으로 새로 가입할까요?</p>
+        <label class="field">확인을 위해 PIN을 한 번 더 입력하세요
+          <input id="signup-pin" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
+        </label>
+        <p id="signup-msg" class="msg"></p>
+        <button id="btn-signup" class="big">가입하기</button>
+        <button id="btn-signup-cancel">다시 입력</button>
+      </div>
+      <div class="or"><span>또는</span></div>
+      <button id="btn-guest">손님으로 하기</button>
+      <p class="note tiny-note">손님은 전적·기록이 저장되지 않아요 (닉네임만 입력하면 돼요)</p>
+    </div>
+  </div>
+
+  <div id="pin-change" class="screen hidden">
+    <div class="panel">
+      <h2>PIN 바꾸기</h2>
+      <p class="sub">새로 쓸 PIN(숫자 4자리)을 두 번 입력하세요</p>
+      <label class="field">새 PIN
+        <input id="pin-new" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
+      </label>
+      <label class="field">새 PIN 한 번 더
+        <input id="pin-new2" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
+      </label>
+      <p id="pin-msg" class="msg"></p>
+      <button id="btn-pin-go" class="big">바꾸기</button>
+      <button id="btn-pin-cancel">뒤로</button>
+    </div>
+  </div>
+
+  <div id="lobby" class="screen hidden">
     <div class="panel">
       <h1>준비하시고,<br /><span>스매시!</span></h1>
       <p class="sub">마우스 하나로 즐기는 ASMR 탁구</p>
-      <label class="field">닉네임
-        <input id="nick" maxlength="10" placeholder="예: 탁구왕" autocomplete="off" />
-      </label>
+      <div class="me-bar">
+        <span id="me-name" class="me-name"></span>
+        <button id="btn-pin" class="small">PIN 바꾸기</button>
+        <button id="btn-logout" class="small">로그아웃</button>
+      </div>
       <button id="btn-ai" class="big">🏓 혼자 하기 (AI 상대)</button>
       <div class="row">
         <button id="btn-create-1v1">1v1 방 만들기</button>
