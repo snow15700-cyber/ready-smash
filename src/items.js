@@ -34,7 +34,8 @@ export const DEFAULTS = { paddle: 'paddle_red' };
 
 // model: 모양이 다른 탁구채(아래 PADDLE_MODELS). 없으면 기본 탁구채에 color만 바꾼다
 const paddle = (id, name, grade, color, extra = {}) => ({ id, cat: 'paddle', name, grade, color, ...extra });
-const gag = (id, name, grade, model) => ({ id, cat: 'paddle', name, grade, model });
+// sound: 칠 때 나는 소리 종류 (audio.js의 HIT_SKINS). 없으면 기본 타구음
+const gag = (id, name, grade, model, sound) => ({ id, cat: 'paddle', name, grade, model, ...(sound ? { sound } : {}) });
 export const ITEMS = [
   paddle('paddle_red', '빨강 탁구채', 'default', '#e0333c'),
   paddle('paddle_blue', '파랑 탁구채', 'common', '#2f6fe0'),
@@ -49,22 +50,30 @@ export const ITEMS = [
   gag('paddle_dots', '물방울 탁구채', 'common', 'dots'),
   gag('paddle_hearts', '하트 탁구채', 'common', 'hearts'),
   gag('paddle_bolt', '번개 탁구채', 'common', 'bolt'),
-  // 개그 탁구채 (고급). 전설 7종은 다음 단계
-  gag('paddle_toast', '식빵', 'rare', 'toast'),
-  gag('paddle_baguette', '바게트', 'rare', 'baguette'),
-  gag('paddle_donut', '도넛', 'rare', 'donut'),
-  gag('paddle_pizza', '피자 한 조각', 'rare', 'pizza'),
-  gag('paddle_melon', '수박 조각', 'rare', 'melon'),
-  gag('paddle_waffle', '와플', 'rare', 'waffle'),
-  gag('paddle_mackerel', '고등어', 'rare', 'mackerel'),
-  gag('paddle_scoop', '밥주걱', 'rare', 'scoop'),
-  gag('paddle_slipper', '삼선 슬리퍼', 'rare', 'slipper'),
-  gag('paddle_swatter', '파리채', 'rare', 'swatter'),
-  gag('paddle_fan', '태극 부채', 'rare', 'fan'),
-  gag('paddle_sponge', '수세미', 'rare', 'sponge'),
+  // 개그 탁구채 (고급)
+  gag('paddle_toast', '식빵', 'rare', 'toast', 'bread'),
+  gag('paddle_baguette', '바게트', 'rare', 'baguette', 'bread'),
+  gag('paddle_donut', '도넛', 'rare', 'donut', 'bread'),
+  gag('paddle_pizza', '피자 한 조각', 'rare', 'pizza', 'bread'),
+  gag('paddle_melon', '수박 조각', 'rare', 'melon', 'melon'),
+  gag('paddle_waffle', '와플', 'rare', 'waffle', 'bread'),
+  gag('paddle_mackerel', '고등어', 'rare', 'mackerel', 'fish'),
+  gag('paddle_scoop', '밥주걱', 'rare', 'scoop', 'plastic'),
+  gag('paddle_slipper', '삼선 슬리퍼', 'rare', 'slipper', 'plastic'),
+  gag('paddle_swatter', '파리채', 'rare', 'swatter', 'plastic'),
+  gag('paddle_fan', '태극 부채', 'rare', 'fan', 'plastic'),
+  gag('paddle_sponge', '수세미', 'rare', 'sponge', 'sponge'),
   gag('paddle_book', '탁구 교재', 'rare', 'book'),
-  gag('paddle_eraser', '칠판지우개', 'rare', 'eraser'),
+  gag('paddle_eraser', '칠판지우개', 'rare', 'eraser', 'sponge'),
   gag('paddle_board', '도마', 'rare', 'board'),
+  // 전설 7종: 모양을 정성껏 + 전용 타구음
+  gag('paddle_pan', '프라이팬', 'legend', 'pan', 'pan'),
+  gag('paddle_guitar', '통기타', 'legend', 'guitar', 'guitar'),
+  gag('paddle_keyboard', '키보드', 'legend', 'keyboard', 'keyboard'),
+  gag('paddle_mouse', '마우스', 'legend', 'mouse', 'mouse'),
+  gag('paddle_phone', '스마트폰', 'legend', 'phone', 'phone'),
+  gag('paddle_duck', '고무 오리', 'legend', 'duck', 'duck'),
+  gag('paddle_hammer', '뿅망치', 'legend', 'hammer', 'hammer'),
 ];
 for (const it of ITEMS) it.pool = CATS[it.cat].pool;
 export const ITEM = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
@@ -77,6 +86,7 @@ export function applyLook(char, equip) {
   const p = equipped(equip, 'paddle');
   if (char.userData?.paddle === p.id) return;
   char.userData = { ...char.userData, paddle: p.id };
+  char.sound = p.sound || null; // 칠 때 소리 (game.js → audio.playHit)
   if (p.model) char.setPaddleModel(makePaddle(p));
   else {
     char.setPaddleModel(null);
@@ -510,6 +520,210 @@ const PADDLE_MODELS = {
       cu.rotation.x = Math.PI / 2;
     }
     g.position.y = 0.02;
+    return g;
+  },
+  // ── 전설 ──
+  pan() {
+    const g = new THREE.Group();
+    const pan = new THREE.Group();
+    pan.rotation.x = Math.PI / 2; // 팬 안쪽이 내 쪽(+z)
+    pan.position.y = 0.01;
+    g.add(pan);
+    const iron = lam('#2a2a30'), inside = lam('#3d3d45');
+    mesh(new THREE.CylinderGeometry(0.098, 0.084, 0.026, 40, 1, true), lam('#2a2a30', { side: THREE.DoubleSide }), 0, 0, 0, pan);
+    mesh(new THREE.CylinderGeometry(0.084, 0.084, 0.006, 40), [iron, inside, lam('#1c1c21')], 0, -0.011, 0, pan);
+    mesh(new THREE.TorusGeometry(0.098, 0.0045, 8, 48), lam('#4a4a52'), 0, 0.013, 0, pan).rotation.x = Math.PI / 2;
+    // 달걀 프라이 (안쪽)
+    const egg = new THREE.Shape();
+    const r = rng(2);
+    for (let i = 0; i <= 24; i++) {
+      const a = (i / 24) * Math.PI * 2, rr = 0.052 + (i % 24 ? (r() - 0.5) * 0.014 : 0) + Math.sin(a * 3) * 0.006;
+      if (i === 0) egg.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); else egg.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    const white = extrude(egg, 0.004, [lam('#fffdf6'), lam('#f1ebdc')], 0.002);
+    white.position.set(-0.008, 0.012, 0.0);
+    g.add(white);
+    const yolk = mesh(new THREE.SphereGeometry(0.022, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), lam('#ffb21f', { emissive: '#ff8a00', emissiveIntensity: 0.15 }), -0.004, 0.018, 0.003, g);
+    yolk.rotation.x = Math.PI / 2;
+    yolk.scale.y = 0.55;
+    mesh(new THREE.SphereGeometry(0.005, 8, 6), lam('#fff4c8'), -0.011, 0.025, 0.014, g);
+    // 손잡이: 쇠 목 + 나무 손잡이 + 걸이 구멍
+    mesh(new THREE.BoxGeometry(0.02, 0.07, 0.012), lam('#3a3a42'), 0, -0.115, 0, g);
+    for (const x of [-0.006, 0.006]) mesh(new THREE.SphereGeometry(0.0035, 8, 6), lam('#8a8a92'), x, -0.088, 0.007, g);
+    const wood = new THREE.Shape();
+    wood.moveTo(-0.014, -0.15); wood.lineTo(0.014, -0.15); wood.lineTo(0.016, -0.25);
+    wood.quadraticCurveTo(0.016, -0.265, 0, -0.265); wood.quadraticCurveTo(-0.016, -0.265, -0.016, -0.25); wood.closePath();
+    const hole = new THREE.Path(); hole.absarc(0, -0.245, 0.0055, 0, Math.PI * 2, true);
+    wood.holes.push(hole);
+    g.add(extrude(wood, 0.014, [lam('#8a5a32'), lam('#734a28')], 0.003));
+    return g;
+  },
+  guitar() {
+    const g = new THREE.Group();
+    // 몸통 (위쪽) — 아래가 큰 8자 모양, 목은 아래로
+    const body = new THREE.Shape(); // 목 쪽(아래)이 작고 위가 큰 8자
+    const Y = (y) => 0.13 - y;
+    body.moveTo(0, Y(-0.02));
+    body.bezierCurveTo(-0.05, Y(-0.02), -0.072, Y(0.01), -0.068, Y(0.045));
+    body.bezierCurveTo(-0.064, Y(0.07), -0.04, Y(0.075), -0.042, Y(0.095));
+    body.bezierCurveTo(-0.046, Y(0.13), -0.03, Y(0.15), 0, Y(0.15));
+    body.bezierCurveTo(0.03, Y(0.15), 0.046, Y(0.13), 0.042, Y(0.095));
+    body.bezierCurveTo(0.04, Y(0.075), 0.064, Y(0.07), 0.068, Y(0.045));
+    body.bezierCurveTo(0.072, Y(0.01), 0.05, Y(-0.02), 0, Y(-0.02));
+    const topTex = shapeTex(0.2, 0, 0.065, (c, w, h) => {
+      const grd = c.createRadialGradient(w / 2, h * 0.4, 10, w / 2, h * 0.45, w * 0.55);
+      grd.addColorStop(0, '#f6cf8c'); grd.addColorStop(0.7, '#e3a456'); grd.addColorStop(1, '#a8622a');
+      c.fillStyle = grd; c.fillRect(0, 0, w, h);
+      c.strokeStyle = 'rgba(150,90,40,0.18)'; c.lineWidth = 2;
+      for (let x = 0; x < w; x += 9) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x + 3, h); c.stroke(); }
+    });
+    const gb = new THREE.Group();
+    gb.position.y = -0.06;
+    g.add(gb);
+    const shell = extrude(body, 0.03, [lam('#ffffff', { map: topTex }), lam('#6b3f1d')], 0.004);
+    gb.add(shell);
+    // 사운드홀 + 장식 고리 + 브리지 (앞면)
+    mesh(new THREE.CircleGeometry(0.017, 28), lam('#24160c'), 0, 0.04, 0.0191, gb);
+    mesh(new THREE.TorusGeometry(0.021, 0.002, 6, 32), lam('#3a2414'), 0, 0.04, 0.019, gb);
+    mesh(new THREE.BoxGeometry(0.036, 0.008, 0.004), lam('#3a2414'), 0, 0.11, 0.02, gb);
+    // 목 (아래로) + 프렛 + 헤드
+    const neckMat = lam('#5a3418');
+    mesh(new THREE.BoxGeometry(0.02, 0.15, 0.012), neckMat, 0, -0.095, 0.004, gb);
+    for (let i = 0; i < 7; i++) mesh(new THREE.BoxGeometry(0.02, 0.0018, 0.002), lam('#d8d4c8'), 0, -0.03 - i * 0.018, 0.0105, gb);
+    mesh(new THREE.BoxGeometry(0.028, 0.045, 0.01), lam('#3a2414'), 0, -0.19, 0.003, gb);
+    for (const x of [-1, 1]) for (let i = 0; i < 3; i++) mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.012, 8), lam('#e8e2d0'), x * 0.019, -0.178 - i * 0.012, 0.003, gb).rotation.z = Math.PI / 2;
+    // 줄 6개
+    const str = lam('#f2efe6', { emissive: '#ffffff', emissiveIntensity: 0.15 });
+    for (let i = 0; i < 6; i++) {
+      const x = (i - 2.5) * 0.0028;
+      mesh(new THREE.CylinderGeometry(0.0006, 0.0006, 0.155, 4), str, x, -0.0975, 0.0115, gb); // 목 위
+      mesh(new THREE.CylinderGeometry(0.0006, 0.0006, 0.13, 4), str, x, 0.045, 0.0212, gb); // 몸통 위
+    }
+    return g;
+  },
+  keyboard() {
+    const g = new THREE.Group();
+    mesh(new THREE.BoxGeometry(0.105, 0.205, 0.016), lam('#3a3d48'), 0, 0, 0, g);
+    // 파스텔 무지개 키캡 (줄마다 색)
+    const rows = ['#ffb3ba', '#ffd8a8', '#fff1a8', '#c8f2b0', '#b0e6f2', '#b8c4ff', '#dcc0ff'];
+    const kw = 0.0205, gap = 0.0045;
+    rows.forEach((col, r) => {
+      const y = 0.083 - r * (kw + gap);
+      const m = lam(col);
+      for (let k = 0; k < 4; k++) {
+        const key = mesh(new THREE.BoxGeometry(kw, kw, 0.008), m, -0.0375 + k * (kw + gap), y, 0.011, g);
+        mesh(new THREE.BoxGeometry(kw * 0.78, kw * 0.78, 0.003), lam(col, { emissive: '#ffffff', emissiveIntensity: 0.12 }), 0, 0, 0.005, key);
+      }
+    });
+    // 스페이스바 + 빨간 엔터
+    mesh(new THREE.BoxGeometry(0.07, kw, 0.008), lam('#f4f1ea'), -0.0125, -0.0845, 0.011, g);
+    mesh(new THREE.BoxGeometry(kw, kw, 0.008), lam('#ff5a6a'), 0.0375, -0.0845, 0.011, g);
+    // 케이블 (아래로)
+    const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, -0.1, 0), new THREE.Vector3(0.012, -0.14, 0), new THREE.Vector3(-0.01, -0.18, 0), new THREE.Vector3(0.004, -0.22, 0)]);
+    mesh(new THREE.TubeGeometry(curve, 24, 0.004, 8), lam('#2b2a33'), 0, 0, 0, g);
+    return g;
+  },
+  mouse() {
+    const g = new THREE.Group();
+    // 몸통: 위(+z)가 볼록한 둥근 마우스, 앞쪽(버튼)이 아래를 본다
+    const shell = mesh(new THREE.SphereGeometry(1, 32, 20), lam('#f6f4fb'), 0, 0.01, 0, g);
+    shell.scale.set(0.055, 0.088, 0.032);
+    // 버튼 가르는 선 + 휠
+    mesh(new THREE.BoxGeometry(0.0022, 0.05, 0.004), lam('#b9b4c8'), 0, -0.045, 0.024, g).rotation.x = -0.35;
+    mesh(new THREE.BoxGeometry(0.07, 0.0022, 0.004), lam('#b9b4c8'), 0, -0.02, 0.0285, g);
+    const wheel = mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.007, 16), lam('#7a6cff', { emissive: '#7a6cff', emissiveIntensity: 0.35 }), 0, -0.048, 0.026, g);
+    wheel.rotation.z = Math.PI / 2;
+    // 뒤쪽 불빛
+    const led = mesh(new THREE.TorusGeometry(0.02, 0.002, 6, 24, Math.PI), lam('#7a6cff', { emissive: '#7a6cff', emissiveIntensity: 0.8 }), 0, 0.06, 0.018, g);
+    led.rotation.x = -0.6;
+    // 꼬불꼬불 선 (손잡이처럼 아래로)
+    const pts = [];
+    for (let i = 0; i <= 12; i++) pts.push(new THREE.Vector3(Math.sin(i * 1.3) * 0.012, -0.075 - i * 0.013, Math.cos(i * 1.3) * 0.006));
+    mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 60, 0.0035, 8), lam('#d9d4e8'), 0, 0, 0, g);
+    return g;
+  },
+  phone() {
+    const g = new THREE.Group();
+    const frame = roundRect(0.086, 0.172, 0.014);
+    g.add(extrude(frame, 0.009, [lam('#c9b8ff'), lam('#a996e6')], 0.002));
+    const screen = canvasTex(256, 512, (c, w, h) => {
+      const grd = c.createLinearGradient(0, 0, 0, h);
+      grd.addColorStop(0, '#ffd1e8'); grd.addColorStop(0.5, '#c9e4ff'); grd.addColorStop(1, '#d6ffe8');
+      c.fillStyle = grd; c.fillRect(0, 0, w, h);
+      c.fillStyle = '#111'; c.beginPath(); c.roundRect(w / 2 - 40, 14, 80, 22, 11); c.fill();
+      c.fillStyle = '#3b3550'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.font = 'bold 22px Jua, sans-serif'; c.fillText('17:00', 34, 25);
+      c.font = 'bold 64px Jua, sans-serif'; c.fillText('스매시!', w / 2, 120);
+      // 탁구채 + 공 그림
+      c.fillStyle = '#e0333c'; c.beginPath(); c.arc(w / 2 - 10, 215, 42, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#c99560'; c.fillRect(w / 2 - 22, 248, 22, 44);
+      c.fillStyle = '#ffffff'; c.beginPath(); c.arc(w / 2 + 52, 190, 13, 0, Math.PI * 2); c.fill();
+      // 앱 아이콘
+      const cols = ['#ff8fa3', '#ffc36b', '#7fd88a', '#6cc4ff', '#a98bff', '#ff9ad5', '#5fe0c8', '#ffd84a'];
+      for (let i = 0; i < 8; i++) {
+        c.fillStyle = cols[i];
+        c.beginPath(); c.roundRect(28 + (i % 4) * 54, 340 + Math.floor(i / 4) * 64, 42, 42, 11); c.fill();
+      }
+      c.fillStyle = 'rgba(255,255,255,0.7)'; c.beginPath(); c.roundRect(w / 2 - 50, h - 22, 100, 7, 4); c.fill();
+    });
+    mesh(new THREE.PlaneGeometry(0.078, 0.162), new THREE.MeshBasicMaterial({ map: screen }), 0, 0, 0.0071, g);
+    // 뒷면 카메라
+    const cam = new THREE.Group();
+    cam.position.set(-0.022, 0.06, -0.0075);
+    g.add(cam);
+    mesh(new THREE.BoxGeometry(0.03, 0.034, 0.004), lam('#b3a2ef'), 0, 0, 0, cam);
+    for (const [x, y] of [[-0.007, 0.008], [-0.007, -0.008], [0.008, 0]]) {
+      const l = mesh(new THREE.CylinderGeometry(0.0055, 0.0055, 0.004, 16), [lam('#2b2a33'), lam('#2b2a33'), lam('#151520')], x, y, -0.003, cam);
+      l.rotation.x = Math.PI / 2;
+    }
+    return g;
+  },
+  duck() {
+    const g = new THREE.Group();
+    const yellow = lam('#ffd23d'), deep = lam('#f5b800');
+    const body = mesh(new THREE.SphereGeometry(1, 28, 20), yellow, -0.008, -0.02, 0, g);
+    body.scale.set(0.075, 0.05, 0.052);
+    mesh(new THREE.SphereGeometry(0.04, 24, 18), yellow, 0.035, 0.045, 0, g);
+    // 꼬리 (뒤로 살짝 올라감)
+    const tail = mesh(new THREE.ConeGeometry(0.022, 0.04, 16), yellow, -0.078, 0.008, 0, g);
+    tail.rotation.z = 0.9;
+    // 부리
+    const beak = mesh(new THREE.SphereGeometry(1, 18, 12), lam('#ff8a1f'), 0.077, 0.036, 0, g);
+    beak.scale.set(0.022, 0.009, 0.019);
+    const beak2 = mesh(new THREE.SphereGeometry(1, 18, 12), lam('#f2741a'), 0.072, 0.028, 0, g);
+    beak2.scale.set(0.017, 0.006, 0.015);
+    bothSides((d) => {
+      // 눈 + 반짝
+      mesh(new THREE.SphereGeometry(0.0075, 12, 10), lam('#1b1b22'), 0.05, 0.058, d * 0.03, g);
+      mesh(new THREE.SphereGeometry(0.0025, 8, 6), lam('#ffffff', { emissive: '#ffffff', emissiveIntensity: 0.5 }), 0.053, 0.061, d * 0.0365, g);
+      // 볼터치
+      const blush = mesh(new THREE.SphereGeometry(0.008, 10, 8), lam('#ff9a8a'), 0.058, 0.04, d * 0.031, g);
+      blush.scale.set(1, 0.6, 0.4);
+      // 날개
+      const wing = mesh(new THREE.SphereGeometry(1, 18, 12), deep, -0.015, -0.015, d * 0.045, g);
+      wing.scale.set(0.035, 0.022, 0.012);
+      wing.rotation.z = 0.35;
+    });
+    return g;
+  },
+  hammer() {
+    const g = new THREE.Group();
+    const head = new THREE.Group();
+    head.rotation.z = Math.PI / 2; // 머리는 가로로
+    head.position.y = 0.01;
+    g.add(head);
+    const red = lam('#ff4757'), yellow = lam('#ffd23d');
+    // 양 끝 노란 뚜껑 + 가운데 빨간 주름
+    for (const d of [-1, 1]) {
+      mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.018, 28), yellow, 0, d * 0.072, 0, head);
+      mesh(new THREE.CylinderGeometry(0.04, 0.046, 0.008, 28), yellow, 0, d * 0.085, 0, head).rotation.x = d > 0 ? 0 : Math.PI;
+    }
+    mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.13, 28), red, 0, 0, 0, head);
+    for (let i = 0; i < 7; i++) mesh(new THREE.TorusGeometry(0.039, 0.0065, 8, 28), red, 0, -0.054 + i * 0.018, 0, head).rotation.x = Math.PI / 2;
+    // 손잡이
+    mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.17, 16), yellow, 0, -0.12, 0, g);
+    mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.05, 16), red, 0, -0.19, 0, g);
+    mesh(new THREE.SphereGeometry(0.015, 16, 10), red, 0, -0.215, 0, g);
     return g;
   },
 };
