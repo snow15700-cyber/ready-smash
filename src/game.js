@@ -10,6 +10,8 @@ const PRE = 0.15;
 // 타이밍 링이 화면 밖으로 나가지 않게: 카메라에서 최소 이만큼(m) 떨어뜨려 너무 커지지 않게 하고,
 // 가운데 흰 링의 SAFE배 크기가 화면 안에 다 들어오도록 가장자리에서 띄운다
 const RING = { minDist: 1.1, safe: 3, pad: 0.03 };
+// 찬스볼 신호음 간격(초): 칠 타이밍 3박 전부터 똑·똑·똑, 그 타이밍에 높은 '띵'
+const CUE_GAP = 0.3;
 const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 
 export class Game {
@@ -20,7 +22,7 @@ export class Game {
     this.names = names;
     this.playerNames = playerNames;
     this.offset = 0; // 방장 시계 - 내 시계 (초)
-    this.net = { seed: 0, nextIdx: 0, rally: 0 };
+    this.net = { seed: 0, nextIdx: 0, rally: 0, incoming: null };
     this.predicted = null;
     this.w = world;
     this.mySide = mySide;
@@ -165,21 +167,23 @@ export class Game {
     const { dir, up } = this.readStroke(h.t, h.x, h.y);
     const grade = judge(h.t - ex.t, up);
     if (!up) this.charOf(me, this.mySlot).swingBlock = true;
-    this.hud.judge(grade, ({ perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK' })[grade] + ARROW[dir]);
+    const smash = this.mode !== 'wall' && this.net.incoming === 'chance' && grade === 'perfect';
+    this.hud.judge(grade, (smash ? 'SMASH!' : ({ perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK' })[grade]) + ARROW[dir]);
     if (grade === 'perfect') {
       this.stats.perfectStreak++;
       this.stats.perfects++;
     } else this.stats.perfectStreak = 0;
     this.hud.stats(this.stats);
-    if (!this.authority) this.predictHit(h.t, grade, dir);
+    if (!this.authority) this.predictHit(h.t, grade, dir, h.t - ex.t);
     this.send.swing(me, h.t, dir, up, this.mySlot);
   }
 
   // 상대 PC(방장 아님): 방장 응답을 기다리지 않고 내 타격 결과를 똑같은 공식으로 먼저 계산해 보여준다
-  predictHit(t, grade, dir) {
+  predictHit(t, grade, dir, dt = 0) {
     const shot = computeShot({
       mode: this.mode, seed: this.net.seed, shotIdx: this.net.nextIdx, rally: this.net.rally,
       segs: this.segs, serve: this.phase === 'toss', side: this.mySide, t, grade, dir, hold: HOLD,
+      incoming: this.net.incoming, dt,
     });
     this.predicted = { t, prevSegs: this.segs, prevExpect: this.expect, prevTurn: this.turn };
     this.segs = shot.segs;
@@ -188,6 +192,17 @@ export class Game {
     this.expect = shot.next ? { ...shot.next, slot: this.order[this.turn].slot, whiffed: false } : null;
     this.phase = 'rally';
     this.holdPos = null;
+  }
+
+  // 찬스볼: 칠 타이밍(방장 시계 tHit)에 맞춰 똑·똑·똑·띵. 이미 지나간 박자는 건너뜀
+  playCue(tHit) {
+    const now = performance.now() / 1000 + this.offset;
+    const base = A.audioNow() + (tHit - now);
+    for (let i = 3; i >= 0; i--) {
+      const when = base - i * CUE_GAP;
+      if (when < A.audioNow() - 0.01) continue;
+      A.playCue(when, i === 0);
+    }
   }
 
   startSwing(char, t, block = false) {
@@ -218,6 +233,7 @@ export class Game {
         this.stats.rally = 0;
         this.speedLv = 0;
         this.net.rally = 0;
+        this.net.incoming = null;
         this.predicted = null;
         this.hud.stats(this.stats);
         {
@@ -242,6 +258,7 @@ export class Game {
         this.phase = 'rally';
         this.net.nextIdx = (ev.idx ?? this.net.nextIdx) + 1;
         this.net.rally = ev.rally;
+        this.net.incoming = ev.kind === 'chance' || ev.kind === 'smash' ? ev.kind : null;
         const mine = this.isMe(ev.side, ev.slot ?? 0);
         const wasPredicted = this.predicted && mine && Math.abs(this.predicted.t - ev.t) < 1e-6;
         this.predicted = null;
@@ -253,7 +270,12 @@ export class Game {
         this.turn = ev.turn ?? (this.turn + 1) % this.order.length;
         const next = findIdealHit(this.segs, 1 - ev.side);
         this.expect = next ? { ...next, slot: this.order[this.turn].slot, whiffed: false } : null;
-        if (!mine && this.expect && this.isMe(this.expect.side, this.expect.slot)) this.announceTurn(false);
+        const toMe = this.expect && this.isMe(this.expect.side, this.expect.slot);
+        if (!mine && toMe) this.announceTurn(false);
+        if (ev.kind === 'chance' && toMe) {
+          this.hud.toast('찬스볼! 소리에 맞춰 쳐 보세요');
+          this.playCue(this.expect.t);
+        } else if (ev.kind === 'smash' && !mine) this.hud.toast('스매시!');
         if (mine) {
           this.stats.rally = ev.rally;
           this.hud.hint('');

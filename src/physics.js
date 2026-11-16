@@ -175,6 +175,7 @@ const SHOT = {
   bad:     { T: 0.98, depth: 0.5, aim: 0.3, jit: 0.22 },
   block:   { T: 0.85, depth: 0.62, aim: 0.38, jit: 0.08 },
   wall:    { T: 0.66, depth: 1.0, aim: 0.45, jit: 0.25 },
+  out:     { T: 0.6, depth: 1.95, aim: 0.45, jit: 0.2 }, // 스매시를 어설프게 받음: 테이블 끝을 넘겨 아웃
 };
 
 // 등급과 방향으로 공의 출발 속도를 계획한다

@@ -245,6 +245,21 @@ export function playWhoosh(pos) {
   s.start(t, 0, 0.2);
 }
 
+// 찬스볼 타이밍 신호: 나무 실로폰처럼 작고 둥근 '똑 똑 똑 띵' (high = 마지막 높은 음 = 칠 타이밍)
+export function playCue(when, high = false) {
+  if (!ctx) return;
+  const t = at(when);
+  const out = chain(t, null, 0.15);
+  out.gain.value = 0.55;
+  if (high) {
+    mode(out, t, 1568, 0.07, 0.11);
+    mode(out, t, 3136, 0.012, 0.04);
+  } else {
+    mode(out, t, 1047, 0.05, 0.045);
+    mode(out, t, 2094, 0.008, 0.02);
+  }
+}
+
 // UI: 작고 부드럽게
 export function playUI(kind = 'click') {
   if (!ctx) return;
