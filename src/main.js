@@ -3,7 +3,7 @@ import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, setEcho } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
-import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, recordRally, getH2H } from './account.js';
+import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, recordRally, getH2H, getRanking } from './account.js';
 
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('c'));
@@ -73,7 +73,7 @@ const myNick = () => account.nick || '플레이어';
 
 function show(screen) {
   if (screen === 'lobby') renderMe();
-  for (const id of ['login', 'pin-change', 'lobby', 'join', 'room']) $(id).classList.toggle('hidden', id !== screen);
+  for (const id of ['login', 'pin-change', 'rank', 'lobby', 'join', 'room']) $(id).classList.toggle('hidden', id !== screen);
   $('hud').classList.toggle('hidden', screen !== 'hud');
 }
 
@@ -495,7 +495,7 @@ function renderMe() {
   $('btn-logout').textContent = account.guest ? '로그인' : '로그아웃';
   const p = account.player;
   $('me-stats').innerHTML = p
-    ? `<span>1v1 <b>${p.wins_1v1}승 ${p.losses_1v1}패</b></span><span>2v2 <b>${p.wins_2v2}승 ${p.losses_2v2}패</b></span><span>최장 랠리 <b>${p.best_rally}</b></span>`
+    ? `<span>1v1 <b>${p.wins_1v1}승</b></span><span>2v2 <b>${p.wins_2v2}승</b></span><span>최장 랠리 <b>${p.best_rally}</b></span>` // 패 수는 보여 주지 않는다 (사용자 결정, 상대 전적만 승패 둘 다)
     : '<span class="guest">손님은 전적이 저장되지 않아요</span>';
 }
 const showLobby = () => show('lobby');
@@ -616,6 +616,38 @@ $('btn-pin-cancel').addEventListener('click', () => { playUI('click'); showLobby
   if (r === 'ok') showLobby();
   else showLogin(r === 'error' ? '서버에 연결하지 못해 자동 로그인을 못 했어요. 다시 로그인하거나 손님으로 해 주세요' : '');
 })();
+
+/* ───────── 랭킹 ───────── */
+const RANK = {
+  wins: { desc: '1v1 + 2v2 승리 합계', unit: '승', empty: '아직 이긴 사람이 없어요. 첫 1등이 되어 보세요!' },
+  rally: { desc: '혼자 하기(AI 상대) 최장 랠리', unit: '회', empty: '아직 기록이 없어요. 혼자 하기로 첫 기록을 세워 보세요!' },
+};
+let rankKind = 'wins';
+let rankReq = 0;
+async function showRank(kind = rankKind) {
+  rankKind = kind;
+  for (const k of ['wins', 'rally']) $(`rank-tab-${k}`).classList.toggle('on', k === kind);
+  $('rank-desc').textContent = RANK[kind].desc;
+  const list = $('rank-list');
+  list.innerHTML = '<li class="msg-row">불러오는 중…</li>';
+  show('rank');
+  const req = ++rankReq;
+  const rows = await getRanking(kind);
+  if (req !== rankReq) return; // 그 사이 탭을 바꿨으면 버림
+  if (!rows) { list.innerHTML = '<li class="msg-row">랭킹을 불러오지 못했어요 (인터넷 연결 확인)</li>'; return; }
+  if (!rows.length) { list.innerHTML = `<li class="msg-row">${RANK[kind].empty}</li>`; return; }
+  const myNick = account.loggedIn ? account.nick : null;
+  const MEDAL = ['', '🥇', '🥈', '🥉'];
+  list.innerHTML = rows.map((r) => {
+    const sub = kind === 'wins' ? `<small>1v1 ${r.w1}승 · 2v2 ${r.w2}승</small>` : '';
+    return `<li class="${r.nick === myNick ? 'me' : ''}"><span class="no${MEDAL[r.rank] ? ' medal' : ''}">${MEDAL[r.rank] || r.rank}</span>`
+      + `<span class="who">${esc(r.nick)}${r.nick === myNick ? ' (나)' : ''}${sub}</span><span class="val">${r.value}${RANK[kind].unit}</span></li>`;
+  }).join('');
+}
+$('btn-rank').addEventListener('click', () => { playUI('click'); showRank('wins'); });
+$('rank-tab-wins').addEventListener('click', () => { playUI('click'); showRank('wins'); });
+$('rank-tab-rally').addEventListener('click', () => { playUI('click'); showRank('rally'); });
+$('btn-rank-back').addEventListener('click', () => { playUI('click'); show('lobby'); });
 
 /* ───────── 버튼 ───────── */
 $('btn-ai').addEventListener('click', () => startAI());

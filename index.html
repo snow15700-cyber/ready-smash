@@ -70,6 +70,19 @@
     </div>
   </div>
 
+  <div id="rank" class="screen hidden">
+    <div class="panel">
+      <h2>🏆 랭킹</h2>
+      <div class="tabs">
+        <button id="rank-tab-wins" class="small on">승수</button>
+        <button id="rank-tab-rally" class="small">최장 랠리</button>
+      </div>
+      <p id="rank-desc" class="note tiny-note"></p>
+      <ol id="rank-list" class="rank-list"></ol>
+      <button id="btn-rank-back">뒤로</button>
+    </div>
+  </div>
+
   <div id="lobby" class="screen hidden">
     <div class="panel">
       <h1>준비하시고,<br /><span>스매시!</span></h1>
@@ -85,7 +98,10 @@
         <button id="btn-create-1v1">1v1 방 만들기</button>
         <button id="btn-create-2v2">2v2 방 만들기</button>
       </div>
-      <button id="btn-join">코드로 입장</button>
+      <div class="row">
+        <button id="btn-join">코드로 입장</button>
+        <button id="btn-rank">🏆 랭킹</button>
+      </div>
       <p class="note soon" id="mode-note"></p>
       <div class="howto">
         <b>치는 방법은 딱 하나!</b>
