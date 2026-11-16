@@ -1182,15 +1182,21 @@ $('btn-test-coins').addEventListener('click', async () => { playUI('coin'); awai
    머리 위에는 닉네임 + 아이템 이름 (등급은 색·빛으로만). 빈자리는 흐린 실루엣 */
 const STAGE = { cam: [0, 1.0, 5.0], look: [0, 1.05, 0], fov: 46, z: 1.3, cardAt: 0.73, headY: 1.45 };
 const GLOW = { legend: '#ffb020', rare: '#b07cff' };
+// 발밑 빛 고리는 장착한 것(탁구채·몸) 중 가장 높은 등급 색
+const topGrade = (look) => ['legend', 'rare'].find((g) => ['paddle', 'body'].some((c) => equipped(look, c)?.grade === g)) || null;
 const stage = { seats: [], els: [], on: false, fov: 50 };
 
+// 장착한 탁구채 + 몸(기본이 아닐 때만) 알약
+function lookPills(look) {
+  return ['paddle', 'body'].map((c) => equipped(look, c)).filter((it, i) => i === 0 || it.grade !== 'default')
+    .map((it) => `<div class="it g-${it.grade}">${swatch(it)}${esc(it.name)}</div>`).join('');
+}
 function renderStageLabels() {
   const box = $('room-labels');
   box.innerHTML = stage.seats.map(({ team, m }) => {
     if (!m) return '<div class="rl ghost"><div class="nm">빈자리 · 기다리는 중</div></div>';
-    const it = equipped(m.look, 'paddle');
     const tags = (m.id === myId ? '<small>나</small>' : '') + (m.host ? '<small>👑</small>' : '');
-    return `<div class="rl"><div class="nm t${team}">${esc(m.nick)}${tags}</div><div class="it g-${it.grade}">${swatch(it)}${esc(it.name)}</div></div>`;
+    return `<div class="rl"><div class="nm t${team}">${esc(m.nick)}${tags}</div>${lookPills(m.look)}</div>`;
   }).join('');
   stage.els = [...box.children];
 }
@@ -1222,7 +1228,7 @@ function stageFrame(now) {
     c.setOpacity(m ? 1 : 0.16, m ? 1 : 0);
     c.setTag(null);
     c.setHold(true);
-    c.setGlow(m ? GLOW[equipped(m.look, 'paddle').grade] : null);
+    c.setGlow(m ? GLOW[topGrade(m.look)] : null);
     c.group.position.set(x, 0, STAGE.z);
     c.group.rotation.y = Math.PI - x * 0.08; // 가운데 쪽으로 살짝
     c.body.position.y = Math.sin(now * 2.6 + i) * 0.008;
@@ -1334,8 +1340,7 @@ function startIntro(players, mySide, mode) {
   if (game) game.paused = true;
   document.body.classList.add('intro');
   const card = (s) => {
-    const it = equipped(s.look, 'paddle');
-    return `<div class="vi-card"><div class="nm t${s.side}">${esc(s.name)}${s.id === myId ? '<small>나</small>' : ''}</div><div class="it g-${it.grade}">${swatch(it)}${esc(it.name)}</div></div>`;
+    return `<div class="vi-card"><div class="nm t${s.side}">${esc(s.name)}${s.id === myId ? '<small>나</small>' : ''}</div>${lookPills(s.look)}</div>`;
   };
   const team = (side) => `<div class="vi-team">${side === mySide ? (mode === '2v2' ? '우리 팀' : '나') : (mode === '2v2' ? '상대 팀' : '상대')} · ${TEAM_NAME[side]}</div>`
     + seats.filter((s) => s.side === side).map(card).join('');
@@ -1495,6 +1500,10 @@ function loop() {
     const rallySound = !$('lobby').classList.contains('hidden') || !$('dress').classList.contains('hidden');
     lobbyDemo.update(now, world.chars, world, rallySound);
   }
+  // 움직이는 옷(전설 효과·병아리 파닥): 보이는 캐릭터만
+  const odt = Math.min(0.1, now - (loop.last || now));
+  loop.last = now;
+  for (const side of world.team) for (const c of side) if (c.group.visible) c.tickOutfit(now, odt);
   world.render();
   requestAnimationFrame(loop);
 }
