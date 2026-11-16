@@ -43,13 +43,13 @@ const canvas = document.getElementById('c');
 const big = renderer(canvas);
 const live = stage();
 const cam = new THREE.PerspectiveCamera(36, 1, 0.02, 50);
-let yaw = Math.PI + 0.5, drag = null, auto = true;
+let yaw = params.has('yaw') ? Number(params.get('yaw')) : Math.PI + 0.5, drag = null, auto = !params.has('yaw');
 canvas.addEventListener('pointerdown', (e) => { drag = e.clientX; auto = false; canvas.setPointerCapture(e.pointerId); });
 canvas.addEventListener('pointermove', (e) => { if (drag != null) { yaw -= (e.clientX - drag) * 0.01; drag = e.clientX; } });
 canvas.addEventListener('pointerup', () => { drag = null; });
 let cur = null;
 function wear(id) {
-  cur = OUTFITS.find((o) => o.id === id);
+  cur = OUTFITS.find((o) => o.id === id) || { id, name: id, grade: 'rare' };
   live.char.setOutfit(makeOutfit(id, live.char));
   document.getElementById('nm').textContent = cur.name;
   const gd = document.getElementById('gd');

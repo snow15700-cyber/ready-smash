@@ -180,6 +180,14 @@ function shoes(g, color, sole = '#f4f1ea', top = 0.07) {
   band(g, BY0, BY0 + 0.018, sole);
 }
 
+// 만화 음영 (3단계 밝기)
+const TOON = (() => {
+  const t = new THREE.DataTexture(new Uint8Array([150, 210, 255]), 3, 1, THREE.RedFormat);
+  t.minFilter = t.magFilter = THREE.NearestFilter;
+  t.needsUpdate = true;
+  return t;
+})();
+
 /* ── 효과용 반짝이 (Sprite). userData.fx = true면 캐릭터 반투명 설정을 받지 않는다 ── */
 const spriteTex = {};
 function sprite(kind) {
@@ -1102,99 +1110,114 @@ BUILD.cupcake = (root) => {
   stem.rotation.z = 0.5;
 };
 
-// 병아리: 통통 동글한 노란 솜털 몸(배가 볼록) + 짧은 날개 + 꼬리깃 + 엉덩이에 알껍데기
-BUILD.chick = (root, char) => {
-  const tex = canvasTex(1024, 512, (g, w, h) => {
-    const gr = g.createLinearGradient(0, 0, 0, h);
-    gr.addColorStop(0, '#ffe766'); gr.addColorStop(1, '#ffd23a');
-    g.fillStyle = gr; g.fillRect(0, 0, w, h);
-    const r = rng(5);
-    for (let i = 0; i < 5000; i++) {
-      const x = r() * w, y = r() * h;
-      g.strokeStyle = r() < 0.55 ? 'rgba(255,255,255,0.4)' : 'rgba(235,170,20,0.3)';
-      g.lineWidth = 1.6; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 3, y + 4, x + (r() - 0.5) * 6, y + 9); g.stroke();
-    }
-    // 배: 크림색 동그라미 (앞 = 가운데)
-    const bg = g.createRadialGradient(w / 2, h * 0.68, 0, w / 2, h * 0.68, h * 0.3);
-    bg.addColorStop(0, 'rgba(255,250,215,1)'); bg.addColorStop(0.7, 'rgba(255,248,200,0.8)'); bg.addColorStop(1, 'rgba(255,248,200,0)');
-    g.fillStyle = bg; g.fillRect(w / 2 - h * 0.35, h * 0.2, h * 0.7, h * 0.75);
-    // 가슴 하트 털
-    heart(g, w / 2, h * 0.3, 18, 'rgba(255,190,40,0.6)');
-  });
-  const furM = lam('#ffffff', { map: tex });
+// 병아리: 동글동글 노란 공 + 까만 테두리(만화 느낌) + 얼굴(눈·부리·볼터치) + 손 흔드는 날개 + 삐침 털
+// headless = true(B안)면 흰 머리를 숨기고 병아리 공이 캐릭터 전체가 된다
+function chick(root, char, headless) {
+  const YEL = '#ffe57a', LINE = '#2b2522';
+  const toon = (color, o = {}) => new THREE.MeshToonMaterial({ color, gradientMap: TOON, ...o });
   const shape = new THREE.Group();
   root.add(shape);
-  // 동글동글 두 덩이: 아래 큰 공(배) + 위 작은 공(가슴)
-  const pts = smoothPts([[0.0001, 0.04], [0.2, 0.06], [0.3, 0.17], [0.325, 0.34], [0.3, 0.5], [0.22, 0.62], [0.205, 0.7], [0.215, 0.8], [0.18, 0.91], [0.13, 0.99]], 60);
-  mesh(lathe(pts, 48), furM, 0, 0, 0, shape);
-  // 목둘레 보송 털 (동그란 털뭉치 링)
-  const fluff = lam('#fff07a');
-  for (let i = 0; i < 18; i++) {
-    const a = (i / 18) * Math.PI * 2;
-    const f = mesh(new THREE.SphereGeometry(0.036, 10, 8), fluff, Math.sin(a) * 0.135, 0.975, Math.cos(a) * 0.135, shape);
-    f.scale.set(1, 0.75, 1);
+  // 까만 테두리: 같은 모양을 조금 크게, 뒷면만 까맣게 (뒤집힌 껍질)
+  const lineM = new THREE.MeshBasicMaterial({ color: LINE, side: THREE.BackSide });
+  const outline = (m, k = 0.035) => {
+    const o = new THREE.Mesh(m.geometry, lineM);
+    o.position.copy(m.position); o.rotation.copy(m.rotation); o.quaternion.copy(m.quaternion);
+    m.geometry.computeBoundingSphere();
+    o.userData.k = 1 + k / Math.max(0.05, m.geometry.boundingSphere.radius); // 테두리 두께 k(m)
+    o.castShadow = false;
+    m.parent.add(o);
+    return o;
+  };
+  const add = (geo, mat, x, y, z, parent = shape, k = 0.012) => {
+    const m = mesh(geo, mat, x, y, z, parent);
+    if (k) m.userData.line = outline(m, k);
+    return m;
+  };
+  // 몸 공: 아래가 살짝 더 통통 (A안 = 머리 밑까지, B안 = 캐릭터 키만큼)
+  const H = headless ? 1.08 : 1.0, W = headless ? 0.47 : 0.39;
+  const prof = [[0.0001, 0.02], [0.7, 0.05], [0.97, 0.2], [1, 0.4], [0.94, 0.62], [0.76, 0.82], [0.46, 0.95], [0.0001, 1]];
+  const pts = smoothPts(prof.map(([r, y]) => [r * W, 0.01 + y * (H - 0.01)]), 60);
+  const rAt = (y) => {
+    for (let i = 1; i < pts.length; i++) if (pts[i][1] >= y) { const [r0, y0] = pts[i - 1], [r1, y1] = pts[i]; return r0 + (r1 - r0) * ((y - y0) / (y1 - y0 || 1)); }
+    return 0;
+  };
+  const tex = canvasTex(512, 256, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, '#fff09a'); gr.addColorStop(1, '#ffd85a');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  });
+  add(lathe(pts, 64), toon('#ffffff', { map: tex }), 0, 0, 0, shape, 0.014);
+  // 얼굴: 몸 공 앞(-z) 위쪽. a = 옆으로 돈 각도, y = 높이 → 표면 위 점
+  const surf = (a, y, out = 0) => { const r = rAt(y) + out; return V(Math.sin(a) * r, y, -Math.cos(a) * r); };
+  const faceY = headless ? 0.7 : 0.66;
+  const stick = (m, a) => { m.rotation.y = -a; return m; };
+  for (const s of [-1, 1]) {
+    const a = s * 0.4;
+    const ep = surf(a, faceY, 0.004);
+    const eye = stick(mesh(new THREE.SphereGeometry(0.036, 16, 12), new THREE.MeshBasicMaterial({ color: LINE }), ep.x, ep.y, ep.z, shape), a);
+    eye.scale.set(1, 1.1, 0.45);
+    const gp = surf(a - s * 0.03, faceY + 0.012, 0.016);
+    mesh(new THREE.SphereGeometry(0.009, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffffff' }), gp.x, gp.y, gp.z, shape);
+    // 볼터치 (눈 바깥 아래)
+    const bp = surf(s * 0.66, faceY - 0.06, 0.002);
+    const blush = stick(mesh(new THREE.SphereGeometry(0.05, 18, 12), new THREE.MeshBasicMaterial({ color: '#f7a0a6' }), bp.x, bp.y, bp.z, shape), s * 0.62);
+    blush.scale.set(1, 0.85, 0.22);
   }
-  // 날개: 동글 납작 (끝이 살짝 들림)
-  const wingM = lam('#ffd22a');
+  // 부리: 위·아래 두 쪽 (살짝 벌린 입)
+  const beakM = toon('#f3a04a');
+  const bp = surf(0, faceY - 0.01, 0.0);
+  const up = add(new THREE.SphereGeometry(0.042, 16, 12), beakM, bp.x, bp.y + 0.014, bp.z - 0.014, shape, 0);
+  up.scale.set(1, 0.55, 0.75);
+  const lo = add(new THREE.SphereGeometry(0.034, 16, 12), toon('#e98a3a'), bp.x, bp.y - 0.018, bp.z - 0.008, shape, 0);
+  lo.scale.set(0.9, 0.5, 0.65);
+  // 날개: 왼쪽(-x)은 손 흔들기, 오른쪽(+x, 탁구채 쪽)은 살짝 들고
+  const wingM = toon(YEL);
   const wings = [];
   for (const s of [-1, 1]) {
     const grp = new THREE.Group();
-    grp.position.set(s * 0.31, 0.45, 0.02);
+    const wy = headless ? 0.42 : 0.4;
+    grp.position.set(s * (rAt(wy) - 0.02), wy, -0.02);
     shape.add(grp);
-    const w = mesh(new THREE.SphereGeometry(0.1, 16, 12), wingM, s * 0.02, -0.06, 0, grp);
-    w.scale.set(0.3, 0.85, 0.7);
-    for (let k = 0; k < 3; k++) { // 날개 끝 깃털 세 갈래
-      const f = mesh(new THREE.SphereGeometry(0.03, 8, 6), wingM, s * 0.035, -0.14 - k * 0.006, -0.04 + k * 0.04, grp);
-      f.scale.set(0.5, 1, 0.8);
-    }
-    grp.rotation.z = s * 0.35;
+    // 날개 뿌리 = 그룹 원점, 날개는 위로 뻗어 있고 그룹을 기울여 바깥으로 벌린다
+    const w = add(new THREE.SphereGeometry(0.1, 18, 14), wingM, 0, 0.09, 0, grp, 0.012);
+    w.scale.set(0.42, 1, 0.62);
     wings.push(grp);
   }
-  // 꼬리깃 (뒤로 쏙)
-  for (let k = -1; k <= 1; k++) {
-    const t = mesh(new THREE.SphereGeometry(0.035, 10, 8), wingM, k * 0.04, 0.4 + Math.abs(k) * -0.02, 0.33, shape);
-    t.scale.set(0.7, 0.7, 1.6);
-    t.rotation.x = -0.6;
-  }
-  // 알껍데기 (아래): 들쭉날쭉 테두리
-  const shellTex = canvasTex(256, 128, (g, w, h) => {
-    g.fillStyle = '#fffaf0'; g.fillRect(0, 0, w, h);
-    const r2 = rng(2);
-    for (let i = 0; i < 40; i++) circle(g, r2() * w, r2() * h, 2 + r2() * 3, 'rgba(210,190,150,0.4)');
-  });
-  const sp = smoothPts([[0.05, 0.0], [0.22, 0.03], [0.31, 0.12], [0.335, 0.22]], 16);
-  const geo = lathe(sp, 48);
-  const p = geo.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    if (p.getY(i) > 0.2) {
-      const a = Math.atan2(p.getX(i), p.getZ(i));
-      const zig = Math.abs((((a / (Math.PI * 2)) * 12) % 1 + 1) % 1 - 0.5) * 2;
-      p.setY(i, 0.19 + zig * 0.08);
-    }
-  }
-  geo.computeVertexNormals();
-  mesh(geo, lam('#ffffff', { map: shellTex, side: THREE.DoubleSide }), 0, 0, 0, shape);
-  // 동글 주황 발
+  // 삐침 털 (꼬불): A안은 머리 뒤쪽 위, B안은 정수리
+  const tuftM = toon(YEL);
+  const tuft = new THREE.Group();
+  if (headless) tuft.position.set(0.02, H - 0.02, 0);
+  else tuft.position.set(0.04, H - 0.06, 0.13);
+  shape.add(tuft);
+  const curve = new THREE.CatmullRomCurve3([V(0, 0, 0), V(0.01, 0.06, 0), V(0.05, 0.1, 0), V(0.09, 0.09, 0), V(0.08, 0.06, 0)]);
+  add(new THREE.TubeGeometry(curve, 20, 0.014, 8, false), tuftM, 0, 0, 0, tuft, 0.006);
+  add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(0, 0, 0), V(-0.03, 0.05, 0), V(-0.06, 0.06, 0)]), 12, 0.011, 8, false), tuftM, 0, 0, 0, tuft, 0.006);
+  tuft.rotation.y = headless ? 0.3 : 0.9;
+  // 발: 짧고 동그란 주황 발
   for (const s of [-1, 1]) {
-    const f = mesh(new THREE.SphereGeometry(0.05, 12, 8), lam('#ff9a20'), s * 0.1, 0.02, -0.31, shape);
-    f.scale.set(1.2, 0.4, 1);
-    for (let k = -1; k <= 1; k++) {
-      const toe = mesh(new THREE.SphereGeometry(0.018, 8, 6), lam('#ff9a20'), s * 0.1 + k * 0.03, 0.018, -0.35, shape);
-      toe.scale.set(1, 0.6, 1.4);
-    }
+    const f = add(new THREE.SphereGeometry(0.05, 14, 10), toon('#f3a04a'), s * 0.1, 0.025, -W * 0.55, shape, 0.008);
+    f.scale.set(1.1, 0.45, 1.3);
   }
-  // 칠 때 날개를 파닥 + 몸이 통 튐
+  // 테두리 크기는 모양을 다 잡은 뒤(scale 바꾼 뒤) 맞춘다
+  shape.traverse((m) => { const o = m.userData.line; if (o) o.scale.copy(m.scale).multiplyScalar(o.userData.k); });
   const hit = swingWatch(char);
   let flap = 0, hop = 0, hopV = 0;
   return (t, dt) => {
-    if (hit()) { flap = 1; hopV += 2.2; }
+    if (hit()) { flap = 1; hopV += 2.4; }
     flap = Math.max(0, flap - dt * 2.5);
     hopV += (-hop * 120 - hopV * 9) * dt;
     hop += hopV * dt;
-    shape.scale.set(1 - hop * 0.15, 1 + hop * 0.25, 1 - hop * 0.15);
-    wings.forEach((w, i) => { w.rotation.z = (i ? 1 : -1) * (0.35 + Math.abs(Math.sin(t * 24)) * flap * 0.9 + Math.sin(t * 2) * 0.04); });
+    shape.scale.set(1 - hop * 0.12, 1 + hop * 0.2, 1 - hop * 0.12);
+    // 왼쪽 날개는 늘 살랑살랑 손 흔들기, 칠 때는 양쪽 파닥
+    // 왼쪽(-x) 날개는 위로 들어 흔들기, 오른쪽은 옆으로 쏙
+    wings[0].rotation.z = 0.75 + Math.sin(t * 5) * 0.3 + Math.abs(Math.sin(t * 24)) * flap * 0.5;
+    wings[1].rotation.z = -1.5 - Math.abs(Math.sin(t * 24)) * flap * 0.7;
+    tuft.rotation.z = Math.sin(t * 3) * 0.12;
   };
-};
+}
+BUILD.chick = (root, char) => chick(root, char, false);
+BUILD.chickB = (root, char) => chick(root, char, true);
+const HIDE_HEAD = new Set(['chickB']);
 
 // 곰젤리: 반투명 빨간 젤리 곰 몸 (배·팔·다리), 설탕 반짝
 BUILD.gummy = (root) => {
@@ -1732,5 +1755,5 @@ export function makeOutfit(id, char) {
   else if (PAINT[id]) skin(group, PAINT[id]);
   else return null;
   group.traverse((o) => { if (o.isMesh && o.userData.fx) o.castShadow = false; });
-  return { group, update };
+  return { group, update, hideHead: HIDE_HEAD.has(id) };
 }

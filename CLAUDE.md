@@ -73,7 +73,8 @@
   - 캐릭터: `char.setOutfit(o|null)`(흰 몸통 숨김), 전설 효과는 매 프레임 `char.tickOutfit(t, dt)`. 효과 메시·스프라이트는 `userData.fx`(반투명 설정 안 받음), 원래 반투명 재질은 `material.userData.baseOp`.
   - 시안 보기 페이지 `outfits.html`(`src/outfits-page.js`, vite 빌드 입력에 포함).
   - 상점 연결: `supabase/09_bodies.sql`(08 다음, insert만). `items.js`에 `body_<id>`(`outfit` 필드)·기본 `body_none`(DEFAULTS), `applyLook`이 몸도 입힘, 목록 그림 `outfitImage`(탁구채와 같은 `snap`). `main.js` 루프 끝에서 보이는 캐릭터마다 `tickOutfit`. 대기실 이름표·VS 소개에 탁구채+몸 알약(`lookPills`), 발밑 빛 고리는 탁구채·몸 중 높은 등급(`topGrade`).
-  - 병아리: 사용자 요청으로 '동글동글' 두 덩이 몸 + 칠 때 날개 파닥·통 튐.
+  - 병아리: 사용자가 준 참고 그림(동글한 노란 공 + 까만 테두리 + 눈·부리·볼터치 + 손 흔드는 날개 + 삐침 털)대로 다시 만듦. 만화 음영 `TOON`(MeshToonMaterial) + 뒤집힌 껍질 테두리. 칠 때 날개 파닥·통 튐.
+    - A안 `chick`(흰 머리 그대로, 상점에 들어간 것) / B안 `chickB`(흰 머리 숨김 `hideHead`, 시안 페이지에서만 `outfits.html?id=chickB`). 사용자 선택 기다리는 중.
 
 ## 디자인 손보기 (진행 중, 로비부터 화면별로 — 사용자 확정)
 - 색감은 **지금의 따뜻한 주황 + 파랑 유지**. 색은 `style.css`의 `:root` 변수(`--orange`, `--blue`, `--paper`, `--cream` …)로 쓴다.

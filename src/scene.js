@@ -329,6 +329,7 @@ export function makeCharacter(paddleColor) {
     }
     outfit = o;
     torso.visible = !o;
+    head.visible = !o?.hideHead; // 몸 전체가 캐릭터가 되는 옷(병아리 B안 등)은 흰 머리를 숨긴다
     if (o) {
       o.group.traverse((m) => { if (m.isMesh && !m.userData.fx) m.castShadow = true; });
       body.add(o.group);
