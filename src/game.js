@@ -7,6 +7,9 @@ import * as A from './audio.js';
 // 스윙 동작은 '클릭 직전 0.15초 ~ 클릭 직후 HOLD초' 동안의 마우스 움직임으로 판단한다.
 // 위로 올렸으면 스윙(아니면 블록), 그 움직임이 왼쪽 위/위/오른쪽 위 중 어디냐로 방향을 정한다.
 const PRE = 0.15;
+// 타이밍 링이 화면 밖으로 나가지 않게: 카메라에서 최소 이만큼(m) 떨어뜨려 너무 커지지 않게 하고,
+// 가운데 흰 링의 SAFE배 크기가 화면 안에 다 들어오도록 가장자리에서 띄운다
+const RING = { minDist: 1.1, safe: 3, pad: 0.03 };
 const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 
 export class Game {
@@ -386,8 +389,20 @@ export class Game {
     const remain = ex ? ex.t - now : 9;
     if (showRing && remain < 0.95 && remain > -WIN.bad) {
       w.ring.visible = true;
-      w.ring.position.set(ex.pos[0], ex.pos[1], ex.pos[2]);
-      w.ring.lookAt(cam.position);
+      // 칠 자리가 화면 밖(사이드)이어도 링은 화면 안 가장자리에 붙여서 보이게 한다
+      // (카메라 기준 좌표로 바꿔서: 너무 가깝거나 뒤에 있으면 앞으로 밀고, 화면 밖이면 가장자리 안쪽으로)
+      const p = w.ring.position.set(ex.pos[0], ex.pos[1], ex.pos[2]);
+      cam.updateMatrixWorld();
+      cam.worldToLocal(p);
+      const depth = Math.max(RING.minDist, -p.z);
+      const th = Math.tan((cam.fov * Math.PI) / 360), tw = th * cam.aspect;
+      const r = (0.072 * RING.safe) / (depth * th); // 화면 높이 기준 링 반지름
+      const ey = Math.max(0.3, 1 - r - RING.pad), ex2 = Math.max(0.3, 1 - r / cam.aspect - RING.pad);
+      const nx = p.z < 0 ? p.x / (-p.z * tw) : Math.sign(p.x) * 9; // 화면 가로 위치 (-1~1이 화면 안)
+      const ny = p.z < 0 ? p.y / (-p.z * th) : Math.sign(p.y) * 9;
+      p.set(Math.max(-ex2, Math.min(ex2, nx)) * depth * tw, Math.max(-ey, Math.min(ey, ny)) * depth * th, -depth);
+      cam.localToWorld(p);
+      w.ring.quaternion.copy(cam.quaternion); // 화면을 정면으로 보게 (가장자리에서도 동그랗게)
       const k = 1 + Math.max(0, remain) * 3.4;
       w.ringMove.scale.setScalar(k);
       const col = Math.abs(remain) <= WIN.perfect ? '#5dff8a' : Math.abs(remain) <= WIN.good ? '#ffe24d' : '#ffb347';
