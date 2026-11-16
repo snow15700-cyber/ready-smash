@@ -251,7 +251,7 @@ button.lb-help { position: absolute; left: clamp(20px, 4.5vw, 64px); bottom: 26p
 /* 좁은 화면(휴대폰·작은 창): 위에서 아래로 차례로 쌓는다 */
 @media (max-width: 760px), (max-height: 560px) {
   .screen.lobby { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 16px 16px 24px; background: rgba(255,246,230,.45); }
-  .lb-me, .lb-left, .lb-icons, .lb-help { position: static; transform: none; }
+  .lb-me, .lb-left, .lb-icons, button.lb-help { position: static; transform: none; }
   .lb-me { order: 0; align-items: center; }
   .lb-left { order: 1; }
   .lb-icons { order: 2; }
@@ -439,3 +439,8 @@ button.ghost:hover:not(:disabled) { color: var(--ink); background: var(--cream);
 #result span { font-size: 30px; opacity: .95; }
 @keyframes resultIn { 0% { opacity: 0; transform: translateY(-50%) scaleY(.3); } 100% { opacity: 1; transform: translateY(-50%); } }
 @media (max-width: 600px) { #scoreboard { top: 64px; } .st-rally { min-width: 64px; padding: 4px 10px 6px; } .st-rally b { font-size: 30px; } .sb { min-width: 0; padding: 4px 6px 4px 10px; } .sb span { font-size: 13px; max-width: 70px; } .sb b { font-size: 32px; } #judge { font-size: 44px; } #judge.perfect { font-size: 50px; } #hint { font-size: 16px; } }
+
+/* 휴대폰: PC 안내, 온라인 버튼 잠금, 화면에서 밀어도 스크롤·확대 안 되게 */
+.mobile-note { margin: 0; padding: 10px 12px; border-radius: 12px; background: #fff3c4; color: #6b4d00; text-align: center; font-size: 15px; line-height: 1.45; }
+button.locked { opacity: .45; filter: grayscale(.6); }
+body.mobile canvas { touch-action: none; }
