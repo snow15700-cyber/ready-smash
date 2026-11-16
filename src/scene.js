@@ -318,11 +318,46 @@ export function makeCharacter(paddleColor) {
       }
     });
   };
-  return { group, body, arm, head, handle, blade, swingT: -1, setOpacity, setPaddleColor };
+  // 머리 위 이름표 (2v2). text가 없으면 숨김, on이면 '다음에 칠 사람'으로 노랗게 강조
+  let tag = null;
+  const setTag = (text, on = false) => {
+    const key = text ? `${text}/${on}` : '';
+    if (group.userData.tag === key) return;
+    group.userData.tag = key;
+    if (!text) { if (tag) tag.visible = false; return; }
+    if (!tag) {
+      const c = document.createElement('canvas');
+      c.width = 512; c.height = 128;
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      // 거리와 상관없이 화면에서 같은 크기로 보이게 (sizeAttenuation 끔)
+      tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
+      tag.renderOrder = 20;
+      tag.scale.set(0.15, 0.0375, 1);
+      tag.position.set(0, 1.52, 0);
+      group.add(tag);
+    }
+    const c = tag.material.map.image;
+    const g = c.getContext('2d');
+    g.clearRect(0, 0, c.width, c.height);
+    g.font = 'bold 64px Jua, sans-serif';
+    const w = Math.min(500, g.measureText(text).width + 56);
+    g.fillStyle = on ? 'rgba(255,214,61,0.95)' : 'rgba(43,42,51,0.55)';
+    g.beginPath();
+    g.roundRect((c.width - w) / 2, 14, w, 100, 50);
+    g.fill();
+    g.fillStyle = on ? '#2b2a33' : '#ffffff';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(text, c.width / 2, 68, 470);
+    tag.material.map.needsUpdate = true;
+    tag.visible = true;
+  };
+  return { group, body, arm, head, handle, blade, swingT: -1, setOpacity, setPaddleColor, setTag };
 }
 
-// 탁구채 색: 나 = 빨강, 상대 = 파랑, 팀원 = (사용자가 스크린샷 보고 결정)
-export const PADDLE_COLOR = { me: '#e0333c', mate: '#e0333c', opp: '#2f6fd0' };
+// 탁구채 색: 지금은 모두 빨강 (나중에 꾸미기에서 색·모양을 바꿀 수 있게 할 예정)
+export const PADDLE_COLOR = { me: '#e0333c', mate: '#e0333c', opp: '#e0333c' };
 // 캐릭터가 서는 기본 위치 (테이블 중심에서의 거리)
 export const CHAR_Z = HIT_Z + 0.42;
 

@@ -95,3 +95,14 @@ button.big.on { background: #8a7a66; box-shadow: 0 5px 0 #5f5243; }
 .team .members li span { min-width: 0; font-size: 12px; }
 .team .members li b { font-size: 17px; flex-basis: 100%; order: -1; }
 .team .members li i { font-size: 12px; margin-left: auto; }
+
+/* 2v2 '내 차례!' */
+#turn { position: absolute; top: 58%; left: 50%; transform: translate(-50%, -50%); font-size: 46px; color: #ffd23d; opacity: 0; text-shadow: 0 4px 0 rgba(0,0,0,.25), 0 0 18px rgba(255,190,40,.6); white-space: nowrap; pointer-events: none; }
+#turn.show { animation: turnPop 1.1s ease-out forwards; }
+@keyframes turnPop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+  30% { transform: translate(-50%, -50%) scale(1); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -58%) scale(1); }
+}

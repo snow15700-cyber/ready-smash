@@ -11,9 +11,11 @@ const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 
 export class Game {
   // authority: 이 PC가 경기를 계산하는지 (혼자 모드, 방장). 아니면 방장 이벤트를 받아 그리고 내 타격은 예측해서 먼저 보여준다
-  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'] }) {
+  // playerNames[side][slot]: 2v2 이름표용
+  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null }) {
     this.authority = authority;
     this.names = names;
+    this.playerNames = playerNames;
     this.offset = 0; // 방장 시계 - 내 시계 (초)
     this.net = { seed: 0, nextIdx: 0, rally: 0 };
     this.predicted = null;
@@ -48,8 +50,10 @@ export class Game {
       const isMe = side === mySide && slot === mySlot;
       c.group.visible = slot === 0 ? !(mode === 'wall' && side === 1) : mode === '2v2';
       c.setOpacity(isMe ? 0.38 : 1, isMe ? 0.9 : 1);
+      c.fade = isMe ? null : 1; // 카메라 바로 옆에 오면 흐리게 (2v2에서 뒤로 물러난 팀원)
       c.setPaddleColor(isMe ? PADDLE_COLOR.me : side === mySide ? PADDLE_COLOR.mate : PADDLE_COLOR.opp);
       c.group.position.z = sideSign(side) * CHAR_Z;
+      c.setTag(null);
     }
 
     this.onMove = (e) => {
@@ -71,6 +75,14 @@ export class Game {
   destroy() {
     window.removeEventListener('pointermove', this.onMove);
     window.removeEventListener('pointerdown', this.onDown);
+    for (const side of [0, 1]) for (const slot of [0, 1]) this.w.team[side][slot].setTag(null);
+  }
+
+  // 2v2: 이제 내가 칠 차례면 크게 알려 준다 (서브는 '내 서브!')
+  announceTurn(serve) {
+    if (this.mode !== '2v2') return;
+    this.hud.turn(serve ? '내 서브!' : '내 차례!');
+    A.playUI('turn');
   }
 
   isMe(side, slot = 0) { return side === this.mySide && slot === this.mySlot; }
@@ -207,7 +219,9 @@ export class Game {
         this.hud.stats(this.stats);
         {
           const who = this.order[this.turn];
-          this.hud.hint(this.isMe(who.side, who.slot) ? '클릭해서 서브 토스!' : who.side === me ? '팀원 서브를 기다리는 중…' : '상대 서브를 기다리는 중…');
+          const mine = this.isMe(who.side, who.slot);
+          this.hud.hint(mine ? '클릭해서 서브 토스!' : who.side === me ? '팀원 서브를 기다리는 중…' : '상대 서브를 기다리는 중…');
+          if (mine) this.announceTurn(true);
         }
         break;
       case 'toss': {
@@ -236,6 +250,7 @@ export class Game {
         this.turn = ev.turn ?? (this.turn + 1) % this.order.length;
         const next = findIdealHit(this.segs, 1 - ev.side);
         this.expect = next ? { ...next, slot: this.order[this.turn].slot, whiffed: false } : null;
+        if (!mine && this.expect && this.isMe(this.expect.side, this.expect.slot)) this.announceTurn(false);
         if (mine) {
           this.stats.rally = ev.rally;
           this.hud.hint('');
@@ -343,6 +358,21 @@ export class Game {
         this.animArm(c, now, remain, ballY);
         c.body.position.y = Math.sin(now * 2.6 + s + sl * 1.7) * 0.006;
         c.body.rotation.z = -(tx - ox) * 0.25 * m;
+        // 다른 캐릭터가 카메라 가까이(1.3m 안) 오면 흐리게: 화면을 가리지 않게
+        if (two && c.fade != null) {
+          const cp = w.camera.position;
+          const d = Math.hypot(c.group.position.x - cp.x, c.group.position.z - cp.z);
+          const op = d < 1.3 ? 0.45 : 1;
+          c.fade += (op - c.fade) * k;
+          const q = Math.round(c.fade * 20) / 20; // 너무 자주 재질을 바꾸지 않게
+          c.setOpacity(q, Math.max(q, 0.9));
+        }
+        // 이름표: 상대 팀만 (팀원은 가까워서 이름표가 엉뚱한 곳에 뜸). 다음에 칠 사람은 노랗게
+        if (two && this.playerNames && s !== me) {
+          const nx = this.order[this.turn];
+          const next = this.phase !== 'point' && this.phase !== 'over' && nx.side === s && nx.slot === sl;
+          c.setTag(this.playerNames[s][sl], next);
+        }
       }
     }
 

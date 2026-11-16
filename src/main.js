@@ -33,6 +33,13 @@ const hud = {
     else $('stats').innerHTML = `랠리<br><b>${st.rally}</b>`;
   },
   hint(text) { $('hint').textContent = text; },
+  turn(text) {
+    const el = $('turn');
+    el.className = '';
+    void el.offsetWidth; // 애니메이션 다시 시작
+    el.textContent = text;
+    el.className = 'show';
+  },
   judge(grade, text) {
     const el = $('judge');
     el.className = '';
@@ -327,6 +334,11 @@ function nickOf(id) {
   return room.members.find((m) => m.id === id)?.nick || '상대';
 }
 // 쪽(팀)별 이름. 2v2는 'A1·A2'처럼 두 명을 이어서
+function playerNames() {
+  const out = [[], []];
+  for (const p of room.players) out[p.side][p.slot || 0] = nickOf(p.id);
+  return out;
+}
 function names() {
   const ofSide = (s) => room.players.filter((p) => p.side === s).sort((a, b) => (a.slot || 0) - (b.slot || 0));
   return [0, 1].map((s) => ofSide(s).map((p) => nickOf(p.id)).join('·') || '상대');
@@ -348,7 +360,7 @@ function startOnline(mode, players) {
   sendLobby();
   show('hud');
   game = new Game(world, {
-    mySide: mine.side, mySlot: mine.slot || 0, mode, hud, names: names(),
+    mySide: mine.side, mySlot: mine.slot || 0, mode, hud, names: names(), playerNames: playerNames(),
     send: {
       toss: (side, t, x, slot) => match.toss(side, t, x, slot),
       swing: (side, t, dir, up, slot) => match.swing(side, t, dir, up, slot),
@@ -386,7 +398,7 @@ function startGuestGame(mode, players, mine) {
   beginRoomGame(players);
   show('hud');
   game = new Game(world, {
-    mySide: mine.side, mySlot: mine.slot || 0, mode, hud, names: names(), authority: false,
+    mySide: mine.side, mySlot: mine.slot || 0, mode, hud, names: names(), playerNames: playerNames(), authority: false,
     send: {
       toss: (s, t, x) => room && room.link.send({ k: 'in', kind: 'toss', t, x, from: myId }),
       swing: (s, t, dir, up) => room && room.link.send({ k: 'in', kind: 'swing', t, dir, up, from: myId }),
