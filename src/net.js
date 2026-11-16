@@ -87,6 +87,8 @@ function joinLocal(code, me, h) {
     for (const [id, t] of seen) if (now - t > 3500) { members.delete(id); seen.delete(id); }
     emitMembers();
   }, 1000);
+  // Supabase처럼 처음에는 '나를 뺀' 목록이 먼저 온다 (실제 서버와 같은 순서로 테스트하려고)
+  setTimeout(() => { if (!closed) h.onMembers([...members.values()].filter((m) => m.id !== me.id)); }, 0);
   setTimeout(() => { if (closed) return; post({ k: '_hb', me }); h.onStatus('ok'); emitMembers(); }, 50);
   const bye = () => post({ k: '_bye', id: me.id });
   window.addEventListener('beforeunload', bye);

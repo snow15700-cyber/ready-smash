@@ -162,6 +162,8 @@ function leaveRoom() {
 function onMembers(list) {
   if (!room) return;
   list = [...list].sort((a, b) => a.at - b.at);
+  // 서버는 입장 직후 '나를 빼고' 목록을 먼저 보낼 수 있다. 내가 목록에 들어올 때까지 기다린다
+  if (!list.some((m) => m.id === myId)) return;
   const host = list.find((m) => m.host);
   if (host) room.sawHost = true;
   if (!room.host && room.sawHost && !host) {
