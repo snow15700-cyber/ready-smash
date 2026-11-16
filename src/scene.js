@@ -291,7 +291,27 @@ export function makeCharacter(paddleColor) {
     parent.add(mesh);
     return mesh;
   };
-  add(new THREE.CapsuleGeometry(0.18, 0.62, 6, 16), white, 0, 0.5, 0);
+  const torso = add(new THREE.CapsuleGeometry(0.18, 0.62, 6, 16), white, 0, 0.5, 0);
+  // 몸 꾸미기 (outfits.js의 makeOutfit): 옷을 입으면 흰 몸통을 숨기고 옷이 몸을 새로 만든다
+  let outfit = null;
+  const setOutfit = (o) => {
+    if (outfit) {
+      body.remove(outfit.group);
+      outfit.group.traverse((m) => {
+        if (m.geometry) m.geometry.dispose();
+        for (const mt of [].concat(m.material || [])) { if (mt.map) mt.map.dispose(); mt.dispose(); }
+      });
+    }
+    outfit = o;
+    torso.visible = !o;
+    if (o) {
+      o.group.traverse((m) => { if (m.isMesh && !m.userData.fx) m.castShadow = true; });
+      body.add(o.group);
+    }
+    if (lastOp) { group.userData.op = null; setOpacity(...lastOp); }
+  };
+  // 움직이는 옷(전설)의 효과: 매 프레임 불러 준다
+  const tickOutfit = (t, dt) => { if (outfit?.update) outfit.update(t, dt); };
   const head = add(new THREE.SphereGeometry(0.16, 20, 14), white, 0, 1.17, 0);
   // 탁구채 (팔 없이 몸 옆에 떠 있음). arm 그룹은 보이지 않는 회전축 역할만 함
   const arm = new THREE.Group();
@@ -338,12 +358,14 @@ export function makeCharacter(paddleColor) {
     if (group.userData.op === key) return;
     group.userData.op = key;
     group.traverse((o) => {
-      if (!o.isMesh) return;
+      if (!o.isMesh && !o.isSprite) return;
+      if (o.userData.fx) return; // 효과(반짝이 등)는 스스로 투명도를 정한다
       const isPaddle = isPaddlePart(o);
       const op = isPaddle ? paddleOp : bodyOp;
       for (const m of [].concat(o.material)) {
-        m.transparent = op < 1;
-        m.opacity = op;
+        const base = m.userData.baseOp ?? 1; // 원래 반투명한 재질(곰젤리 등)
+        m.transparent = op * base < 1;
+        m.opacity = op * base;
         // 탁구채는 거의 불투명(0.9)이라 깊이를 써서 부품끼리 앞뒤가 맞게 보이게 한다
         m.depthWrite = op >= 1 || isPaddle;
         m.needsUpdate = true;
@@ -385,7 +407,7 @@ export function makeCharacter(paddleColor) {
     tag.material.map.needsUpdate = true;
     tag.visible = true;
   };
-  return { group, body, arm, head, handle, blade, swingT: -1, setOpacity, setPaddleColor, setPaddle, setPaddleModel, setTag };
+  return { group, body, arm, head, handle, blade, swingT: -1, setOpacity, setPaddleColor, setPaddle, setPaddleModel, setTag, setOutfit, tickOutfit };
 }
 
 // 탁구채 색: 지금은 모두 빨강 (나중에 꾸미기에서 색·모양을 바꿀 수 있게 할 예정)
