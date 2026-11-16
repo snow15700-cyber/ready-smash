@@ -3,7 +3,7 @@ import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, setEcho } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
-import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, recordRally, getH2H, getRanking } from './account.js';
+import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking } from './account.js';
 
 import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLook, swatch, equipped } from './items.js';
 
@@ -1021,6 +1021,9 @@ for (const t of ['char', 'arena', 'buy']) {
   });
 }
 $('btn-gacha-1').addEventListener('click', () => doGacha(1));
+// 서버 없이 도는 테스트 모드에서만: 뽑기를 시험해 볼 코인
+$('btn-test-coins').classList.toggle('hidden', ONLINE);
+$('btn-test-coins').addEventListener('click', async () => { playUI('coin'); await testCoins(1000); renderShop(); });
 $('btn-gacha-10').addEventListener('click', () => doGacha(10));
 
 /* ───────── 매 프레임 ───────── */

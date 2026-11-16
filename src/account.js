@@ -169,6 +169,11 @@ export async function equipItem(cat, item) {
   if (!account.loggedIn) return { status: 'guest' };
   return takeShop(await call('pingpong_equip', { p_token: token(), p_cat: cat, p_item: item }));
 }
+// 테스트용 코인 (서버 없이 이 브라우저 안 가짜 서버로 돌 때만. 진짜 서버에는 이런 함수가 없다)
+export async function testCoins(n) {
+  if (ONLINE || !account.loggedIn) return { status: 'bad' };
+  return takeShop(await call('local_test_coins', { p_token: token(), p_n: n }));
+}
 export const myEquip = () => (account.loggedIn && account.player?.equip) || {};
 
 // 혼자 하기 최장 랠리 기록
@@ -305,6 +310,10 @@ function localServer(fn, a) {
       p.coins = (p.coins || 0) + got;
       out = { status: 'ok', coins: got, player: pj(p) };
     }
+  } else if (fn === 'local_test_coins') {
+    const p = me();
+    if (p) p.coins = (p.coins || 0) + (a.p_n | 0);
+    out = p ? shopOut(p) : { status: 'no_session' };
   } else if (fn === 'pingpong_shop') {
     const p = me();
     out = p ? shopOut(p) : { status: 'no_session' };
