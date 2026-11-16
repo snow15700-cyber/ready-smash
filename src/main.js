@@ -109,20 +109,24 @@ function startWall() {
   match.start(performance.now() / 1000);
 }
 
-/* ───────── 온라인 방 (1v1 / 2v2) ───────── */
+/* ───────── 온라인 방 (1v1 / 2v2) ─────────
+   방장이 방을 만들 때 모드를 정한다 (presence의 mode). 참가자는 입장해서 팀만 고른다.
+   팀을 고르면 준비 완료. 자리가 다 차면 방장이 '경기 시작!'을 누른다. */
 const myId = Math.random().toString(36).slice(2, 10);
-const MAX_MEMBERS = 4;
 const TEAM_NAME = ['A팀', 'B팀'];
+const perTeam = () => (room.mode === '2v2' ? 2 : 1);
+const capacity = () => perTeam() * 2;
 
-function enterRoom(code, host) {
+function enterRoom(code, host, mode = null) {
   initAudio();
   playUI('click');
   const nick = saveNick();
   leaveRoom();
-  const me = { id: myId, nick, host, at: Date.now() };
+  const me = { id: myId, nick, host, at: Date.now(), ...(host ? { mode } : {}) };
   room = {
-    code, host, me, members: [], hostM: host ? me : null,
-    mode: '1v1', teams: {}, ready: {}, inGame: false, hostInGame: false, players: null, result: '',
+    code, host, me, mode, members: [], hostM: host ? me : null,
+    teams: {}, // id → { team, at }  (at = 팀을 고른 시각: 같은 자리를 동시에 누르면 먼저 누른 사람이 이김)
+    inGame: false, players: null, result: '',
     pings: [], pingN: 0, offset: 0, sawHost: host, timer: 0,
   };
   room.link = joinRoom(code, me, {
@@ -165,21 +169,29 @@ function onMembers(list) {
   // 서버는 입장 직후 '나를 빼고' 목록을 먼저 보낼 수 있다. 내가 목록에 들어올 때까지 기다린다
   if (!list.some((m) => m.id === myId)) return;
   const host = list.find((m) => m.host);
-  if (host) room.sawHost = true;
+  if (host) {
+    room.sawHost = true;
+    room.mode = host.mode || '1v1';
+  }
   if (!room.host && room.sawHost && !host) {
     leaveRoom();
     show('lobby');
     hud.toast('방장이 방을 나갔어요', 2600);
     return;
   }
-  // 방장 + 먼저 들어온 3명까지만 (늦게 온 사람은 나간다)
-  const guests = list.filter((m) => !m.host);
-  const kept = [...(host ? [host] : []), ...guests.slice(0, MAX_MEMBERS - (host ? 1 : 0))];
-  if (!kept.some((m) => m.id === myId)) {
-    leaveRoom();
-    show('join');
-    $('join-msg').textContent = `방이 가득 찼어요 (최대 ${MAX_MEMBERS}명)`;
-    return;
+  // 방장을 아직 못 봤으면(모드를 모르면) 정원 확인은 미룬다
+  let kept = list;
+  if (host) {
+    // 방장 + 먼저 들어온 사람부터 정원까지 (늦게 온 사람은 나간다)
+    const guests = list.filter((m) => !m.host);
+    kept = [host, ...guests.slice(0, capacity() - 1)];
+    if (!kept.some((m) => m.id === myId)) {
+      const msg = `방이 가득 찼어요 (${room.mode} 방은 ${capacity()}명까지)`;
+      leaveRoom();
+      show('join');
+      $('join-msg').textContent = msg;
+      return;
+    }
   }
   const before = new Set(room.members.map((m) => m.id));
   const after = new Set(kept.map((m) => m.id));
@@ -187,8 +199,7 @@ function onMembers(list) {
   const joined = kept.filter((m) => !before.has(m.id) && m.id !== myId);
   room.members = kept;
   room.hostM = host || null;
-  for (const m of gone) { delete room.ready[m.id]; delete room.teams[m.id]; }
-  if (gone.length) room.pings = room.hostM ? room.pings : [];
+  for (const m of gone) delete room.teams[m.id];
   // 경기 중인 선수가 나가면 경기 끝내고 대기실로
   const goneP = room.inGame && room.players ? gone.find((m) => room.players.some((p) => p.id === m.id)) : null;
   if (goneP) {
@@ -197,81 +208,64 @@ function onMembers(list) {
   }
   if (joined.length) {
     playUI('point');
-    sendState();
-    if (room.host) sendLobby();
+    sendState(); // 새로 온 사람에게 내 팀을 알려 준다
   }
   renderRoom();
 }
 
-// 내 상태(준비·팀)를 모두에게 알린다
+// 내 팀 선택을 모두에게 알린다
 function sendState() {
-  if (room) room.link.send({ k: 'st', id: myId, ready: !!room.ready[myId], team: room.teams[myId] ?? null });
-}
-// 방장: 방 설정(모드·경기 중 여부)을 알린다
-function sendLobby() {
-  if (room && room.host) room.link.send({ k: 'lobby', mode: room.mode, inGame: room.inGame });
+  if (!room) return;
+  const t = room.teams[myId];
+  room.link.send({ k: 'st', id: myId, team: t ? t.team : null, at: t ? t.at : 0 });
 }
 
-function teamCount(team, exceptId) {
-  return room.members.filter((m) => m.id !== exceptId && room.teams[m.id] === team).length;
+// 팀에 들어온 순서대로 (먼저 고른 사람이 1번)
+function teamList(team) {
+  return room.members
+    .filter((m) => room.teams[m.id] && room.teams[m.id].team === team)
+    .sort((a, b) => room.teams[a.id].at - room.teams[b.id].at || (a.id < b.id ? -1 : 1));
 }
 
-function toggleReady() {
-  if (!room || room.inGame) return;
-  initAudio();
-  playUI('click');
-  if (!room.ready[myId] && room.mode === '2v2' && room.teams[myId] == null) {
-    hud.toast('먼저 A팀이나 B팀을 골라 주세요');
-    return;
+// 같은 자리를 동시에 누르면: 늦게 누른 사람(나)은 스스로 빠진다
+function resolveOverflow() {
+  const mine = room.teams[myId];
+  if (!mine || !room.mode) return;
+  const idx = teamList(mine.team).findIndex((m) => m.id === myId);
+  if (idx >= perTeam()) {
+    delete room.teams[myId];
+    sendState();
+    hud.toast(`${TEAM_NAME[mine.team]} 자리가 방금 찼어요`, 2200);
   }
-  room.ready[myId] = !room.ready[myId];
-  sendState();
-  renderRoom();
-  maybeStart();
 }
 
+// 팀 고르기 / 바꾸기 / (내 팀을 다시 누르면) 빠지기
 function pickTeam(team) {
-  if (!room || room.inGame || room.mode !== '2v2') return;
+  if (!room || room.inGame || !room.mode) return;
   initAudio();
   playUI('click');
-  if (room.teams[myId] === team) return;
-  if (teamCount(team, myId) >= 2) { hud.toast(`${TEAM_NAME[team]}은 꽉 찼어요`); return; }
-  room.teams[myId] = team;
-  room.ready[myId] = false; // 팀을 바꾸면 준비는 다시
-  sendState();
-  renderRoom();
-}
-
-function setMode(mode) {
-  if (!room || !room.host || room.inGame || room.mode === mode) return;
-  initAudio();
-  playUI('click');
-  room.mode = mode;
-  room.ready = {}; // 모드를 바꾸면 모두 준비 다시
-  sendLobby();
-  sendState();
-  renderRoom();
-}
-
-// 방장: 시작 조건 확인
-function startCheck() {
-  const ms = room.members;
-  const allReady = ms.every((m) => room.ready[m.id]);
-  if (room.mode === '1v1') {
-    if (ms.length < 2) return { ok: false, tip: room.host ? '친구에게 방 코드를 알려 주세요' : '방장을 찾는 중…' };
-    if (ms.length > 2) return { ok: false, tip: `1v1은 2명일 때 시작해요 (지금 ${ms.length}명). 4명이면 2v2를 골라 보세요` };
-    return { ok: allReady, tip: allReady ? '곧 시작해요!' : '둘 다 준비를 누르면 시작해요' };
+  const cur = room.teams[myId];
+  if (cur && cur.team === team) {
+    delete room.teams[myId];
+  } else {
+    if (teamList(team).length >= perTeam()) { hud.toast(`${TEAM_NAME[team]}은 꽉 찼어요`); return; }
+    room.teams[myId] = { team, at: Date.now() };
   }
-  if (ms.length < 4) return { ok: false, tip: `2v2는 4명이 필요해요 (지금 ${ms.length}명)` };
-  if (teamCount(0) !== 2 || teamCount(1) !== 2) return { ok: false, tip: 'A팀 2명, B팀 2명으로 나눠 주세요' };
-  return { ok: allReady, tip: allReady ? '곧 시작해요!' : '모두 준비를 누르면 시작해요' };
+  sendState();
+  renderRoom();
 }
 
-function maybeStart() {
+function isFull() {
+  return room.members.length === capacity() && teamList(0).length === perTeam() && teamList(1).length === perTeam();
+}
+
+// 방장: 경기 시작 버튼
+function pressStart() {
   if (!room || !room.host || room.inGame) return;
-  if (!startCheck().ok) return;
-  if (room.mode === '1v1') start1v1();
-  else start2v2();
+  if (!isFull()) { hud.toast('아직 자리가 다 차지 않았어요'); return; }
+  const players = [];
+  for (const team of [0, 1]) teamList(team).forEach((m, slot) => players.push({ id: m.id, side: team, slot }));
+  startOnline(room.mode, players);
 }
 
 function onRoomMsg(m) {
@@ -279,26 +273,16 @@ function onRoomMsg(m) {
   if (m.to && m.to !== myId) return;
   switch (m.k) {
     case 'st':
-      room.ready[m.id] = m.ready;
+      if (room.inGame) break;
       if (m.team == null) delete room.teams[m.id];
-      else room.teams[m.id] = m.team;
-      renderRoom();
-      maybeStart();
-      break;
-    case 'lobby':
-      if (room.host) break;
-      room.hostInGame = m.inGame;
-      if (m.mode !== room.mode) {
-        room.mode = m.mode;
-        room.ready = {}; // 모드가 바뀌면 모두 준비 다시
-        sendState();
-      }
+      else room.teams[m.id] = { team: m.team, at: m.at };
+      resolveOverflow();
       renderRoom();
       break;
     case 'go': {
       if (room.host) break;
       const p = m.players.find((x) => x.id === myId);
-      if (!p) break; // 내가 선수가 아니면 대기실에 남는다
+      if (!p) break;
       startGuestGame(m.mode, m.players, p);
       break;
     }
@@ -335,12 +319,12 @@ function onRoomMsg(m) {
 function nickOf(id) {
   return room.members.find((m) => m.id === id)?.nick || '상대';
 }
-// 쪽(팀)별 이름. 2v2는 'A1·A2'처럼 두 명을 이어서
 function playerNames() {
   const out = [[], []];
   for (const p of room.players) out[p.side][p.slot || 0] = nickOf(p.id);
   return out;
 }
+// 쪽(팀)별 이름. 2v2는 'A1·A2'처럼 두 명을 이어서
 function names() {
   const ofSide = (s) => room.players.filter((p) => p.side === s).sort((a, b) => (a.slot || 0) - (b.slot || 0));
   return [0, 1].map((s) => ofSide(s).map((p) => nickOf(p.id)).join('·') || '상대');
@@ -349,7 +333,6 @@ function names() {
 function beginRoomGame(players) {
   room.inGame = true;
   room.players = players;
-  room.ready = {};
   room.result = '';
   stopGame();
 }
@@ -359,7 +342,6 @@ function startOnline(mode, players) {
   const mine = players.find((p) => p.id === myId);
   beginRoomGame(players);
   room.link.send({ k: 'go', mode, players });
-  sendLobby();
   show('hud');
   game = new Game(world, {
     mySide: mine.side, mySlot: mine.slot || 0, mode, hud, names: names(), playerNames: playerNames(),
@@ -381,20 +363,6 @@ function startOnline(mode, players) {
   match.start(performance.now() / 1000);
 }
 
-function start1v1() {
-  const other = room.members.find((m) => m.id !== myId);
-  startOnline('1v1', [{ id: myId, side: 0, slot: 0 }, { id: other.id, side: 1, slot: 0 }]);
-}
-
-// slot: 팀 안에서 0 = 1번(A1/B1), 1 = 2번(A2/B2). 먼저 들어온 사람이 1번
-function start2v2() {
-  const players = [];
-  for (const team of [0, 1]) {
-    room.members.filter((m) => room.teams[m.id] === team).forEach((m, slot) => players.push({ id: m.id, side: team, slot }));
-  }
-  startOnline('2v2', players);
-}
-
 // 참가자 PC: 방장의 시작 신호를 받으면 경기 화면으로
 function startGuestGame(mode, players, mine) {
   beginRoomGame(players);
@@ -411,16 +379,15 @@ function startGuestGame(mode, players, mine) {
   hud.toast(mode === '2v2' ? '2v2 시작! A1 → B1 → A2 → B2 순서로 쳐요' : '경기 시작! 5점 먼저 내면 승리', 2000);
 }
 
+// 경기가 끝나면 대기실로. 팀 선택은 모두 초기화 (다시 할 사람만 팀을 다시 고른다)
 function backToRoom() {
   if (!room) return;
   room.inGame = false;
   room.players = null;
-  room.ready = {};
+  room.teams = {};
   stopGame();
   renderRoom();
   show('room');
-  sendState();
-  sendLobby();
 }
 
 function renderPing() {
@@ -432,53 +399,43 @@ function renderPing() {
 function renderRoom() {
   if (!room) return;
   $('room-code').textContent = room.code;
+  $('room-mode').textContent = room.mode ? `${room.mode} 방 · ${room.members.length}/${capacity()}명` : '방 정보를 불러오는 중…';
   $('room-result').textContent = room.result;
   $('room-result').classList.toggle('hidden', !room.result);
 
-  // 모드 고르기 (방장만 바꿀 수 있음)
-  for (const b of document.querySelectorAll('#mode-pick button')) {
-    b.classList.toggle('on', b.dataset.mode === room.mode);
-    b.disabled = !room.host || room.inGame;
+  const row = (m, inTeam, i) => `<li><span>${inTeam && room.mode === '2v2' ? `${i + 1}번 · ` : ''}${m.host ? '방장' : '참가자'}${m.id === myId ? ' (나)' : ''}</span><b>${esc(m.nick)}</b>${inTeam ? '<i class="on">준비 완료</i>' : ''}</li>`;
+  const empty = '<li class="empty"><span></span><b>빈자리</b></li>';
+  const n = room.mode ? perTeam() : 0;
+  for (const team of [0, 1]) {
+    const ms = teamList(team).slice(0, n);
+    $(`team-${team}`).innerHTML = ms.map((m, i) => row(m, true, i)).join('') + empty.repeat(Math.max(0, n - ms.length));
+    const btn = $(`btn-team-${team}`);
+    const mine = room.teams[myId] && room.teams[myId].team === team;
+    btn.textContent = mine ? '팀에서 빠지기' : `${TEAM_NAME[team]}으로`;
+    btn.classList.toggle('on', !!mine);
+    btn.disabled = !room.mode || room.inGame || (!mine && ms.length >= n);
   }
-  $('mode-pick-note').textContent = room.host ? '' : '모드는 방장이 정해요';
+  const none = room.members.filter((m) => !room.teams[m.id]);
+  $('room-members').innerHTML = none.map((m) => row(m, false)).join('');
+  $('room-members-title').textContent = none.length ? '아직 팀을 안 고른 사람' : '';
 
-  const row = (m) => {
-    const r = room.ready[m.id];
-    return `<li><span>${m.host ? '방장' : '참가자'}${m.id === myId ? ' (나)' : ''}</span><b>${esc(m.nick)}</b><i class="${r ? 'on' : ''}">${r ? '준비 완료' : '준비 전'}</i></li>`;
-  };
-  const empty = (text = '기다리는 중…') => `<li class="empty"><span></span><b>${text}</b></li>`;
-  const is2v2 = room.mode === '2v2';
-  $('teams').classList.toggle('hidden', !is2v2);
-  if (is2v2) {
-    for (const team of [0, 1]) {
-      const ms = room.members.filter((m) => room.teams[m.id] === team);
-      $(`team-${team}`).innerHTML = ms.map(row).join('') + empty().repeat(Math.max(0, 2 - ms.length));
-      const btn = $(`btn-team-${team}`);
-      const mine = room.teams[myId] === team;
-      btn.textContent = mine ? `${TEAM_NAME[team]} ✔` : `${TEAM_NAME[team]} 고르기`;
-      btn.classList.toggle('on', mine);
-      btn.disabled = room.inGame || (!mine && ms.length >= 2);
-    }
-    const none = room.members.filter((m) => room.teams[m.id] == null);
-    $('room-members').innerHTML = none.length ? none.map(row).join('') : '';
-    $('room-members-title').textContent = none.length ? '아직 팀을 안 고른 사람' : '';
-  } else {
-    $('room-members').innerHTML = room.members.map(row).join('') + empty().repeat(Math.max(0, 2 - room.members.length));
-    $('room-members-title').textContent = '';
-  }
-
-  const myReady = !!room.ready[myId];
-  $('btn-ready').textContent = myReady ? '준비 취소' : '준비!';
-  $('btn-ready').classList.toggle('on', myReady);
-  const watching = !room.host && room.hostInGame && !room.inGame;
-  $('room-tip').textContent = watching ? '지금 다른 사람들이 경기 중이에요. 끝나면 같이 할 수 있어요' : startCheck().tip;
+  const full = room.mode && isFull();
+  $('btn-start').classList.toggle('hidden', !room.host);
+  $('btn-start').disabled = !full;
+  let tip;
+  if (!room.mode) tip = '방장을 찾는 중…';
+  else if (room.members.length < capacity()) tip = `친구에게 방 코드를 알려 주세요 (${capacity()}명이 모여야 해요)`;
+  else if (!full) tip = '팀을 고르면 준비 완료예요. 팀은 언제든 바꿀 수 있어요';
+  else tip = room.host ? '모두 준비됐어요! 경기 시작을 눌러 주세요' : '방장이 시작하기를 기다리는 중…';
+  $('room-tip').textContent = tip;
   renderPing();
 }
 
 
 /* ───────── 버튼 ───────── */
 $('btn-wall').addEventListener('click', startWall);
-$('btn-create').addEventListener('click', () => enterRoom(makeCode(), true));
+$('btn-create-1v1').addEventListener('click', () => enterRoom(makeCode(), true, '1v1'));
+$('btn-create-2v2').addEventListener('click', () => enterRoom(makeCode(), true, '2v2'));
 $('btn-join').addEventListener('click', () => {
   playUI('click');
   saveNick();
@@ -496,8 +453,7 @@ const doJoin = () => {
 $('btn-join-go').addEventListener('click', doJoin);
 $('join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
 $('btn-join-cancel').addEventListener('click', () => { playUI('click'); show('lobby'); });
-$('btn-ready').addEventListener('click', toggleReady);
-for (const b of document.querySelectorAll('#mode-pick button')) b.addEventListener('click', () => setMode(b.dataset.mode));
+$('btn-start').addEventListener('click', () => { initAudio(); playUI('click'); pressStart(); });
 $('btn-team-0').addEventListener('click', () => pickTeam(0));
 $('btn-team-1').addEventListener('click', () => pickTeam(1));
 $('btn-room-leave').addEventListener('click', () => { playUI('click'); leaveRoom(); show('lobby'); });
