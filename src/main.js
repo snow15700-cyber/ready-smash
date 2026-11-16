@@ -27,6 +27,22 @@ if (IS_TEST) {
 if (!ONLINE) $('mode-note').textContent = '⚠️ 서버 설정이 없어 로컬 테스트 모드예요 (같은 브라우저의 탭끼리만 연결)';
 if (!ONLINE) $('login-offline').classList.remove('hidden');
 
+// 휴대폰·태블릿(마우스 없음): 혼자 하기만 열고 온라인 방은 막는다. 주소에 ?mobile=1 이면 PC에서도 흉내.
+// 갤럭시 등은 S펜 때문에 'any-pointer: fine'으로 나와서, 브라우저가 알려 주는 기기 종류(UA)도 함께 본다.
+const UA = navigator.userAgent || '';
+const IS_MOBILE = new URLSearchParams(location.search).has('mobile')
+  || navigator.userAgentData?.mobile === true
+  || /Android|iPhone|iPad|iPod|Mobile|SamsungBrowser|KAKAOTALK|NAVER/i.test(UA)
+  || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1) // 아이패드(데스크톱 모드)
+  || (matchMedia('(pointer: coarse)').matches && !matchMedia('(hover: hover)').matches);
+const MOBILE_MSG = '💻 같이 하기는 PC에서 해 주세요';
+if (IS_MOBILE) {
+  document.body.classList.add('mobile');
+  $('mobile-note').classList.remove('hidden');
+  for (const id of ['btn-create-1v1', 'btn-create-2v2', 'btn-join']) { $(id).classList.add('locked'); $(id).setAttribute('aria-disabled', 'true'); }
+  document.querySelector('.lb-friends .lb-label').textContent = '👥 친구랑 하기 · 🔒 PC에서만';
+}
+
 const GRADE_TEXT = { perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK', miss: 'MISS' };
 let toastTimer = 0;
 
@@ -174,6 +190,7 @@ const perTeam = () => (room.mode === '2v2' ? 2 : 1);
 const capacity = () => perTeam() * 2;
 
 function enterRoom(code, host, mode = null) {
+  if (IS_MOBILE) { hud.toast(MOBILE_MSG, 2600); return; }
   initAudio();
   playUI('click');
   const nick = myNick();
@@ -791,6 +808,7 @@ $('btn-ai').addEventListener('click', () => startAI());
 $('btn-create-1v1').addEventListener('click', () => enterRoom(makeCode(), true, '1v1'));
 $('btn-create-2v2').addEventListener('click', () => enterRoom(makeCode(), true, '2v2'));
 $('btn-join').addEventListener('click', () => {
+  if (IS_MOBILE) { hud.toast(MOBILE_MSG, 2600); return; }
   playUI('click');
   $('join-msg').textContent = '';
   $('join-code').value = '';
