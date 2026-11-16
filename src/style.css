@@ -444,3 +444,12 @@ button.ghost:hover:not(:disabled) { color: var(--ink); background: var(--cream);
 .mobile-note { margin: 0; padding: 10px 12px; border-radius: 12px; background: #fff3c4; color: #6b4d00; text-align: center; font-size: 15px; line-height: 1.45; }
 button.locked, button.blue.locked { opacity: .4; filter: grayscale(1); box-shadow: none; transform: none; }
 body.mobile canvas { touch-action: none; }
+
+/* 로비 ↔ 꾸미기 전환: 카메라가 옮겨 가는 동안 패널은 오른쪽에서 밀려 들어오고, 로비 메뉴는 서서히 나타난다 */
+.screen.side:not(.hidden) { animation: fadeBg .6s ease-out; }
+.screen.side:not(.hidden) .dress-panel { animation: slideIn .55s cubic-bezier(.2,.8,.2,1) .1s backwards; }
+.screen.side:not(.hidden) .spot { animation: rise .45s ease-out .45s backwards; }
+.screen.lobby:not(.hidden) > * { animation: fadeUp .5s ease-out .15s backwards; }
+@keyframes fadeBg { 0% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes slideIn { 0% { opacity: 0; transform: translateX(70px); } 100% { opacity: 1; transform: none; } }
+@keyframes fadeUp { 0% { opacity: 0; } 100% { opacity: 1; } }
