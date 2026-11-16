@@ -83,12 +83,55 @@
     </div>
   </div>
 
+  <div id="shop" class="screen side hidden">
+    <div class="panel">
+      <div class="shop-head"><h2>🛍️ 상점</h2><span class="wallet"><span id="shop-coins"></span><span id="shop-pieces"></span></span></div>
+      <div class="tabs">
+        <button id="shop-tab-char" class="small on">🎽 캐릭터 뽑기</button>
+        <button id="shop-tab-arena" class="small">🏟️ 경기장 뽑기</button>
+        <button id="shop-tab-buy" class="small">🛒 골라 사기</button>
+      </div>
+      <div id="shop-gacha" class="stack">
+        <p id="gacha-desc" class="gacha-desc"></p>
+        <div class="row">
+          <button id="btn-gacha-1" class="big">1회 뽑기<small>🪙 100</small></button>
+          <button id="btn-gacha-10" class="big">10회 뽑기<small>🪙 900</small></button>
+        </div>
+        <ul id="gacha-result" class="gacha-result"></ul>
+      </div>
+      <div id="shop-buy" class="hidden">
+        <p class="note tiny-note">아이템을 누르면 입어 볼 수 있어요. 코인으로 사거나, 중복으로 모은 🧩 조각으로 바꿔요</p>
+        <ul id="buy-list" class="item-list"></ul>
+      </div>
+      <p id="shop-msg" class="msg"></p>
+      <button id="btn-test-coins" class="small hidden">🧪 테스트 코인 +1000 (이 브라우저에서만)</button>
+      <div class="row">
+        <button id="btn-shop-closet">👕 옷장</button>
+        <button id="btn-shop-back">뒤로</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="closet" class="screen side hidden">
+    <div class="panel">
+      <div class="shop-head"><h2>👕 옷장</h2></div>
+      <div id="closet-tabs" class="tabs wrap"></div>
+      <ul id="closet-list" class="item-grid"></ul>
+      <p id="closet-msg" class="msg"></p>
+      <div class="row">
+        <button id="btn-closet-shop">🛍️ 상점</button>
+        <button id="btn-closet-back">뒤로</button>
+      </div>
+    </div>
+  </div>
+
   <div id="lobby" class="screen hidden">
     <div class="panel">
       <h1>준비하시고,<br /><span>스매시!</span></h1>
       <p class="sub">마우스 하나로 즐기는 ASMR 탁구</p>
       <div class="me-bar">
         <span id="me-name" class="me-name"></span>
+        <span id="me-coins" class="me-coins hidden"></span>
         <button id="btn-pin" class="small">PIN 바꾸기</button>
         <button id="btn-logout" class="small">로그아웃</button>
       </div>
@@ -101,6 +144,10 @@
       <div class="row">
         <button id="btn-join">코드로 입장</button>
         <button id="btn-rank">🏆 랭킹</button>
+      </div>
+      <div class="row">
+        <button id="btn-shop">🛍️ 상점</button>
+        <button id="btn-closet">👕 옷장</button>
       </div>
       <p class="note soon" id="mode-note"></p>
       <div class="howto">
@@ -138,6 +185,7 @@
       <p class="sub center">방 코드</p>
       <div class="code-row"><div id="room-code" class="code">----</div><button id="btn-copy" class="small">복사</button></div>
       <p id="room-result" class="result hidden"></p>
+      <p id="room-coins" class="coins-got"></p>
       <p id="room-mode" class="room-mode"></p>
       <p id="room-h2h" class="h2h"></p>
       <div id="teams" class="teams">

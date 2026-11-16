@@ -1,6 +1,7 @@
 // 화면 쪽 게임: 이벤트를 받아 공·캐릭터·소리·링을 그리고, 내 입력을 판정해 보낸다
 import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, WIN, HOLD } from './physics.js';
-import { PADDLE_OFFSET, PADDLE_COLOR, CHAR_Z } from './scene.js';
+import { PADDLE_OFFSET, CHAR_Z } from './scene.js';
+import { applyLook } from './items.js';
 import { computeShot, hitOrder } from './match.js';
 import * as A from './audio.js';
 
@@ -19,7 +20,7 @@ const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 export class Game {
   // authority: 이 PC가 경기를 계산하는지 (혼자 모드, 방장). 아니면 방장 이벤트를 받아 그리고 내 타격은 예측해서 먼저 보여준다
   // playerNames[side][slot]: 2v2 이름표용
-  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, best = 0, onBest = null }) {
+  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, best = 0, onBest = null, onRally = null, looks = null }) {
     this.authority = authority;
     this.names = names;
     this.playerNames = playerNames;
@@ -47,10 +48,12 @@ export class Game {
     this.charX = [[0, 0], [0, 0]];
     this.charZ = [[CHAR_Z, CHAR_Z], [CHAR_Z, CHAR_Z]];
     this.mouse = { x: innerWidth / 2, y: innerHeight / 2, hist: [] };
-    this.stats = { rally: 0, best: 0, perfectStreak: 0, perfects: 0 };
+    // perfect3 = 퍼펙트 3연속 횟수, rally10 = 랠리 10회 이상 이어 간 횟수 (경기 끝나고 코인 정산용)
+    this.stats = { rally: 0, best: 0, perfectStreak: 0, perfects: 0, perfect3: 0, rally10: 0 };
     // 혼자 하기 최고 기록: 처음 값과 새 기록 저장은 main.js가 정한다(로그인 = 서버, 손님 = 브라우저)
     if (mode === 'ai') this.stats.best = best;
     this.onBest = onBest;
+    this.onRally = onRally; // 혼자 하기: 랠리가 끝날 때 내가 친 횟수 (코인)
     this.lastNow = performance.now() / 1000;
     this.tossX = 0;
     this.pendingHit = null; // 클릭 후 방향 판단을 기다리는 타격
@@ -62,7 +65,8 @@ export class Game {
       c.group.visible = slot === 0 || mode === '2v2';
       c.setOpacity(isMe ? 0.38 : 1, isMe ? 0.9 : 1);
       c.fade = isMe ? null : 1; // 카메라 바로 옆에 오면 흐리게 (2v2에서 뒤로 물러난 팀원)
-      c.setPaddleColor(isMe ? PADDLE_COLOR.me : side === mySide ? PADDLE_COLOR.mate : PADDLE_COLOR.opp);
+      // 꾸미기: looks[side][slot] = 그 선수의 장착 정보 (없으면 기본)
+      applyLook(c, looks?.[side]?.[slot]);
       c.group.position.z = sideSign(side) * CHAR_Z;
       c.setTag(null);
     }
@@ -156,7 +160,7 @@ export class Game {
       return;
     }
     // 서버를 기다리지 않고 클릭 즉시 타구음. 방향은 클릭 직후 마우스 움직임까지 보고 정한다
-    A.playHit(grade, ballPos(this.segs, t));
+    A.playHit(grade, ballPos(this.segs, t), undefined, char.sound);
     this.w.kick(grade === 'perfect' ? 1 : grade === 'good' ? 0.6 : 0.3);
     this.localHitT = t;
     this.holdPos = ballPos(this.segs, t);
@@ -179,6 +183,7 @@ export class Game {
     if (grade === 'perfect') {
       this.stats.perfectStreak++;
       this.stats.perfects++;
+      if (this.stats.perfectStreak % 3 === 0) this.stats.perfect3++;
     } else this.stats.perfectStreak = 0;
     this.hud.stats(this.stats);
     if (!this.authority) this.predictHit(h.t, grade, dir, h.t - ex.t);
@@ -281,7 +286,7 @@ export class Game {
         const mine = this.isMe(ev.side, ev.slot ?? 0);
         const wasPredicted = this.predicted && mine && Math.abs(this.predicted.t - ev.t) < 1e-6;
         this.predicted = null;
-        this.segs = simulate(ev.p, ev.v, ev.t0, 'hit', { side: ev.side, grade: ev.grade, smash: ev.kind === 'smash' });
+        this.segs = simulate(ev.p, ev.v, ev.t0, 'hit', { side: ev.side, grade: ev.grade, smash: ev.kind === 'smash', sound: this.charOf(ev.side, ev.slot ?? 0).sound });
         this.holdPos = null;
         if (!wasPredicted) this.played = new Set();
         if (mine && Math.abs(this.localHitT - ev.t) < 0.001) this.played.add(0);
@@ -300,6 +305,7 @@ export class Game {
           this.hud.hint('');
         }
         this.stats.rally = this.mode === 'ai' ? Math.ceil(ev.rally / 2) : ev.rally;
+        if (ev.rally === 10 && this.mode !== 'ai') this.stats.rally10++;
         this.hud.stats(this.stats);
         if (ev.speedLv > (this.speedLv || 0)) this.hud.toast(`속도 UP! Lv.${ev.speedLv + 1}`);
         this.speedLv = ev.speedLv;
@@ -330,6 +336,7 @@ export class Game {
         break;
       case 'rallyEnd': {
         const r = this.stats.rally;
+        this.onRally?.(r);
         if (r > this.stats.best) {
           this.stats.best = r;
           this.onBest?.(r);
@@ -492,7 +499,7 @@ export class Game {
       this.played.add(i);
       if (ahead < -0.25) continue; // 너무 지난 소리는 생략 (네트워크로 늦게 온 소리는 0.25초까지 바로 재생)
       const when = A.audioNow() + Math.max(0, ahead);
-      if (s.ev === 'hit') A.playHit(s.grade, s.p, when);
+      if (s.ev === 'hit') A.playHit(s.grade, s.p, when, s.sound);
       else if (s.ev === 'table') A.playTable(s.speed, s.p, when);
       else if (s.ev === 'floor') A.playFloor(s.speed, s.p, when);
       else if (s.ev === 'net') A.playNet(s.p, when);
