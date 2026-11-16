@@ -1,7 +1,8 @@
 import { createWorld, CHAR_Z } from './scene.js';
+import { createLobbyDemo, LOBBY_CAM } from './lobbyDemo.js';
 import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
-import { initAudio, playUI, setEcho } from './audio.js';
+import { initAudio, playUI, playHit, setEcho, setQuiet, setListener } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
 import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking } from './account.js';
 
@@ -9,6 +10,12 @@ import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLoo
 
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('c'));
+const lobbyDemo = createLobbyDemo();
+const LOBBY_QUIET = 0.4; // 로비 배경 랠리 소리 크기 (경기 중 소리를 1로 볼 때)
+// 브라우저는 사람이 한 번 누르기 전에는 소리를 못 낸다: 첫 클릭·키 입력에 소리를 켠다
+const unlockAudio = () => { initAudio(); removeEventListener('pointerdown', unlockAudio); removeEventListener('keydown', unlockAudio); };
+addEventListener('pointerdown', unlockAudio);
+addEventListener('keydown', unlockAudio);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 if (IS_TEST) {
@@ -23,16 +30,27 @@ if (!ONLINE) $('login-offline').classList.remove('hidden');
 const GRADE_TEXT = { perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK', miss: 'MISS' };
 let toastTimer = 0;
 
+let lastScore = null; // 점수가 바뀐 쪽 숫자만 통통 튀게
+let resultTimer = 0;
 const hud = {
   score(s, deuce) {
     if (!game) return;
     const me = game.mySide, op = 1 - me;
-    $('scoreboard').innerHTML = `<small>${game.mode === '2v2' ? '우리 팀' : '나'}</small> ${s[me]} : ${s[op]} <small>${esc(game.names[op])}</small>${deuce ? ' <em>듀스!</em>' : ''}`;
+    const bump = (side) => (lastScore && lastScore[side] !== s[side] ? ' bump' : '');
+    $('scoreboard').innerHTML = `<div class="sb t${me}"><span>${game.mode === '2v2' ? '우리 팀' : '나'}</span><b class="${bump(me)}">${s[me]}</b></div>`
+      + '<i class="sb-colon">:</i>'
+      + `<div class="sb t${op}"><b class="${bump(op)}">${s[op]}</b><span>${esc(game.names[op])}</span></div>`
+      + (deuce ? '<em class="sb-deuce">듀스!</em>' : '');
+    lastScore = [...s];
   },
   stats(st) {
     if (!game) return;
-    if (game.mode === 'ai') $('stats').innerHTML = `랠리<br><b>${st.rally}</b><br>최고 ${st.best} · Perfect ${st.perfects}${account.loggedIn ? `<br>🪙 +${aiCoins}` : ''}`;
-    else $('stats').innerHTML = `랠리<br><b>${st.rally}</b>`;
+    const hot = st.rally >= 6 ? ' hot' : ''; // 랠리 6회부터 몰입 연출과 함께 🔥
+    let html = `<div class="st-rally${hot}"><span>${hot ? '🔥 ' : ''}랠리</span><b>${st.rally}</b></div>`;
+    if (game.mode === 'ai') {
+      html += `<div class="st-sub"><span>🏅 최고 ${st.best}</span><span>✨ Perfect ${st.perfects}</span>${account.loggedIn ? `<span class="coin">🪙 +${aiCoins}</span>` : ''}</div>`;
+    }
+    $('stats').innerHTML = html;
   },
   hint(text) { $('hint').textContent = text; },
   turn(text) {
@@ -58,7 +76,13 @@ const hud = {
   },
   gameOver(win, score) {
     const me = game.mySide;
-    hud.toast(win ? `승리! ${score[me]} : ${score[1 - me]}` : `패배… ${score[me]} : ${score[1 - me]}`, 2600);
+    // 가운데 큰 결과 띠 (약 2.6초 뒤 대기실로)
+    const el = $('result');
+    el.className = win ? 'win' : 'lose';
+    $('result-title').textContent = win ? '🏆 승리!' : '😢 아쉬워요';
+    $('result-score').textContent = `${score[me]} : ${score[1 - me]}`;
+    clearTimeout(resultTimer);
+    resultTimer = setTimeout(() => el.classList.add('hidden'), 2700);
     if (room) {
       saveResult(room.mode, win, game.stats);
       room.result = win ? `🏆 승리! ${score[me]} : ${score[1 - me]}` : `😢 패배 ${score[me]} : ${score[1 - me]}`;
@@ -74,10 +98,16 @@ let preview = null; // 상점·옷장에서 미리보기 중인 꾸미기 { look
 
 const myNick = () => account.nick || '플레이어';
 
+const HOWTO_KEY = 'smash-howto-seen'; // 치는 방법 창을 본 적 있는지 (처음 온 사람에게 한 번 자동으로 띄움)
 function show(screen) {
-  if (screen === 'lobby') renderMe();
-  if (screen !== 'shop' && screen !== 'closet') preview = null;
-  for (const id of ['login', 'pin-change', 'rank', 'lobby', 'join', 'room', 'shop', 'closet']) $(id).classList.toggle('hidden', id !== screen);
+  if (screen === 'lobby') {
+    renderMe();
+    let seen = true;
+    try { seen = !!localStorage.getItem(HOWTO_KEY); } catch { /* 저장 안 되는 브라우저: 띄우지 않음 */ }
+    $('howto').classList.toggle('hidden', seen);
+  }
+  if (screen !== 'dress') preview = null;
+  for (const id of ['login', 'pin-change', 'rank', 'lobby', 'join', 'room', 'dress']) $(id).classList.toggle('hidden', id !== screen);
   $('hud').classList.toggle('hidden', screen !== 'hud');
 }
 
@@ -88,6 +118,8 @@ function stopGame() {
   $('hint').textContent = '';
   $('stats').textContent = '';
   $('scoreboard').textContent = '';
+  $('result').classList.add('hidden');
+  lastScore = null;
 }
 
 /* ───────── 혼자 하기 (AI 상대) ───────── */
@@ -316,6 +348,7 @@ function onRoomMsg(m) {
       break;
     case 'pong': {
       const now = performance.now() / 1000;
+  setQuiet(game ? 1 : LOBBY_QUIET);
       const rtt = now - m.t1;
       room.pings.push({ rtt, off: m.th + rtt / 2 - now });
       if (room.pings.length > 12) room.pings.shift();
@@ -486,13 +519,19 @@ function renderRoom() {
   if (!room) return;
   renderH2H();
   $('room-code').textContent = room.code;
-  $('room-mode').textContent = room.mode ? `${room.mode} 방 · ${room.members.length}/${capacity()}명` : '방 정보를 불러오는 중…';
+  $('room-mode').innerHTML = room.mode
+    ? `${room.mode === '2v2' ? '2 대 2' : '1 대 1'} 방 <b>${room.members.length}/${capacity()}명</b>`
+    : '방 정보를 불러오는 중…';
   $('room-result').textContent = room.result;
   $('room-result').classList.toggle('hidden', !room.result);
   renderCoins();
 
-  const row = (m, inTeam, i) => `<li><span>${inTeam && room.mode === '2v2' ? `${i + 1}번 · ` : ''}${m.host ? '방장' : '참가자'}${m.guest ? ' · 손님' : ''}${m.id === myId ? ' (나)' : ''}</span><b>${esc(m.nick)}</b>${inTeam ? '<i class="on">준비 완료</i>' : ''}</li>`;
-  const empty = '<li class="empty"><span></span><b>빈자리</b></li>';
+  // 선수 한 줄: 동그란 얼굴(닉네임 첫 글자) + 닉네임 + 꼬리표(방장·손님·나) + 준비 완료
+  const row = (m, inTeam, i) => {
+    const tags = [inTeam && room.mode === '2v2' ? `${i + 1}번` : '', m.host ? '👑 방장' : '', m.guest ? '손님' : '', m.id === myId ? '나' : ''].filter(Boolean);
+    return `<li class="${m.id === myId ? 'me' : ''}"><em class="av">${esc([...m.nick][0] || '?')}</em><div class="who"><b>${esc(m.nick)}</b><span>${tags.join(' · ') || '참가자'}</span></div>${inTeam ? '<i class="on">✓ 준비</i>' : ''}</li>`;
+  };
+  const empty = '<li class="empty"><em class="av">+</em><div class="who"><b>빈자리</b></div></li>';
   const n = room.mode ? perTeam() : 0;
   for (const team of [0, 1]) {
     const ms = teamList(team).slice(0, n);
@@ -542,7 +581,25 @@ function renderMe() {
   $('me-stats').innerHTML = p
     ? `<span>1v1 <b>${p.wins_1v1}승</b></span><span>2v2 <b>${p.wins_2v2}승</b></span><span>최장 랠리 <b>${p.best_rally}</b></span>` // 패 수는 보여 주지 않는다 (사용자 결정, 상대 전적만 승패 둘 다)
     : '<span class="guest">손님은 전적·코인이 저장되지 않아요</span>';
+  $('me-menu').classList.add('hidden');
 }
+
+// 로비: ⚙️ 내 계정 메뉴 (PIN 바꾸기·로그아웃), ❓ 치는 방법 창
+$('btn-me-menu').addEventListener('click', (e) => {
+  e.stopPropagation();
+  playUI('click');
+  $('me-menu').classList.toggle('hidden');
+});
+document.addEventListener('click', (e) => {
+  if (!$('me-menu').contains(e.target)) $('me-menu').classList.add('hidden');
+});
+$('btn-howto').addEventListener('click', () => { playUI('click'); $('howto').classList.remove('hidden'); });
+const closeHowto = () => {
+  $('howto').classList.add('hidden');
+  try { localStorage.setItem(HOWTO_KEY, '1'); } catch { /* 무시 */ }
+};
+$('btn-howto-close').addEventListener('click', () => { playUI('click'); closeHowto(); });
+$('howto').addEventListener('click', (e) => { if (e.target === $('howto')) closeHowto(); });
 const showLobby = () => show('lobby');
 
 // 로그인하면 하루 첫 접속 코인 받기 (한국 시간으로 하루 한 번)
@@ -672,8 +729,8 @@ $('btn-pin-cancel').addEventListener('click', () => { playUI('click'); showLobby
 
 /* ───────── 랭킹 ───────── */
 const RANK = {
-  wins: { desc: '1v1 + 2v2 승리 합계', unit: '승', empty: '아직 이긴 사람이 없어요. 첫 1등이 되어 보세요!' },
-  rally: { desc: '혼자 하기(AI 상대) 최장 랠리', unit: '회', empty: '아직 기록이 없어요. 혼자 하기로 첫 기록을 세워 보세요!' },
+  wins: { desc: '1v1 + 2v2 승리 합계', unit: '승', empty: '아직 이긴 사람이 없어요. 첫 1등이 되어 보세요!', join: '친구와 경기에서 이겨 보세요!' },
+  rally: { desc: '혼자 하기(AI 상대) 최장 랠리', unit: '회', empty: '아직 기록이 없어요. 혼자 하기로 첫 기록을 세워 보세요!', join: '혼자 하기로 기록을 세워 보세요!' },
 };
 let rankKind = 'wins';
 let rankReq = 0;
@@ -681,21 +738,48 @@ async function showRank(kind = rankKind) {
   rankKind = kind;
   for (const k of ['wins', 'rally']) $(`rank-tab-${k}`).classList.toggle('on', k === kind);
   $('rank-desc').textContent = RANK[kind].desc;
-  const list = $('rank-list');
+  const list = $('rank-list'), podium = $('rank-podium'), meBar = $('rank-me');
+  podium.innerHTML = '';
+  meBar.innerHTML = '';
   list.innerHTML = '<li class="msg-row">불러오는 중…</li>';
   show('rank');
   const req = ++rankReq;
   const rows = await getRanking(kind);
   if (req !== rankReq) return; // 그 사이 탭을 바꿨으면 버림
   if (!rows) { list.innerHTML = '<li class="msg-row">랭킹을 불러오지 못했어요 (인터넷 연결 확인)</li>'; return; }
-  if (!rows.length) { list.innerHTML = `<li class="msg-row">${RANK[kind].empty}</li>`; return; }
   const myNick = account.loggedIn ? account.nick : null;
+  const unit = RANK[kind].unit;
   const MEDAL = ['', '🥇', '🥈', '🥉'];
-  list.innerHTML = rows.map((r) => {
-    const sub = kind === 'wins' ? `<small>1v1 ${r.w1}승 · 2v2 ${r.w2}승</small>` : '';
-    return `<li class="${r.nick === myNick ? 'me' : ''}"><span class="no${MEDAL[r.rank] ? ' medal' : ''}">${MEDAL[r.rank] || r.rank}</span>`
-      + `<span class="who">${esc(r.nick)}${r.nick === myNick ? ' (나)' : ''}${sub}</span><span class="val">${r.value}${RANK[kind].unit}</span></li>`;
+  const av = (nick) => `<em class="av">${esc([...nick][0] || '?')}</em>`;
+  const sub = (r) => (kind === 'wins' ? `<small>1v1 ${r.w1}승 · 2v2 ${r.w2}승</small>` : '');
+
+  // 1~3등: 시상대 (가운데 1등, 왼쪽 2등, 오른쪽 3등). 비어 있으면 '?' 자리
+  const top = rows.slice(0, 3);
+  podium.innerHTML = [1, 0, 2].map((i) => {
+    const r = top[i];
+    if (!r) return `<div class="pod p${i + 1} empty"><em class="av">?</em><b>비어 있어요</b><div class="block">${i + 1}</div></div>`;
+    const me = r.nick === myNick ? ' me' : '';
+    return `<div class="pod p${i + 1}${me}"><span class="medal">${MEDAL[r.rank] || r.rank}</span>${av(r.nick)}`
+      + `<b>${esc(r.nick)}</b><span class="val">${r.value}<small>${unit}</small></span>${sub(r)}<div class="block">${r.rank}</div></div>`;
   }).join('');
+  podium.classList.toggle('hidden', !rows.length);
+
+  // 4등부터: 목록
+  const rest = rows.slice(3);
+  if (!rows.length) list.innerHTML = `<li class="msg-row">${RANK[kind].empty}</li>`;
+  else list.innerHTML = rest.map((r) => `<li class="${r.nick === myNick ? 'me' : ''}"><span class="no">${MEDAL[r.rank] || r.rank}</span>${av(r.nick)}`
+    + `<span class="who">${esc(r.nick)}${sub(r)}</span><span class="val">${r.value}<small>${unit}</small></span></li>`).join('');
+
+  // 내 줄이 목록 아래쪽에 있으면 보이게 스크롤
+  list.scrollTop = 0;
+  const myRow = list.querySelector('li.me');
+  if (myRow) list.scrollTop = Math.max(0, myRow.offsetTop - list.clientHeight / 2 + myRow.offsetHeight / 2);
+
+  // 맨 아래: 내 순위
+  const mine = myNick && rows.find((r) => r.nick === myNick);
+  if (!account.loggedIn) meBar.innerHTML = '🙋 로그인하면 랭킹에 이름을 올릴 수 있어요';
+  else if (mine) meBar.innerHTML = `<span>내 순위</span><b>${mine.rank}위</b><span class="val">${mine.value}${unit}</span>`;
+  else meBar.innerHTML = `<span>아직 순위에 없어요</span><span class="hint">${RANK[kind].join}</span>`;
 }
 $('btn-rank').addEventListener('click', () => { playUI('click'); showRank('wins'); });
 $('rank-tab-wins').addEventListener('click', () => { playUI('click'); showRank('wins'); });
@@ -712,8 +796,20 @@ $('btn-join').addEventListener('click', () => {
   $('join-code').value = '';
   show('join');
   $('join-code').focus();
+  renderCodeBoxes();
 });
-$('join-code').addEventListener('input', (e) => { e.target.value = normalizeCode(e.target.value); });
+// 방 코드 4칸: 보이지 않는 입력칸 위에 글자를 한 칸씩 그려 준다
+function renderCodeBoxes() {
+  const v = $('join-code').value;
+  const focus = document.activeElement === $('join-code');
+  $('code-boxes').querySelectorAll('span').forEach((el, i) => {
+    el.textContent = v[i] || '';
+    el.classList.toggle('now', focus && i === Math.min(v.length, 3));
+  });
+}
+$('join-code').addEventListener('input', (e) => { e.target.value = normalizeCode(e.target.value); $('join-msg').textContent = ''; renderCodeBoxes(); });
+$('join-code').addEventListener('focus', renderCodeBoxes);
+$('join-code').addEventListener('blur', renderCodeBoxes);
 const doJoin = () => {
   const code = normalizeCode($('join-code').value);
   if (code.length !== 4) { $('join-msg').textContent = '4자리 코드를 입력해 주세요'; return; }
@@ -744,11 +840,13 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && game && !room) exitGame();
 });
 
-/* ───────── 상점·옷장 ─────────
+/* ───────── 꾸미기 (옷장 · 뽑기 · 골라 사기를 한 화면에) ─────────
    뽑기·구매·장착은 서버(supabase/06_shop.sql)가 정하고, 화면은 결과만 보여 준다.
-   상점·옷장에서는 패널이 오른쪽으로 비켜서고 왼쪽에 내 캐릭터가 보인다(입어 보기). */
-let shopTab = 'char';
-let closetCat = 'paddle';
+   패널은 오른쪽, 왼쪽에는 내 캐릭터(입어 보기)와 고른 아이템을 크게 보여 주는 카드(#spot). */
+let dressTab = 'closet'; // closet | gacha | buy
+let shopTab = 'char'; // 뽑기 통 (char | arena)
+let closetCat = 'paddle'; // 옷장·골라 사기에서 보는 카테고리
+let selId = null; // 고른(입어 보는) 아이템. null이면 지금 장착한 것
 let shopBusy = false;
 let sureId = null; // '정말 살까요?' 확인 중인 버튼
 let sureTimer = 0;
@@ -763,16 +861,17 @@ const SHOP_MSG = {
   not_owned: '가지고 있지 않은 아이템이에요',
   no_session: '로그인이 풀렸어요. 다시 로그인해 주세요',
 };
+const CAT_ICON = { paddle: '🏓', head: '🎩', body: '👕', trail: '✨', table: '🟦', bg: '🏟️', ball: '⚪' };
 
 function needLogin() {
   if (account.loggedIn) return false;
   playUI('click');
-  hud.toast('로그인하면 상점·옷장을 쓸 수 있어요', 2400);
+  hud.toast('로그인하면 꾸미기(상점·옷장)를 쓸 수 있어요', 2400);
   return true;
 }
 
 // 미리보기 카메라 (x: 화면에서 캐릭터를 왼쪽으로 비키는 정도, rot: 캐릭터가 도는 각도)
-const PV = { x: 0.6, y: 1.15, back: 1.7, lookY: 0.85, rot: -0.55, sway: 0.2 };
+const PV = { x: 0.62, y: 1.12, back: 2.0, lookY: 0.92, rot: -0.7, sway: 0.2 };
 // 미리보기: 내 캐릭터를 카메라 쪽으로 돌려 세우고 천천히 흔든다
 function previewFrame(now) {
   const c = world.team[0][0];
@@ -783,6 +882,11 @@ function previewFrame(now) {
   c.group.rotation.y = PV.rot + Math.sin(now * 0.9) * PV.sway;
   c.setOpacity(1, 1);
   c.setTag(null);
+  // 로비 랠리에서 휘두르던 팔·몸 자세를 처음 자세로 되돌린다 (탁구채 앞면이 카메라 쪽)
+  c.swingT = -1;
+  c.arm.rotation.set(0, 0, 0);
+  c.body.rotation.set(0, 0, 0);
+  c.body.position.y = 0;
   world.team[0][1].group.visible = false;
   for (const slot of [0, 1]) world.team[1][slot].group.visible = false;
   const narrow = innerWidth < 760;
@@ -795,50 +899,124 @@ function previewFrame(now) {
   world.ring.visible = false;
   world.aim.visible = false;
 }
-const setPreview = (cat, id) => { preview = { look: { ...myEquip(), [cat]: id } }; };
+const setMsg = (html, ok = false) => { $('dress-msg').innerHTML = html; $('dress-msg').classList.toggle('ok', ok); };
+// 아이템 고르기 = 캐릭터에 입혀 보기
+function select(id) {
+  selId = id;
+  if (id) preview = { look: { ...myEquip(), [ITEM[id].cat]: id } };
+  else preview = { look: myEquip() };
+}
 
-async function openShop(tab = shopTab) {
+async function openDress(tab) {
   if (needLogin()) return;
   playUI('click');
-  shopTab = tab;
-  preview = { look: myEquip() };
+  dressTab = tab;
+  sureId = null;
+  select(null);
   $('gacha-result').innerHTML = '';
-  $('shop-msg').textContent = '';
-  show('shop');
-  renderShop();
+  setMsg('');
+  show('dress');
+  renderDress();
   if (!account.shop) {
-    $('shop-msg').textContent = '불러오는 중…';
+    setMsg('불러오는 중…');
     const r = await loadShop();
-    $('shop-msg').textContent = r.status === 'ok' ? '' : SHOP_MSG[r.status] || SHOP_MSG.error;
-    renderShop();
+    setMsg(r.status === 'ok' ? '' : SHOP_MSG[r.status] || SHOP_MSG.error);
+    renderDress();
   }
 }
 
 function renderWallet() {
   const p = account.player || {};
-  $('shop-coins').textContent = `🪙 ${p.coins ?? 0}`;
-  $('shop-pieces').textContent = `🧩 ${p.pieces ?? 0}`;
+  $('shop-coins').textContent = `🪙 ${(p.coins ?? 0).toLocaleString()}`;
+  $('shop-pieces').textContent = `🧩 ${(p.pieces ?? 0).toLocaleString()}`;
 }
 
-function renderShop() {
+function renderDress() {
   renderWallet();
-  for (const t of ['char', 'arena', 'buy']) $(`shop-tab-${t}`).classList.toggle('on', shopTab === t);
-  $('shop-gacha').classList.toggle('hidden', shopTab === 'buy');
-  $('shop-buy').classList.toggle('hidden', shopTab !== 'buy');
-  if (shopTab === 'buy') { renderBuyList(); return; }
+  for (const t of ['closet', 'gacha', 'buy']) $(`tab-${t}`).classList.toggle('on', dressTab === t);
+  const g = dressTab === 'gacha';
+  $('pane-gacha').classList.toggle('hidden', !g);
+  $('cat-chips').classList.toggle('hidden', g);
+  $('item-grid').classList.toggle('hidden', g);
+  if (g) renderGacha();
+  else { renderChips(); renderGrid(); }
+  renderSpot();
+}
+
+// 카테고리 칩 (아이템이 아직 없는 카테고리는 '곧')
+function renderChips() {
+  $('cat-chips').innerHTML = Object.entries(CATS).map(([cat, info]) => {
+    const ready = ITEMS.some((i) => i.cat === cat);
+    return `<button class="${cat === closetCat ? 'on' : ''}" data-cat="${cat}" ${ready ? '' : 'disabled'}>${CAT_ICON[cat] || ''} ${info.name}${ready ? '' : '<small>곧</small>'}</button>`;
+  }).join('');
+}
+
+// 아이템 카드: 옷장 = 가진 것 먼저(없는 건 🔒 흐리게), 골라 사기 = 파는 것 전부 + 가격
+function renderGrid() {
+  const on = equipped(myEquip(), closetCat)?.id;
+  const buy = dressTab === 'buy';
+  let list = ITEMS.filter((i) => i.cat === closetCat && (!buy || i.grade !== 'default'));
+  if (!buy) list = list.sort((a, b) => (owns(b.id) - owns(a.id)) || (a.grade === 'default' ? -1 : b.grade === 'default' ? 1 : 0));
+  $('item-grid').innerHTML = list.length ? list.map((it) => {
+    const have = owns(it.id);
+    const cls = ['card', `g-${it.grade}`, it.id === on ? 'on' : '', it.id === selId ? 'sel' : '', have || buy ? '' : 'locked'].join(' ');
+    const corner = it.id === on ? '<span class="corner on">✓</span>' : have || buy ? '' : '<span class="corner">🔒</span>';
+    const foot = buy ? `<span class="price${have ? ' have' : ''}">${have ? '✓ 가지고 있음' : `🪙 ${GRADES[it.grade].buy.toLocaleString()}`}</span>` : '';
+    return `<li class="${cls}" data-id="${it.id}">${corner}${swatch(it)}<span class="nm">${esc(it.name)}</span>${foot}<i class="bar"></i></li>`;
+  }).join('') : '<li class="empty-msg">곧 열려요!</li>';
+}
+
+// 왼쪽 아래 '크게 보기' 카드: 고른 아이템(없으면 지금 장착한 것)과 할 수 있는 일(장착·사기·소리 듣기)
+function renderSpot() {
+  const it = selId ? ITEM[selId] : dressTab === 'gacha' ? null : equipped(myEquip(), closetCat);
+  const spot = $('spot');
+  spot.classList.toggle('hidden', !it);
+  if (!it) return;
+  const have = owns(it.id);
+  const isOn = equipped(myEquip(), it.cat)?.id === it.id;
+  spot.className = `spot g-${it.grade}`;
+  $('spot-pic').innerHTML = swatch(it).replace('class="sw', 'class="sw big');
+  $('spot-grade').textContent = gradeName(it.grade);
+  $('spot-name').textContent = it.name;
+  const status = isOn ? '장착 중' : have ? '가지고 있어요' : '입어 보는 중';
+  const snd = it.sound ? ' · 🔊 특별한 소리' : ''; // 소리 이름은 보여 주지 않는다 (사용자 결정)
+  $('spot-desc').textContent = status + snd;
+  let acts = '';
+  if (isOn) acts += '<span class="pill">✓ 장착 중</span>';
+  else if (have) acts += `<button class="small primary" data-act="equip" ${shopBusy ? 'disabled' : ''}>장착하기</button>`;
+  else if (it.grade !== 'default') {
+    const p = account.player || {};
+    const g = GRADES[it.grade];
+    const b = (pay, label, cost, has) => {
+      const key = `${it.id}/${pay}`;
+      const sure = sureId === key;
+      return `<button class="small${pay === 'coins' ? ' primary' : ''}${sure ? ' sure' : ''}" data-buy="${it.id}" data-pay="${pay}" ${has < cost || shopBusy ? 'disabled' : ''}>${sure ? '정말 살까요?' : `${label} ${cost.toLocaleString()}`}</button>`;
+    };
+    acts += b('coins', '🪙', g.buy, p.coins ?? 0) + b('pieces', '🧩', g.pieces, p.pieces ?? 0);
+  }
+  if (it.cat === 'paddle') acts += '<button class="small" data-act="sound" title="소리 들어 보기">🔊</button>';
+  $('spot-acts').innerHTML = acts;
+}
+
+// 뽑기 탭
+function renderGacha() {
+  for (const t of ['char', 'arena']) $(`shop-tab-${t}`).classList.toggle('on', shopTab === t);
   const pool = shopTab;
   const items = ITEMS.filter((i) => i.pool === pool && i.grade !== 'default');
   const coins = account.player?.coins ?? 0;
   const ready = !!account.shop;
+  const head = `<b>${POOLS[pool].icon} ${POOLS[pool].name}</b><span class="g-cats">${POOLS[pool].desc}</span>`;
   if (!items.length) {
-    $('gacha-desc').innerHTML = `<b>${POOLS[pool].desc}</b><br>곧 열려요! 아직 아이템을 만드는 중이에요 🛠️`;
+    $('gacha-desc').innerHTML = `${head}<p class="soon-box">곧 열려요! 아직 아이템을 만드는 중이에요 🛠️</p>`;
   } else {
     const hasLegend = items.some((i) => i.grade === 'legend');
-    const left = PITY - (account.shop?.pity[pool] ?? 0);
-    const cats = [...new Set(items.map((i) => CATS[i.cat].name))].join(' · ');
-    $('gacha-desc').innerHTML = `<b>${POOLS[pool].desc}</b><br>일반 70% · 고급 25% · 전설 5%`
-      + `<br>${hasLegend ? `전설 보장까지 <em>${left}번</em>` : '전설 아이템은 아직 준비 중이에요'}`
-      + `<br><small>지금 들어 있는 것: ${cats} ${items.length}종 · 중복이면 🧩 조각</small>`;
+    const used = account.shop?.pity[pool] ?? 0;
+    const rates = Object.entries(GRADES).map(([g, v]) => `<span class="gbadge g-${g}">${v.name} ${Math.round(v.rate * 100)}%</span>`).join('');
+    $('gacha-desc').innerHTML = `${head}<div class="rates">${rates}</div>`
+      + (hasLegend
+        ? `<div class="pity-row">전설 보장까지 <em>${PITY - used}번</em></div><div class="pity"><i style="width:${(used / PITY) * 100}%"></i></div>`
+        : '<div class="pity-row">전설 아이템은 아직 준비 중이에요</div>')
+      + `<small>지금 들어 있는 것 ${items.length}종 · 중복이면 🧩 조각으로 바뀌어요</small>`;
   }
   $('btn-gacha-1').disabled = shopBusy || !ready || !items.length || coins < GACHA_PRICE[1];
   $('btn-gacha-10').disabled = shopBusy || !ready || !items.length || coins < GACHA_PRICE[10];
@@ -849,16 +1027,15 @@ async function doGacha(count) {
   initAudio();
   playUI('click');
   shopBusy = true;
-  renderShop();
-  $('shop-msg').textContent = '';
+  renderGacha();
+  setMsg('');
   const box = $('gacha-result');
   box.innerHTML = '';
-  $('shop-msg').classList.remove('ok');
   const r = await gacha(shopTab, count);
   if (r.status !== 'ok') {
     shopBusy = false;
-    $('shop-msg').textContent = SHOP_MSG[r.status] || SHOP_MSG.error;
-    renderShop();
+    setMsg(SHOP_MSG[r.status] || SHOP_MSG.error);
+    renderGacha();
     return;
   }
   renderWallet();
@@ -866,165 +1043,126 @@ async function doGacha(count) {
   box.className = `gacha-result${count === 1 ? ' one' : ''}`;
   box.innerHTML = r.results.map((x, i) => {
     const it = ITEM[x.item] || { name: x.item, grade: x.grade };
-    return `<li class="g-${x.grade}" style="animation-delay:${(i * gap).toFixed(2)}s">${swatch(it)}`
-      + `<span class="nm">${esc(it.name)}</span>`
-      + `<span class="tag${x.dup ? '' : ' new'}">${x.dup ? `중복 → 🧩+${x.pieces}` : `NEW! · ${gradeName(x.grade)}`}</span></li>`;
+    return `<li class="card g-${x.grade}" data-id="${ITEM[x.item] ? x.item : ''}" style="animation-delay:${(i * gap).toFixed(2)}s">`
+      + `${x.dup ? '' : '<span class="new">NEW</span>'}${swatch(it)}<span class="nm">${esc(it.name)}</span>`
+      + `<span class="tag">${x.dup ? `중복 🧩+${x.pieces}` : gradeName(x.grade)}</span><i class="bar"></i></li>`;
   }).join('');
   r.results.forEach((x, i) => setTimeout(() => playUI(x.grade === 'common' ? 'card' : x.grade), i * gap * 1000));
-  // 가장 좋은 새 아이템을 캐릭터에 입혀 보여 주기
-  const best = [...r.results].sort((a, b) => ['common', 'rare', 'legend'].indexOf(b.grade) - ['common', 'rare', 'legend'].indexOf(a.grade))[0];
-  if (best && ITEM[best.item]) setPreview(ITEM[best.item].cat, best.item);
-  setTimeout(() => { shopBusy = false; renderShop(); }, r.results.length * gap * 1000 + 300);
-}
-
-function renderBuyList() {
-  const p = account.player || {};
-  let html = '';
-  for (const [cat, info] of Object.entries(CATS)) {
-    const list = ITEMS.filter((i) => i.cat === cat && i.grade !== 'default');
-    if (!list.length) continue;
-    html += `<h4>${info.name}</h4>`;
-    for (const it of list) {
-      const g = GRADES[it.grade];
-      const sel = preview?.look?.[cat] === it.id ? ' sel' : '';
-      let right;
-      if (owns(it.id)) right = '<span class="have">✔ 가지고 있음</span>';
-      else {
-        const b = (pay, label, cost, have) => {
-          const key = `${it.id}/${pay}`;
-          return `<button data-buy="${it.id}" data-pay="${pay}" class="${sureId === key ? 'sure' : ''}" ${have < cost || shopBusy ? 'disabled' : ''}>${sureId === key ? '정말 살까요?' : `${label} ${cost.toLocaleString()}`}</button>`;
-        };
-        right = b('coins', '🪙', g.buy, p.coins ?? 0) + b('pieces', '🧩', g.pieces, p.pieces ?? 0);
-      }
-      html += `<li class="it g-${it.grade}${sel}" data-try="${it.id}">${swatch(it)}<span class="nm">${esc(it.name)}<span class="gbadge">${g.name}</span></span>${right}</li>`;
-    }
-  }
-  $('buy-list').innerHTML = html || '<li class="msg-row">아직 파는 아이템이 없어요</li>';
-}
-
-$('buy-list').addEventListener('click', async (e) => {
-  const btn = e.target.closest('button[data-buy]');
-  if (btn) {
-    const id = btn.dataset.buy, pay = btn.dataset.pay, key = `${id}/${pay}`;
-    playUI('click');
-    if (sureId !== key) { // 한 번 더 눌러야 산다 (실수 방지)
-      sureId = key;
-      clearTimeout(sureTimer);
-      sureTimer = setTimeout(() => { sureId = null; if (shopTab === 'buy') renderBuyList(); }, 3000);
-      renderBuyList();
-      return;
-    }
-    sureId = null;
-    shopBusy = true;
-    renderBuyList();
-    const r = await buyItem(id, pay);
+  // 가장 좋은 아이템을 캐릭터에 입혀 크게 보여 주기
+  const rank = (g) => ['common', 'rare', 'legend'].indexOf(g);
+  const best = [...r.results].sort((a, b) => rank(b.grade) - rank(a.grade))[0];
+  setTimeout(() => {
     shopBusy = false;
-    if (r.status === 'ok') {
-      playUI(ITEM[id].grade === 'common' ? 'card' : ITEM[id].grade);
-      $('shop-msg').innerHTML = `🎉 ${esc(ITEM[id].name)}을(를) 얻었어요! 옷장에서 장착해 보세요`;
-      $('shop-msg').classList.add('ok');
-      setPreview(ITEM[id].cat, id);
-    } else $('shop-msg').textContent = SHOP_MSG[r.status] || SHOP_MSG.error;
-    renderShop();
+    if (best && ITEM[best.item]) select(best.item);
+    renderGacha();
+    renderSpot();
+  }, r.results.length * gap * 1000 + 300);
+}
+
+async function doEquip(it) {
+  shopBusy = true;
+  setMsg('');
+  renderDress();
+  // 기본 아이템은 '장착 해제'로 저장한다
+  const r = await equipItem(it.cat, it.grade === 'default' ? null : it.id);
+  shopBusy = false;
+  if (r.status === 'ok') { playUI('coin'); setMsg(`✔ ${esc(it.name)} 장착!`, true); }
+  else setMsg(SHOP_MSG[r.status] || SHOP_MSG.error);
+  select(null);
+  renderDress();
+}
+
+async function doBuy(id, pay) {
+  const key = `${id}/${pay}`;
+  playUI('click');
+  if (sureId !== key) { // 한 번 더 눌러야 산다 (실수 방지)
+    sureId = key;
+    clearTimeout(sureTimer);
+    sureTimer = setTimeout(() => { sureId = null; renderSpot(); }, 3000);
+    renderSpot();
     return;
   }
-  const li = e.target.closest('li[data-try]');
-  if (li) {
-    const it = ITEM[li.dataset.try];
-    setPreview(it.cat, it.id);
-    renderBuyList();
-  }
-});
-
-async function openCloset(cat = closetCat) {
-  if (needLogin()) return;
-  playUI('click');
-  closetCat = cat;
-  preview = { look: myEquip() };
-  $('closet-msg').textContent = '';
-  show('closet');
-  renderCloset();
-  if (!account.shop) {
-    $('closet-msg').textContent = '불러오는 중…';
-    const r = await loadShop();
-    $('closet-msg').textContent = r.status === 'ok' ? '' : SHOP_MSG[r.status] || SHOP_MSG.error;
-    renderCloset();
-  }
+  sureId = null;
+  shopBusy = true;
+  renderSpot();
+  const r = await buyItem(id, pay);
+  shopBusy = false;
+  if (r.status === 'ok') {
+    playUI(ITEM[id].grade === 'common' ? 'card' : ITEM[id].grade);
+    setMsg(`🎉 ${esc(ITEM[id].name)}을(를) 얻었어요! '장착하기'를 누르면 바로 써요`, true);
+  } else setMsg(SHOP_MSG[r.status] || SHOP_MSG.error);
+  renderDress();
 }
 
-function renderCloset() {
-  $('closet-tabs').innerHTML = Object.entries(CATS).map(([cat, info]) => {
-    const ready = ITEMS.some((i) => i.cat === cat);
-    return `<button class="small${cat === closetCat ? ' on' : ''}" data-cat="${cat}" ${ready ? '' : 'disabled title="곧 열려요"'}>${info.name}</button>`;
-  }).join('');
-  const on = equipped(myEquip(), closetCat)?.id;
-  const sel = preview?.look?.[closetCat];
-  const list = ITEMS.filter((i) => i.cat === closetCat)
-    .sort((a, b) => (owns(b.id) - owns(a.id)) || (a.grade === 'default' ? -1 : b.grade === 'default' ? 1 : 0));
-  $('closet-list').innerHTML = list.length ? list.map((it) => {
-    const have = owns(it.id);
-    const cls = [`g-${it.grade}`, it.id === on ? 'on' : '', it.id === sel ? 'sel' : '', have ? '' : 'locked'].join(' ');
-    const badge = it.id === on ? '✔' : have ? '' : '🔒';
-    return `<li class="${cls}" data-id="${it.id}"><span class="badge">${badge}</span>${swatch(it)}<span class="nm">${esc(it.name)}</span></li>`;
-  }).join('') : '<li class="empty-msg">곧 열려요!</li>';
+// 탭 · 카테고리 · 카드 · 크게 보기 카드
+for (const t of ['closet', 'gacha', 'buy']) {
+  $(`tab-${t}`).addEventListener('click', () => {
+    if (dressTab === t) return;
+    playUI('click');
+    dressTab = t;
+    sureId = null;
+    select(null);
+    setMsg('');
+    renderDress();
+  });
 }
-
-$('closet-tabs').addEventListener('click', (e) => {
+for (const t of ['char', 'arena']) {
+  $(`shop-tab-${t}`).addEventListener('click', () => {
+    if (shopTab === t || shopBusy) return;
+    playUI('click');
+    shopTab = t;
+    $('gacha-result').innerHTML = '';
+    setMsg('');
+    select(null);
+    renderGacha();
+    renderSpot();
+  });
+}
+$('cat-chips').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-cat]');
-  if (!b || b.disabled) return;
+  if (!b || b.disabled || b.dataset.cat === closetCat) return;
   playUI('click');
   closetCat = b.dataset.cat;
-  preview = { look: myEquip() };
-  $('closet-msg').textContent = '';
-  renderCloset();
+  select(null);
+  setMsg('');
+  renderDress();
 });
-$('closet-list').addEventListener('click', async (e) => {
+$('item-grid').addEventListener('click', (e) => {
   const li = e.target.closest('li[data-id]');
   if (!li || shopBusy) return;
   const it = ITEM[li.dataset.id];
   playUI('click');
-  setPreview(it.cat, it.id);
-  if (!owns(it.id)) {
-    $('closet-msg').textContent = `🔒 아직 없어요. 상점에서 뽑거나 살 수 있어요 (입어 보기 중)`;
-    $('closet-msg').classList.remove('ok');
-    renderCloset();
-    return;
-  }
-  if (equipped(myEquip(), it.cat).id === it.id) { renderCloset(); return; }
-  shopBusy = true;
-  $('closet-msg').textContent = '';
-  renderCloset();
-  // 기본 아이템은 '장착 해제'로 저장한다
-  const r = await equipItem(it.cat, it.grade === 'default' ? null : it.id);
-  shopBusy = false;
-  $('closet-msg').textContent = r.status === 'ok' ? `✔ ${it.name} 장착!` : SHOP_MSG[r.status] || SHOP_MSG.error;
-  $('closet-msg').classList.toggle('ok', r.status === 'ok');
-  preview = { look: myEquip() };
-  renderCloset();
+  sureId = null;
+  // 옷장: 가진 것을 누르면 바로 장착. 나머지는 입어 보기
+  if (dressTab === 'closet' && owns(it.id) && equipped(myEquip(), it.cat).id !== it.id) { doEquip(it); return; }
+  select(it.id);
+  setMsg(owns(it.id) || dressTab === 'buy' ? '' : '🔒 아직 없어요. 왼쪽 카드에서 바로 사거나 뽑기로 얻을 수 있어요');
+  renderDress();
+});
+$('gacha-result').addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-id]');
+  if (!li || !li.dataset.id || shopBusy) return;
+  playUI('click');
+  select(li.dataset.id);
+  renderSpot();
+});
+$('spot-acts').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b || b.disabled) return;
+  const it = selId ? ITEM[selId] : equipped(myEquip(), closetCat);
+  if (b.dataset.buy) doBuy(b.dataset.buy, b.dataset.pay);
+  else if (b.dataset.act === 'equip') { playUI('click'); doEquip(it); }
+  else if (b.dataset.act === 'sound') { initAudio(); playHit('perfect', null, null, it.sound || null); }
 });
 
-$('btn-shop').addEventListener('click', () => openShop());
-$('btn-closet').addEventListener('click', () => openCloset());
-$('btn-shop-closet').addEventListener('click', () => openCloset());
-$('btn-closet-shop').addEventListener('click', () => openShop());
-$('btn-shop-back').addEventListener('click', () => { playUI('click'); show('lobby'); });
-$('btn-closet-back').addEventListener('click', () => { playUI('click'); show('lobby'); });
-for (const t of ['char', 'arena', 'buy']) {
-  $(`shop-tab-${t}`).addEventListener('click', () => {
-    playUI('click');
-    shopTab = t;
-    sureId = null;
-    $('gacha-result').innerHTML = '';
-    $('shop-msg').textContent = '';
-    preview = { look: myEquip() };
-    renderShop();
-  });
-}
+$('btn-shop').addEventListener('click', () => openDress('gacha'));
+$('btn-closet').addEventListener('click', () => openDress('closet'));
+$('btn-dress-back').addEventListener('click', () => { playUI('click'); show('lobby'); });
 $('btn-gacha-1').addEventListener('click', () => doGacha(1));
+$('btn-gacha-10').addEventListener('click', () => doGacha(10));
 // 서버 없이 도는 테스트 모드에서만: 뽑기를 시험해 볼 코인
 $('btn-test-coins').classList.toggle('hidden', ONLINE);
-$('btn-test-coins').addEventListener('click', async () => { playUI('coin'); await testCoins(1000); renderShop(); });
-$('btn-gacha-10').addEventListener('click', () => doGacha(10));
+$('btn-test-coins').addEventListener('click', async () => { playUI('coin'); await testCoins(1000); renderDress(); });
 
 /* ───────── 매 프레임 ───────── */
 function loop() {
@@ -1035,24 +1173,29 @@ function loop() {
   if (game) game.update(now + game.offset);
   else if (preview) previewFrame(now);
   else {
-    // 로비 배경: 천천히 도는 카메라
+    // 로비 배경: 두 캐릭터가 랠리를 주고받고, 카메라는 옆에서 천천히 흔들린다
     world.setFocus(0);
     setEcho(0);
-    const a = now * 0.08;
-    world.camera.position.set(Math.sin(a) * 4.2, 2.4, Math.cos(a) * 4.2);
-    world.camera.lookAt(0, 0.8, 0);
-    world.setBall([0, -1, 0], false);
+    const L = LOBBY_CAM;
+    const a = L.angle + Math.sin(now * L.speed) * L.sway;
+    world.camera.position.set(Math.sin(a) * L.dist, L.y, Math.cos(a) * L.dist);
+    world.camera.lookAt(0, L.lookY, 0);
+    // 메뉴가 왼쪽에 있으니 탁구대를 화면 오른쪽으로 비켜 보이게 (카메라를 옆으로 민다)
+    if (innerWidth >= 760) world.camera.translateX(-L.shift * Math.min(1, innerWidth / innerHeight / 1.6));
     world.ring.visible = false;
     world.aim.visible = false;
     applyLook(world.team[0][0], myEquip());
     applyLook(world.team[1][0], {});
-    world.team[0][0].group.rotation.y = 0;
-    world.team[0][0].group.position.set(0, 0, CHAR_Z);
     for (const side of [0, 1]) {
       world.team[side][0].group.visible = true;
       world.team[side][0].setOpacity(1, 1);
+      world.team[side][0].setTag(null);
       world.team[side][1].group.visible = false;
     }
+    // 배경 랠리 소리: 로비 화면에서만, 카메라 자리에서 듣는 것처럼 작게
+    const cp = world.camera.position;
+    setListener([cp.x, cp.y, cp.z], [Math.cos(a), 0, -Math.sin(a)]);
+    lobbyDemo.update(now, world.chars, world, !$('lobby').classList.contains('hidden'));
   }
   world.render();
   requestAnimationFrame(loop);

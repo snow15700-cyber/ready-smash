@@ -465,29 +465,7 @@ export class Game {
     w.aim.visible = false;
   }
 
-  animArm(c, now, remain, ballY) {
-    const READY = -0.35, BACK = -1.0, FOLLOW = 0.85;
-    let yaw = READY;
-    if (remain < 0.4 && remain > -0.2) yaw = READY + (BACK - READY) * Math.min(1, (0.4 - remain) / 0.25);
-    const st = performance.now() / 1000 - c.swingT;
-    if (c.swingT > 0 && st < 0.45) {
-      if (c.swingBlock) {
-        yaw = READY + Math.sin(Math.min(1, st / 0.3) * Math.PI) * 0.3;
-      } else if (st < 0.12) {
-        const u = st / 0.12;
-        yaw = BACK + (FOLLOW - BACK) * (1 - (1 - u) * (1 - u));
-      } else {
-        const u = (st - 0.12) / 0.33;
-        yaw = FOLLOW + (READY - FOLLOW) * u * u * (3 - 2 * u);
-      }
-    }
-    const dy = Math.max(-0.4, Math.min(0.4, ballY - 0.98));
-    const pitch = Math.asin(dy / 0.427) - 0.359;
-    c.arm.rotation.order = 'YXZ';
-    c.arm.rotation.y += (yaw - c.arm.rotation.y) * 0.6;
-    c.arm.rotation.x += (pitch - c.arm.rotation.x) * 0.2;
-    c.body.rotation.y = (yaw - READY) * 0.25;
-  }
+  animArm(c, now, remain, ballY) { armPose(c, now, remain, ballY); }
 
   scheduleSounds(now) {
     const segs = this.segs;
@@ -505,4 +483,29 @@ export class Game {
       else if (s.ev === 'net') A.playNet(s.p, when);
     }
   }
+}
+
+// 팔(탁구채) 자세: 공이 오기 전 뒤로 빼고, swingT부터 휘두른 뒤 제자리로. 로비 배경 랠리도 같이 쓴다
+export function armPose(c, now, remain, ballY) {
+  const READY = -0.35, BACK = -1.0, FOLLOW = 0.85;
+  let yaw = READY;
+  if (remain < 0.4 && remain > -0.2) yaw = READY + (BACK - READY) * Math.min(1, (0.4 - remain) / 0.25);
+  const st = performance.now() / 1000 - c.swingT;
+  if (c.swingT > 0 && st < 0.45) {
+    if (c.swingBlock) {
+      yaw = READY + Math.sin(Math.min(1, st / 0.3) * Math.PI) * 0.3;
+    } else if (st < 0.12) {
+      const u = st / 0.12;
+      yaw = BACK + (FOLLOW - BACK) * (1 - (1 - u) * (1 - u));
+    } else {
+      const u = (st - 0.12) / 0.33;
+      yaw = FOLLOW + (READY - FOLLOW) * u * u * (3 - 2 * u);
+    }
+  }
+  const dy = Math.max(-0.4, Math.min(0.4, ballY - 0.98));
+  const pitch = Math.asin(dy / 0.427) - 0.359;
+  c.arm.rotation.order = 'YXZ';
+  c.arm.rotation.y += (yaw - c.arm.rotation.y) * 0.6;
+  c.arm.rotation.x += (pitch - c.arm.rotation.x) * 0.2;
+  c.body.rotation.y = (yaw - READY) * 0.25;
 }
