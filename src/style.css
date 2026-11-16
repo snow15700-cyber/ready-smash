@@ -476,3 +476,35 @@ body.mobile canvas { touch-action: none; }
 @keyframes fadeBg { 0% { opacity: 0; } 100% { opacity: 1; } }
 @keyframes slideIn { 0% { opacity: 0; transform: translateX(70px); } 100% { opacity: 1; transform: none; } }
 @keyframes fadeUp { 0% { opacity: 0; } 100% { opacity: 1; } }
+
+/* 경기 시작 전 VS 소개 (3초): p1 상대 팀 → p2 우리 팀 → p3 VS + '준비하시고, 스매시!' */
+body.intro #hud { visibility: hidden; }
+.vs-intro { position: fixed; inset: 0; z-index: 8; pointer-events: none; overflow: hidden; }
+.vs-intro::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,16,30,.55) 0%, rgba(20,16,30,0) 22%, rgba(20,16,30,0) 70%, rgba(20,16,30,.6) 100%); }
+.vi-side { position: absolute; bottom: 9%; display: flex; flex-direction: column; gap: 14px; opacity: 0; transition: transform .45s cubic-bezier(.2,1.4,.4,1), opacity .25s; }
+.vi-opp { right: 5vw; align-items: flex-end; transform: translateX(60px); }
+.vi-us { left: 5vw; align-items: flex-start; transform: translateX(-60px); }
+.vs-intro.p1 .vi-opp, .vs-intro.p2 .vi-opp, .vs-intro.p3 .vi-opp, .vs-intro.p2 .vi-us, .vs-intro.p3 .vi-us { opacity: 1; transform: none; }
+.vs-intro.p3 .vi-side { bottom: 6%; }
+.vi-team { font-size: 20px; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.5); letter-spacing: 1px; }
+.vi-card { display: flex; flex-direction: column; gap: 6px; }
+.vi-opp .vi-card { align-items: flex-end; } .vi-us .vi-card { align-items: flex-start; }
+.vi-card .nm { font-size: clamp(30px, 5vw, 52px); line-height: 1.15; color: #fff; padding: 4px 24px; border-radius: 18px; box-shadow: 0 6px 0 rgba(0,0,0,.25), 0 10px 30px rgba(0,0,0,.25); }
+.vi-card .nm.t0 { background: var(--orange); } .vi-card .nm.t1 { background: var(--blue); }
+.vi-card .nm small { font-size: .4em; background: rgba(255,255,255,.3); border-radius: 8px; padding: 2px 8px; margin-left: 10px; vertical-align: .4em; }
+.vi-card .it { display: flex; align-items: center; gap: 6px; font-size: 20px; padding: 4px 16px 4px 6px; border-radius: 999px; background: #fffaf0; color: #5d6e80; box-shadow: 0 3px 0 rgba(0,0,0,.18); }
+.vi-card .it .sw { width: 30px; height: 30px; border-radius: 50%; flex: none; }
+.vi-card .it.g-default { color: var(--muted); }
+.vi-card .it.g-rare { color: #7a3fc4; box-shadow: inset 0 0 0 3px #b98cf0, 0 3px 0 rgba(0,0,0,.18), 0 0 18px rgba(176,124,255,.6); }
+.vi-card .it.g-legend { color: #9a5b00; background: linear-gradient(90deg, #fff3c4, #ffe08a, #fff3c4); background-size: 200% 100%; box-shadow: inset 0 0 0 3px #f2a20c, 0 0 22px #ffc23d; animation: shine 1.6s linear infinite; }
+.vi-vs { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(3); opacity: 0; font-size: 96px; color: #fff; -webkit-text-stroke: 4px var(--ink); text-shadow: 0 6px 0 var(--ink), 0 0 40px rgba(255,180,60,.8); }
+.vs-intro.p3 .vi-vs { animation: vsStamp .35s cubic-bezier(.3,1.6,.5,1) forwards; }
+@keyframes vsStamp { from { opacity: 0; transform: translate(-50%, -50%) scale(3) rotate(-12deg); } to { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-6deg); } }
+.vi-go { position: absolute; left: 50%; top: 62%; transform: translate(-50%, -50%); opacity: 0; font-size: clamp(26px, 4vw, 44px); color: #fff; white-space: nowrap; text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 20px rgba(0,0,0,.35); }
+.vi-go b { font-weight: normal; color: #ffd23d; font-size: 1.35em; }
+.vs-intro.go .vi-go { animation: goIn .3s cubic-bezier(.3,1.5,.5,1) forwards; }
+@keyframes goIn { from { opacity: 0; transform: translate(-50%, -50%) scale(.7); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+.vs-intro.go .vi-vs { animation: none; opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-6deg); }
+.vs-intro.flash::after { content: ''; position: absolute; inset: 0; background: #fff; animation: flash .35s ease-out forwards; }
+@keyframes flash { from { opacity: .85; } to { opacity: 0; } }
+@media (max-width: 760px) { .vi-side { bottom: 4%; } .vi-vs { font-size: 64px; } }
