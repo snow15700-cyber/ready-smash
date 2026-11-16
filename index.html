@@ -23,50 +23,56 @@
 
   <div id="toast"></div>
 
-  <div id="login" class="screen hidden">
-    <div class="panel">
-      <h1>준비하시고,<br /><span>스매시!</span></h1>
-      <p class="sub">닉네임과 PIN(숫자 4자리)으로 로그인하세요</p>
-      <p id="login-offline" class="offline hidden">⚠️ 서버에 연결되지 않은 <b>테스트 모드</b>예요.<br />지금 만드는 계정은 이 브라우저에만 저장돼요.</p>
-      <div id="login-form" class="stack">
-        <label class="field">닉네임
-          <input id="login-nick" maxlength="10" placeholder="예: 탁구왕" autocomplete="off" />
-        </label>
-        <label class="field">PIN (숫자 4자리)
-          <input id="login-pin" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
-        </label>
-        <p id="login-msg" class="msg"></p>
-        <button id="btn-login" class="big">로그인</button>
-        <p class="note tiny-note">처음이면 쓰고 싶은 닉네임과 PIN을 넣고 로그인을 누르면 가입돼요</p>
+  <div id="login" class="screen left hidden">
+    <div class="left-col">
+      <h1 class="logo">준비하시고,<span>스매시!</span></h1>
+      <p class="lb-sub">마우스 하나로 즐기는 ASMR 탁구</p>
+      <div class="panel">
+        <p class="panel-title">👋 반가워요! 로그인해 주세요</p>
+        <p id="login-offline" class="offline hidden">⚠️ 서버에 연결되지 않은 <b>테스트 모드</b>예요.<br />지금 만드는 계정은 이 브라우저에만 저장돼요.</p>
+        <div id="login-form" class="stack">
+          <label class="field">닉네임
+            <input id="login-nick" maxlength="10" placeholder="예: 탁구왕" autocomplete="off" />
+          </label>
+          <label class="field"><span>PIN <small>숫자 4자리</small></span>
+            <input id="login-pin" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
+          </label>
+          <p id="login-msg" class="msg"></p>
+          <button id="btn-login" class="big">로그인</button>
+          <p class="note tiny-note">처음이면 원하는 닉네임·PIN으로 로그인하면 바로 가입돼요</p>
+        </div>
+        <div id="signup-form" class="stack hidden">
+          <p class="signup-q">✨ <b id="signup-nick"></b>은(는) 처음 보는 닉네임이에요.<br />이 닉네임으로 새로 가입할까요?</p>
+          <label class="field">확인을 위해 PIN을 한 번 더 입력하세요
+            <input id="signup-pin" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
+          </label>
+          <p id="signup-msg" class="msg"></p>
+          <button id="btn-signup" class="big">가입하기</button>
+          <button id="btn-signup-cancel">다시 입력</button>
+        </div>
+        <div class="or"><span>또는</span></div>
+        <button id="btn-guest">🙋 손님으로 하기</button>
+        <p class="note tiny-note">손님은 전적·기록이 저장되지 않아요 (닉네임만 입력하면 돼요)</p>
       </div>
-      <div id="signup-form" class="stack hidden">
-        <p class="signup-q"><b id="signup-nick"></b>은(는) 처음 보는 닉네임이에요.<br />이 닉네임으로 새로 가입할까요?</p>
-        <label class="field">확인을 위해 PIN을 한 번 더 입력하세요
-          <input id="signup-pin" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
-        </label>
-        <p id="signup-msg" class="msg"></p>
-        <button id="btn-signup" class="big">가입하기</button>
-        <button id="btn-signup-cancel">다시 입력</button>
-      </div>
-      <div class="or"><span>또는</span></div>
-      <button id="btn-guest">손님으로 하기</button>
-      <p class="note tiny-note">손님은 전적·기록이 저장되지 않아요 (닉네임만 입력하면 돼요)</p>
     </div>
   </div>
 
-  <div id="pin-change" class="screen hidden">
-    <div class="panel">
-      <h2>PIN 바꾸기</h2>
-      <p class="sub">새로 쓸 PIN(숫자 4자리)을 두 번 입력하세요</p>
-      <label class="field">새 PIN
-        <input id="pin-new" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
-      </label>
-      <label class="field">새 PIN 한 번 더
-        <input id="pin-new2" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
-      </label>
-      <p id="pin-msg" class="msg"></p>
-      <button id="btn-pin-go" class="big">바꾸기</button>
-      <button id="btn-pin-cancel">뒤로</button>
+  <div id="pin-change" class="screen left hidden">
+    <div class="left-col">
+      <h1 class="logo">준비하시고,<span>스매시!</span></h1>
+      <div class="panel">
+        <p class="panel-title">🔒 PIN 바꾸기</p>
+        <p class="sub">새로 쓸 PIN(숫자 4자리)을 두 번 입력하세요</p>
+        <label class="field">새 PIN
+          <input id="pin-new" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
+        </label>
+        <label class="field">새 PIN 한 번 더
+          <input id="pin-new2" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
+        </label>
+        <p id="pin-msg" class="msg"></p>
+        <button id="btn-pin-go" class="big">바꾸기</button>
+        <button id="btn-pin-cancel">뒤로</button>
+      </div>
     </div>
   </div>
 
@@ -188,9 +194,12 @@
 
   <div id="join" class="screen hidden">
     <div class="panel">
-      <h2>코드로 입장</h2>
-      <p class="sub">친구에게 받은 4자리 방 코드를 입력하세요</p>
-      <input id="join-code" class="code-input" maxlength="4" placeholder="ABCD" autocomplete="off" spellcheck="false" />
+      <p class="panel-title center">🔑 코드로 입장</p>
+      <p class="sub center">친구에게 받은 4자리 방 코드를 입력하세요</p>
+      <label class="code-boxes" id="code-boxes">
+        <span></span><span></span><span></span><span></span>
+        <input id="join-code" maxlength="4" autocomplete="off" spellcheck="false" aria-label="방 코드" />
+      </label>
       <p id="join-msg" class="msg"></p>
       <button id="btn-join-go" class="big">입장하기</button>
       <button id="btn-join-cancel">뒤로</button>
@@ -198,22 +207,28 @@
   </div>
 
   <div id="room" class="screen hidden">
-    <div class="panel">
-      <p class="sub center">방 코드</p>
-      <div class="code-row"><div id="room-code" class="code">----</div><button id="btn-copy" class="small">복사</button></div>
+    <div class="panel room-panel">
+      <div class="room-top">
+        <button id="btn-room-leave" class="small ghost">← 방 나가기</button>
+        <span id="room-mode" class="room-mode"></span>
+      </div>
+      <div class="ticket">
+        <span class="ticket-lbl">방 코드</span>
+        <div id="room-code" class="code">----</div>
+        <button id="btn-copy" class="small">📋 복사</button>
+      </div>
       <p id="room-result" class="result hidden"></p>
       <p id="room-coins" class="coins-got"></p>
-      <p id="room-mode" class="room-mode"></p>
       <p id="room-h2h" class="h2h"></p>
       <div id="teams" class="teams">
         <div class="team t0"><h3>A팀</h3><ul id="team-0" class="members"></ul><button id="btn-team-0" class="small">A팀으로</button></div>
+        <div class="vs">VS</div>
         <div class="team t1"><h3>B팀</h3><ul id="team-1" class="members"></ul><button id="btn-team-1" class="small">B팀으로</button></div>
       </div>
       <p id="room-members-title" class="note tiny"></p>
-      <ul id="room-members" class="members"></ul>
-      <p id="room-tip" class="note"></p>
-      <button id="btn-start" class="big hidden">경기 시작!</button>
-      <button id="btn-room-leave">방 나가기</button>
+      <ul id="room-members" class="members waiting"></ul>
+      <p id="room-tip" class="room-tip"></p>
+      <button id="btn-start" class="big hidden">🏓 경기 시작!</button>
       <p id="room-ping" class="note tiny"></p>
     </div>
   </div>

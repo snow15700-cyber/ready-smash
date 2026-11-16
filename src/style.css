@@ -69,38 +69,13 @@ h1 span { color: #ff6a2a; font-size: 52px; }
 
 h2 { margin: 0; font-size: 30px; font-weight: normal; color: #2a62b0; }
 .center { text-align: center; margin: 0; }
-.code-input { font-family: inherit; font-size: 44px; letter-spacing: 12px; text-align: center; text-transform: uppercase; padding: 10px; border-radius: 14px; border: 2px solid #e6d7bb; outline: none; }
-.code-input:focus { border-color: #ff8a3d; }
 .msg { margin: 0; min-height: 20px; color: #e0533c; text-align: center; font-size: 15px; }
-.code-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
-.code { font-size: 58px; letter-spacing: 10px; color: #ff6a2a; line-height: 1; }
-.result { margin: 0; text-align: center; font-size: 24px; background: #fff1c9; border-radius: 12px; padding: 8px; }
-.members { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.members li { display: flex; align-items: center; gap: 10px; background: #f4ead6; border-radius: 12px; padding: 10px 14px; }
-.members li span { color: #8a7a66; font-size: 14px; min-width: 62px; }
-.members li b { flex: 1; font-weight: normal; font-size: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.members li i { font-style: normal; font-size: 14px; color: #8a7a66; background: #fff; border-radius: 8px; padding: 3px 8px; }
-.members li i.on { background: #3fbf6a; color: #fff; }
-.members li.empty b { color: #b3a48e; font-size: 16px; }
 button.big.on { background: #8a7a66; box-shadow: 0 5px 0 #5f5243; }
 .tiny { font-size: 12px; min-height: 14px; }
 #scoreboard small { font-size: 18px; opacity: .9; }
 #scoreboard em { font-style: normal; font-size: 20px; color: #ffd23d; }
 
 /* 대기실: 모드 고르기 · 팀 */
-.room-mode { margin: 0; text-align: center; font-size: 20px; color: #2a62b0; }
-.team button.on { background: #8a7a66; color: #fff; box-shadow: 0 4px 0 #5f5243; }
-.teams { display: flex; gap: 10px; }
-.team { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; border-radius: 14px; padding: 8px; }
-.team.t0 { background: #ffe3d3; }
-.team.t1 { background: #d9e8ff; }
-.team h3 { margin: 0; text-align: center; font-weight: normal; font-size: 20px; }
-.team.t0 h3 { color: #d2561c; }
-.team.t1 h3 { color: #2a62b0; }
-.team .members li { flex-wrap: wrap; gap: 4px 8px; padding: 8px 10px; background: #fffaf0; }
-.team .members li span { min-width: 0; font-size: 12px; }
-.team .members li b { font-size: 17px; flex-basis: 100%; order: -1; }
-.team .members li i { font-size: 12px; margin-left: auto; }
 
 /* 2v2 '내 차례!' */
 #turn { position: absolute; top: 58%; left: 50%; transform: translate(-50%, -50%); font-size: 46px; color: #ffd23d; opacity: 0; text-shadow: 0 4px 0 rgba(0,0,0,.25), 0 0 18px rgba(255,190,40,.6); white-space: nowrap; pointer-events: none; }
@@ -255,3 +230,70 @@ button.lb-help { position: absolute; left: clamp(20px, 4.5vw, 64px); bottom: 26p
   .logo { text-align: center; font-size: 34px; } .logo span { font-size: 60px; }
   .lb-sub { text-align: center; margin-left: 0; }
 }
+
+/* ───────── 2단계: 로그인·PIN·코드 입장·대기실 ───────── */
+/* 로그인·PIN: 로비처럼 왼쪽에 제목과 카드, 오른쪽에 랠리 배경 */
+.screen.left { justify-content: flex-start; padding: 16px clamp(20px, 4.5vw, 64px); background: linear-gradient(90deg, rgba(255,246,230,.6) 0%, rgba(255,246,230,.2) 34%, rgba(255,246,230,0) 50%); backdrop-filter: none; }
+.left-col { width: min(400px, 100%); max-height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px 18px 30px; margin: 0 -18px; }
+.left-col .panel { width: 100%; max-height: none; overflow: visible; padding: 20px 22px 16px; border-radius: 24px; box-shadow: 0 12px 34px rgba(80,50,20,.18); }
+.left-col .logo { font-size: 38px; } .left-col .logo span { font-size: 68px; }
+.left-col .lb-sub { margin-bottom: 2px; }
+.panel-title { margin: 0; font-size: 24px; color: var(--blue-ink); }
+.panel-title.center { text-align: center; font-size: 28px; }
+.sub.center { margin: -6px 0 2px; }
+.field small { font-size: 13px; color: var(--muted); margin-left: 4px; }
+.field input { transition: border-color .15s, box-shadow .15s; }
+.field input:focus { box-shadow: 0 0 0 4px rgba(255,138,61,.18); }
+@media (max-width: 760px) { .screen.left { justify-content: center; background: rgba(255,246,230,.45); } .left-col .logo { text-align: center; } .left-col .lb-sub { text-align: center; } }
+
+/* 코드 입장: 4칸 글자 상자 */
+.code-boxes { position: relative; display: flex; justify-content: center; gap: 10px; margin: 6px 0 0; cursor: text; }
+.code-boxes span { width: 70px; height: 84px; display: grid; place-items: center; font-size: 46px; color: var(--orange-ink); background: #fff; border: 3px solid var(--line); border-radius: 18px; box-shadow: 0 4px 0 var(--line); transition: border-color .15s, transform .1s; }
+.code-boxes span:not(:empty) { border-color: #ffc49b; }
+.code-boxes span.now { border-color: var(--orange); box-shadow: 0 4px 0 var(--orange-d), 0 0 0 5px rgba(255,138,61,.15); transform: translateY(-2px); }
+.code-boxes span.now:empty::after { content: ''; width: 3px; height: 40px; background: var(--orange); border-radius: 2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.code-boxes input { position: absolute; inset: 0; width: 100%; opacity: 0; font-size: 16px; text-transform: uppercase; cursor: text; }
+
+/* 대기실 */
+.room-panel { width: min(560px, 100%); gap: 12px; padding: 18px 22px 16px; }
+.room-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+button.ghost { background: transparent; box-shadow: none; color: var(--muted); padding: 6px 8px; }
+button.ghost:hover:not(:disabled) { color: var(--ink); background: var(--cream); transform: none; }
+.room-mode { font-size: 18px; color: var(--blue-ink); background: #e5eefc; border-radius: 999px; padding: 5px 14px; white-space: nowrap; }
+.room-mode b { font-weight: normal; color: var(--ink); margin-left: 6px; }
+.ticket { position: relative; display: flex; align-items: center; justify-content: center; gap: 14px; background: #fff3e6; border: 2px dashed #ffbf8f; border-radius: 18px; padding: 14px 14px 10px; margin-top: 6px; }
+.ticket-lbl { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--orange-d); background: var(--paper); padding: 0 8px; border-radius: 6px; }
+.code { font-size: 54px; letter-spacing: 12px; color: var(--orange-ink); line-height: 1; padding-left: 12px; }
+.result { margin: 0; text-align: center; font-size: 24px; background: #fff1c9; border-radius: 14px; padding: 8px; animation: popIn .3s ease-out; }
+.room-tip { margin: 0; text-align: center; font-size: 15px; color: #6b5c4a; background: var(--cream); border-radius: 12px; padding: 8px 10px; }
+
+.teams { display: flex; align-items: stretch; gap: 8px; }
+.vs { align-self: center; font-size: 20px; color: #fff; background: var(--ink); border-radius: 50%; width: 46px; height: 46px; flex: none; display: grid; place-items: center; box-shadow: 0 4px 0 rgba(0,0,0,.2); }
+.team { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; border-radius: 18px; padding: 10px; }
+.team.t0 { background: #ffe6d6; }
+.team.t1 { background: #dde9ff; }
+.team h3 { margin: 0; text-align: center; font-weight: normal; font-size: 21px; }
+.team.t0 h3 { color: #d2561c; }
+.team.t1 h3 { color: var(--blue-ink); }
+.team.t0 button { color: #d2561c; }
+.team.t1 button { color: var(--blue-ink); }
+.team.t0 button.on { background: #d2561c; color: #fff; box-shadow: 0 4px 0 #9c3c10; }
+.team.t1 button.on { background: var(--blue); color: #fff; box-shadow: 0 4px 0 var(--blue-d); }
+
+.members { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.members li { display: flex; align-items: center; gap: 10px; background: var(--paper); border-radius: 14px; padding: 8px 10px; min-height: 54px; animation: popIn .2s ease-out; }
+.members li.me { box-shadow: inset 0 0 0 2px #ffb36b; }
+.members .av { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 18px; color: #fff; background: #b9a88d; }
+.team.t0 .members .av { background: var(--orange); }
+.team.t1 .members .av { background: var(--blue); }
+.members .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.members .who b { font-weight: normal; font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.members .who span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.members li i { flex: none; font-style: normal; font-size: 12px; color: #fff; background: #3fbf6a; border-radius: 8px; padding: 3px 7px; }
+.members li.empty { background: transparent; box-shadow: inset 0 0 0 2px rgba(138,122,102,.3); animation: none; }
+.team .members li.empty .av { background: rgba(255,255,255,.75); color: var(--muted); }
+.members li.empty b { color: #b3a48e; font-size: 16px; }
+.members.waiting li { background: var(--cream); }
+@media (max-width: 480px) { .teams { flex-direction: column; } .vs { width: 36px; height: 36px; font-size: 15px; margin: -6px 0; z-index: 1; } .code { font-size: 44px; letter-spacing: 8px; } }
+#room-members:empty, #room-members-title:empty, #room-ping:empty { display: none; }

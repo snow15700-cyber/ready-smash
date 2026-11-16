@@ -3,6 +3,10 @@ let ctx = null;
 let master, dryBus, revSend, noiseBuf;
 let echoIn, echoFb, echoLevel = 0; // 몰입 에코 (랠리가 길어질수록 커짐)
 let listener = { pos: [0, 1.7, 3.6], right: [1, 0, 0] };
+let quiet = 1; // 위치가 있는 소리(타구·바운드)의 전체 크기. 로비 배경 랠리는 작게
+
+// 로비 배경처럼 작게 들려야 할 때 0~1 (경기 중에는 1)
+export function setQuiet(k) { quiet = k; }
 
 export function initAudio() {
   if (ctx) {
@@ -91,6 +95,7 @@ function spatial(pos) {
   const pan = Math.max(-0.85, Math.min(0.85, (side / Math.max(dist, 0.5)) * 1.3));
   const gain = Math.max(0.12, Math.min(1, 2.2 / (dist + 0.4)));
   const cutoff = 20000 / (1 + Math.max(0, dist - 1.5) * 0.45);
+  if (quiet < 1) return { pan, gain: gain * quiet, cutoff: Math.min(cutoff, 6000) }; // 로비 배경: 작고 부드럽게
   return { pan, gain, cutoff };
 }
 

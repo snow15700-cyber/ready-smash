@@ -2,7 +2,7 @@ import { createWorld, CHAR_Z } from './scene.js';
 import { createLobbyDemo, LOBBY_CAM } from './lobbyDemo.js';
 import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
-import { initAudio, playUI, setEcho } from './audio.js';
+import { initAudio, playUI, setEcho, setQuiet, setListener } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
 import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking } from './account.js';
 
@@ -11,6 +11,11 @@ import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLoo
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('c'));
 const lobbyDemo = createLobbyDemo();
+const LOBBY_QUIET = 0.4; // 로비 배경 랠리 소리 크기 (경기 중 소리를 1로 볼 때)
+// 브라우저는 사람이 한 번 누르기 전에는 소리를 못 낸다: 첫 클릭·키 입력에 소리를 켠다
+const unlockAudio = () => { initAudio(); removeEventListener('pointerdown', unlockAudio); removeEventListener('keydown', unlockAudio); };
+addEventListener('pointerdown', unlockAudio);
+addEventListener('keydown', unlockAudio);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 if (IS_TEST) {
@@ -76,8 +81,14 @@ let preview = null; // 상점·옷장에서 미리보기 중인 꾸미기 { look
 
 const myNick = () => account.nick || '플레이어';
 
+const HOWTO_KEY = 'smash-howto-seen'; // 치는 방법 창을 본 적 있는지 (처음 온 사람에게 한 번 자동으로 띄움)
 function show(screen) {
-  if (screen === 'lobby') renderMe();
+  if (screen === 'lobby') {
+    renderMe();
+    let seen = true;
+    try { seen = !!localStorage.getItem(HOWTO_KEY); } catch { /* 저장 안 되는 브라우저: 띄우지 않음 */ }
+    $('howto').classList.toggle('hidden', seen);
+  }
   if (screen !== 'shop' && screen !== 'closet') preview = null;
   for (const id of ['login', 'pin-change', 'rank', 'lobby', 'join', 'room', 'shop', 'closet']) $(id).classList.toggle('hidden', id !== screen);
   $('hud').classList.toggle('hidden', screen !== 'hud');
@@ -318,6 +329,7 @@ function onRoomMsg(m) {
       break;
     case 'pong': {
       const now = performance.now() / 1000;
+  setQuiet(game ? 1 : LOBBY_QUIET);
       const rtt = now - m.t1;
       room.pings.push({ rtt, off: m.th + rtt / 2 - now });
       if (room.pings.length > 12) room.pings.shift();
@@ -488,13 +500,19 @@ function renderRoom() {
   if (!room) return;
   renderH2H();
   $('room-code').textContent = room.code;
-  $('room-mode').textContent = room.mode ? `${room.mode} 방 · ${room.members.length}/${capacity()}명` : '방 정보를 불러오는 중…';
+  $('room-mode').innerHTML = room.mode
+    ? `${room.mode === '2v2' ? '2 대 2' : '1 대 1'} 방 <b>${room.members.length}/${capacity()}명</b>`
+    : '방 정보를 불러오는 중…';
   $('room-result').textContent = room.result;
   $('room-result').classList.toggle('hidden', !room.result);
   renderCoins();
 
-  const row = (m, inTeam, i) => `<li><span>${inTeam && room.mode === '2v2' ? `${i + 1}번 · ` : ''}${m.host ? '방장' : '참가자'}${m.guest ? ' · 손님' : ''}${m.id === myId ? ' (나)' : ''}</span><b>${esc(m.nick)}</b>${inTeam ? '<i class="on">준비 완료</i>' : ''}</li>`;
-  const empty = '<li class="empty"><span></span><b>빈자리</b></li>';
+  // 선수 한 줄: 동그란 얼굴(닉네임 첫 글자) + 닉네임 + 꼬리표(방장·손님·나) + 준비 완료
+  const row = (m, inTeam, i) => {
+    const tags = [inTeam && room.mode === '2v2' ? `${i + 1}번` : '', m.host ? '👑 방장' : '', m.guest ? '손님' : '', m.id === myId ? '나' : ''].filter(Boolean);
+    return `<li class="${m.id === myId ? 'me' : ''}"><em class="av">${esc([...m.nick][0] || '?')}</em><div class="who"><b>${esc(m.nick)}</b><span>${tags.join(' · ') || '참가자'}</span></div>${inTeam ? '<i class="on">✓ 준비</i>' : ''}</li>`;
+  };
+  const empty = '<li class="empty"><em class="av">+</em><div class="who"><b>빈자리</b></div></li>';
   const n = room.mode ? perTeam() : 0;
   for (const team of [0, 1]) {
     const ms = teamList(team).slice(0, n);
@@ -545,7 +563,6 @@ function renderMe() {
     ? `<span>1v1 <b>${p.wins_1v1}승</b></span><span>2v2 <b>${p.wins_2v2}승</b></span><span>최장 랠리 <b>${p.best_rally}</b></span>` // 패 수는 보여 주지 않는다 (사용자 결정, 상대 전적만 승패 둘 다)
     : '<span class="guest">손님은 전적·코인이 저장되지 않아요</span>';
   $('me-menu').classList.add('hidden');
-  $('howto').classList.add('hidden');
 }
 
 // 로비: ⚙️ 내 계정 메뉴 (PIN 바꾸기·로그아웃), ❓ 치는 방법 창
@@ -558,8 +575,12 @@ document.addEventListener('click', (e) => {
   if (!$('me-menu').contains(e.target)) $('me-menu').classList.add('hidden');
 });
 $('btn-howto').addEventListener('click', () => { playUI('click'); $('howto').classList.remove('hidden'); });
-$('btn-howto-close').addEventListener('click', () => { playUI('click'); $('howto').classList.add('hidden'); });
-$('howto').addEventListener('click', (e) => { if (e.target === $('howto')) $('howto').classList.add('hidden'); });
+const closeHowto = () => {
+  $('howto').classList.add('hidden');
+  try { localStorage.setItem(HOWTO_KEY, '1'); } catch { /* 무시 */ }
+};
+$('btn-howto-close').addEventListener('click', () => { playUI('click'); closeHowto(); });
+$('howto').addEventListener('click', (e) => { if (e.target === $('howto')) closeHowto(); });
 const showLobby = () => show('lobby');
 
 // 로그인하면 하루 첫 접속 코인 받기 (한국 시간으로 하루 한 번)
@@ -729,8 +750,20 @@ $('btn-join').addEventListener('click', () => {
   $('join-code').value = '';
   show('join');
   $('join-code').focus();
+  renderCodeBoxes();
 });
-$('join-code').addEventListener('input', (e) => { e.target.value = normalizeCode(e.target.value); });
+// 방 코드 4칸: 보이지 않는 입력칸 위에 글자를 한 칸씩 그려 준다
+function renderCodeBoxes() {
+  const v = $('join-code').value;
+  const focus = document.activeElement === $('join-code');
+  $('code-boxes').querySelectorAll('span').forEach((el, i) => {
+    el.textContent = v[i] || '';
+    el.classList.toggle('now', focus && i === Math.min(v.length, 3));
+  });
+}
+$('join-code').addEventListener('input', (e) => { e.target.value = normalizeCode(e.target.value); $('join-msg').textContent = ''; renderCodeBoxes(); });
+$('join-code').addEventListener('focus', renderCodeBoxes);
+$('join-code').addEventListener('blur', renderCodeBoxes);
 const doJoin = () => {
   const code = normalizeCode($('join-code').value);
   if (code.length !== 4) { $('join-msg').textContent = '4자리 코드를 입력해 주세요'; return; }
@@ -1071,7 +1104,10 @@ function loop() {
       world.team[side][0].setTag(null);
       world.team[side][1].group.visible = false;
     }
-    lobbyDemo.update(now, world.chars, world);
+    // 배경 랠리 소리: 로비 화면에서만, 카메라 자리에서 듣는 것처럼 작게
+    const cp = world.camera.position;
+    setListener([cp.x, cp.y, cp.z], [Math.cos(a), 0, -Math.sin(a)]);
+    lobbyDemo.update(now, world.chars, world, !$('lobby').classList.contains('hidden'));
   }
   world.render();
   requestAnimationFrame(loop);
