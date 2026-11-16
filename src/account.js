@@ -2,6 +2,7 @@
 // 브라우저에는 '로그인 열쇠(토큰)'만 기억한다. 열쇠가 지워져도 닉네임+PIN으로 다시 로그인하면 된다.
 // 서버 설정이 없으면(로컬 테스트) 브라우저 안의 가짜 서버로 똑같이 동작한다.
 import { ONLINE, getClient } from './net.js';
+import { ITEMS, ITEM, GRADES, GACHA_PRICE, PITY } from './items.js';
 
 // ?acct=2 처럼 주소에 붙이면 열쇠를 따로 보관한다 (한 브라우저에서 탭마다 다른 계정으로 테스트할 때)
 const ACCT = new URLSearchParams(location.search).get('acct');
@@ -33,9 +34,10 @@ async function call(fn, args) {
   }
 }
 
-const EMPTY_STATS = { wins_1v1: 0, losses_1v1: 0, wins_2v2: 0, losses_2v2: 0, best_rally: 0, coins: 0, win_streak: 0 };
+const EMPTY_STATS = { wins_1v1: 0, losses_1v1: 0, wins_2v2: 0, losses_2v2: 0, best_rally: 0, coins: 0, win_streak: 0, pieces: 0, equip: {} };
 function setUser(player, token) {
   account.player = { ...EMPTY_STATS, ...player };
+  account.shop = null;
   account.nick = player.nick;
   account.guest = false;
   account.loggedIn = true;
@@ -81,6 +83,7 @@ export async function logout() {
   account.guest = true;
   account.loggedIn = false;
   account.player = null;
+  account.shop = null;
   if (token) await call('pingpong_logout', { p_token: token });
 }
 
@@ -137,6 +140,37 @@ export async function aiRally(hits) {
   return r.coins || 0;
 }
 
+/* ───────── 상점·옷장 (supabase/06_shop.sql) ───────── */
+// account.shop = { owned: Set(아이템 id), pity: { char, arena } }  (상점을 열 때 불러온다)
+account.shop = null;
+function takeShop(r) {
+  if (r.status !== 'ok') return r;
+  account.player = { ...EMPTY_STATS, ...r.player };
+  account.shop = { owned: new Set(r.owned || []), pity: r.pity || { char: 0, arena: 0 } };
+  return r;
+}
+// 상점 정보 불러오기
+export async function loadShop() {
+  if (!account.loggedIn) return { status: 'guest' };
+  return takeShop(await call('pingpong_shop', { p_token: token() }));
+}
+// 뽑기. 결과 { status: ok | no_coins | empty | error, results: [{ item, grade, dup, pieces }] }
+export async function gacha(pool, count) {
+  if (!account.loggedIn) return { status: 'guest' };
+  return takeShop(await call('pingpong_gacha', { p_token: token(), p_pool: pool, p_count: count }));
+}
+// 직접 구매(pay 'coins') 또는 조각 교환(pay 'pieces'). status ok | owned | no_coins | no_pieces
+export async function buyItem(item, pay) {
+  if (!account.loggedIn) return { status: 'guest' };
+  return takeShop(await call('pingpong_buy', { p_token: token(), p_item: item, p_pay: pay }));
+}
+// 장착 (item null = 기본으로)
+export async function equipItem(cat, item) {
+  if (!account.loggedIn) return { status: 'guest' };
+  return takeShop(await call('pingpong_equip', { p_token: token(), p_cat: cat, p_item: item }));
+}
+export const myEquip = () => (account.loggedIn && account.player?.equip) || {};
+
 // 혼자 하기 최장 랠리 기록
 export async function recordRally(rally) {
   if (!account.loggedIn) return { status: 'guest' };
@@ -172,7 +206,9 @@ function localServer(fn, a) {
   const now = Date.now();
   db.h2h ||= {};
   const me = () => db.players[db.sessions[a.p_token]];
-  const pj = (p) => ({ id: p.id, nick: p.nick, wins_1v1: p.w1 || 0, losses_1v1: p.l1 || 0, wins_2v2: p.w2 || 0, losses_2v2: p.l2 || 0, best_rally: p.best || 0, coins: p.coins || 0, win_streak: p.streak || 0 });
+  const pj = (p) => ({ id: p.id, nick: p.nick, wins_1v1: p.w1 || 0, losses_1v1: p.l1 || 0, wins_2v2: p.w2 || 0, losses_2v2: p.l2 || 0, best_rally: p.best || 0, coins: p.coins || 0, win_streak: p.streak || 0, pieces: p.pieces || 0, equip: p.equip || {} });
+  const shopOut = (p, extra = {}) => ({ status: 'ok', player: pj(p), owned: p.owned || [], pity: { char: p.pityChar || 0, arena: p.pityArena || 0 }, ...extra });
+  const onSale = (pool, grade) => ITEMS.filter((i) => i.pool === pool && i.grade !== 'default' && (!grade || i.grade === grade));
   const h2h = (p, opp) => { const h = db.h2h[p.id + '>' + opp] || [0, 0]; return { wins: h[0], losses: h[1] }; };
   let out;
   if (fn === 'pingpong_login') {
@@ -269,6 +305,55 @@ function localServer(fn, a) {
       p.coins = (p.coins || 0) + got;
       out = { status: 'ok', coins: got, player: pj(p) };
     }
+  } else if (fn === 'pingpong_shop') {
+    const p = me();
+    out = p ? shopOut(p) : { status: 'no_session' };
+  } else if (fn === 'pingpong_gacha') {
+    const p = me();
+    const cost = GACHA_PRICE[a.p_count];
+    if (!p) out = { status: 'no_session' };
+    else if (!cost || !['char', 'arena'].includes(a.p_pool)) out = { status: 'bad' };
+    else if (!onSale(a.p_pool).length) out = { status: 'empty' };
+    else if ((p.coins || 0) < cost) out = { status: 'no_coins' };
+    else {
+      p.owned ||= [];
+      const key = a.p_pool === 'char' ? 'pityChar' : 'pityArena';
+      let pity = p[key] || 0;
+      const results = [];
+      for (let i = 0; i < a.p_count; i++) {
+        const r = Math.random();
+        let g = pity >= PITY ? 'legend' : r < GRADES.legend.rate ? 'legend' : r < GRADES.legend.rate + GRADES.rare.rate ? 'rare' : 'common';
+        if (!onSale(a.p_pool, g).length) g = ['common', 'rare', 'legend'].find((x) => onSale(a.p_pool, x).length);
+        const list = onSale(a.p_pool, g);
+        const it = list[Math.floor(Math.random() * list.length)].id;
+        pity = g === 'legend' ? 0 : pity + 1;
+        const dup = p.owned.includes(it);
+        if (!dup) p.owned.push(it);
+        const got = dup ? GRADES[g].dup : 0;
+        p.pieces = (p.pieces || 0) + got;
+        results.push({ item: it, grade: g, dup, pieces: got });
+      }
+      p[key] = pity;
+      p.coins -= cost;
+      out = shopOut(p, { results });
+    }
+  } else if (fn === 'pingpong_buy') {
+    const p = me();
+    const it = ITEM[a.p_item];
+    if (!p) out = { status: 'no_session' };
+    else if (!it || it.grade === 'default' || !['coins', 'pieces'].includes(a.p_pay)) out = { status: 'bad' };
+    else if ((p.owned ||= []).includes(it.id)) out = { status: 'owned' };
+    else {
+      const field = a.p_pay, cost = a.p_pay === 'coins' ? GRADES[it.grade].buy : GRADES[it.grade].pieces;
+      if ((p[field] || 0) < cost) out = { status: a.p_pay === 'coins' ? 'no_coins' : 'no_pieces' };
+      else { p[field] -= cost; p.owned.push(it.id); out = shopOut(p); }
+    }
+  } else if (fn === 'pingpong_equip') {
+    const p = me();
+    if (!p) out = { status: 'no_session' };
+    else if (a.p_item == null) { p.equip = { ...p.equip }; delete p.equip[a.p_cat]; out = shopOut(p); }
+    else if (!(p.owned || []).includes(a.p_item) || ITEM[a.p_item]?.cat !== a.p_cat) out = { status: 'not_owned' };
+    else { p.equip = { ...p.equip, [a.p_cat]: a.p_item }; out = shopOut(p); }
   } else if (fn === 'pingpong_record_rally') {
     const p = me();
     if (!p) out = { status: 'no_session' };

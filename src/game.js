@@ -1,6 +1,7 @@
 // 화면 쪽 게임: 이벤트를 받아 공·캐릭터·소리·링을 그리고, 내 입력을 판정해 보낸다
 import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, WIN, HOLD } from './physics.js';
-import { PADDLE_OFFSET, PADDLE_COLOR, CHAR_Z } from './scene.js';
+import { PADDLE_OFFSET, CHAR_Z } from './scene.js';
+import { applyLook } from './items.js';
 import { computeShot, hitOrder } from './match.js';
 import * as A from './audio.js';
 
@@ -19,7 +20,7 @@ const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 export class Game {
   // authority: 이 PC가 경기를 계산하는지 (혼자 모드, 방장). 아니면 방장 이벤트를 받아 그리고 내 타격은 예측해서 먼저 보여준다
   // playerNames[side][slot]: 2v2 이름표용
-  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, best = 0, onBest = null, onRally = null }) {
+  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, best = 0, onBest = null, onRally = null, looks = null }) {
     this.authority = authority;
     this.names = names;
     this.playerNames = playerNames;
@@ -64,7 +65,8 @@ export class Game {
       c.group.visible = slot === 0 || mode === '2v2';
       c.setOpacity(isMe ? 0.38 : 1, isMe ? 0.9 : 1);
       c.fade = isMe ? null : 1; // 카메라 바로 옆에 오면 흐리게 (2v2에서 뒤로 물러난 팀원)
-      c.setPaddleColor(isMe ? PADDLE_COLOR.me : side === mySide ? PADDLE_COLOR.mate : PADDLE_COLOR.opp);
+      // 꾸미기: looks[side][slot] = 그 선수의 장착 정보 (없으면 기본)
+      applyLook(c, looks?.[side]?.[slot]);
       c.group.position.z = sideSign(side) * CHAR_Z;
       c.setTag(null);
     }

@@ -300,6 +300,12 @@ export function makeCharacter(paddleColor) {
   const handle = add(new THREE.BoxGeometry(0.025, 0.1, 0.02), new THREE.MeshLambertMaterial({ color: '#c99560' }), 0, 0.05, -0.4, arm);
   const paddleMat = new THREE.MeshLambertMaterial({ color: paddleColor });
   const setPaddleColor = (color) => paddleMat.color.set(color);
+  // 꾸미기 (items.js의 applyLook): 색과 빛나는 정도
+  const setPaddle = ({ color, emissive = '#000000', glow = 0 }) => {
+    paddleMat.color.set(color);
+    paddleMat.emissive.set(emissive);
+    paddleMat.emissiveIntensity = glow;
+  };
   const blade = add(new THREE.CylinderGeometry(0.078, 0.078, 0.012, 20), [paddleMat, paddleMat, new THREE.MeshLambertMaterial({ color: '#222' })], 0, 0.15, -0.4, arm);
   blade.rotation.x = Math.PI / 2;
   const setOpacity = (bodyOp, paddleOp) => {
@@ -353,7 +359,7 @@ export function makeCharacter(paddleColor) {
     tag.material.map.needsUpdate = true;
     tag.visible = true;
   };
-  return { group, body, arm, head, handle, blade, swingT: -1, setOpacity, setPaddleColor, setTag };
+  return { group, body, arm, head, handle, blade, swingT: -1, setOpacity, setPaddleColor, setPaddle, setTag };
 }
 
 // 탁구채 색: 지금은 모두 빨강 (나중에 꾸미기에서 색·모양을 바꿀 수 있게 할 예정)

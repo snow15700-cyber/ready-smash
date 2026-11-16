@@ -301,6 +301,15 @@ export function playUI(kind = 'click') {
     // 코인 획득: 작고 맑은 '띠링'
     mode(out, t, 1319, 0.035, 0.08);
     mode(out, t + 0.06, 1976, 0.03, 0.18);
+  } else if (kind === 'card') {
+    // 뽑기 카드 (일반): 작은 '톡'
+    mode(out, t, 988, 0.03, 0.06);
+  } else if (kind === 'rare') {
+    // 고급: 맑게 올라가는 세 음
+    [1047, 1319, 1568].forEach((f, i) => mode(out, t + i * 0.06, f, 0.04, 0.14));
+  } else if (kind === 'legend') {
+    // 전설: 반짝이는 아르페지오
+    [784, 988, 1175, 1568, 1976, 2349].forEach((f, i) => mode(out, t + i * 0.07, f, 0.05, 0.3));
   } else if (kind === 'win') {
     [660, 830, 990, 1320].forEach((f, i) => mode(out, t + i * 0.1, f, 0.06, 0.18));
   }

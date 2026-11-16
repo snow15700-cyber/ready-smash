@@ -41,9 +41,9 @@
   - 로컬 테스트에서 탭마다 다른 계정: 주소에 `?acct=2`(로그인 열쇠를 따로 보관).
 - 3단계 랭킹: `supabase/03_ranking.sql`의 `pingpong_ranking('wins'|'rally')`(로그인 없이 호출, 닉네임과 숫자만, 상위 50, 같은 기록은 공동 등수). 로비 '🏆 랭킹' 버튼 → `#rank` 화면(승수/최장 랠리 탭, 1~3위 메달, 내 줄 강조). `main.js`의 `showRank`.
 - 알려진 문제: Vercel 미리보기(test)에서 Supabase 환경 변수가 안 들어가 '테스트 모드' 경고가 뜬다(사용자가 Preview 체크했는데도 원인 미해결). 서버 기능은 main 배포에서 확인.
-- 새 SQL은 `06_...sql`처럼 새 파일로 추가. SQL은 로컬 PostgreSQL 16으로 먼저 시험할 수 있다(`service postgresql start`, `extensions` 스키마와 `anon` 역할을 만들어 흉내).
+- 새 SQL은 `07_...sql`처럼 새 파일로 추가. SQL은 로컬 PostgreSQL 16으로 먼저 시험할 수 있다(`service postgresql start`, `extensions` 스키마와 `anon` 역할을 만들어 흉내).
 
-## 상점·꾸미기 (기획 확정, 아직 안 만듦)
+## 상점·꾸미기 (① 코인, ② 상점·옷장 완료 — test에서 사용자 테스트 중)
 - 설계는 기획서 4장. 순서: ① 코인 벌기 → ② 상점·옷장 화면 → ③ 카테고리 하나씩(탁구채부터). 단계마다 사용자 테스트.
 - 카테고리: 탁구채(개그 탁구채 많이), 머리, 몸(흰 몸 위 장식), 탁구대, 배경, 탁구공, 궤적.
 - 배경·탁구대·공은 **방장 것**으로 통일, 궤적은 **친 사람 것**, 탁구채·머리·몸은 각자.
@@ -52,10 +52,15 @@
 - 아이템은 **뽑기(중복 가능)** + 원하는 건 **비싸게 직접 구매**. 숫자는 기획서 4장(통 2개 캐릭터/경기장, 1회 100·10회 900, 70/25/5%, 천장 40, 직접 구매 500/1,500/5,000, 중복은 조각). 개그 탁구채 22종 전부, 전설급 7종(프라이팬·기타·키보드·마우스·스마트폰·고무 오리·뿅망치)은 모델링·전용 타구음까지 정성껏.
 - **① 코인 벌기 완료(test에서 사용자 테스트 중)**: `supabase/04_coins.sql`(03 다음 실행). 표에 `coins`·`win_streak`·`daily_at`. 함수 `pingpong_finish_match`(전적+코인, 서버가 계산·보너스 횟수 0~3으로 자름, 3·6·9연승 +15)와 `pingpong_daily`(한국 날짜 하루 첫 접속 +20). 예전 `pingpong_record_match`는 main 배포본용으로 남겨 둠(DB를 test·main이 공유).
   - 화면: `game.stats.perfect3`(퍼펙트 3연속마다 +1)·`rally10`(랠리가 10이 될 때 +1, AI 제외) → `saveResult` → `finishMatch`(실패하면 `recordMatch`로 전적만). 대기실 `#room-coins`에 내역, 로비 `#me-coins`, 로그인 직후 `checkDaily`. 효과음 `playUI('coin')`.
+- **② 상점·옷장**: `supabase/06_shop.sql`(05 다음). 표 `pingpong_items`(서버 쪽 아이템 목록: id·pool·cat·grade·on_sale)·`pingpong_inventory`, 선수에 `pieces`·`pity_char`·`pity_arena`·`equip`(jsonb). 함수 `pingpong_shop`·`gacha(pool, 1|10)`·`buy(item, 'coins'|'pieces')`·`equip(cat, item|null)`. 뽑기는 서버 `random()`, 그 등급에 아이템이 없으면 있는 등급에서. 기본 아이템(`DEFAULTS`)은 표에 없고 장착 해제 = 기본.
+  - **아이템 목록은 두 곳**: `src/items.js`(이름·색·모양, `GRADES`·`CATS`·`POOLS`)와 06_shop.sql의 insert. 추가할 때 둘 다 고친다(SQL은 새 파일로 insert만 해도 됨).
+  - 지금 아이템: 탁구채 색 일반 5종(파랑·초록·노랑·검정·분홍) + 고급 2종(황금·네온, 빛남). 경기장 뽑기는 비어 있어 '곧 열려요'.
+  - 화면: 로비 '🛍️ 상점'/'👕 옷장'(손님은 안내 토스트). `#shop`(캐릭터 뽑기/경기장 뽑기/골라 사기 탭, 카드가 차례로 뒤집히며 `playUI('card'|'rare'|'legend')`, 사기는 두 번 눌러야 삼), `#closet`(카테고리 탭, 가진 것 클릭 = 바로 장착, 없는 것 = 🔒 입어 보기만). 둘 다 `.screen.side`로 패널이 오른쪽, 왼쪽에 내 캐릭터 미리보기(`previewFrame`, 카메라 `PV`).
+  - 꾸미기 적용: `items.applyLook(char, equip)` → `char.setPaddle`. 방에서는 presence의 `look`(입장할 때의 장착)을 `looks()`로 모아 `Game`의 `looks[side][slot]`에. AI는 기본. 로비 배경 캐릭터도 내 장착.
   - 혼자 하기 코인(사용자 확정, 1v1·2v2 분당 코인의 약 50%): **내가 친 4번마다 1코인**. `supabase/05_ai_coins.sql`의 `pingpong_ai_start`(시작 시각)·`pingpong_ai_rally(hits)`(랠리 끝마다, 서버가 경과 초+1번까지만 인정, 나머지 `ai_rem` 이월). 화면은 `Game`의 `onRally` → `aiRally`, HUD에 `🪙 +N`, 나갈 때 토스트.
 
 ## 사용자가 확정한 결정 (바꾸기 전에 사용자에게 확인)
-- 캐릭터: 흰색 몸통+흰색 머리만, 팔 없음, 탁구채만 떠 있음. **내 캐릭터는 반투명**(0.38), 상대·팀원은 불투명. **탁구채는 모두 빨강**(나중에 꾸미기로 색·모양(예: 프라이팬)을 바꿀 예정, `PADDLE_COLOR`).
+- 캐릭터: 흰색 몸통+흰색 머리만, 팔 없음, 탁구채만 떠 있음. **내 캐릭터는 반투명**(0.38), 상대·팀원은 불투명. 탁구채 기본은 빨강, 옷장에서 장착한 것으로 바뀐다(`items.js`).
 - 체육관은 단순하게(벽, 나무 바닥, 강당 무대·커튼, 현수막만).
 - 카메라: 어깨 뒤 낮게 + 공 따라가기 + 타격 시 흔들림 (`src/scene.js`의 `CAM`).
 - 조작: **마우스를 누른 채로 위로 밀어 올리기** = 스윙. 클릭 직전 0.15초 ~ 직후 `HOLD`(0.09초)의 움직임을 본다. 위로 안 올리면 블록.
