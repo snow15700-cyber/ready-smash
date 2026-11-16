@@ -102,8 +102,10 @@ function startWall() {
   match.start(performance.now() / 1000);
 }
 
-/* ───────── 1v1 온라인 ───────── */
+/* ───────── 온라인 방 (1v1 / 2v2) ───────── */
 const myId = Math.random().toString(36).slice(2, 10);
+const MAX_MEMBERS = 4;
+const TEAM_NAME = ['A팀', 'B팀'];
 
 function enterRoom(code, host) {
   initAudio();
@@ -112,7 +114,8 @@ function enterRoom(code, host) {
   leaveRoom();
   const me = { id: myId, nick, host, at: Date.now() };
   room = {
-    code, host, me, members: [], peer: null, ready: {}, inGame: false, result: '',
+    code, host, me, members: [], hostM: host ? me : null,
+    mode: '1v1', teams: {}, ready: {}, inGame: false, hostInGame: false, players: null, result: '',
     pings: [], pingN: 0, offset: 0, sawHost: host, timer: 0,
   };
   room.link = joinRoom(code, me, {
@@ -123,10 +126,10 @@ function enterRoom(code, host) {
       if (st === 'error') { leaveRoom(); show('lobby'); hud.toast(text, 3000); }
     },
   });
-  // 상대 PC: 방장과 시계 맞추기
+  // 참가자 PC: 방장과 시계 맞추기
   room.timer = setInterval(() => {
-    if (!room || room.host || !room.peer) return;
-    room.link.send({ k: 'ping', n: ++room.pingN, t1: performance.now() / 1000, to: room.peer.id });
+    if (!room || room.host || !room.hostM) return;
+    room.link.send({ k: 'ping', n: ++room.pingN, t1: performance.now() / 1000, from: myId, to: room.hostM.id });
   }, 700);
   if (!host) {
     setTimeout(() => {
@@ -160,62 +163,139 @@ function onMembers(list) {
     hud.toast('방장이 방을 나갔어요', 2600);
     return;
   }
+  // 방장 + 먼저 들어온 3명까지만 (늦게 온 사람은 나간다)
   const guests = list.filter((m) => !m.host);
-  if (!room.host && guests.length > 1 && guests[0].id !== myId && host) {
+  const kept = [...(host ? [host] : []), ...guests.slice(0, MAX_MEMBERS - (host ? 1 : 0))];
+  if (!kept.some((m) => m.id === myId)) {
     leaveRoom();
     show('join');
-    $('join-msg').textContent = '방이 가득 찼어요 (1v1은 2명까지)';
+    $('join-msg').textContent = `방이 가득 찼어요 (최대 ${MAX_MEMBERS}명)`;
     return;
   }
-  const peer = room.host ? guests[0] || null : host || null;
-  const hadPeer = room.peer;
-  room.peer = peer;
-  room.members = list;
-  if (hadPeer && (!peer || peer.id !== hadPeer.id)) {
-    room.ready = {};
-    room.pings = [];
-    if (room.inGame) {
-      backToRoom();
-      hud.toast('상대가 나갔어요', 2600);
-    }
+  const before = new Set(room.members.map((m) => m.id));
+  const after = new Set(kept.map((m) => m.id));
+  const gone = room.members.filter((m) => !after.has(m.id));
+  const joined = kept.filter((m) => !before.has(m.id) && m.id !== myId);
+  room.members = kept;
+  room.hostM = host || null;
+  for (const m of gone) { delete room.ready[m.id]; delete room.teams[m.id]; }
+  if (gone.length) room.pings = room.hostM ? room.pings : [];
+  // 경기 중인 선수가 나가면 경기 끝내고 대기실로
+  const goneP = room.inGame && room.players ? gone.find((m) => room.players.some((p) => p.id === m.id)) : null;
+  if (goneP) {
+    backToRoom();
+    hud.toast(`${goneP.nick}님이 나가서 경기가 끝났어요`, 2800);
   }
-  if (peer && (!hadPeer || hadPeer.id !== peer.id)) {
+  if (joined.length) {
     playUI('point');
-    sendReady();
+    sendState();
+    if (room.host) sendLobby();
   }
   renderRoom();
 }
 
-function sendReady() {
-  if (room) room.link.send({ k: 'ready', id: myId, ready: !!room.ready[myId] });
+// 내 상태(준비·팀)를 모두에게 알린다
+function sendState() {
+  if (room) room.link.send({ k: 'st', id: myId, ready: !!room.ready[myId], team: room.teams[myId] ?? null });
+}
+// 방장: 방 설정(모드·경기 중 여부)을 알린다
+function sendLobby() {
+  if (room && room.host) room.link.send({ k: 'lobby', mode: room.mode, inGame: room.inGame });
+}
+
+function teamCount(team, exceptId) {
+  return room.members.filter((m) => m.id !== exceptId && room.teams[m.id] === team).length;
 }
 
 function toggleReady() {
   if (!room || room.inGame) return;
   initAudio();
   playUI('click');
+  if (!room.ready[myId] && room.mode === '2v2' && room.teams[myId] == null) {
+    hud.toast('먼저 A팀이나 B팀을 골라 주세요');
+    return;
+  }
   room.ready[myId] = !room.ready[myId];
-  sendReady();
+  sendState();
   renderRoom();
   maybeStart();
 }
 
+function pickTeam(team) {
+  if (!room || room.inGame || room.mode !== '2v2') return;
+  initAudio();
+  playUI('click');
+  if (room.teams[myId] === team) return;
+  if (teamCount(team, myId) >= 2) { hud.toast(`${TEAM_NAME[team]}은 꽉 찼어요`); return; }
+  room.teams[myId] = team;
+  room.ready[myId] = false; // 팀을 바꾸면 준비는 다시
+  sendState();
+  renderRoom();
+}
+
+function setMode(mode) {
+  if (!room || !room.host || room.inGame || room.mode === mode) return;
+  initAudio();
+  playUI('click');
+  room.mode = mode;
+  room.ready = {}; // 모드를 바꾸면 모두 준비 다시
+  sendLobby();
+  sendState();
+  renderRoom();
+}
+
+// 방장: 시작 조건 확인
+function startCheck() {
+  const ms = room.members;
+  const allReady = ms.every((m) => room.ready[m.id]);
+  if (room.mode === '1v1') {
+    if (ms.length < 2) return { ok: false, tip: room.host ? '친구에게 방 코드를 알려 주세요' : '방장을 찾는 중…' };
+    if (ms.length > 2) return { ok: false, tip: `1v1은 2명일 때 시작해요 (지금 ${ms.length}명). 4명이면 2v2를 골라 보세요` };
+    return { ok: allReady, tip: allReady ? '곧 시작해요!' : '둘 다 준비를 누르면 시작해요' };
+  }
+  if (ms.length < 4) return { ok: false, tip: `2v2는 4명이 필요해요 (지금 ${ms.length}명)` };
+  if (teamCount(0) !== 2 || teamCount(1) !== 2) return { ok: false, tip: 'A팀 2명, B팀 2명으로 나눠 주세요' };
+  return { ok: allReady, tip: allReady ? '곧 시작해요!' : '모두 준비를 누르면 시작해요' };
+}
+
 function maybeStart() {
-  if (!room || !room.host || room.inGame || !room.peer) return;
-  if (room.ready[myId] && room.ready[room.peer.id]) startOnline();
+  if (!room || !room.host || room.inGame) return;
+  if (!startCheck().ok) return;
+  if (room.mode === '1v1') startOnline();
+  else start2v2();
 }
 
 function onRoomMsg(m) {
   if (!room) return;
   if (m.to && m.to !== myId) return;
   switch (m.k) {
-    case 'ready':
+    case 'st':
       room.ready[m.id] = m.ready;
+      if (m.team == null) delete room.teams[m.id];
+      else room.teams[m.id] = m.team;
       renderRoom();
       maybeStart();
       break;
+    case 'lobby':
+      if (room.host) break;
+      room.hostInGame = m.inGame;
+      if (m.mode !== room.mode) {
+        room.mode = m.mode;
+        room.ready = {}; // 모드가 바뀌면 모두 준비 다시
+        sendState();
+      }
+      renderRoom();
+      break;
+    case 'go': {
+      if (room.host) break;
+      const p = m.players.find((x) => x.id === myId);
+      if (!p) break; // 내가 선수가 아니면 대기실에 남는다
+      if (m.mode === '1v1') startGuestGame(m.players, p.side);
+      else on2v2Go(m.players);
+      break;
+    }
     case 'ping':
-      if (room.host) room.link.send({ k: 'pong', n: m.n, t1: m.t1, th: performance.now() / 1000, to: m.from || room.peer?.id });
+      if (room.host) room.link.send({ k: 'pong', n: m.n, t1: m.t1, th: performance.now() / 1000, to: m.from });
       break;
     case 'pong': {
       const now = performance.now() / 1000;
@@ -230,30 +310,43 @@ function onRoomMsg(m) {
       break;
     }
     case 'ev':
-      if (room.host) break;
-      if (m.ev.type === 'start') startGuestGame(m);
-      if (game) game.onEvent(m.ev);
+      if (room.host || !game) break;
+      game.onEvent(m.ev);
       break;
-    case 'in':
-      if (!room.host || !match) break;
-      if (m.kind === 'toss') match.toss(1, m.t, m.x);
-      else if (m.kind === 'swing') match.swing(1, m.t, m.dir, m.up);
+    case 'in': {
+      if (!room.host || !match || !room.players) break;
+      const p = room.players.find((x) => x.id === m.from);
+      if (!p) break;
+      if (m.kind === 'toss') match.toss(p.side, m.t, m.x);
+      else if (m.kind === 'swing') match.swing(p.side, m.t, m.dir, m.up);
       break;
+    }
   }
 }
 
+function nickOf(id) {
+  return room.members.find((m) => m.id === id)?.nick || '상대';
+}
 function names() {
-  const host = room.host ? room.me : room.peer;
-  const guest = room.host ? room.peer : room.me;
-  return [host?.nick || '방장', guest?.nick || '상대'];
+  const bySide = (s) => room.players.find((p) => p.side === s);
+  return [nickOf(bySide(0)?.id), nickOf(bySide(1)?.id)];
 }
 
-// 방장: 경기 시작
-function startOnline() {
+function beginRoomGame(players) {
   room.inGame = true;
+  room.players = players;
   room.ready = {};
   room.result = '';
   stopGame();
+}
+
+// 방장: 1v1 경기 시작
+function startOnline() {
+  const other = room.members.find((m) => m.id !== myId);
+  const players = [{ id: myId, side: 0 }, { id: other.id, side: 1 }];
+  beginRoomGame(players);
+  room.link.send({ k: 'go', mode: '1v1', players });
+  sendLobby();
   show('hud');
   game = new Game(world, {
     mySide: 0, mode: '1v1', hud, names: names(),
@@ -275,18 +368,15 @@ function startOnline() {
   match.start(performance.now() / 1000);
 }
 
-// 상대 PC: 방장의 시작 신호를 받으면 경기 화면으로
-function startGuestGame() {
-  room.inGame = true;
-  room.ready = {};
-  room.result = '';
-  stopGame();
+// 참가자 PC: 방장의 시작 신호를 받으면 경기 화면으로
+function startGuestGame(players, side) {
+  beginRoomGame(players);
   show('hud');
   game = new Game(world, {
-    mySide: 1, mode: '1v1', hud, names: names(), authority: false,
+    mySide: side, mode: '1v1', hud, names: names(), authority: false,
     send: {
-      toss: (side, t, x) => room && room.link.send({ k: 'in', kind: 'toss', t, x }),
-      swing: (side, t, dir, up) => room && room.link.send({ k: 'in', kind: 'swing', t, dir, up }),
+      toss: (s, t, x) => room && room.link.send({ k: 'in', kind: 'toss', t, x, from: myId }),
+      swing: (s, t, dir, up) => room && room.link.send({ k: 'in', kind: 'swing', t, dir, up, from: myId }),
     },
   });
   game.offset = room.offset;
@@ -294,14 +384,37 @@ function startGuestGame() {
   hud.toast('경기 시작! 5점 먼저 내면 승리', 1600);
 }
 
+// 방장: 2v2 시작 (1단계: 팀 확정까지만. 경기 화면은 2단계에서)
+// slot: 팀 안에서 0 = 1번(A1/B1), 1 = 2번(A2/B2). 먼저 들어온 사람이 1번
+function start2v2() {
+  const players = [];
+  for (const team of [0, 1]) {
+    room.members.filter((m) => room.teams[m.id] === team).forEach((m, slot) => players.push({ id: m.id, side: team, slot }));
+  }
+  room.link.send({ k: 'go', mode: '2v2', players });
+  on2v2Go(players);
+}
+
+function on2v2Go(players) {
+  playUI('point');
+  const label = (p) => `${TEAM_NAME[p.side][0]}${p.slot + 1} ${nickOf(p.id)}`;
+  room.result = `✅ 팀 확정! ${players.filter((p) => p.side === 0).map(label).join(', ')} vs ${players.filter((p) => p.side === 1).map(label).join(', ')}`;
+  room.ready = {};
+  hud.toast('2v2 경기 화면은 다음 단계에서 만들어요', 2600);
+  sendState();
+  renderRoom();
+}
+
 function backToRoom() {
   if (!room) return;
   room.inGame = false;
+  room.players = null;
   room.ready = {};
   stopGame();
   renderRoom();
   show('room');
-  sendReady();
+  sendState();
+  sendLobby();
 }
 
 function renderPing() {
@@ -315,22 +428,47 @@ function renderRoom() {
   $('room-code').textContent = room.code;
   $('room-result').textContent = room.result;
   $('room-result').classList.toggle('hidden', !room.result);
-  const host = room.host ? room.me : room.peer;
-  const guest = room.host ? room.peer : room.me;
-  const row = (m, label) => {
-    if (!m) return `<li class="empty"><span>${label}</span><b>기다리는 중…</b></li>`;
+
+  // 모드 고르기 (방장만 바꿀 수 있음)
+  for (const b of document.querySelectorAll('#mode-pick button')) {
+    b.classList.toggle('on', b.dataset.mode === room.mode);
+    b.disabled = !room.host || room.inGame;
+  }
+  $('mode-pick-note').textContent = room.host ? '' : '모드는 방장이 정해요';
+
+  const row = (m) => {
     const r = room.ready[m.id];
-    return `<li><span>${label}${m.id === myId ? ' (나)' : ''}</span><b>${esc(m.nick)}</b><i class="${r ? 'on' : ''}">${r ? '준비 완료' : '준비 전'}</i></li>`;
+    return `<li><span>${m.host ? '방장' : '참가자'}${m.id === myId ? ' (나)' : ''}</span><b>${esc(m.nick)}</b><i class="${r ? 'on' : ''}">${r ? '준비 완료' : '준비 전'}</i></li>`;
   };
-  $('room-members').innerHTML = row(host, '방장') + row(guest, '상대');
+  const empty = (text = '기다리는 중…') => `<li class="empty"><span></span><b>${text}</b></li>`;
+  const is2v2 = room.mode === '2v2';
+  $('teams').classList.toggle('hidden', !is2v2);
+  if (is2v2) {
+    for (const team of [0, 1]) {
+      const ms = room.members.filter((m) => room.teams[m.id] === team);
+      $(`team-${team}`).innerHTML = ms.map(row).join('') + empty().repeat(Math.max(0, 2 - ms.length));
+      const btn = $(`btn-team-${team}`);
+      const mine = room.teams[myId] === team;
+      btn.textContent = mine ? `${TEAM_NAME[team]} ✔` : `${TEAM_NAME[team]} 고르기`;
+      btn.classList.toggle('on', mine);
+      btn.disabled = room.inGame || (!mine && ms.length >= 2);
+    }
+    const none = room.members.filter((m) => room.teams[m.id] == null);
+    $('room-members').innerHTML = none.length ? none.map(row).join('') : '';
+    $('room-members-title').textContent = none.length ? '아직 팀을 안 고른 사람' : '';
+  } else {
+    $('room-members').innerHTML = room.members.map(row).join('') + empty().repeat(Math.max(0, 2 - room.members.length));
+    $('room-members-title').textContent = '';
+  }
+
   const myReady = !!room.ready[myId];
   $('btn-ready').textContent = myReady ? '준비 취소' : '준비!';
   $('btn-ready').classList.toggle('on', myReady);
-  $('room-tip').textContent = !room.peer
-    ? (room.host ? '친구에게 방 코드를 알려 주세요' : '방장을 찾는 중…')
-    : (room.ready[myId] && room.ready[room.peer.id] ? '곧 시작해요!' : '둘 다 준비를 누르면 시작해요');
+  const watching = !room.host && room.hostInGame && !room.inGame;
+  $('room-tip').textContent = watching ? '지금 다른 사람들이 경기 중이에요. 끝나면 같이 할 수 있어요' : startCheck().tip;
   renderPing();
 }
+
 
 /* ───────── 버튼 ───────── */
 $('btn-wall').addEventListener('click', startWall);
@@ -353,6 +491,9 @@ $('btn-join-go').addEventListener('click', doJoin);
 $('join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
 $('btn-join-cancel').addEventListener('click', () => { playUI('click'); show('lobby'); });
 $('btn-ready').addEventListener('click', toggleReady);
+for (const b of document.querySelectorAll('#mode-pick button')) b.addEventListener('click', () => setMode(b.dataset.mode));
+$('btn-team-0').addEventListener('click', () => pickTeam(0));
+$('btn-team-1').addEventListener('click', () => pickTeam(1));
 $('btn-room-leave').addEventListener('click', () => { playUI('click'); leaveRoom(); show('lobby'); });
 $('btn-copy').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(room.code); hud.toast('코드를 복사했어요'); } catch {}

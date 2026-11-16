@@ -63,6 +63,8 @@ function joinLocal(code, me, h) {
   const lag = Number(new URLSearchParams(location.search).get('lag') || 0) / 1000; // 지연 흉내 (ms)
   const members = new Map();
   const seen = new Map();
+  let closed = false;
+  const post = (d) => { if (!closed) bc.postMessage(d); };
   members.set(me.id, me);
   let lastKey = '';
   const emitMembers = () => {
@@ -74,25 +76,25 @@ function joinLocal(code, me, h) {
     const d = e.data;
     if (d.k === '_hb') {
       seen.set(d.me.id, performance.now());
-      if (!members.has(d.me.id)) { members.set(d.me.id, d.me); emitMembers(); bc.postMessage({ k: '_hb', me }); }
+      if (!members.has(d.me.id)) { members.set(d.me.id, d.me); emitMembers(); post({ k: '_hb', me }); }
     } else if (d.k === '_bye') {
       members.delete(d.id); seen.delete(d.id); emitMembers();
     } else h.onMsg(d);
   };
   const hb = setInterval(() => {
-    bc.postMessage({ k: '_hb', me });
+    post({ k: '_hb', me });
     const now = performance.now();
     for (const [id, t] of seen) if (now - t > 3500) { members.delete(id); seen.delete(id); }
     emitMembers();
   }, 1000);
-  setTimeout(() => { bc.postMessage({ k: '_hb', me }); h.onStatus('ok'); emitMembers(); }, 50);
-  const bye = () => bc.postMessage({ k: '_bye', id: me.id });
+  setTimeout(() => { if (closed) return; post({ k: '_hb', me }); h.onStatus('ok'); emitMembers(); }, 50);
+  const bye = () => post({ k: '_bye', id: me.id });
   window.addEventListener('beforeunload', bye);
   return {
     send(payload) {
-      if (lag) setTimeout(() => bc.postMessage(payload), lag * 1000);
-      else bc.postMessage(payload);
+      if (lag) setTimeout(() => post(payload), lag * 1000);
+      else post(payload);
     },
-    leave() { bye(); clearInterval(hb); bc.close(); window.removeEventListener('beforeunload', bye); },
+    leave() { bye(); closed = true; clearInterval(hb); bc.close(); window.removeEventListener('beforeunload', bye); },
   };
 }
