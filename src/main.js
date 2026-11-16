@@ -25,7 +25,7 @@ const hud = {
   score(s, deuce) {
     if (!game) return;
     const me = game.mySide, op = 1 - me;
-    $('scoreboard').innerHTML = `<small>나</small> ${s[me]} : ${s[op]} <small>${esc(game.names[op])}</small>${deuce ? ' <em>듀스!</em>' : ''}`;
+    $('scoreboard').innerHTML = `<small>${game.mode === '2v2' ? '우리 팀' : '나'}</small> ${s[me]} : ${s[op]} <small>${esc(game.names[op])}</small>${deuce ? ' <em>듀스!</em>' : ''}`;
   },
   stats(st) {
     if (!game) return;
@@ -93,8 +93,8 @@ function startWall() {
     mode: 'wall',
     hud,
     send: {
-      toss: (side, t, x) => match.toss(side, t, x),
-      swing: (side, t, dir, isSwing) => match.swing(side, t, dir, isSwing),
+      toss: (side, t, x, slot) => match.toss(side, t, x, slot),
+      swing: (side, t, dir, isSwing, slot) => match.swing(side, t, dir, isSwing, slot),
     },
   });
   match = new Match({ mode: 'wall', emit: (ev) => game.onEvent(ev) });
@@ -261,7 +261,7 @@ function startCheck() {
 function maybeStart() {
   if (!room || !room.host || room.inGame) return;
   if (!startCheck().ok) return;
-  if (room.mode === '1v1') startOnline();
+  if (room.mode === '1v1') start1v1();
   else start2v2();
 }
 
@@ -290,8 +290,7 @@ function onRoomMsg(m) {
       if (room.host) break;
       const p = m.players.find((x) => x.id === myId);
       if (!p) break; // 내가 선수가 아니면 대기실에 남는다
-      if (m.mode === '1v1') startGuestGame(m.players, p.side);
-      else on2v2Go(m.players);
+      startGuestGame(m.mode, m.players, p);
       break;
     }
     case 'ping':
@@ -317,8 +316,8 @@ function onRoomMsg(m) {
       if (!room.host || !match || !room.players) break;
       const p = room.players.find((x) => x.id === m.from);
       if (!p) break;
-      if (m.kind === 'toss') match.toss(p.side, m.t, m.x);
-      else if (m.kind === 'swing') match.swing(p.side, m.t, m.dir, m.up);
+      if (m.kind === 'toss') match.toss(p.side, m.t, m.x, p.slot || 0);
+      else if (m.kind === 'swing') match.swing(p.side, m.t, m.dir, m.up, p.slot || 0);
       break;
     }
   }
@@ -327,9 +326,10 @@ function onRoomMsg(m) {
 function nickOf(id) {
   return room.members.find((m) => m.id === id)?.nick || '상대';
 }
+// 쪽(팀)별 이름. 2v2는 'A1·A2'처럼 두 명을 이어서
 function names() {
-  const bySide = (s) => room.players.find((p) => p.side === s);
-  return [nickOf(bySide(0)?.id), nickOf(bySide(1)?.id)];
+  const ofSide = (s) => room.players.filter((p) => p.side === s).sort((a, b) => (a.slot || 0) - (b.slot || 0));
+  return [0, 1].map((s) => ofSide(s).map((p) => nickOf(p.id)).join('·') || '상대');
 }
 
 function beginRoomGame(players) {
@@ -340,40 +340,53 @@ function beginRoomGame(players) {
   stopGame();
 }
 
-// 방장: 1v1 경기 시작
-function startOnline() {
-  const other = room.members.find((m) => m.id !== myId);
-  const players = [{ id: myId, side: 0 }, { id: other.id, side: 1 }];
+// 방장: 경기 시작 (1v1 / 2v2)
+function startOnline(mode, players) {
+  const mine = players.find((p) => p.id === myId);
   beginRoomGame(players);
-  room.link.send({ k: 'go', mode: '1v1', players });
+  room.link.send({ k: 'go', mode, players });
   sendLobby();
   show('hud');
   game = new Game(world, {
-    mySide: 0, mode: '1v1', hud, names: names(),
+    mySide: mine.side, mySlot: mine.slot || 0, mode, hud, names: names(),
     send: {
-      toss: (side, t, x) => match.toss(side, t, x),
-      swing: (side, t, dir, up) => match.swing(side, t, dir, up),
+      toss: (side, t, x, slot) => match.toss(side, t, x, slot),
+      swing: (side, t, dir, up, slot) => match.swing(side, t, dir, up, slot),
     },
   });
   match = new Match({
-    mode: '1v1',
-    remoteSides: [1],
+    mode,
+    isRemote: (side, slot) => !(side === mine.side && slot === (mine.slot || 0)),
     emit: (ev) => {
       if (game) game.onEvent(ev);
       if (room) room.link.send({ k: 'ev', ev });
     },
   });
   hud.stats(game.stats);
-  hud.toast('경기 시작! 5점 먼저 내면 승리', 1600);
+  hud.toast(mode === '2v2' ? '2v2 시작! A1 → B1 → A2 → B2 순서로 쳐요' : '경기 시작! 5점 먼저 내면 승리', 2000);
   match.start(performance.now() / 1000);
 }
 
+function start1v1() {
+  const other = room.members.find((m) => m.id !== myId);
+  startOnline('1v1', [{ id: myId, side: 0, slot: 0 }, { id: other.id, side: 1, slot: 0 }]);
+}
+
+// slot: 팀 안에서 0 = 1번(A1/B1), 1 = 2번(A2/B2). 먼저 들어온 사람이 1번
+function start2v2() {
+  const players = [];
+  for (const team of [0, 1]) {
+    room.members.filter((m) => room.teams[m.id] === team).forEach((m, slot) => players.push({ id: m.id, side: team, slot }));
+  }
+  startOnline('2v2', players);
+}
+
 // 참가자 PC: 방장의 시작 신호를 받으면 경기 화면으로
-function startGuestGame(players, side) {
+function startGuestGame(mode, players, mine) {
   beginRoomGame(players);
   show('hud');
   game = new Game(world, {
-    mySide: side, mode: '1v1', hud, names: names(), authority: false,
+    mySide: mine.side, mySlot: mine.slot || 0, mode, hud, names: names(), authority: false,
     send: {
       toss: (s, t, x) => room && room.link.send({ k: 'in', kind: 'toss', t, x, from: myId }),
       swing: (s, t, dir, up) => room && room.link.send({ k: 'in', kind: 'swing', t, dir, up, from: myId }),
@@ -381,28 +394,7 @@ function startGuestGame(players, side) {
   });
   game.offset = room.offset;
   hud.stats(game.stats);
-  hud.toast('경기 시작! 5점 먼저 내면 승리', 1600);
-}
-
-// 방장: 2v2 시작 (1단계: 팀 확정까지만. 경기 화면은 2단계에서)
-// slot: 팀 안에서 0 = 1번(A1/B1), 1 = 2번(A2/B2). 먼저 들어온 사람이 1번
-function start2v2() {
-  const players = [];
-  for (const team of [0, 1]) {
-    room.members.filter((m) => room.teams[m.id] === team).forEach((m, slot) => players.push({ id: m.id, side: team, slot }));
-  }
-  room.link.send({ k: 'go', mode: '2v2', players });
-  on2v2Go(players);
-}
-
-function on2v2Go(players) {
-  playUI('point');
-  const label = (p) => `${TEAM_NAME[p.side][0]}${p.slot + 1} ${nickOf(p.id)}`;
-  room.result = `✅ 팀 확정! ${players.filter((p) => p.side === 0).map(label).join(', ')} vs ${players.filter((p) => p.side === 1).map(label).join(', ')}`;
-  room.ready = {};
-  hud.toast('2v2 경기 화면은 다음 단계에서 만들어요', 2600);
-  sendState();
-  renderRoom();
+  hud.toast(mode === '2v2' ? '2v2 시작! A1 → B1 → A2 → B2 순서로 쳐요' : '경기 시작! 5점 먼저 내면 승리', 2000);
 }
 
 function backToRoom() {
@@ -526,8 +518,11 @@ function loop() {
     world.ring.visible = false;
     world.aim.visible = false;
     world.wall.visible = false;
-    world.chars[0].setOpacity(1, 1);
-    world.chars[1].group.visible = true;
+    for (const side of [0, 1]) {
+      world.team[side][0].group.visible = true;
+      world.team[side][0].setOpacity(1, 1);
+      world.team[side][1].group.visible = false;
+    }
   }
   world.render();
   requestAnimationFrame(loop);

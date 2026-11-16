@@ -1,7 +1,7 @@
 // 화면 쪽 게임: 이벤트를 받아 공·캐릭터·소리·링을 그리고, 내 입력을 판정해 보낸다
 import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, WIN, HOLD } from './physics.js';
-import { PADDLE_OFFSET } from './scene.js';
-import { computeShot } from './match.js';
+import { PADDLE_OFFSET, PADDLE_COLOR, CHAR_Z } from './scene.js';
+import { computeShot, hitOrder } from './match.js';
 import * as A from './audio.js';
 
 // 스윙 동작은 '클릭 직전 0.15초 ~ 클릭 직후 HOLD초' 동안의 마우스 움직임으로 판단한다.
@@ -11,7 +11,7 @@ const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 
 export class Game {
   // authority: 이 PC가 경기를 계산하는지 (혼자 모드, 방장). 아니면 방장 이벤트를 받아 그리고 내 타격은 예측해서 먼저 보여준다
-  constructor(world, { mySide, mode, send, hud, authority = true, names = ['나', '상대'] }) {
+  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'] }) {
     this.authority = authority;
     this.names = names;
     this.offset = 0; // 방장 시계 - 내 시계 (초)
@@ -19,7 +19,10 @@ export class Game {
     this.predicted = null;
     this.w = world;
     this.mySide = mySide;
+    this.mySlot = mySlot;
     this.mode = mode;
+    this.order = hitOrder(mode);
+    this.turn = 0; // 다음에 칠 사람 (order의 번호)
     this.send = send; // { toss(side,t,x), swing(side,t,dir,isSwing) }
     this.hud = hud;
     this.segs = null;
@@ -29,7 +32,9 @@ export class Game {
     this.score = [0, 0];
     this.played = new Set();
     this.localHitT = -1;
-    this.charX = [0, 0];
+    // 캐릭터 위치 [side][slot]
+    this.charX = [[0, 0], [0, 0]];
+    this.charZ = [[CHAR_Z, CHAR_Z], [CHAR_Z, CHAR_Z]];
     this.mouse = { x: innerWidth / 2, y: innerHeight / 2, hist: [] };
     this.stats = { rally: 0, best: 0, perfectStreak: 0, perfects: 0 };
     this.lastNow = performance.now() / 1000;
@@ -37,10 +42,15 @@ export class Game {
     this.pendingHit = null; // 클릭 후 방향 판단을 기다리는 타격
     this.holdPos = null;
     world.wall.visible = mode === 'wall';
-    // 내 캐릭터는 반투명 (공과 상대가 가려지지 않게)
-    world.chars[mySide].setOpacity(0.38, 0.9);
-    world.chars[1 - mySide].setOpacity(1, 1);
-    world.chars[1].group.visible = mode !== 'wall';
+    // 내 캐릭터는 반투명 (공과 상대가 가려지지 않게). 채 색: 나 빨강, 팀원, 상대 파랑
+    for (const side of [0, 1]) for (const slot of [0, 1]) {
+      const c = world.team[side][slot];
+      const isMe = side === mySide && slot === mySlot;
+      c.group.visible = slot === 0 ? !(mode === 'wall' && side === 1) : mode === '2v2';
+      c.setOpacity(isMe ? 0.38 : 1, isMe ? 0.9 : 1);
+      c.setPaddleColor(isMe ? PADDLE_COLOR.me : side === mySide ? PADDLE_COLOR.mate : PADDLE_COLOR.opp);
+      c.group.position.z = sideSign(side) * CHAR_Z;
+    }
 
     this.onMove = (e) => {
       const t = e.timeStamp / 1000 + this.offset;
@@ -61,6 +71,15 @@ export class Game {
   destroy() {
     window.removeEventListener('pointermove', this.onMove);
     window.removeEventListener('pointerdown', this.onDown);
+  }
+
+  isMe(side, slot = 0) { return side === this.mySide && slot === this.mySlot; }
+  charOf(side, slot = 0) { return this.w.team[side][slot]; }
+  // 각 쪽에서 다음에 칠 사람 (그 쪽의 '앞에 나와 있는' 선수)
+  activeSlot(side) {
+    const n = this.order.length;
+    const a = this.order[this.turn % n];
+    return a.side === side ? a.slot : this.order[(this.turn + 1) % n].slot;
   }
 
   // 클릭 전후 마우스 움직임 → { dir: -1|0|1, up: 위로 올렸는지 }
@@ -85,16 +104,17 @@ export class Game {
     A.initAudio();
     const me = this.mySide;
     if (this.pendingHit) return;
-    if (this.phase === 'serve' && this.server === me) {
+    const who = this.order[this.turn];
+    if (this.phase === 'serve' && this.isMe(who.side, who.slot)) {
       A.playToss(this.tossPos(me));
       this.hud.hint('');
-      if (!this.authority) this.onEvent({ type: 'toss', side: me, t, x: this.tossX, local: true });
-      this.send.toss(me, t, this.tossX);
+      if (!this.authority) this.onEvent({ type: 'toss', side: me, slot: this.mySlot, t, x: this.tossX, local: true });
+      this.send.toss(me, t, this.tossX, this.mySlot);
       return;
     }
     const ex = this.expect;
-    const char = this.w.chars[me];
-    if (!ex || ex.side !== me || ex.whiffed || (this.phase !== 'toss' && this.phase !== 'rally')) {
+    const char = this.charOf(me, this.mySlot);
+    if (!ex || !this.isMe(ex.side, ex.slot) || ex.whiffed || (this.phase !== 'toss' && this.phase !== 'rally')) {
       this.startSwing(char, t);
       return;
     }
@@ -107,7 +127,7 @@ export class Game {
         A.playWhoosh(ex.pos);
         this.hud.judge('miss', '헛스윙');
         this.stats.perfectStreak = 0;
-        this.send.swing(me, t, 0, true);
+        this.send.swing(me, t, 0, true, this.mySlot);
       }
       return;
     }
@@ -129,7 +149,7 @@ export class Game {
     if (!ex) return;
     const { dir, up } = this.readStroke(h.t, h.x, h.y);
     const grade = judge(h.t - ex.t, up);
-    if (!up) this.w.chars[me].swingBlock = true;
+    if (!up) this.charOf(me, this.mySlot).swingBlock = true;
     this.hud.judge(grade, ({ perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK' })[grade] + ARROW[dir]);
     if (grade === 'perfect') {
       this.stats.perfectStreak++;
@@ -137,7 +157,7 @@ export class Game {
     } else this.stats.perfectStreak = 0;
     this.hud.stats(this.stats);
     if (!this.authority) this.predictHit(h.t, grade, dir);
-    this.send.swing(me, h.t, dir, up);
+    this.send.swing(me, h.t, dir, up, this.mySlot);
   }
 
   // 상대 PC(방장 아님): 방장 응답을 기다리지 않고 내 타격 결과를 똑같은 공식으로 먼저 계산해 보여준다
@@ -146,10 +166,11 @@ export class Game {
       mode: this.mode, seed: this.net.seed, shotIdx: this.net.nextIdx, rally: this.net.rally,
       segs: this.segs, serve: this.phase === 'toss', side: this.mySide, t, grade, dir, hold: HOLD,
     });
-    this.predicted = { t, prevSegs: this.segs, prevExpect: this.expect };
+    this.predicted = { t, prevSegs: this.segs, prevExpect: this.expect, prevTurn: this.turn };
     this.segs = shot.segs;
     this.played = new Set([0]);
-    this.expect = shot.next ? { ...shot.next, whiffed: false } : null;
+    this.turn = (this.turn + 1) % this.order.length;
+    this.expect = shot.next ? { ...shot.next, slot: this.order[this.turn].slot, whiffed: false } : null;
     this.phase = 'rally';
     this.holdPos = null;
   }
@@ -175,6 +196,7 @@ export class Game {
       case 'serveReady':
         this.phase = 'serve';
         this.server = ev.server;
+        this.turn = ev.turn ?? 0;
         this.segs = null;
         this.expect = null;
         this.w.clearTrail();
@@ -183,32 +205,38 @@ export class Game {
         this.net.rally = 0;
         this.predicted = null;
         this.hud.stats(this.stats);
-        this.hud.hint(ev.server === me ? '클릭해서 서브 토스!' : '상대 서브를 기다리는 중…');
+        {
+          const who = this.order[this.turn];
+          this.hud.hint(this.isMe(who.side, who.slot) ? '클릭해서 서브 토스!' : who.side === me ? '팀원 서브를 기다리는 중…' : '상대 서브를 기다리는 중…');
+        }
         break;
       case 'toss': {
-        if (ev.side === me && !ev.local && this.phase === 'toss') break; // 이미 예측해서 보여주는 중
+        const slot = ev.slot ?? 0;
+        if (this.isMe(ev.side, slot) && !ev.local && this.phase === 'toss') break; // 이미 예측해서 보여주는 중
         const { segs, ideal } = tossSegs(ev.side, ev.t, ev.x);
         this.phase = 'toss';
         this.segs = segs;
         this.played = new Set([0]);
-        this.expect = { ...ideal, whiffed: false };
-        if (ev.side === me) this.hud.hint('공이 떨어질 때 마우스를 누른 채로 위로 쓱! (↖ ↑ ↗)');
+        this.expect = { ...ideal, slot, whiffed: false };
+        if (this.isMe(ev.side, slot)) this.hud.hint('공이 떨어질 때 마우스를 누른 채로 위로 쓱! (↖ ↑ ↗)');
         break;
       }
       case 'shot': {
         this.phase = 'rally';
         this.net.nextIdx = (ev.idx ?? this.net.nextIdx) + 1;
         this.net.rally = ev.rally;
-        const wasPredicted = this.predicted && ev.side === me && Math.abs(this.predicted.t - ev.t) < 1e-6;
+        const mine = this.isMe(ev.side, ev.slot ?? 0);
+        const wasPredicted = this.predicted && mine && Math.abs(this.predicted.t - ev.t) < 1e-6;
         this.predicted = null;
         this.segs = simulate(ev.p, ev.v, ev.t0, 'hit', { side: ev.side, grade: ev.grade });
         this.holdPos = null;
         if (!wasPredicted) this.played = new Set();
-        if (ev.side === me && Math.abs(this.localHitT - ev.t) < 0.001) this.played.add(0);
-        if (ev.side !== me) this.w.chars[ev.side].swingT = performance.now() / 1000;
+        if (mine && Math.abs(this.localHitT - ev.t) < 0.001) this.played.add(0);
+        if (!mine) this.charOf(ev.side, ev.slot ?? 0).swingT = performance.now() / 1000;
+        this.turn = ev.turn ?? (this.turn + 1) % this.order.length;
         const next = findIdealHit(this.segs, 1 - ev.side);
-        this.expect = next ? { ...next, whiffed: false } : null;
-        if (ev.side === me) {
+        this.expect = next ? { ...next, slot: this.order[this.turn].slot, whiffed: false } : null;
+        if (mine) {
           this.stats.rally = ev.rally;
           this.hud.hint('');
         }
@@ -219,25 +247,26 @@ export class Game {
         break;
       }
       case 'whiff':
-        if (this.expect && this.expect.side === ev.side) this.expect.whiffed = true;
+        if (this.expect && this.expect.side === ev.side && this.expect.slot === (ev.slot ?? 0)) this.expect.whiffed = true;
         break;
       case 'miss':
-        if (this.predicted && ev.side === me) {
+        if (this.predicted && this.isMe(ev.side, ev.slot ?? 0)) {
           // 내 타격이 방장에게 너무 늦게 도착: 예측을 취소하고 원래 공 궤적으로
           this.segs = this.predicted.prevSegs;
+          this.turn = this.predicted.prevTurn;
           this.predicted = null;
         }
         this.holdPos = null;
         this.pendingHit = null;
         this.expect = null;
-        if (ev.side === me) {
+        if (this.isMe(ev.side, ev.slot ?? 0)) {
           this.hud.judge('miss');
           this.stats.perfectStreak = 0;
         }
         break;
       case 'serveMiss':
         this.expect = null;
-        if (ev.side === me) this.hud.hint('괜찮아요! 다시 토스해 보세요');
+        if (this.isMe(ev.side, ev.slot ?? 0)) this.hud.hint('괜찮아요! 다시 토스해 보세요');
         break;
       case 'rallyEnd': {
         const r = this.stats.rally;
@@ -280,32 +309,50 @@ export class Game {
     } else w.setBall([0, -1, 0], false);
 
     // 캐릭터 자동 이동 + 팔
+    // 2v2: 각 쪽에서 다음에 칠 사람만 앞에 나와 공을 따라가고, 팀원은 자기 자리(좌우)에서 한 걸음 뒤로 물러난다
+    const two = this.mode === '2v2';
+    const k = 1 - Math.exp(-dt * 7);
+    const ex = this.expect;
     for (let s = 0; s < 2; s++) {
-      const c = w.chars[s];
       const m = sideSign(s);
-      let tx = -PADDLE_OFFSET.right * m * 0.5;
-      let ballY = TY + 0.25;
-      if (this.phase === 'serve' && this.server === s) tx = this.tossX - PADDLE_OFFSET.right * m;
-      const ex = this.expect;
-      if (ex && ex.side === s) {
-        tx = ex.pos[0] - PADDLE_OFFSET.right * m;
-        ballY = ex.pos[1];
+      const act = this.activeSlot(s);
+      for (let sl = 0; sl < (two ? 2 : 1); sl++) {
+        const c = this.charOf(s, sl);
+        let tx = -PADDLE_OFFSET.right * m * 0.5;
+        let tz = CHAR_Z;
+        let ballY = TY + 0.25;
+        let remain = 9;
+        if (sl === act) {
+          const who = this.order[this.turn];
+          if (this.phase === 'serve' && who.side === s && who.slot === sl) tx = this.tossX - PADDLE_OFFSET.right * m;
+          if (ex && ex.side === s && ex.slot === sl) {
+            tx = ex.pos[0] - PADDLE_OFFSET.right * m;
+            ballY = ex.pos[1];
+            remain = ex.t - now;
+          }
+        } else {
+          // 1번은 왼쪽, 2번은 오른쪽 (그 선수가 보는 방향 기준)
+          tx = (sl === 0 ? -0.55 : 0.55) * m;
+          tz = CHAR_Z + 0.6;
+        }
+        const ox = this.charX[s][sl];
+        this.charX[s][sl] += (tx - ox) * k;
+        this.charZ[s][sl] += (tz - this.charZ[s][sl]) * k;
+        c.group.position.x = this.charX[s][sl];
+        c.group.position.z = m * this.charZ[s][sl];
+        this.animArm(c, now, remain, ballY);
+        c.body.position.y = Math.sin(now * 2.6 + s + sl * 1.7) * 0.006;
+        c.body.rotation.z = -(tx - ox) * 0.25 * m;
       }
-      this.charX[s] += (tx - this.charX[s]) * (1 - Math.exp(-dt * 7));
-      c.group.position.x = this.charX[s];
-      this.animArm(c, now, ex && ex.side === s ? ex.t - now : 9, ballY);
-      c.body.position.y = Math.sin(now * 2.6 + s) * 0.006;
-      c.body.rotation.z = -(tx - this.charX[s]) * 0.25 * m;
     }
 
     // 카메라 / 소리 위치
-    w.updateCamera(me, this.charX[me], dt, this.segs ? w.ball.position.x : 0);
+    w.updateCamera(me, this.charX[me][this.mySlot], dt, this.segs ? w.ball.position.x : 0, this.charZ[me][this.mySlot]);
     const cam = w.camera;
     A.setListener([cam.position.x, cam.position.y, cam.position.z], me === 0 ? [1, 0, 0] : [-1, 0, 0]);
 
     // 타이밍 링
-    const ex = this.expect;
-    const showRing = ex && ex.side === me && !ex.whiffed && (this.phase === 'toss' || this.phase === 'rally');
+    const showRing = ex && this.isMe(ex.side, ex.slot) && !ex.whiffed && (this.phase === 'toss' || this.phase === 'rally');
     const remain = ex ? ex.t - now : 9;
     if (showRing && remain < 0.95 && remain > -WIN.bad) {
       w.ring.visible = true;

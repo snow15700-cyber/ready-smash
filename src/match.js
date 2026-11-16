@@ -21,11 +21,20 @@ export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, 
   return { from, v, t0, segs: out, speedLv, shotIdx, next: findIdealHit(out, 1 - side) };
 }
 
+// 치는 순서 (선수 = {side, slot}). 2v2는 A1 → B1 → A2 → B2, 1v1·벽치기는 두 명이 번갈아
+export function hitOrder(mode) {
+  return mode === '2v2'
+    ? [{ side: 0, slot: 0 }, { side: 1, slot: 0 }, { side: 0, slot: 1 }, { side: 1, slot: 1 }]
+    : [{ side: 0, slot: 0 }, { side: 1, slot: 0 }];
+}
+
 export class Match {
-  // remoteSides: 네트워크 너머에 있는 선수 (입력이 늦게 도착하므로 판정 대기 시간을 늘림)
-  constructor({ mode, emit, seed = (Math.random() * 1e9) | 0, remoteSides = [] }) {
-    this.remoteSides = remoteSides;
-    this.mode = mode; // 'wall' | '1v1'
+  // isRemote(side, slot): 네트워크 너머에 있는 선수인지 (입력이 늦게 도착하므로 판정 대기 시간을 늘림)
+  constructor({ mode, emit, seed = (Math.random() * 1e9) | 0, isRemote = () => false }) {
+    this.isRemote = isRemote;
+    this.mode = mode; // 'wall' | '1v1' | '2v2'
+    this.order = hitOrder(mode);
+    this.turn = 0; // 다음에 칠 사람 (order의 번호)
     this.emit = emit;
     this.seed = seed;
     this.shotIdx = 0;
@@ -44,42 +53,44 @@ export class Match {
   }
 
   readyServe(now) {
+    if (this.mode === 'wall') this.turn = 0; // 벽치기는 항상 내가 서브
     this.phase = 'serve';
     this.segs = null;
     this.expect = null;
     this.rally = 0;
-    this.emit({ type: 'serveReady', server: this.server, score: [...this.score] });
+    this.emit({ type: 'serveReady', server: this.server, turn: this.turn, score: [...this.score] });
   }
 
   // 서버가 클릭: 토스
-  toss(side, t, x = 0) {
-    if (this.phase !== 'serve' || side !== this.server) return;
+  toss(side, t, x = 0, slot = 0) {
+    const who = this.order[this.turn];
+    if (this.phase !== 'serve' || side !== who.side || slot !== who.slot) return;
     const { segs, ideal } = tossSegs(side, t, x);
     this.phase = 'toss';
     this.segs = segs;
-    this.expect = { ...ideal, whiffed: false };
-    this.emit({ type: 'toss', side, t, x });
+    this.expect = { ...ideal, slot, whiffed: false };
+    this.emit({ type: 'toss', side, slot, t, x });
   }
 
   // 스윙 입력 (t = 클릭 시각, dir = 화면 좌우 -1~1, isSwing = 위로 올리며 클릭)
-  swing(side, t, dir, isSwing) {
+  swing(side, t, dir, isSwing, slot = 0) {
     const ex = this.expect;
-    if (!ex || ex.side !== side || ex.whiffed) return;
+    if (!ex || ex.side !== side || ex.slot !== slot || ex.whiffed) return;
     if (this.phase !== 'toss' && this.phase !== 'rally') return;
     const grade = judge(t - ex.t, isSwing);
     if (grade === 'early') return;
     if (grade === 'miss') {
       if (t < ex.t) {
         ex.whiffed = true;
-        this.emit({ type: 'whiff', side, t });
+        this.emit({ type: 'whiff', side, slot, t });
       }
       return;
     }
-    this.hit(side, t, grade, dir, HOLD);
+    this.hit(side, t, grade, dir, HOLD, slot);
   }
 
   // hold: 사람이 친 공은 방향을 읽는 동안 잠깐 라켓에 머문 뒤 출발
-  hit(side, t, grade, dir, hold = 0) {
+  hit(side, t, grade, dir, hold = 0, slot = 0) {
     const shot = computeShot({
       mode: this.mode, seed: this.seed, shotIdx: this.shotIdx, rally: this.rally,
       segs: this.segs, serve: this.phase === 'toss', side, t, grade, dir, hold,
@@ -88,8 +99,10 @@ export class Match {
     this.segs = shot.segs;
     this.phase = 'rally';
     this.rally++;
-    this.expect = shot.next ? { ...shot.next, whiffed: false } : null;
-    this.emit({ type: 'shot', side, t, t0: shot.t0, p: shot.from, v: shot.v, grade, rally: this.rally, speedLv: shot.speedLv, idx: shot.shotIdx });
+    this.turn = (this.turn + 1) % this.order.length;
+    const nextSlot = this.order[this.turn].slot;
+    this.expect = shot.next ? { ...shot.next, slot: nextSlot, whiffed: false } : null;
+    this.emit({ type: 'shot', side, slot, turn: this.turn, t, t0: shot.t0, p: shot.from, v: shot.v, grade, rally: this.rally, speedLv: shot.speedLv, idx: shot.shotIdx });
     if (!shot.next) this.pointTo(1 - side, shot.t0 + 0.8, 'fault');
   }
 
@@ -113,7 +126,9 @@ export class Match {
           this.pending = { t: now + 1.2, fn: () => this.emit({ type: 'gameOver', winner: a > b ? 0 : 1, score: [...this.score] }) };
           return;
         }
-        this.server = (a + b) % 2 === 0 ? 0 : 1; // 1점마다 서브 교대
+        // 1점마다 서브 교대 (2v2는 A1 → B1 → A2 → B2 순서)
+        this.turn = (a + b) % this.order.length;
+        this.server = this.order[this.turn].side;
         this.pending = { t: now + 1.4, fn: (n) => this.readyServe(n) };
       },
     };
@@ -132,16 +147,16 @@ export class Match {
       this.hit(1, ex.t, 'wall', 0);
       return;
     }
-    const margin = this.remoteSides.includes(ex.side) ? 0.45 : 0.12; // 네트워크 지연 여유
+    const margin = this.isRemote(ex.side, ex.slot) ? 0.45 : 0.12; // 네트워크 지연 여유
     if (now > ex.t + WIN.bad + HOLD + margin) {
       if (this.phase === 'toss') {
         // 서브 헛스윙은 실점 없이 다시 토스
         this.phase = 'point';
         this.expect = null;
-        this.emit({ type: 'serveMiss', side: ex.side });
+        this.emit({ type: 'serveMiss', side: ex.side, slot: ex.slot });
         this.pending = { t: now + 1.1, fn: (n) => this.readyServe(n) };
       } else {
-        this.emit({ type: 'miss', side: ex.side, t: now });
+        this.emit({ type: 'miss', side: ex.side, slot: ex.slot, t: now });
         this.pointTo(1 - ex.side, now + 0.9, 'miss');
       }
     }
