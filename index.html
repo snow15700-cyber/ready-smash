@@ -31,9 +31,10 @@
       </label>
       <button id="btn-wall" class="big">🏓 혼자 벽치기 연습</button>
       <div class="row">
-        <button id="btn-create">방 만들기</button>
-        <button id="btn-join">코드로 입장</button>
+        <button id="btn-create-1v1">1v1 방 만들기</button>
+        <button id="btn-create-2v2">2v2 방 만들기</button>
       </div>
+      <button id="btn-join">코드로 입장</button>
       <p class="note soon" id="mode-note"></p>
       <div class="howto">
         <b>치는 방법은 딱 하나!</b>
@@ -70,16 +71,15 @@
       <p class="sub center">방 코드</p>
       <div class="code-row"><div id="room-code" class="code">----</div><button id="btn-copy" class="small">복사</button></div>
       <p id="room-result" class="result hidden"></p>
-      <div id="mode-pick" class="row seg"><button data-mode="1v1">1v1</button><button data-mode="2v2">2v2</button></div>
-      <p id="mode-pick-note" class="note tiny"></p>
-      <div id="teams" class="teams hidden">
-        <div class="team t0"><h3>A팀</h3><ul id="team-0" class="members"></ul><button id="btn-team-0" class="small">A팀 고르기</button></div>
-        <div class="team t1"><h3>B팀</h3><ul id="team-1" class="members"></ul><button id="btn-team-1" class="small">B팀 고르기</button></div>
+      <p id="room-mode" class="room-mode"></p>
+      <div id="teams" class="teams">
+        <div class="team t0"><h3>A팀</h3><ul id="team-0" class="members"></ul><button id="btn-team-0" class="small">A팀으로</button></div>
+        <div class="team t1"><h3>B팀</h3><ul id="team-1" class="members"></ul><button id="btn-team-1" class="small">B팀으로</button></div>
       </div>
       <p id="room-members-title" class="note tiny"></p>
       <ul id="room-members" class="members"></ul>
       <p id="room-tip" class="note"></p>
-      <button id="btn-ready" class="big">준비!</button>
+      <button id="btn-start" class="big hidden">경기 시작!</button>
       <button id="btn-room-leave">방 나가기</button>
       <p id="room-ping" class="note tiny"></p>
     </div>
