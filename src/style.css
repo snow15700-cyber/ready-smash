@@ -327,6 +327,7 @@ button.ghost:hover:not(:disabled) { color: var(--ink); background: var(--cream);
 .t0 .slot.empty span.go { color: #d2561c; } .t1 .slot.empty span.go { color: var(--blue-ink); }
 .slot.empty.locked { cursor: default; } .slot.empty.locked:hover { background: transparent; }
 
+.room-hint { position: absolute; left: 16px; top: 14px; margin: 0; font-size: 15px; color: #fff; background: rgba(43,42,51,.6); border-radius: 999px; padding: 6px 14px; pointer-events: none !important; }
 /* 3D 캐릭터 머리 위: 닉네임 알약 + 장착 아이템 (등급은 색·빛으로만) */
 .room-labels { position: absolute; inset: 0; pointer-events: none !important; overflow: hidden; }
 .rl { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; white-space: nowrap; will-change: transform; }

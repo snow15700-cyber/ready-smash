@@ -353,6 +353,9 @@ function onRoomMsg(m) {
       resolveOverflow();
       renderRoom();
       break;
+    case 'sw': // 다른 사람의 연습 스윙
+      if (!room.inGame && ['perfect', 'good', 'block'].includes(m.g)) practiceSwing(m.id, m.g);
+      break;
     case 'go': {
       if (room.host) break;
       const p = m.players.find((x) => x.id === myId);
@@ -365,7 +368,6 @@ function onRoomMsg(m) {
       break;
     case 'pong': {
       const now = performance.now() / 1000;
-  setQuiet(game ? 1 : LOBBY_QUIET);
       const rtt = now - m.t1;
       room.pings.push({ rtt, off: m.th + rtt / 2 - now });
       if (room.pings.length > 12) room.pings.shift();
@@ -569,6 +571,7 @@ function renderRoom() {
   const none = room.members.filter((m) => !room.teams[m.id]);
   $('room-members').innerHTML = none.length ? `팀 고르는 중${none.map((m) => `<b>${esc(m.nick)}${m.id === myId ? '(나)' : ''}</b>`).join('')}` : '';
   renderStageLabels();
+  $('room-hint').textContent = room.teams[myId] ? '🏓 화면을 누른 채 위로 밀면 연습 스윙!' : '👇 아래 빈 칸을 눌러 팀을 골라 주세요';
 
   const full = room.mode && isFull();
   $('btn-start').classList.toggle('hidden', !room.host);
@@ -1221,9 +1224,8 @@ function stageFrame(now) {
     c.setGlow(m ? GLOW[equipped(m.look, 'paddle').grade] : null);
     c.group.position.set(x, 0, STAGE.z);
     c.group.rotation.y = Math.PI - x * 0.08; // 가운데 쪽으로 살짝
-    c.body.rotation.set(0, 0, 0);
     c.body.position.y = Math.sin(now * 2.6 + i) * 0.008;
-    c.arm.rotation.set(-0.15, -0.25 + Math.sin(now * 1.7 + i) * 0.05, 0.12);
+    holdPose(c, now, i);
     const lb = stage.els[i];
     if (lb) {
       const [px, py] = world.toScreen(x, STAGE.headY, STAGE.z);
@@ -1231,7 +1233,81 @@ function stageFrame(now) {
     }
   });
   for (const side of world.team) for (const c of side) if (!used.has(c)) c.group.visible = false;
+  setListener(STAGE.cam, [1, 0, 0]);
 }
+
+// 몸 옆에 든 자세 + 연습 스윙 (c.stSwing부터: 뒤로 빼기 → 휘두르기 → 제자리, 블록은 툭 내밀기)
+function holdPose(c, now, i) {
+  let yaw = -0.25 + Math.sin(now * 1.7 + i) * 0.05, pitch = -0.15, twist = 0;
+  const st = now - (c.stSwing ?? -9);
+  if (st < 0.5) {
+    if (c.stBlock) {
+      const k = Math.sin(Math.min(1, st / 0.25) * Math.PI);
+      yaw += 0.35 * k;
+      pitch += 0.15 * k;
+    } else {
+      let a;
+      if (st < 0.07) a = (-st / 0.07) * 0.6;
+      else if (st < 0.2) { const u = (st - 0.07) / 0.13; a = -0.6 + 1.9 * (1 - (1 - u) * (1 - u)); }
+      else { const u = (st - 0.2) / 0.3; a = 1.3 * (1 - u * u * (3 - 2 * u)); }
+      yaw += a;
+      pitch += Math.max(0, a) * 0.45;
+      twist = a * 0.22;
+    }
+  }
+  c.arm.rotation.set(pitch, yaw, 0.12);
+  c.body.rotation.set(0, twist, 0);
+}
+
+/* 연습 스윙: 대기실에서 화면을 누른 채 위로 밀면 휘두르고 (그냥 누르면 툭), 내 탁구채 소리가 난다.
+   다른 사람에게도 보이고 들린다 (조금 작게, 그 캐릭터 쪽에서). 경기와 같은 조작: 누르기 직전 0.15초 ~ 직후 0.12초 움직임 */
+const SWING = { before: 0.15, after: 0.12, gap: 0.45, perfect: 40, good: 12 };
+const swMoves = []; // 최근 마우스 위치 { t, y }
+let swDown = 0;
+const mySeat = () => stage.seats.find((x) => x.m && x.m.id === myId);
+
+function practiceSwing(id, grade) {
+  const seat = stage.seats.find((x) => x.m && x.m.id === id);
+  if (!seat) return;
+  const c = world.team[seat.team][seat.slot];
+  const now = performance.now() / 1000;
+  if (now - (c.stSwing ?? -9) < 0.3) return; // 너무 자주 오면 무시
+  c.stSwing = now;
+  c.stBlock = grade === 'block';
+  const it = equipped(seat.m.look, 'paddle');
+  const me = id === myId;
+  const p = c.group.position;
+  playHit(grade, me ? null : [p.x, 1.0, p.z], null, it.sound || null);
+}
+
+function stageActive() {
+  return stage.on && room && !room.inGame && !$('room').classList.contains('hidden');
+}
+$('c').addEventListener('pointermove', (e) => {
+  if (!stageActive()) return;
+  const t = e.timeStamp / 1000; // 이벤트가 생긴 시각 (느린 PC에서 처리가 늦어도 정확하게)
+  swMoves.push({ t, y: e.clientY });
+  while (swMoves.length && swMoves[0].t < t - 0.5) swMoves.shift();
+});
+$('c').addEventListener('pointerdown', (e) => {
+  if (!stageActive() || e.button !== 0) return;
+  if (!mySeat()) { hud.toast('팀을 고르면 연습 스윙을 할 수 있어요'); return; }
+  const t = e.timeStamp / 1000;
+  if (t - swDown < SWING.gap) return;
+  swDown = t;
+  swMoves.push({ t, y: e.clientY });
+  initAudio();
+  setTimeout(() => {
+    if (!stageActive()) return;
+    // 이 구간에서 가장 아래 → 그 뒤 가장 위로 올라간 만큼 = 위로 민 거리(px)
+    const pts = swMoves.filter((m) => m.t >= t - SWING.before && m.t <= t + SWING.after + 0.05);
+    let low = -Infinity, up = 0;
+    for (const m of pts) { low = Math.max(low, m.y); up = Math.max(up, low - m.y); }
+    const grade = up >= SWING.perfect ? 'perfect' : up >= SWING.good ? 'good' : 'block';
+    practiceSwing(myId, grade);
+    room.link.send({ k: 'sw', id: myId, g: grade });
+  }, SWING.after * 1000);
+});
 
 // 대기실을 떠나면 원래 모습으로 (경기 자세, 빛 고리 끄기, 카메라 화면 비율)
 function stageOff() {
@@ -1248,9 +1324,11 @@ function loop() {
   // 내 스윙 판단을 먼저 끝내고 나서 경기 판정 (느린 PC에서도 늦게 친 공이 버려지지 않게)
   if (game) game.decideHit(now + game.offset);
   if (match) match.update(now);
-  if (game) { stageOff(); game.update(now + game.offset); }
-  else if (room && !room.inGame && !$('room').classList.contains('hidden')) stageFrame(now);
+  // 위치가 있는 소리 크기: 경기·대기실(연습 스윙)은 그대로, 로비·꾸미기 배경 랠리는 작게
+  if (game) { setQuiet(1); stageOff(); game.update(now + game.offset); }
+  else if (room && !room.inGame && !$('room').classList.contains('hidden')) { setQuiet(1); stageFrame(now); }
   else {
+    setQuiet(LOBBY_QUIET);
     stageOff();
     // 로비 배경: 두 캐릭터가 랠리를 주고받고, 카메라는 옆에서 천천히 흔들린다
     // 꾸미기 화면에서도 랠리는 계속되고, 카메라만 내 캐릭터 등 뒤로 스르륵 옮겨 간다
