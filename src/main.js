@@ -611,6 +611,7 @@ document.addEventListener('click', (e) => {
   if (!$('me-menu').contains(e.target)) $('me-menu').classList.add('hidden');
 });
 $('btn-howto').addEventListener('click', () => { playUI('click'); $('howto').classList.remove('hidden'); });
+$('lnk-until09').addEventListener('click', () => playUI('click'));
 const closeHowto = () => {
   $('howto').classList.add('hidden');
   try { localStorage.setItem(HOWTO_KEY, '1'); } catch { /* 무시 */ }
