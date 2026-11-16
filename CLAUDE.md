@@ -30,11 +30,15 @@
 - **AI는 절대 실수하지 않는다**(헛스윙·아웃 없음, 내 스매시도 다 받음). 가끔(약 18%) BAD(약한 공)를 쳐서 랠리 6회 넘으면 찬스볼이 된다. 랠리는 내가 실수해야만 끝난다.
 - 구현: `match.js`의 `AI`(등급별 확률·`smash`·`dir`), `aiPlan`. AI 차례가 오면 `expect.ai`에 칠 방법을 미리 정하고 `update`에서 친다. 스매시가 오면 BAD 대신 GOOD(아웃 방지).
 
-## PIN 계정 (1단계 로그인 완료, test 브랜치에서 사용자 테스트 중)
+## PIN 계정·전적 (1단계 로그인, 2단계 전적 완료 — test 브랜치에서 사용자 테스트 중)
 - 설계는 기획서 5장. 진짜 정보는 Supabase DB, 브라우저에는 로그인 열쇠(`smash-token`, 30일·쓸 때마다 연장)만. 복구 단어 없음, 손님 모드 유지(presence에 `guest: true`, 대기실에 '손님' 표시).
 - 서버: `supabase/01_accounts.sql`(사용자가 SQL Editor에서 직접 실행). 표 `pingpong_players`/`pingpong_sessions`는 RLS로 잠그고 `pingpong_login`·`signup`·`me`·`change_pin`·`logout` 함수(security definer)만 anon에 열어 둔다. PIN은 bcrypt, 토큰은 sha256. 5번 틀리면 5분 잠금.
 - 화면: `src/account.js`(서버가 없으면 localStorage 가짜 서버 `smash-local-db`로 같은 규칙). `main.js`의 로그인 화면(`#login`)·PIN 바꾸기(`#pin-change`)·로비 `me-bar`. 같은 브라우저의 탭은 같은 계정.
-- 다음: 2단계 전적(1v1·2v2 승패 따로, 혼자 하기 최장 랠리, **1v1 상대 전적**), 3단계 랭킹(승수 합계·최장 랠리). SQL은 `02_...sql`처럼 새 파일로 추가. SQL은 로컬 PostgreSQL 16으로 먼저 시험할 수 있다(`service postgresql start`, `extensions` 스키마와 `anon` 역할을 만들어 흉내).
+- 2단계 전적: `supabase/02_records.sql`(01 다음에 실행). `pingpong_players`에 1v1/2v2 승패·`best_rally`, 상대 전적 표 `pingpong_h2h`(내 쪽 방향만). 함수 `pingpong_record_match`(10초 안 중복 무시)·`record_rally`·`h2h`.
+  - 경기가 끝나면(`hud.gameOver` → `saveResult`) **각 PC가 자기 결과만** 기록. 로그인한 사람은 presence에 `pid`(선수 번호)를 실어 1v1 상대 전적에 쓴다. 대기실 `#room-h2h`에 '○○님과의 상대 전적 3승 2패'. 경기 중 나가면 기록 없음.
+  - 혼자 하기 최고 기록: 로그인 = 서버 `best_rally`, 손님 = 브라우저 `smash-ai-best`(`Game`의 `best`/`onBest`). 로비 `#me-stats`에 내 전적.
+  - 로컬 테스트에서 탭마다 다른 계정: 주소에 `?acct=2`(로그인 열쇠를 따로 보관).
+- 다음: 3단계 랭킹(승수 합계·최장 랠리). SQL은 `03_...sql`처럼 새 파일로 추가. SQL은 로컬 PostgreSQL 16으로 먼저 시험할 수 있다(`service postgresql start`, `extensions` 스키마와 `anon` 역할을 만들어 흉내).
 
 ## 사용자가 확정한 결정 (바꾸기 전에 사용자에게 확인)
 - 캐릭터: 흰색 몸통+흰색 머리만, 팔 없음, 탁구채만 떠 있음. **내 캐릭터는 반투명**(0.38), 상대·팀원은 불투명. **탁구채는 모두 빨강**(나중에 꾸미기로 색·모양(예: 프라이팬)을 바꿀 예정, `PADDLE_COLOR`).

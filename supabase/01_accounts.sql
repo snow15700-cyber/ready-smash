@@ -39,8 +39,13 @@ revoke all on public.pingpong_sessions from anon, authenticated;
 create or replace function public.pingpong__nick_key(p text) returns text
 language sql immutable as $$ select lower(btrim(coalesce(p, ''))) $$;
 
-create or replace function public.pingpong__player_json(p public.pingpong_players) returns json
-language sql stable as $$ select json_build_object('nick', p.nick) $$;
+-- (02_records.sql이 더 많은 항목으로 바꿔 쓰므로, 이미 있으면 건드리지 않는다)
+do $do$ begin
+  if to_regprocedure('public.pingpong__player_json(public.pingpong_players)') is null then
+    create function public.pingpong__player_json(p public.pingpong_players) returns json
+    language sql stable as $f$ select json_build_object('nick', p.nick) $f$;
+  end if;
+end $do$;
 
 create or replace function public.pingpong__new_session(p_player uuid) returns text
 language plpgsql security definer set search_path = public, extensions as $$

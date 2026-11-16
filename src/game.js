@@ -14,13 +14,12 @@ const RING = { minDist: 1.1, safe: 3, pad: 0.03 };
 const CUE_GAP = 0.3;
 // 몰입 연출(에코·어두워짐): 랠리 FOCUS.from회부터 서서히, FOCUS.to회에 최대. 점수가 나면 약 1초에 걸쳐 원래대로 
 const FOCUS = { from: 6, to: 15, up: 0.6, down: 1 };
-const BEST_KEY = 'smash-ai-best'; // 혼자 하기 최고 랠리 기록 (이 브라우저에 저장)
 const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 
 export class Game {
   // authority: 이 PC가 경기를 계산하는지 (혼자 모드, 방장). 아니면 방장 이벤트를 받아 그리고 내 타격은 예측해서 먼저 보여준다
   // playerNames[side][slot]: 2v2 이름표용
-  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null }) {
+  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, best = 0, onBest = null }) {
     this.authority = authority;
     this.names = names;
     this.playerNames = playerNames;
@@ -49,7 +48,9 @@ export class Game {
     this.charZ = [[CHAR_Z, CHAR_Z], [CHAR_Z, CHAR_Z]];
     this.mouse = { x: innerWidth / 2, y: innerHeight / 2, hist: [] };
     this.stats = { rally: 0, best: 0, perfectStreak: 0, perfects: 0 };
-    if (mode === 'ai') try { this.stats.best = +localStorage.getItem(BEST_KEY) || 0; } catch {}
+    // 혼자 하기 최고 기록: 처음 값과 새 기록 저장은 main.js가 정한다(로그인 = 서버, 손님 = 브라우저)
+    if (mode === 'ai') this.stats.best = best;
+    this.onBest = onBest;
     this.lastNow = performance.now() / 1000;
     this.tossX = 0;
     this.pendingHit = null; // 클릭 후 방향 판단을 기다리는 타격
@@ -331,7 +332,7 @@ export class Game {
         const r = this.stats.rally;
         if (r > this.stats.best) {
           this.stats.best = r;
-          try { localStorage.setItem(BEST_KEY, r); } catch {}
+          this.onBest?.(r);
           if (r >= 3) this.hud.toast(`최고 기록! ${r}회 랠리`);
         }
         this.hud.stats(this.stats);

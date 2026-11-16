@@ -3,7 +3,9 @@
 // 서버 설정이 없으면(로컬 테스트) 브라우저 안의 가짜 서버로 똑같이 동작한다.
 import { ONLINE, getClient } from './net.js';
 
-const TOKEN_KEY = 'smash-token';
+// ?acct=2 처럼 주소에 붙이면 열쇠를 따로 보관한다 (한 브라우저에서 탭마다 다른 계정으로 테스트할 때)
+const ACCT = new URLSearchParams(location.search).get('acct');
+const TOKEN_KEY = 'smash-token' + (ACCT ? `-${ACCT}` : '');
 const NICK_KEY = 'smash-nick'; // 마지막에 쓴 닉네임 (입력칸 미리 채우기용)
 
 const store = {
@@ -11,8 +13,9 @@ const store = {
   set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
 };
 
-// 현재 사용자. { nick, guest } — guest면 기록이 저장되지 않는다.
-export const account = { nick: store.get(NICK_KEY) || '', guest: true, loggedIn: false };
+// 현재 사용자. guest면 기록이 저장되지 않는다.
+// player(로그인했을 때만) = { id(선수 번호), nick, wins_1v1, losses_1v1, wins_2v2, losses_2v2, best_rally }
+export const account = { nick: store.get(NICK_KEY) || '', guest: true, loggedIn: false, player: null };
 
 export const lastNick = () => store.get(NICK_KEY) || '';
 export const cleanNick = (s) => String(s || '').trim().slice(0, 10);
@@ -30,7 +33,9 @@ async function call(fn, args) {
   }
 }
 
+const EMPTY_STATS = { wins_1v1: 0, losses_1v1: 0, wins_2v2: 0, losses_2v2: 0, best_rally: 0 };
 function setUser(player, token) {
+  account.player = { ...EMPTY_STATS, ...player };
   account.nick = player.nick;
   account.guest = false;
   account.loggedIn = true;
@@ -63,6 +68,7 @@ export async function signup(nick, pin) {
 }
 
 export function playAsGuest(nick) {
+  account.player = null;
   account.nick = cleanNick(nick) || '플레이어';
   account.guest = true;
   account.loggedIn = false;
@@ -74,6 +80,7 @@ export async function logout() {
   store.set(TOKEN_KEY, null);
   account.guest = true;
   account.loggedIn = false;
+  account.player = null;
   if (token) await call('pingpong_logout', { p_token: token });
 }
 
@@ -82,6 +89,32 @@ export async function changePin(newPin) {
   const r = await call('pingpong_change_pin', { p_token: store.get(TOKEN_KEY) || '', p_new_pin: newPin });
   if (r.status === 'no_session') { store.set(TOKEN_KEY, null); account.guest = true; account.loggedIn = false; }
   return r;
+}
+
+/* ───────── 전적 ───────── */
+const token = () => store.get(TOKEN_KEY) || '';
+
+// 경기 결과 기록 (내 결과만). oppId = 1v1 상대의 선수 번호(손님이면 null). 결과 { status, player, h2h }
+export async function recordMatch(mode, won, oppId) {
+  if (!account.loggedIn) return { status: 'guest' };
+  const r = await call('pingpong_record_match', { p_token: token(), p_mode: mode, p_won: won, p_opp: oppId || null });
+  if (r.status === 'ok') account.player = { ...EMPTY_STATS, ...r.player };
+  return r;
+}
+
+// 혼자 하기 최장 랠리 기록
+export async function recordRally(rally) {
+  if (!account.loggedIn) return { status: 'guest' };
+  const r = await call('pingpong_record_rally', { p_token: token(), p_rally: rally });
+  if (r.status === 'ok') account.player = { ...EMPTY_STATS, ...r.player };
+  return r;
+}
+
+// 1v1 상대 전적 (나 vs oppId). 결과 { wins, losses } 또는 null
+export async function getH2H(oppId) {
+  if (!account.loggedIn || !oppId) return null;
+  const r = await call('pingpong_h2h', { p_token: token(), p_opp: oppId });
+  return r.status === 'ok' ? r.h2h : null;
 }
 
 /* ───────── 로컬 테스트용 가짜 서버 (서버 함수와 같은 규칙) ───────── */
@@ -95,7 +128,10 @@ function localServer(fn, a) {
   const key = (n) => String(n || '').trim().toLowerCase();
   const newToken = (k) => { const t = Math.random().toString(36).slice(2) + Date.now().toString(36); db.sessions[t] = k; return t; };
   const now = Date.now();
+  db.h2h ||= {};
   const me = () => db.players[db.sessions[a.p_token]];
+  const pj = (p) => ({ id: p.id, nick: p.nick, wins_1v1: p.w1 || 0, losses_1v1: p.l1 || 0, wins_2v2: p.w2 || 0, losses_2v2: p.l2 || 0, best_rally: p.best || 0 });
+  const h2h = (p, opp) => { const h = db.h2h[p.id + '>' + opp] || [0, 0]; return { wins: h[0], losses: h[1] }; };
   let out;
   if (fn === 'pingpong_login') {
     const p = db.players[key(a.p_nick)];
@@ -105,15 +141,15 @@ function localServer(fn, a) {
       p.fail = (p.fail || 0) + 1;
       if (p.fail >= 5) { p.fail = 0; p.lockedUntil = now + 300000; out = { status: 'locked', wait: 300 }; }
       else out = { status: 'wrong_pin', left: 5 - p.fail };
-    } else { p.fail = 0; p.lockedUntil = 0; out = { status: 'ok', token: newToken(key(a.p_nick)), player: { nick: p.nick } }; }
+    } else { p.fail = 0; p.lockedUntil = 0; out = { status: 'ok', token: newToken(key(a.p_nick)), player: pj(p) }; }
   } else if (fn === 'pingpong_signup') {
     const n = String(a.p_nick || '').trim();
     if (n.length < 1 || n.length > 10) out = { status: 'bad_nick' };
     else if (!validPin(a.p_pin || '')) out = { status: 'bad_pin' };
     else if (db.players[key(n)]) out = { status: 'taken' };
-    else { db.players[key(n)] = { nick: n, pin: a.p_pin }; out = { status: 'ok', token: newToken(key(n)), player: { nick: n } }; }
+    else { const p = db.players[key(n)] = { id: 'local-' + key(n), nick: n, pin: a.p_pin }; out = { status: 'ok', token: newToken(key(n)), player: pj(p) }; }
   } else if (fn === 'pingpong_me') {
-    out = me() ? { status: 'ok', player: { nick: me().nick } } : { status: 'no_session' };
+    out = me() ? { status: 'ok', player: pj(me()) } : { status: 'no_session' };
   } else if (fn === 'pingpong_change_pin') {
     const p = me();
     if (!p) out = { status: 'no_session' };
@@ -124,6 +160,28 @@ function localServer(fn, a) {
       for (const t of Object.keys(db.sessions)) if (db.sessions[t] === mine && t !== a.p_token) delete db.sessions[t];
       out = { status: 'ok' };
     }
+  } else if (fn === 'pingpong_record_match') {
+    const p = me();
+    if (!p) out = { status: 'no_session' };
+    else if (!['1v1', '2v2'].includes(a.p_mode)) out = { status: 'bad' };
+    else if (p.lastMatch > now - 10000) out = { status: 'too_soon' };
+    else {
+      p.lastMatch = now;
+      const f = (a.p_mode === '1v1' ? '1' : '2');
+      if (a.p_won) p['w' + f] = (p['w' + f] || 0) + 1; else p['l' + f] = (p['l' + f] || 0) + 1;
+      const opp = a.p_opp;
+      if (a.p_mode === '1v1' && opp && opp !== p.id && Object.values(db.players).some((x) => x.id === opp)) {
+        const h = db.h2h[p.id + '>' + opp] ||= [0, 0];
+        h[a.p_won ? 0 : 1]++;
+      }
+      out = { status: 'ok', player: pj(p), h2h: opp ? h2h(p, opp) : null };
+    }
+  } else if (fn === 'pingpong_record_rally') {
+    const p = me();
+    if (!p) out = { status: 'no_session' };
+    else { p.best = Math.max(p.best || 0, a.p_rally | 0); out = { status: 'ok', player: pj(p) }; }
+  } else if (fn === 'pingpong_h2h') {
+    out = me() ? { status: 'ok', h2h: h2h(me(), a.p_opp) } : { status: 'no_session' };
   } else if (fn === 'pingpong_logout') {
     delete db.sessions[a.p_token];
     out = { status: 'ok' };

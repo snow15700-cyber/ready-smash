@@ -119,3 +119,11 @@ button.big.on { background: #8a7a66; box-shadow: 0 5px 0 #5f5243; }
 .me-name small { font-size: 13px; color: #8a7a66; margin-left: 4px; }
 .me-bar button.small { font-size: 13px; padding: 6px 9px; }
 .msg.ok { color: #2f9c56; }
+.me-stats { display: flex; gap: 6px; margin-top: -6px; }
+.me-stats span { flex: 1; text-align: center; background: #fff; border-radius: 10px; padding: 5px 2px; font-size: 13px; color: #8a7a66; white-space: nowrap; }
+.me-stats b { display: block; font-weight: normal; font-size: 17px; color: #2b2a33; }
+.me-stats span.guest { background: none; font-size: 13px; }
+.h2h { margin: -4px 0 0; text-align: center; font-size: 17px; color: #6b5c4a; }
+.h2h:empty { display: none; }
+.h2h b { font-weight: normal; color: #2b2a33; }
+.h2h em { font-style: normal; color: #ff6a2a; font-size: 20px; }

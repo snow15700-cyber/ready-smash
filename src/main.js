@@ -3,7 +3,7 @@ import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, setEcho } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
-import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin } from './account.js';
+import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, recordRally, getH2H } from './account.js';
 
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('c'));
@@ -57,6 +57,7 @@ const hud = {
     const me = game.mySide;
     hud.toast(win ? `승리! ${score[me]} : ${score[1 - me]}` : `패배… ${score[me]} : ${score[1 - me]}`, 2600);
     if (room) {
+      saveResult(room.mode, win);
       room.result = win ? `🏆 승리! ${score[me]} : ${score[1 - me]}` : `😢 패배 ${score[me]} : ${score[1 - me]}`;
       setTimeout(() => { if (room && room.inGame) backToRoom(); }, 2800);
     }
@@ -70,6 +71,7 @@ let room = null;
 const myNick = () => account.nick || '플레이어';
 
 function show(screen) {
+  if (screen === 'lobby') renderMe();
   for (const id of ['login', 'pin-change', 'lobby', 'join', 'room']) $(id).classList.toggle('hidden', id !== screen);
   $('hud').classList.toggle('hidden', screen !== 'hud');
 }
@@ -84,6 +86,9 @@ function stopGame() {
 }
 
 /* ───────── 혼자 하기 (AI 상대) ───────── */
+const GUEST_BEST_KEY = 'smash-ai-best'; // 손님의 최고 랠리 기록 (이 브라우저에만)
+const guestBest = () => { try { return +localStorage.getItem(GUEST_BEST_KEY) || 0; } catch { return 0; } };
+
 function startAI() {
   initAudio();
   playUI('click');
@@ -94,6 +99,12 @@ function startAI() {
     mode: 'ai',
     names: ['나', AI_NAME],
     hud,
+    // 최고 기록: 로그인했으면 서버, 손님이면 이 브라우저에 저장
+    best: account.loggedIn ? account.player.best_rally : guestBest(),
+    onBest: (r) => {
+      if (account.loggedIn) recordRally(r);
+      else try { localStorage.setItem(GUEST_BEST_KEY, r); } catch {}
+    },
     send: {
       toss: (side, t, x, slot) => match.toss(side, t, x, slot),
       swing: (side, t, dir, isSwing, slot) => match.swing(side, t, dir, isSwing, slot),
@@ -117,11 +128,12 @@ function enterRoom(code, host, mode = null) {
   playUI('click');
   const nick = myNick();
   leaveRoom();
-  const me = { id: myId, nick, host, at: Date.now(), ...(account.guest ? { guest: true } : {}), ...(host ? { mode } : {}) };
+  const me = { id: myId, nick, host, at: Date.now(), ...(account.loggedIn ? { pid: account.player.id } : { guest: true }), ...(host ? { mode } : {}) };
   room = {
     code, host, me, mode, members: [], hostM: host ? me : null,
     teams: {}, // id → { team, at }  (at = 팀을 고른 시각: 같은 자리를 동시에 누르면 먼저 누른 사람이 이김)
     inGame: false, players: null, result: '',
+    h2h: {}, // 상대 pid → { wins, losses } (1v1 상대 전적)
     pings: [], pingN: 0, offset: 0, sawHost: host, timer: 0,
   };
   room.link = joinRoom(code, me, {
@@ -391,8 +403,45 @@ function renderPing() {
   el.textContent = `연결 지연 ${Math.round((room.rtt / 2) * 1000)}ms`;
 }
 
+/* ───────── 전적 ───────── */
+// 경기가 끝나면 내 PC가 내 결과만 기록한다. 1v1이면 상대의 선수 번호(pid)도 함께 (상대 전적)
+async function saveResult(mode, win) {
+  if (!account.loggedIn) return;
+  const r0 = room;
+  const opp = mode === '1v1' ? oppMember() : null;
+  const r = await recordMatch(mode, win, opp?.pid);
+  if (r.status === 'ok') {
+    if (opp?.pid && r.h2h && r0) r0.h2h[opp.pid] = r.h2h;
+    if (room === r0) renderRoom();
+  } else if (r.status !== 'too_soon') hud.toast('전적을 저장하지 못했어요 (인터넷 연결 확인)', 2600);
+}
+
+// 1v1 방의 상대 (나 말고 다른 한 사람)
+const oppMember = () => (room ? room.members.find((m) => m.id !== myId) : null);
+
+function renderH2H() {
+  const el = $('room-h2h');
+  const opp = room.mode === '1v1' ? oppMember() : null;
+  if (!opp) { el.innerHTML = ''; return; }
+  const name = `<b>${esc(opp.nick)}</b>님`;
+  if (!account.loggedIn || !opp.pid) {
+    el.innerHTML = `⚔️ ${name}과의 상대 전적은 남지 않아요 (손님)`;
+    return;
+  }
+  const h = room.h2h[opp.pid];
+  if (h === undefined) {
+    room.h2h[opp.pid] = null; // 불러오는 중
+    getH2H(opp.pid).then((v) => { if (room) { room.h2h[opp.pid] = v || false; renderRoom(); } });
+  }
+  if (h === false) el.innerHTML = ''; // 불러오기 실패
+  else if (!h) el.innerHTML = `⚔️ ${name}과의 상대 전적 불러오는 중…`;
+  else if (h.wins + h.losses === 0) el.innerHTML = `⚔️ ${name}과는 첫 대결이에요!`;
+  else el.innerHTML = `⚔️ ${name}과의 상대 전적 <em>${h.wins}승 ${h.losses}패</em>`;
+}
+
 function renderRoom() {
   if (!room) return;
+  renderH2H();
   $('room-code').textContent = room.code;
   $('room-mode').textContent = room.mode ? `${room.mode} 방 · ${room.members.length}/${capacity()}명` : '방 정보를 불러오는 중…';
   $('room-result').textContent = room.result;
@@ -437,14 +486,18 @@ const LOGIN_MSG = {
 const waitText = (sec) => (sec >= 60 ? `${Math.ceil(sec / 60)}분` : `${sec}초`);
 let busy = false;
 
-function showLobby() {
+function renderMe() {
   $('me-name').innerHTML = account.guest
     ? `${esc(account.nick)}<small>손님</small>`
     : `${esc(account.nick)}<small>님</small>`;
   $('btn-pin').classList.toggle('hidden', account.guest);
   $('btn-logout').textContent = account.guest ? '로그인' : '로그아웃';
-  show('lobby');
+  const p = account.player;
+  $('me-stats').innerHTML = p
+    ? `<span>1v1 <b>${p.wins_1v1}승 ${p.losses_1v1}패</b></span><span>2v2 <b>${p.wins_2v2}승 ${p.losses_2v2}패</b></span><span>최장 랠리 <b>${p.best_rally}</b></span>`
+    : '<span class="guest">손님은 전적이 저장되지 않아요</span>';
 }
+const showLobby = () => show('lobby');
 
 function showLogin(msg = '') {
   $('login-form').classList.remove('hidden');
