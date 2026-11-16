@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>준비하시고, 스매시!</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏓</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div id="hud" class="hidden">
+    <div id="scoreboard"></div>
+    <div id="stats"></div>
+    <div id="hint"></div>
+    <div id="judge"></div>
+    <div id="toast"></div>
+    <button id="exit" class="small">로비로</button>
+  </div>
+
+  <div id="lobby" class="screen">
+    <div class="panel">
+      <h1>준비하시고,<br /><span>스매시!</span></h1>
+      <p class="sub">마우스 하나로 즐기는 ASMR 탁구</p>
+      <label class="field">닉네임
+        <input id="nick" maxlength="10" placeholder="예: 탁구왕" autocomplete="off" />
+      </label>
+      <button id="btn-wall" class="big">🏓 혼자 벽치기 연습</button>
+      <div class="row">
+        <button id="btn-create">방 만들기 (1v1)</button>
+        <button id="btn-join">코드로 입장</button>
+      </div>
+      <p class="note soon" id="mode-note"></p>
+      <div class="howto">
+        <b>치는 방법은 딱 하나!</b>
+        <div class="swing-demo">
+          <div class="mouse">🖱️<span class="drag">⬆</span></div>
+          <p><b>마우스를 누른 채로<br />위로 쓱 밀어 올리기</b></p>
+        </div>
+        <div class="dirs">
+          <span>↖<small>왼쪽으로</small></span><span>↑<small>가운데로</small></span><span>↗<small>오른쪽으로</small></span>
+        </div>
+        <ul>
+          <li>공이 오면 나타나는 <b>링이 작아져서 안쪽 원과 겹칠 때</b> 밀면 Perfect!</li>
+          <li>서브: 한 번 클릭하면 공이 떠요 → 떨어질 때 똑같이 밀기</li>
+          <li>캐릭터는 자동으로 움직여요. 밀지 않고 누르기만 하면 약한 블록</li>
+        </ul>
+      </div>
+      <p class="note">🎧 이어폰을 끼고 즐겨 보세요</p>
+    </div>
+  </div>
+
+  <div id="join" class="screen hidden">
+    <div class="panel">
+      <h2>코드로 입장</h2>
+      <p class="sub">친구에게 받은 4자리 방 코드를 입력하세요</p>
+      <input id="join-code" class="code-input" maxlength="4" placeholder="ABCD" autocomplete="off" spellcheck="false" />
+      <p id="join-msg" class="msg"></p>
+      <button id="btn-join-go" class="big">입장하기</button>
+      <button id="btn-join-cancel">뒤로</button>
+    </div>
+  </div>
+
+  <div id="room" class="screen hidden">
+    <div class="panel">
+      <p class="sub center">방 코드</p>
+      <div class="code-row"><div id="room-code" class="code">----</div><button id="btn-copy" class="small">복사</button></div>
+      <p id="room-result" class="result hidden"></p>
+      <ul id="room-members" class="members"></ul>
+      <p id="room-tip" class="note"></p>
+      <button id="btn-ready" class="big">준비!</button>
+      <button id="btn-room-leave">방 나가기</button>
+      <p id="room-ping" class="note tiny"></p>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
