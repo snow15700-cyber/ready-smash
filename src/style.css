@@ -127,3 +127,5 @@ button.big.on { background: #8a7a66; box-shadow: 0 5px 0 #5f5243; }
 .h2h:empty { display: none; }
 .h2h b { font-weight: normal; color: #2b2a33; }
 .h2h em { font-style: normal; color: #ff6a2a; font-size: 20px; }
+.offline { margin: 0; text-align: center; font-size: 15px; line-height: 1.5; color: #8a3a12; background: #ffe0cc; border: 2px dashed #ff8a3d; border-radius: 12px; padding: 8px 10px; }
+.offline b { font-weight: normal; color: #d2451c; }

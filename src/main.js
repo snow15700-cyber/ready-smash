@@ -16,6 +16,7 @@ if (IS_TEST) {
   document.body.appendChild(tag);
 }
 if (!ONLINE) $('mode-note').textContent = '⚠️ 서버 설정이 없어 로컬 테스트 모드예요 (같은 브라우저의 탭끼리만 연결)';
+if (!ONLINE) $('login-offline').classList.remove('hidden');
 
 const GRADE_TEXT = { perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK', miss: 'MISS' };
 let toastTimer = 0;
