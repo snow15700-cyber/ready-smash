@@ -261,7 +261,7 @@ const GUITAR_CHORDS = [
 let chordIdx = 0;
 
 // 소리마다 음량 맞추기 (기본 타구음과 비슷하게 들리게. 수세미는 일부러 작게)
-const SKIN_GAIN = { bread: 2.3, melon: 2.4, fish: 1.7, plastic: 1.4, sponge: 2.3, pan: 1.15, guitar: 1.9, keyboard: 3, mouse: 2.8, phone: 2.3, duck: 1.3, hammer: 1.7 };
+const SKIN_GAIN = { bread: 2.3, melon: 2.2, fish: 1.7, plastic: 1.4, sponge: 2.3, pan: 1.15, guitar: 1.9, keyboard: 1.6, mouse: 2.8, phone: 2.3, duck: 0.65, hammer: 1.05 };
 
 const HIT_SKINS = {
   // 식빵·바게트·도넛·와플·피자: 빵 '푸석'
@@ -274,16 +274,16 @@ const HIT_SKINS = {
   },
   // 수박: 과육을 누르는 촉촉한 '츕'
   melon(o, t, { k, p, grade }) {
-    // 수박 한 입 '사각': 아삭한 과육이 잘게 부서지는 소리 + 뒤따르는 촉촉한 즙
+    // 수박 한 입: 부드러운 '사각'(높은 소리 없이) + 촉촉한 즙
     const crunch = ctx.createBiquadFilter();
-    crunch.type = 'bandpass';
-    crunch.frequency.value = 1900 * p;
-    crunch.Q.value = 0.8;
+    crunch.type = 'lowpass';
+    crunch.frequency.value = 1500 * p;
+    crunch.Q.value = 0.5;
     crunch.connect(o);
-    burst(crunch, t, { type: 'highpass', f: 1200, q: 0.5, amp: 0.3 * k, a: 0.002, d: 0.018 });
-    crackle(crunch, t + 0.003, grade === 'perfect' ? 14 : 10, 0.07, 1300, 2700, 0.16 * k);
-    burst(o, t + 0.018, { type: 'lowpass', f: 1300, f2: 420, q: 3.5, amp: 0.16 * k, a: 0.01, d: 0.045, sweep: 0.09 });
-    mode(o, t, 160 * p, 0.12 * k, 0.018);
+    burst(crunch, t, { f: 1000, q: 0.6, amp: 0.26 * k, a: 0.004, d: 0.02 });
+    crackle(crunch, t + 0.003, grade === 'perfect' ? 12 : 8, 0.07, 700, 1500, 0.15 * k, 'bandpass', 2);
+    burst(o, t + 0.02, { type: 'lowpass', f: 1000, f2: 380, q: 3, amp: 0.15 * k, a: 0.012, d: 0.045, sweep: 0.09 });
+    mode(o, t, 150 * p, 0.14 * k, 0.02);
   },
   // 고등어: 젖은 생선 '철썩'
   fish(o, t, { k, p }) {
@@ -335,17 +335,30 @@ const HIT_SKINS = {
     mode(o, t, 110, 0.12 * k, 0.03); // 통 울림
     tick(o, t, 2400, 1.2, 0.1 * k, 0.003); // 피크
   },
-  // 키보드: 청축 '찰칵' (눌릴 때 또렷한 클릭 → 바닥 닿는 소리 → 뗄 때 작은 클릭)
-  keyboard(o, t, { k, bright }) {
-    const q = jitter(0.04);
-    tick(o, t, 4300 * q, 4, 0.34 * k, 0.0012); // 찰
-    mode(o, t, 3150 * q, 0.13 * k, 0.003);
-    mode(o, t, 5200 * q, 0.05 * k * bright, 0.0015);
-    tick(o, t + 0.006, 2600 * q, 3, 0.18 * k, 0.0012); // 칵 (클릭 재킷이 떨어지는 소리)
-    mode(o, t + 0.009, 420 * q, 0.18 * k, 0.009); // 바닥에 닿음
-    tick(o, t + 0.009, 1300 * q, 0.8, 0.1 * k, 0.003, 'lowpass');
-    tick(o, t + 0.07, 3800 * q, 4, 0.12 * k, 0.001); // 뗄 때
-    mode(o, t + 0.07, 2900 * q, 0.04 * k, 0.002);
+  // 키보드: 청축 '찰칵'
+  //  찰 = 클릭 재킷이 튀며 나는 맑고 높은 금속성 '틱'(4~7kHz 짧은 울림)
+  //  칵 = 약 18ms 뒤 키가 바닥에 부딪히는 단단한 플라스틱 소리(1~2kHz)
+  //  손을 떼면 작은 '찰'이 한 번 더
+  keyboard(o, t, { k }) {
+    const q = jitter(0.03);
+    const hp = ctx.createBiquadFilter(); // 찰: 낮은 소리는 빼고 또렷하게
+    hp.type = 'highpass';
+    hp.frequency.value = 2000;
+    hp.connect(o);
+    const chal = (w, a) => {
+      tick(hp, w, 5200 * q, 1.2, 0.55 * a, 0.0006);
+      mode(hp, w, 4650 * q, 0.2 * a, 0.006);
+      mode(hp, w, 6900 * q, 0.08 * a, 0.004);
+      mode(hp, w, 3300 * q, 0.1 * a, 0.004);
+    };
+    chal(t, k);
+    const w = t + 0.018; // 칵
+    tick(o, w, 1900 * q, 1.4, 0.4 * k, 0.0015);
+    mode(o, w, 1750 * q, 0.16 * k, 0.005);
+    mode(o, w, 1050 * q, 0.14 * k, 0.007);
+    mode(o, w, 380 * q, 0.1 * k, 0.01);
+    chal(t + 0.11, k * 0.45); // 뗄 때
+    mode(o, t + 0.113, 1500 * q, 0.05 * k, 0.004);
   },
   // 마우스: 또렷한 '딸깍' (퍼펙트는 더블클릭)
   mouse(o, t, { k, grade }) {
