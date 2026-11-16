@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>아이템 구경 — 준비하시고, 스매시!</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👕</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: #efe3cc; font-family: Jua, sans-serif; color: #2b2a33; overflow: hidden; }
+    #wrap { display: flex; height: 100%; }
+    #view { flex: 1; position: relative; min-width: 0; }
+    #c { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+    #title { position: absolute; left: 16px; top: 14px; font-size: 22px; }
+    #title small { display: block; font-size: 14px; opacity: 0.6; }
+    #now { position: absolute; left: 16px; bottom: 14px; font-size: 15px; background: rgba(255,255,255,0.7); padding: 8px 12px; border-radius: 12px; max-width: calc(100% - 32px); line-height: 1.5; }
+    #panel { width: 380px; background: #fffaf0; border-left: 3px solid #e2d3b6; display: flex; flex-direction: column; }
+    #tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px; border-bottom: 2px solid #efe3cc; }
+    #tabs button { flex: 1 0 30%; font: inherit; font-size: 15px; padding: 8px 4px; border: 2px solid #e2d3b6; background: #fff; border-radius: 12px; cursor: pointer; }
+    #tabs button.on { background: #ffd63d; border-color: #e0b400; }
+    #list { flex: 1; overflow-y: auto; padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-content: start; }
+    .card { font: inherit; text-align: left; border: 2px solid #e2d3b6; background: #fff; border-radius: 14px; padding: 10px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+    .card.on { border-color: #e0333c; background: #fff0ef; }
+    .card .ic { font-size: 26px; }
+    .card .nm { font-size: 16px; }
+    .card .pr { font-size: 13px; color: #8a7a5c; }
+    .card .pr.free { color: #2f9a4a; }
+    #bar { display: flex; gap: 8px; padding: 12px; border-top: 2px solid #efe3cc; }
+    #bar button { flex: 1; font: inherit; font-size: 15px; padding: 10px; border: 0; border-radius: 12px; cursor: pointer; background: #2b2a33; color: #fff; }
+    #bar button.light { background: #e2d3b6; color: #2b2a33; }
+    .note { font-size: 12px; opacity: 0.55; padding: 0 12px 10px; }
+    @media (max-width: 760px) {
+      #wrap { flex-direction: column; }
+      #view { flex: 0 0 48%; }
+      #panel { width: 100%; flex: 1; border-left: 0; border-top: 3px solid #e2d3b6; min-height: 0; }
+      #tabs button { flex-basis: 30%; font-size: 14px; }
+      #now { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="view">
+      <canvas id="c"></canvas>
+      <div id="title">👕 아이템 구경<small>드래그하면 캐릭터를 돌려 볼 수 있어요</small></div>
+      <div id="now"></div>
+    </div>
+    <div id="panel">
+      <div id="tabs"></div>
+      <div id="list"></div>
+      <div class="note">가격은 초안이에요. 지금은 구경만 하는 화면이라 저장되지 않아요.</div>
+      <div id="bar">
+        <button id="rand">🎲 랜덤 코디</button>
+        <button id="reset" class="light">처음으로</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/items-page.js"></script>
+</body>
+</html>
