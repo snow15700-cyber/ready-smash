@@ -117,6 +117,13 @@ export async function getH2H(oppId) {
   return r.status === 'ok' ? r.h2h : null;
 }
 
+/* ───────── 랭킹 (손님도 볼 수 있음) ───────── */
+// kind 'wins'(승수 합계) | 'rally'(혼자 하기 최장 랠리). 결과 [{ nick, value, rank, w1?, w2? }] 또는 null(실패)
+export async function getRanking(kind) {
+  const r = await call('pingpong_ranking', { p_kind: kind });
+  return Array.isArray(r) ? r : null;
+}
+
 /* ───────── 로컬 테스트용 가짜 서버 (서버 함수와 같은 규칙) ───────── */
 const LOCAL_DB = 'smash-local-db';
 function localServer(fn, a) {
@@ -182,6 +189,16 @@ function localServer(fn, a) {
     else { p.best = Math.max(p.best || 0, a.p_rally | 0); out = { status: 'ok', player: pj(p) }; }
   } else if (fn === 'pingpong_h2h') {
     out = me() ? { status: 'ok', h2h: h2h(me(), a.p_opp) } : { status: 'no_session' };
+  } else if (fn === 'pingpong_ranking') {
+    const rows = Object.values(db.players).map((p) => pj(p))
+      .map((p) => (a.p_kind === 'wins'
+        ? { nick: p.nick, value: p.wins_1v1 + p.wins_2v2, w1: p.wins_1v1, w2: p.wins_2v2 }
+        : { nick: p.nick, value: p.best_rally }))
+      .filter((x) => x.value > 0)
+      .sort((x, y) => y.value - x.value || (x.nick < y.nick ? -1 : 1))
+      .slice(0, 50);
+    rows.forEach((x, i) => { x.rank = i && rows[i - 1].value === x.value ? rows[i - 1].rank : i + 1; });
+    return rows;
   } else if (fn === 'pingpong_logout') {
     delete db.sessions[a.p_token];
     out = { status: 'ok' };
