@@ -41,7 +41,7 @@
   - 로컬 테스트에서 탭마다 다른 계정: 주소에 `?acct=2`(로그인 열쇠를 따로 보관).
 - 3단계 랭킹: `supabase/03_ranking.sql`의 `pingpong_ranking('wins'|'rally')`(로그인 없이 호출, 닉네임과 숫자만, 상위 50, 같은 기록은 공동 등수). 로비 '🏆 랭킹' 버튼 → `#rank` 화면(승수/최장 랠리 탭, 1~3위 메달, 내 줄 강조). `main.js`의 `showRank`.
 - 알려진 문제: Vercel 미리보기(test)에서 Supabase 환경 변수가 안 들어가 '테스트 모드' 경고가 뜬다(사용자가 Preview 체크했는데도 원인 미해결). 서버 기능은 main 배포에서 확인.
-- 새 SQL은 `05_...sql`처럼 새 파일로 추가. SQL은 로컬 PostgreSQL 16으로 먼저 시험할 수 있다(`service postgresql start`, `extensions` 스키마와 `anon` 역할을 만들어 흉내).
+- 새 SQL은 `06_...sql`처럼 새 파일로 추가. SQL은 로컬 PostgreSQL 16으로 먼저 시험할 수 있다(`service postgresql start`, `extensions` 스키마와 `anon` 역할을 만들어 흉내).
 
 ## 상점·꾸미기 (기획 확정, 아직 안 만듦)
 - 설계는 기획서 4장. 순서: ① 코인 벌기 → ② 상점·옷장 화면 → ③ 카테고리 하나씩(탁구채부터). 단계마다 사용자 테스트.
@@ -52,6 +52,7 @@
 - 아이템은 **뽑기(중복 가능)** + 원하는 건 **비싸게 직접 구매**(세부는 나중에). 개그 탁구채 22종 전부, 전설급 7종(프라이팬·기타·키보드·마우스·스마트폰·고무 오리·뿅망치)은 모델링·전용 타구음까지 정성껏.
 - **① 코인 벌기 완료(test에서 사용자 테스트 중)**: `supabase/04_coins.sql`(03 다음 실행). 표에 `coins`·`win_streak`·`daily_at`. 함수 `pingpong_finish_match`(전적+코인, 서버가 계산·보너스 횟수 0~3으로 자름, 3·6·9연승 +15)와 `pingpong_daily`(한국 날짜 하루 첫 접속 +20). 예전 `pingpong_record_match`는 main 배포본용으로 남겨 둠(DB를 test·main이 공유).
   - 화면: `game.stats.perfect3`(퍼펙트 3연속마다 +1)·`rally10`(랠리가 10이 될 때 +1, AI 제외) → `saveResult` → `finishMatch`(실패하면 `recordMatch`로 전적만). 대기실 `#room-coins`에 내역, 로비 `#me-coins`, 로그인 직후 `checkDaily`. 효과음 `playUI('coin')`.
+  - 혼자 하기 코인(사용자 확정, 1v1·2v2 분당 코인의 약 50%): **내가 친 4번마다 1코인**. `supabase/05_ai_coins.sql`의 `pingpong_ai_start`(시작 시각)·`pingpong_ai_rally(hits)`(랠리 끝마다, 서버가 경과 초+1번까지만 인정, 나머지 `ai_rem` 이월). 화면은 `Game`의 `onRally` → `aiRally`, HUD에 `🪙 +N`, 나갈 때 토스트.
 
 ## 사용자가 확정한 결정 (바꾸기 전에 사용자에게 확인)
 - 캐릭터: 흰색 몸통+흰색 머리만, 팔 없음, 탁구채만 떠 있음. **내 캐릭터는 반투명**(0.38), 상대·팀원은 불투명. **탁구채는 모두 빨강**(나중에 꾸미기로 색·모양(예: 프라이팬)을 바꿀 예정, `PADDLE_COLOR`).

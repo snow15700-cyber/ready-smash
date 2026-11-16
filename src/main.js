@@ -3,7 +3,7 @@ import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, setEcho } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
-import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, recordRally, getH2H, getRanking } from './account.js';
+import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, recordRally, getH2H, getRanking } from './account.js';
 
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('c'));
@@ -29,7 +29,7 @@ const hud = {
   },
   stats(st) {
     if (!game) return;
-    if (game.mode === 'ai') $('stats').innerHTML = `랠리<br><b>${st.rally}</b><br>최고 ${st.best} · Perfect ${st.perfects}`;
+    if (game.mode === 'ai') $('stats').innerHTML = `랠리<br><b>${st.rally}</b><br>최고 ${st.best} · Perfect ${st.perfects}${account.loggedIn ? `<br>🪙 +${aiCoins}` : ''}`;
     else $('stats').innerHTML = `랠리<br><b>${st.rally}</b>`;
   },
   hint(text) { $('hint').textContent = text; },
@@ -90,10 +90,14 @@ function stopGame() {
 const GUEST_BEST_KEY = 'smash-ai-best'; // 손님의 최고 랠리 기록 (이 브라우저에만)
 const guestBest = () => { try { return +localStorage.getItem(GUEST_BEST_KEY) || 0; } catch { return 0; } };
 
+let aiCoins = 0; // 이번 혼자 하기에서 받은 코인
+
 function startAI() {
   initAudio();
   playUI('click');
   stopGame();
+  aiCoins = 0;
+  aiStart();
   show('hud');
   game = new Game(world, {
     mySide: 0,
@@ -105,6 +109,14 @@ function startAI() {
     onBest: (r) => {
       if (account.loggedIn) recordRally(r);
       else try { localStorage.setItem(GUEST_BEST_KEY, r); } catch {}
+    },
+    // 랠리가 끝날 때마다 친 횟수만큼 코인 (4번에 1코인, 서버가 계산)
+    onRally: async (hits) => {
+      const g = game;
+      const got = await aiRally(hits);
+      if (!got) return;
+      aiCoins += got;
+      if (game === g) { playUI('coin'); hud.stats(game.stats); }
     },
     send: {
       toss: (side, t, x, slot) => match.toss(side, t, x, slot),
@@ -710,7 +722,11 @@ $('btn-copy').addEventListener('click', async () => {
 function exitGame() {
   playUI('click');
   if (room) { leaveRoom(); show('lobby'); }
-  else { stopGame(); show('lobby'); }
+  else {
+    stopGame();
+    show('lobby');
+    if (aiCoins) { hud.toast(`혼자 하기로 🪙 +${aiCoins} 코인`, 2400); aiCoins = 0; }
+  }
 }
 $('exit').addEventListener('click', exitGame);
 window.addEventListener('keydown', (e) => {

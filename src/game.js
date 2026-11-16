@@ -19,7 +19,7 @@ const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 export class Game {
   // authority: 이 PC가 경기를 계산하는지 (혼자 모드, 방장). 아니면 방장 이벤트를 받아 그리고 내 타격은 예측해서 먼저 보여준다
   // playerNames[side][slot]: 2v2 이름표용
-  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, best = 0, onBest = null }) {
+  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, best = 0, onBest = null, onRally = null }) {
     this.authority = authority;
     this.names = names;
     this.playerNames = playerNames;
@@ -52,6 +52,7 @@ export class Game {
     // 혼자 하기 최고 기록: 처음 값과 새 기록 저장은 main.js가 정한다(로그인 = 서버, 손님 = 브라우저)
     if (mode === 'ai') this.stats.best = best;
     this.onBest = onBest;
+    this.onRally = onRally; // 혼자 하기: 랠리가 끝날 때 내가 친 횟수 (코인)
     this.lastNow = performance.now() / 1000;
     this.tossX = 0;
     this.pendingHit = null; // 클릭 후 방향 판단을 기다리는 타격
@@ -333,6 +334,7 @@ export class Game {
         break;
       case 'rallyEnd': {
         const r = this.stats.rally;
+        this.onRally?.(r);
         if (r > this.stats.best) {
           this.stats.best = r;
           this.onBest?.(r);

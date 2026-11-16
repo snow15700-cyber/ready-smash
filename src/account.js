@@ -123,6 +123,20 @@ export async function claimDaily() {
   return r.coins || 0;
 }
 
+// 혼자 하기 코인 (supabase/05_ai_coins.sql): 시작할 때 aiStart, 랠리가 끝날 때마다 aiRally(내가 친 횟수)
+// 4번 칠 때마다 1코인. 결과 이번에 받은 코인 수
+export const AI_HITS_PER_COIN = 4;
+export async function aiStart() {
+  if (account.loggedIn) await call('pingpong_ai_start', { p_token: token() });
+}
+export async function aiRally(hits) {
+  if (!account.loggedIn || hits < 1) return 0;
+  const r = await call('pingpong_ai_rally', { p_token: token(), p_hits: hits });
+  if (r.status !== 'ok') return 0;
+  account.player = { ...EMPTY_STATS, ...r.player };
+  return r.coins || 0;
+}
+
 // 혼자 하기 최장 랠리 기록
 export async function recordRally(rally) {
   if (!account.loggedIn) return { status: 'guest' };
@@ -237,6 +251,22 @@ function localServer(fn, a) {
       const today = new Date(now + 9 * 3600e3).toISOString().slice(0, 10); // 한국 시간 날짜
       let got = 0;
       if (p.daily !== today) { p.daily = today; p.coins = (p.coins || 0) + 20; got = 20; }
+      out = { status: 'ok', coins: got, player: pj(p) };
+    }
+  } else if (fn === 'pingpong_ai_start') {
+    const p = me();
+    if (!p) out = { status: 'no_session' };
+    else { p.aiAt = now; out = { status: 'ok' }; }
+  } else if (fn === 'pingpong_ai_rally') {
+    const p = me();
+    if (!p) out = { status: 'no_session' };
+    else {
+      const allowed = p.aiAt ? Math.floor((now - p.aiAt) / 1000) + 1 : 0;
+      const total = (p.aiRem || 0) + Math.min(Math.max(a.p_hits | 0, 0), allowed, 1000);
+      const got = Math.floor(total / AI_HITS_PER_COIN);
+      p.aiRem = total % AI_HITS_PER_COIN;
+      p.aiAt = now;
+      p.coins = (p.coins || 0) + got;
       out = { status: 'ok', coins: got, player: pj(p) };
     }
   } else if (fn === 'pingpong_record_rally') {
