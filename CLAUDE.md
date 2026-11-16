@@ -68,10 +68,12 @@
   - 꾸미기 적용: `items.applyLook(char, equip)` → `char.setPaddle`. 방에서는 presence의 `look`(입장할 때의 장착)을 `looks()`로 모아 `Game`의 `looks[side][slot]`에. AI는 기본. 로비 배경 캐릭터도 내 장착.
   - 혼자 하기 코인(사용자 확정, 1v1·2v2 분당 코인의 약 50%): **내가 친 4번마다 1코인**. `supabase/05_ai_coins.sql`의 `pingpong_ai_start`(시작 시각)·`pingpong_ai_rally(hits)`(랠리 끝마다, 서버가 경과 초+1번까지만 인정, 나머지 `ai_rem` 이월). 화면은 `Game`의 `onRally` → `aiRally`, HUD에 `🪙 +N`, 나갈 때 토스트.
 
-- **몸 꾸미기 시안 (test에서 사용자 확인 중)**: 사용자 확정 = 한 벌씩 통째로, 품목 새로 정함(위트·귀여운 것), 곰 인형탈은 몸만(머리는 나중에 세트), 전설은 움직이는 효과 필수, 정성은 일반 < 고급 < 전설.
+- **몸 꾸미기 (test에서 사용자 테스트 중)**: 사용자 확정 = 한 벌씩 통째로, 품목 새로 정함(위트·귀여운 것), 곰 인형탈은 몸만(머리는 나중에 세트), 전설은 움직이는 효과 필수, 정성은 일반 < 고급 < 전설.
   - 29종: 일반 10(칠하기) · 고급 14(몸이 음식·동물로 변신, 소품) · 전설 5(영웅 망토·오리 튜브·미러볼·기사 갑옷·곰 인형탈, 효과). `src/outfits.js`의 `OUTFITS`·`PAINT`·`BUILD`, `makeOutfit(id, char)`.
   - 캐릭터: `char.setOutfit(o|null)`(흰 몸통 숨김), 전설 효과는 매 프레임 `char.tickOutfit(t, dt)`. 효과 메시·스프라이트는 `userData.fx`(반투명 설정 안 받음), 원래 반투명 재질은 `material.userData.baseOp`.
-  - 시안 보기 페이지 `outfits.html`(`src/outfits-page.js`, vite 빌드 입력에 포함). 아직 상점·DB·경기 연결 전.
+  - 시안 보기 페이지 `outfits.html`(`src/outfits-page.js`, vite 빌드 입력에 포함).
+  - 상점 연결: `supabase/09_bodies.sql`(08 다음, insert만). `items.js`에 `body_<id>`(`outfit` 필드)·기본 `body_none`(DEFAULTS), `applyLook`이 몸도 입힘, 목록 그림 `outfitImage`(탁구채와 같은 `snap`). `main.js` 루프 끝에서 보이는 캐릭터마다 `tickOutfit`. 대기실 이름표·VS 소개에 탁구채+몸 알약(`lookPills`), 발밑 빛 고리는 탁구채·몸 중 높은 등급(`topGrade`).
+  - 병아리: 사용자 요청으로 '동글동글' 두 덩이 몸 + 칠 때 날개 파닥·통 튐.
 
 ## 디자인 손보기 (진행 중, 로비부터 화면별로 — 사용자 확정)
 - 색감은 **지금의 따뜻한 주황 + 파랑 유지**. 색은 `style.css`의 `:root` 변수(`--orange`, `--blue`, `--paper`, `--cream` …)로 쓴다.

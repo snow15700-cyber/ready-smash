@@ -1102,71 +1102,98 @@ BUILD.cupcake = (root) => {
   stem.rotation.z = 0.5;
 };
 
-// 병아리: 노란 솜털 몸 + 작은 날개 + 엉덩이에 알껍데기
-BUILD.chick = (root) => {
-  skin(root, (g) => {
-    band(g, BY0, BY1, '#ffe14a');
+// 병아리: 통통 동글한 노란 솜털 몸(배가 볼록) + 짧은 날개 + 꼬리깃 + 엉덩이에 알껍데기
+BUILD.chick = (root, char) => {
+  const tex = canvasTex(1024, 512, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, '#ffe766'); gr.addColorStop(1, '#ffd23a');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
     const r = rng(5);
-    // 솜털 (짧은 곡선)
-    for (let i = 0; i < 1600; i++) {
-      const x = r() * TW, y = r() * TH;
-      g.strokeStyle = r() < 0.5 ? 'rgba(255,255,255,0.35)' : 'rgba(230,170,20,0.35)';
-      g.lineWidth = 2; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 3, y + 5, x + (r() - 0.5) * 8, y + 10); g.stroke();
+    for (let i = 0; i < 5000; i++) {
+      const x = r() * w, y = r() * h;
+      g.strokeStyle = r() < 0.55 ? 'rgba(255,255,255,0.4)' : 'rgba(235,170,20,0.3)';
+      g.lineWidth = 1.6; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 3, y + 4, x + (r() - 0.5) * 6, y + 9); g.stroke();
     }
-    // 볼 (배 쪽 연한 노랑)
-    const gr = g.createRadialGradient(FX, py(0.55), 0, FX, py(0.55), M(0.18));
-    gr.addColorStop(0, 'rgba(255,250,200,0.9)'); gr.addColorStop(1, 'rgba(255,250,200,0)');
-    g.fillStyle = gr; g.fillRect(0, 0, TW, TH);
-  }, undefined, 1.06);
-  // 솜털 뭉치 (몸 윤곽이 보송보송하게)
-  // 목둘레 보송한 깃털 목도리 + 가슴 털 뭉치
+    // 배: 크림색 동그라미 (앞 = 가운데)
+    const bg = g.createRadialGradient(w / 2, h * 0.68, 0, w / 2, h * 0.68, h * 0.3);
+    bg.addColorStop(0, 'rgba(255,250,215,1)'); bg.addColorStop(0.7, 'rgba(255,248,200,0.8)'); bg.addColorStop(1, 'rgba(255,248,200,0)');
+    g.fillStyle = bg; g.fillRect(w / 2 - h * 0.35, h * 0.2, h * 0.7, h * 0.75);
+    // 가슴 하트 털
+    heart(g, w / 2, h * 0.3, 18, 'rgba(255,190,40,0.6)');
+  });
+  const furM = lam('#ffffff', { map: tex });
+  const shape = new THREE.Group();
+  root.add(shape);
+  // 동글동글 두 덩이: 아래 큰 공(배) + 위 작은 공(가슴)
+  const pts = smoothPts([[0.0001, 0.04], [0.2, 0.06], [0.3, 0.17], [0.325, 0.34], [0.3, 0.5], [0.22, 0.62], [0.205, 0.7], [0.215, 0.8], [0.18, 0.91], [0.13, 0.99]], 60);
+  mesh(lathe(pts, 48), furM, 0, 0, 0, shape);
+  // 목둘레 보송 털 (동그란 털뭉치 링)
   const fluff = lam('#fff07a');
-  for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2;
-    const f = mesh(new THREE.ConeGeometry(0.035, 0.07, 8), fluff, Math.sin(a) * 0.15, 0.96, Math.cos(a) * 0.15, root);
-    f.rotation.set(Math.cos(a) * 1.9, 0, -Math.sin(a) * 1.9);
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2;
+    const f = mesh(new THREE.SphereGeometry(0.036, 10, 8), fluff, Math.sin(a) * 0.135, 0.975, Math.cos(a) * 0.135, shape);
+    f.scale.set(1, 0.75, 1);
   }
-  for (let i = 0; i < 3; i++) {
-    const f = mesh(new THREE.ConeGeometry(0.025, 0.06, 8), fluff, (i - 1) * 0.035, 0.78 - Math.abs(i - 1) * 0.02, -0.19, root);
-    f.rotation.set(-2.2, 0, (i - 1) * 0.4);
-  }
-  // 날개
+  // 날개: 동글 납작 (끝이 살짝 들림)
   const wingM = lam('#ffd22a');
+  const wings = [];
   for (const s of [-1, 1]) {
-    const w = mesh(new THREE.SphereGeometry(0.08, 14, 10), wingM, s * 0.2, 0.62, 0.02, root);
-    w.scale.set(0.35, 1, 0.75);
-    w.rotation.z = s * 0.5;
+    const grp = new THREE.Group();
+    grp.position.set(s * 0.31, 0.45, 0.02);
+    shape.add(grp);
+    const w = mesh(new THREE.SphereGeometry(0.1, 16, 12), wingM, s * 0.02, -0.06, 0, grp);
+    w.scale.set(0.3, 0.85, 0.7);
+    for (let k = 0; k < 3; k++) { // 날개 끝 깃털 세 갈래
+      const f = mesh(new THREE.SphereGeometry(0.03, 8, 6), wingM, s * 0.035, -0.14 - k * 0.006, -0.04 + k * 0.04, grp);
+      f.scale.set(0.5, 1, 0.8);
+    }
+    grp.rotation.z = s * 0.35;
+    wings.push(grp);
   }
-  // 꼬리 깃
+  // 꼬리깃 (뒤로 쏙)
   for (let k = -1; k <= 1; k++) {
-    const t = mesh(new THREE.ConeGeometry(0.025, 0.08, 8), wingM, k * 0.03, 0.62, 0.2, root);
-    t.rotation.set(1.2, 0, k * 0.3);
+    const t = mesh(new THREE.SphereGeometry(0.035, 10, 8), wingM, k * 0.04, 0.4 + Math.abs(k) * -0.02, 0.33, shape);
+    t.scale.set(0.7, 0.7, 1.6);
+    t.rotation.x = -0.6;
   }
-  // 알껍데기 (아래): 들쭉날쭉 위 테두리
+  // 알껍데기 (아래): 들쭉날쭉 테두리
   const shellTex = canvasTex(256, 128, (g, w, h) => {
     g.fillStyle = '#fffaf0'; g.fillRect(0, 0, w, h);
     const r2 = rng(2);
     for (let i = 0; i < 40; i++) circle(g, r2() * w, r2() * h, 2 + r2() * 3, 'rgba(210,190,150,0.4)');
   });
-  const pts = smoothPts([[0.05, 0.0], [0.17, 0.05], [0.23, 0.18], [0.245, 0.3]], 16);
-  const geo = lathe(pts, 48);
+  const sp = smoothPts([[0.05, 0.0], [0.22, 0.03], [0.31, 0.12], [0.335, 0.22]], 16);
+  const geo = lathe(sp, 48);
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) {
-    const y = p.getY(i);
-    if (y > 0.25) {
+    if (p.getY(i) > 0.2) {
       const a = Math.atan2(p.getX(i), p.getZ(i));
-      const zig = Math.abs(((a / (Math.PI * 2)) * 14 % 1 + 1) % 1 - 0.5) * 2; // 0~1 톱니
-      p.setY(i, 0.24 + zig * 0.09);
+      const zig = Math.abs((((a / (Math.PI * 2)) * 12) % 1 + 1) % 1 - 0.5) * 2;
+      p.setY(i, 0.19 + zig * 0.08);
     }
   }
   geo.computeVertexNormals();
-  mesh(geo, lam('#ffffff', { map: shellTex, side: THREE.DoubleSide }), 0, 0, 0, root);
-  // 발 (껍데기 밖으로 살짝 나옴)
+  mesh(geo, lam('#ffffff', { map: shellTex, side: THREE.DoubleSide }), 0, 0, 0, shape);
+  // 동글 주황 발
   for (const s of [-1, 1]) {
-    const f = mesh(new THREE.ConeGeometry(0.03, 0.08, 3), lam('#ff9a20'), s * 0.08, 0.02, -0.23, root);
-    f.rotation.set(-Math.PI / 2, 0, 0);
-    f.scale.set(1.4, 1, 0.4);
+    const f = mesh(new THREE.SphereGeometry(0.05, 12, 8), lam('#ff9a20'), s * 0.1, 0.02, -0.31, shape);
+    f.scale.set(1.2, 0.4, 1);
+    for (let k = -1; k <= 1; k++) {
+      const toe = mesh(new THREE.SphereGeometry(0.018, 8, 6), lam('#ff9a20'), s * 0.1 + k * 0.03, 0.018, -0.35, shape);
+      toe.scale.set(1, 0.6, 1.4);
+    }
   }
+  // 칠 때 날개를 파닥 + 몸이 통 튐
+  const hit = swingWatch(char);
+  let flap = 0, hop = 0, hopV = 0;
+  return (t, dt) => {
+    if (hit()) { flap = 1; hopV += 2.2; }
+    flap = Math.max(0, flap - dt * 2.5);
+    hopV += (-hop * 120 - hopV * 9) * dt;
+    hop += hopV * dt;
+    shape.scale.set(1 - hop * 0.15, 1 + hop * 0.25, 1 - hop * 0.15);
+    wings.forEach((w, i) => { w.rotation.z = (i ? 1 : -1) * (0.35 + Math.abs(Math.sin(t * 24)) * flap * 0.9 + Math.sin(t * 2) * 0.04); });
+  };
 };
 
 // 곰젤리: 반투명 빨간 젤리 곰 몸 (배·팔·다리), 설탕 반짝
