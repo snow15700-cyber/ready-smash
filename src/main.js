@@ -1206,10 +1206,12 @@ function loop() {
       world.team[side][0].setTag(null);
       world.team[side][1].group.visible = false;
     }
-    // 배경 랠리 소리: 로비 화면에서만, 카메라 자리에서 듣는 것처럼 작게
+    // 배경 랠리 소리: 로비·꾸미기 화면에서, 카메라 자리에서 듣는 것처럼 작게
+    // (좌우 소리 방향도 카메라를 따라 로비 각도 → 꾸미기 각도(정면)로 옮겨 간다)
     const cp = world.camera.position;
-    setListener([cp.x, cp.y, cp.z], [Math.cos(a), 0, -Math.sin(a)]);
-    lobbyDemo.update(now, world.chars, world, !$('lobby').classList.contains('hidden'));
+    setListener([cp.x, cp.y, cp.z], lerp3([Math.cos(a), 0, -Math.sin(a)], [1, 0, 0], t));
+    const rallySound = !$('lobby').classList.contains('hidden') || !$('dress').classList.contains('hidden');
+    lobbyDemo.update(now, world.chars, world, rallySound);
   }
   world.render();
   requestAnimationFrame(loop);
