@@ -35,7 +35,7 @@ export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, 
   const speed = (1 + speedLv * SPEED_STEP) * smashK;
   const v = planShot(from, side, kind === 'out' ? 'out' : grade, dir, s, serve, speed);
   const t0 = t + hold;
-  const out = simulate(from, v, t0, 'hit', { side, grade });
+  const out = simulate(from, v, t0, 'hit', { side, grade, smash: kind === 'smash' });
   return { from, v, t0, segs: out, speedLv, shotIdx, kind, next: findIdealHit(out, 1 - side) };
 }
 
@@ -43,7 +43,7 @@ export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, 
 // 공이 올 때마다 아래 확률로 어떻게 칠지 정한다. 가끔 BAD(약한 공)를 줘서 찬스볼 연습이 되게
 // smash = 내 찬스볼이 오면 스매시로 받아칠 확률, dir = 왼쪽/가운데/오른쪽으로 보낼 확률
 export const AI_NAME = '탁구왕 김제빵';
-export const AI = { perfect: 0.25, good: 0.45, block: 0.2, bad: 0.1, smash: 0.5, dir: [0.35, 0.3, 0.35] };
+export const AI = { perfect: 0.22, good: 0.42, block: 0.18, bad: 0.18, smash: 0.5, dir: [0.35, 0.3, 0.35] };
 const AI_DT = { perfect: [0, 0.02], good: [0.05, 0.09], bad: [0.11, 0.16], block: [0, 0.04] };
 
 function aiPlan(incoming) {
