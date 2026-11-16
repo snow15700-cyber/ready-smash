@@ -12,6 +12,8 @@ const PRE = 0.15;
 const RING = { minDist: 1.1, safe: 3, pad: 0.03 };
 // 찬스볼 신호음 간격(초): 칠 타이밍 3박 전부터 똑·똑·똑, 그 타이밍에 높은 '띵'
 const CUE_GAP = 0.3;
+// 몰입 연출(에코·어두워짐): 랠리 FOCUS.from회부터 서서히, FOCUS.to회에 최대. 점수가 나면 약 1초에 걸쳐 원래대로 (벽치기 제외)
+const FOCUS = { from: 6, to: 15, up: 0.6, down: 1 };
 const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 
 export class Game {
@@ -23,6 +25,8 @@ export class Game {
     this.playerNames = playerNames;
     this.offset = 0; // 방장 시계 - 내 시계 (초)
     this.net = { seed: 0, nextIdx: 0, rally: 0, incoming: null };
+    this.focus = 0; // 몰입 정도 (0~1)
+    this.focusRally = 0; // 몰입 연출 기준 랠리 수 (점수 나면 0)
     this.predicted = null;
     this.w = world;
     this.mySide = mySide;
@@ -194,6 +198,16 @@ export class Game {
     this.holdPos = null;
   }
 
+  // 몰입 연출: 랠리가 길어질수록 에코가 커지고 배경이 어두워진다. 천천히 따라가고, 점수가 나면 빠르게 돌아온다
+  updateFocus(dt) {
+    const r = this.mode === 'wall' ? 0 : this.focusRally;
+    const target = Math.max(0, Math.min(1, (r - FOCUS.from) / (FOCUS.to - FOCUS.from)));
+    const rate = target > this.focus ? FOCUS.up : FOCUS.down;
+    this.focus += Math.sign(target - this.focus) * Math.min(Math.abs(target - this.focus), rate * dt);
+    this.w.setFocus(this.focus);
+    A.setEcho(this.focus);
+  }
+
   // 찬스볼: 칠 타이밍(방장 시계 tHit)에 맞춰 똑·똑·똑·띵. 이미 지나간 박자는 건너뜀
   playCue(tHit) {
     const now = performance.now() / 1000 + this.offset;
@@ -234,6 +248,7 @@ export class Game {
         this.speedLv = 0;
         this.net.rally = 0;
         this.net.incoming = null;
+        this.focusRally = 0;
         this.predicted = null;
         this.hud.stats(this.stats);
         {
@@ -258,6 +273,7 @@ export class Game {
         this.phase = 'rally';
         this.net.nextIdx = (ev.idx ?? this.net.nextIdx) + 1;
         this.net.rally = ev.rally;
+        this.focusRally = ev.rally;
         this.net.incoming = ev.kind === 'chance' || ev.kind === 'smash' ? ev.kind : null;
         const mine = this.isMe(ev.side, ev.slot ?? 0);
         const wasPredicted = this.predicted && mine && Math.abs(this.predicted.t - ev.t) < 1e-6;
@@ -318,11 +334,13 @@ export class Game {
         break;
       }
       case 'point':
+        this.focusRally = 0;
         this.score = ev.score;
         this.hud.score(this.score, ev.deuce);
         A.playUI(ev.winner === me ? 'point' : 'lose');
         break;
       case 'gameOver':
+        this.focusRally = 0;
         this.phase = 'over';
         A.playUI(ev.winner === me ? 'win' : 'lose');
         this.hud.gameOver(ev.winner === me, ev.score);
@@ -337,6 +355,7 @@ export class Game {
     const me = this.mySide;
 
     this.decideHit(now);
+    this.updateFocus(dt);
     // 공
     if (this.holdPos) {
       w.setBall(this.holdPos);

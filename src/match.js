@@ -1,6 +1,6 @@
 // 경기 진행 (방장 PC 또는 혼자 모드에서만 실행되는 '기준' 로직)
 // 모든 결과는 emit(event)으로 알리고, 화면 쪽은 이벤트만 보고 그린다.
-import { simulate, findIdealHit, tossSegs, planShot, judge, ballPos, WIN, HOLD } from './physics.js';
+import { simulate, findIdealHit, tossSegs, planShot, judge, ballPos, rng, WIN, HOLD } from './physics.js';
 
 export const WIN_SCORE = 5;
 // 랠리 3회마다 공 속도 4%씩 증가 (최대 10단계 = 40%)
@@ -9,10 +9,10 @@ export const SPEED_MAX_LV = 10;
 
 // 찬스볼·스매시 (1v1·2v2만, 벽치기 제외)
 // 랠리가 CHANCE_RALLY회를 넘은 뒤 BAD로 친 공 = 찬스볼 (받는 사람에게 타이밍 소리를 들려줌)
-// 찬스볼을 PERFECT로 받아치면 스매시 (그 공만 SMASH_SPEED배 빠름)
+// 찬스볼을 PERFECT로 받아치면 스매시 (그 공만 SMASH_SPEED 범위의 랜덤 배수만큼 빠름)
 // 스매시를 어설프게(BAD, 또는 GOOD 범위 밖 블록) 받으면 아웃
 export const CHANCE_RALLY = 6;
-export const SMASH_SPEED = 1.2;
+export const SMASH_SPEED = [1.2, 1.4]; // 이 사이에서 랜덤 (seed로 정해서 모든 PC가 같은 값)
 export const SMASH_OUT = true;
 
 // 한 번의 타격 결과 계산. 방장과 상대 PC가 같은 입력이면 똑같은 결과가 나온다 (상대 PC의 예측용)
@@ -31,7 +31,8 @@ export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, 
     else if (incoming === 'chance' && grade === 'perfect') kind = 'smash';
     else if (grade === 'bad' && rallyNow > CHANCE_RALLY) kind = 'chance';
   }
-  const speed = (1 + speedLv * SPEED_STEP) * (kind === 'smash' ? SMASH_SPEED : 1);
+  const smashK = kind === 'smash' ? SMASH_SPEED[0] + rng((s ^ 0x5bd1e995) >>> 0)() * (SMASH_SPEED[1] - SMASH_SPEED[0]) : 1;
+  const speed = (1 + speedLv * SPEED_STEP) * smashK;
   const v = planShot(from, side, kind === 'out' ? 'out' : grade, dir, s, serve, speed);
   const t0 = t + hold;
   const out = simulate(from, v, t0, 'hit', { side, grade });

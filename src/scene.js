@@ -7,6 +7,10 @@ const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatSha
 // 카메라: 어깨 뒤 낮게 + 공 따라가기 + 타격 흔들림
 const CAM = { y: 1.5, back: 1.2, x: 0.3, lookY: 0.86, lookZ: 1.0, fov: 60, followChar: 0.75, followBall: 0.35, lerp: 7, shake: 0.05 };
 
+// 몰입 연출: 최대일 때 체육관 밝기를 이만큼 줄인다 (0.9 = 원래의 10%)
+const FOCUS_DARK = 0.9;
+const FOCUS_BG = new THREE.Color('#120f14');
+
 export function createWorld(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -29,7 +33,15 @@ export function createWorld(canvas) {
   sun.shadow.bias = -0.0005;
   scene.add(sun);
 
+  const nBefore = scene.children.length;
   buildGym(scene);
+  // 몰입 연출용: 체육관(벽·바닥·무대·현수막) 재질의 원래 색을 기억해 두고 setFocus로 어둡게
+  const envMats = [];
+  for (const o of scene.children.slice(nBefore)) {
+    if (o.material && !envMats.some((e) => e.m === o.material)) envMats.push({ m: o.material, c: o.material.color.clone() });
+  }
+  const bg0 = scene.background.clone();
+  let focusK = 0;
   buildTable(scene);
 
   const wall = buildWall();
@@ -92,6 +104,15 @@ export function createWorld(canvas) {
   return {
     renderer, scene, camera, chars, team, ball, shadow, ring, ringMove, aim, wall,
     shake: 0,
+    // 몰입 정도 k (0~1): 체육관을 어둡게 해서 선수·탁구대·공만 보이게
+    setFocus(k) {
+      if (Math.abs(k - focusK) < 0.003) return;
+      focusK = k;
+      const f = Math.pow(1 - FOCUS_DARK * k, 2.2); // 눈으로 보는 밝기 기준으로 줄이기
+      for (const e of envMats) e.m.color.copy(e.c).multiplyScalar(f);
+      scene.background.copy(bg0).lerp(FOCUS_BG, k);
+      scene.fog.color.copy(scene.background);
+    },
     kick(amount) { this.shake = Math.max(this.shake, amount); },
     // ballX: 공이 지금 있는 좌우 위치 (공 따라가기용)
     // charZ: 내 캐릭터가 테이블에서 떨어진 거리 (2v2에서 뒤로 물러나면 카메라도 같이)
