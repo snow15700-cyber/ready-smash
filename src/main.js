@@ -888,35 +888,12 @@ function needLogin() {
   return true;
 }
 
-// 미리보기 카메라 (x: 화면에서 캐릭터를 왼쪽으로 비키는 정도, rot: 캐릭터가 도는 각도)
-const PV = { x: 0.62, y: 1.12, back: 2.0, lookY: 0.92, rot: -0.7, sway: 0.2 };
-// 미리보기: 내 캐릭터를 카메라 쪽으로 돌려 세우고 천천히 흔든다
-function previewFrame(now) {
-  const c = world.team[0][0];
-  applyLook(c, preview.look);
-  c.group.visible = true;
-  c.group.position.set(0, 0, CHAR_Z);
-  // 경기 때처럼 등 뒤에서 본다 (탁구채 앞면이 카메라 쪽). 천천히 좌우로 흔들기
-  c.group.rotation.y = PV.rot + Math.sin(now * 0.9) * PV.sway;
-  c.setOpacity(1, 1);
-  c.setTag(null);
-  // 로비 랠리에서 휘두르던 팔·몸 자세를 처음 자세로 되돌린다 (탁구채 앞면이 카메라 쪽)
-  c.swingT = -1;
-  c.arm.rotation.set(0, 0, 0);
-  c.body.rotation.set(0, 0, 0);
-  c.body.position.y = 0;
-  world.team[0][1].group.visible = false;
-  for (const slot of [0, 1]) world.team[1][slot].group.visible = false;
-  const narrow = innerWidth < 760;
-  const ox = narrow ? 0.1 : PV.x; // 패널이 오른쪽에 있으니 캐릭터는 화면 왼쪽에
-  world.camera.position.set(ox, PV.y, CHAR_Z + PV.back);
-  world.camera.lookAt(ox, PV.lookY, CHAR_Z);
-  world.setFocus(0);
-  setEcho(0);
-  world.setBall([0, -1, 0], false);
-  world.ring.visible = false;
-  world.aim.visible = false;
-}
+// 꾸미기 카메라: 랠리하는 내 캐릭터의 등 뒤 가까이 (x: 패널을 피해 캐릭터를 화면 왼쪽으로 비키는 정도)
+// follow: 캐릭터가 좌우로 움직일 때 카메라가 따라가는 빠르기, blend: 로비↔꾸미기 카메라가 옮겨 가는 시간(초)
+const PV = { x: 0.75, y: 1.45, back: 2.7, lookY: 0.85, follow: 2.5, blend: 1.1 };
+const camBlend = { p: 0, x: 0, last: 0 }; // p: 0 = 로비 카메라, 1 = 꾸미기 카메라
+const ease = (t) => t * t * (3 - 2 * t);
+const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 const setMsg = (html, ok = false) => { $('dress-msg').innerHTML = html; $('dress-msg').classList.toggle('ok', ok); };
 // 아이템 고르기 = 캐릭터에 입혀 보기
 function select(id) {
@@ -1189,20 +1166,39 @@ function loop() {
   if (game) game.decideHit(now + game.offset);
   if (match) match.update(now);
   if (game) game.update(now + game.offset);
-  else if (preview) previewFrame(now);
   else {
     // 로비 배경: 두 캐릭터가 랠리를 주고받고, 카메라는 옆에서 천천히 흔들린다
+    // 꾸미기 화면에서도 랠리는 계속되고, 카메라만 내 캐릭터 등 뒤로 스르륵 옮겨 간다
     world.setFocus(0);
     setEcho(0);
+    const dt = Math.min(0.1, now - camBlend.last || 0.016);
+    camBlend.last = now;
     const L = LOBBY_CAM;
     const a = L.angle + Math.sin(now * L.speed) * L.sway;
-    world.camera.position.set(Math.sin(a) * L.dist, L.y, Math.cos(a) * L.dist);
+    const lobbyPos = [Math.sin(a) * L.dist, L.y, Math.cos(a) * L.dist];
+    world.camera.position.set(...lobbyPos);
     world.camera.lookAt(0, L.lookY, 0);
     // 메뉴가 왼쪽에 있으니 탁구대를 화면 오른쪽으로 비켜 보이게 (카메라를 옆으로 민다)
     if (innerWidth >= 760) world.camera.translateX(-L.shift * Math.min(1, innerWidth / innerHeight / 1.6));
+    const camL = world.camera.position.toArray();
+    // 시선도 같이 옮겨야 하니 로비 카메라가 보는 점을 구해 둔다 (translateX로 민 만큼 같이)
+    const lookL = [camL[0] - lobbyPos[0], L.lookY, camL[2] - lobbyPos[2]];
+    // 꾸미기 카메라: 내 캐릭터를 부드럽게 따라간다
+    const me = world.team[0][0];
+    camBlend.x += (me.group.position.x - camBlend.x) * (1 - Math.exp(-dt * PV.follow));
+    const ox = camBlend.x + (innerWidth < 760 ? 0.1 : PV.x);
+    const camD = [ox, PV.y, CHAR_Z + PV.back];
+    const lookD = [ox, PV.lookY, CHAR_Z];
+    const target = preview ? 1 : 0;
+    camBlend.p += Math.sign(target - camBlend.p) * Math.min(Math.abs(target - camBlend.p), dt / PV.blend);
+    const t = ease(camBlend.p);
+    if (t > 0) {
+      world.camera.position.set(...lerp3(camL, camD, t));
+      world.camera.lookAt(...lerp3(lookL, lookD, t));
+    }
     world.ring.visible = false;
     world.aim.visible = false;
-    applyLook(world.team[0][0], myEquip());
+    applyLook(world.team[0][0], preview ? preview.look : myEquip());
     applyLook(world.team[1][0], {});
     for (const side of [0, 1]) {
       world.team[side][0].group.visible = true;
