@@ -1,10 +1,35 @@
 // 해변: 모래사장 위 탁구대. 왼쪽(-x)으로 출렁이는 바다와 밀려왔다 빠지는 파도 거품,
-// 파라솔·선베드·비치볼·서핑보드·모래성, 야자수, 인명구조 망루(A팀 쪽 끝), 해변 매점(B팀 쪽 끝),
+// 파라솔·선베드·비치볼(가만히)·서핑보드·모래성, 야자수, 인명구조 망루(A팀 쪽 끝), 해변 매점(B팀 쪽 끝),
 // 바다 위 돛단배·부표, 하늘을 도는 갈매기
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { seeded, canvasTex, glowSprite, std, addBox, skyDome, textTex } from './arena-kit.js';
 
 const SHORE = -7.5; // 물가 (x)
+
+// 야자수 잎 하나: 잎줄기가 바깥(+x)으로 뻗었다가 늘어지고, 양옆에 작은 잎이 아래로 비스듬히
+const frondMats = {};
+const frondMat = (c) => frondMats[c] || (frondMats[c] = std(c, { flatShading: true, side: THREE.DoubleSide }));
+function frondGeo(L, lift) {
+  const pos = [];
+  const N = 16;
+  const rib = (k) => [L * k, (0.55 + lift) * Math.sin(k * Math.PI * 0.75) * L * 0.35 - k * k * L * 0.42, 0];
+  for (let i = 0; i < N; i++) {
+    const k0 = i / N, k1 = (i + 1) / N;
+    const a = rib(k0), b = rib(k1);
+    // 줄기 (얇은 띠)
+    pos.push(a[0], a[1], -0.03, b[0], b[1], -0.03, b[0], b[1], 0.03, a[0], a[1], -0.03, b[0], b[1], 0.03, a[0], a[1], 0.03);
+    const w = 0.62 * Math.sin(Math.min(1, k0 * 1.15) * Math.PI) * (L / 2.7) + 0.06; // 작은 잎 길이 (가운데가 길게)
+    for (const sd of [-1, 1]) {
+      const tip = [a[0] + L * 0.05, a[1] - w * 0.55, sd * w];
+      pos.push(a[0], a[1], 0, b[0], b[1], 0, ...tip);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
 
 function makePalm(rnd, h = 6) {
   const g = new THREE.Group();
@@ -18,15 +43,19 @@ function makePalm(rnd, h = 6) {
     seg.position.set(x, y + h / n / 2, 0); seg.rotation.z = -lean * (i / n);
     seg.castShadow = true; g.add(seg); y += h / n * 0.98;
   }
-  const leafM = std(0x3f9a3a, { flatShading: true, side: THREE.DoubleSide }), leafD = std(0x2f7f2e, { flatShading: true, side: THREE.DoubleSide });
+  // 잎: 활처럼 휘어 늘어지는 큰 잎줄기 + 양옆으로 촘촘한 작은 잎 (두 층 + 가운데 새순)
   const top = new THREE.Group(); top.position.set(x, y, 0); g.add(top);
-  for (let i = 0; i < 8; i++) {
-    const shape = new THREE.Shape();
-    shape.moveTo(0, 0); shape.quadraticCurveTo(1.2, 0.45, 2.6, -0.3); shape.quadraticCurveTo(1.2, -0.05, 0, 0);
-    const leaf = new THREE.Mesh(new THREE.ShapeGeometry(shape, 8), i % 2 ? leafM : leafD);
-    const pivot = new THREE.Group(); pivot.rotation.y = (i / 8) * Math.PI * 2 + rnd() * 0.3;
-    leaf.rotation.x = -Math.PI / 2 + 0.2; leaf.rotation.z = -0.35 - rnd() * 0.3;
-    leaf.castShadow = true; pivot.add(leaf); top.add(pivot);
+  const fronds = [[11, 0.35, 1, 0x3f9a3a], [9, -0.05, 0.9, 0x2f7f2e], [5, 0.9, 0.55, 0x58b84a]];
+  const rot = new THREE.Matrix4();
+  for (const [n, lift, len, col] of fronds) {
+    const geos = [];
+    for (let i = 0; i < n; i++) {
+      const fg = frondGeo(2.7 * len * (0.9 + rnd() * 0.2), lift - rnd() * 0.25);
+      fg.applyMatrix4(rot.makeRotationY((i / n) * Math.PI * 2 + rnd() * 0.35 + lift));
+      geos.push(fg);
+    }
+    const f = new THREE.Mesh(mergeGeometries(geos), frondMat(col)); // 한 덩어리로 (그리기 가볍게)
+    f.castShadow = true; top.add(f);
   }
   for (let i = 0; i < 3; i++) { const c = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), std(0x6b4a2a)); c.position.set(Math.cos(i * 2) * 0.18, -0.15, Math.sin(i * 2) * 0.18); top.add(c); }
   g.userData.top = top;
@@ -123,7 +152,7 @@ export function buildBeach() {
   for (let i = 0; i < 4; i++) { const p = makePalm(rnd, 7); p.position.set(-6 + i * 4, 4, rnd() * 4 - 2); island.add(p); }
   island.position.set(-230, -1, 70); root.add(island);
 
-  // ---------- 해변 소품: 파라솔·선베드·비치볼·서핑보드·모래성 ----------
+  // ---------- 해변 소품: 파라솔·선베드·비치볼(가만히)·서핑보드·모래성 ----------
   const umbrella = (x, z, c1, c2) => {
     const g = new THREE.Group();
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.3, 8), std(0xf4f4f4)); pole.position.y = 1.15; pole.castShadow = true; g.add(pole);
@@ -152,7 +181,7 @@ export function buildBeach() {
   lounger(4.6, 8.2, -Math.PI / 2, 0xe0333c);
   umbrella(-2.5, -11, 0x22c55e, 0xffffff);
   umbrella(5.5, -14, 0xec4899, 0xffffff);
-  // 비치볼 (공이 튀면 같이 통)
+  // 비치볼 (탁구대 옆에 가만히)
   const ballTex = canvasTex(256, 128, (g) => { const cs = ['#e0333c', '#ffffff', '#2b6cd9', '#ffd84a', '#22c55e', '#ffffff']; cs.forEach((c, i) => { g.fillStyle = c; g.fillRect(i * 43, 0, 43, 128); }); });
   const beachBall = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 14), new THREE.MeshLambertMaterial({ map: ballTex }));
   beachBall.position.set(-2.4, 0.22, 1.3); beachBall.castShadow = true; root.add(beachBall);
@@ -256,13 +285,6 @@ export function buildBeach() {
         g.rotation.set(0, -a, Math.sin(a) * 0.2 - 0.2);
         const f = Math.sin(t * 7 + ph) * 0.55;
         wings[0].rotation.z = -f; wings[1].rotation.z = f;
-      }
-      if (bounce && ball) beachBall.userData.hop = 0.35;
-      if (beachBall.userData.hop > 0) {
-        beachBall.userData.hop -= dt;
-        const k = beachBall.userData.hop / 0.35;
-        beachBall.position.y = 0.22 + Math.sin(k * Math.PI) * 0.12;
-        beachBall.rotation.x += dt * 3;
       }
     },
   };
