@@ -1,6 +1,8 @@
 // Three.js 로우폴리 카툰 체육관, 탁구대, 캐릭터
 import * as THREE from 'three';
 import { createFx } from './fx.js';
+import { makeBall, ballFx } from './balls.js';
+import { playCrack, playPeep, playRoar } from './audio.js';
 import { buildArena, arenaFromUrl, disposeArena } from './arenas.js';
 import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H, HIT_Z, sideSign } from './physics.js';
 
@@ -86,10 +88,24 @@ export function createWorld(canvas) {
   }));
   const chars = [team[0][0], team[1][0]];
 
-  // 공 + 잔상 + 그림자
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.028, 14, 10), new THREE.MeshLambertMaterial({ color: '#fffaf0', emissive: '#ff9a40', emissiveIntensity: 0.25 }));
-  ball.castShadow = true;
+  // 공 + 잔상 + 그림자. ball은 자리만 잡는 그룹이고, 안의 모양(ballModel)은 탁구공 꾸미기로 바뀐다 (balls.js)
+  const ball = new THREE.Group();
   scene.add(ball);
+  let ballModel = null, ballId = null, ballSmash = false;
+  const ballPrev = new THREE.Vector3(), ballVel = new THREE.Vector3();
+  const bounceQ = []; // 앞으로 튈 때 효과 { at: performance 초, p, smash, floorY }
+  function setBallSkin(id) {
+    id = id || 'white';
+    if (id === ballId) return;
+    ballId = id;
+    if (ballModel) {
+      ball.remove(ballModel);
+      ballModel.traverse((o) => { for (const mt of [].concat(o.material || [])) { mt.map?.dispose?.(); mt.emissiveMap?.dispose?.(); mt.dispose?.(); } });
+    }
+    ballModel = makeBall(id);
+    ball.add(ballModel);
+  }
+  setBallSkin(null);
   const trail = [];
   for (let i = 0; i < 7; i++) {
     const m = new THREE.Mesh(new THREE.SphereGeometry(0.024 - i * 0.002, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.28 - i * 0.035, depthWrite: false }));
@@ -130,6 +146,7 @@ export function createWorld(canvas) {
   let camInit = false;
   // 전설 탁구채 효과 (칠 때 튀는 그림 + 탁구채가 스스로 움직이는 연출)
   const fx = createFx(scene);
+  const ballBfx = ballFx(scene, fx); // 탁구공의 튈 때·스매시·알 깨짐 효과
   const fxPos = new THREE.Vector3();
   let fxLast = 0;
   let ballPrevY = 0, ballPrevVy = 0;
@@ -205,7 +222,9 @@ export function createWorld(canvas) {
       if (camera.fov !== P.fov) { camera.fov = P.fov; camera.updateProjectionMatrix(); }
       camera.lookAt(camLook);
     },
-    setBall(p, visible = true) {
+    // smash: 지금 공이 스매시인가 (전설 공의 스매시 꼬리 등)
+    setBall(p, visible = true, smash = false) {
+      ballSmash = smash;
       ball.visible = visible;
       ball.position.set(p[0], p[1], p[2]);
       trailHist.unshift([p[0], p[1], p[2]]);
@@ -224,6 +243,18 @@ export function createWorld(canvas) {
       shadow.material.opacity = Math.max(0.08, 0.4 - hgt * 0.35);
     },
     clearTrail() { trailHist.length = 0; },
+    // 탁구공 꾸미기: 방에서는 방장 것, 로비·혼자 하기는 내 것 (main.js 루프)
+    setBallSkin,
+    get ballSound() { return ballModel?.userData.sound || null; },
+    // 공이 delay초 뒤에 튄다 (game.js·lobbyDemo.js가 소리와 같은 세그먼트로 예약): 공의 튈 때 반응 + 효과
+    ballBounce(delay, p, smash, floor) {
+      bounceQ.push({ at: performance.now() / 1000 + Math.max(0, delay), p, smash, floorY: floor ? 0 : TY });
+    },
+    // 스매시로 득점: 알 공이면 깨지고 병아리·아기 용이 나온다 → true (부른 쪽이 공을 숨김)
+    hatch(pos, dir) {
+      return ballBfx.hatch(ballModel, pos, dir, TY, dir * HALF_L, { crack: playCrack, peep: playPeep, roar: playRoar });
+    },
+    clearHatch() { ballBfx.clearKid(); },
     render() {
       const t = performance.now() / 1000;
       const dt = Math.min(0.1, t - fxLast || 0.016);
@@ -235,6 +266,21 @@ export function createWorld(canvas) {
         const bounce = ball.visible && ballPrevVy < -0.0005 && vy > 0 ? 1 : 0;
         ballPrevVy = vy; ballPrevY = ball.position.y;
         arena.tick?.(t, dt, ball.visible ? ball.position : null, bounce);
+      }
+      // 탁구공: 스스로 움직임(굴러감·얼굴 방향·반짝이) + 튈 때 효과 + 스매시 꼬리
+      if (ballModel) {
+        ballVel.copy(ball.position).sub(ballPrev).divideScalar(dt);
+        if (ballVel.lengthSq() > 900) ballVel.set(0, 0, 0); // 공이 순간 이동(새 서브)하면 무시
+        ballPrev.copy(ball.position);
+        ballModel.visible = ball.visible;
+        ballModel.userData.tick(t, dt, { vel: ballVel, smash: ballSmash });
+        for (let i = bounceQ.length - 1; i >= 0; i--) {
+          const q = bounceQ[i];
+          if (t < q.at) continue;
+          bounceQ.splice(i, 1);
+          if (t - q.at < 0.3 && ball.visible) ballBfx.bounce(ballModel, q.p, q.smash, q.floorY);
+        }
+        ballBfx.frame(ballModel, ball.visible ? ball.position.toArray() : null, ballSmash && ball.visible, dt);
       }
       fx.update(dt);
       renderer.render(scene, camera);

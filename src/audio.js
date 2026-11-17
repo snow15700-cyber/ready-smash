@@ -424,14 +424,15 @@ const HIT_SKINS = {
   },
 };
 
-// 테이블 바운드음: 빠를수록 크고 밝게
-export function playTable(speed, pos, when) {
+// 테이블 바운드음: 빠를수록 크고 밝게. skin: 탁구공마다 다른 소리 (balls.js의 sound, 없으면 기본)
+export function playTable(speed, pos, when, skin = null) {
   if (!ctx) return;
   const t = at(when);
   const s = Math.max(0, Math.min(1, (speed - 1.5) / 5));
   const p = jitter(0.03);
   const amp = (0.35 + 0.65 * s) * jitter(0.04);
   const out = chain(t, pos, 1, true);
+  if (skin && BOUNCE_SKINS[skin]) return bounceSkin(skin, out, t, { s, amp, p, floor: false });
   const f = ctx.createBiquadFilter();
   f.type = 'lowpass';
   f.frequency.value = 2200 + 7000 * s;
@@ -443,14 +444,109 @@ export function playTable(speed, pos, when) {
   tick(f, t, 2700 * p, 1.2, 0.4 * amp, 0.004);
 }
 
+/* ───────────── 탁구공별 바운드음 (ASMR: 짧고 부드럽게, 계속 들어도 안 거슬리게) ─────────────
+   o = 출력, t = 시각, s = 빠르기(0~1), amp = 크기, p = 음높이 흔들림, floor = 바닥에 튐(더 먹먹하게) */
+const BOUNCE_GAIN = { jelly: 1.95, rubber: 1.3, peel: 2.2, tomato: 1.4, mochi: 1.5, tako: 2.3, eggshell: 2.4, billiard: 1.4, rock: 0.7, dragon: 1.75, sun: 1.45 };
+function bounceSkin(skin, out, t, a) {
+  const soft = ctx.createBiquadFilter();
+  soft.type = 'lowpass';
+  soft.frequency.value = a.floor ? 2200 : 3200 + 4500 * a.s;
+  const vol = ctx.createGain();
+  vol.gain.value = (BOUNCE_GAIN[skin] ?? 1) * (a.floor ? 0.8 : 1);
+  soft.connect(vol).connect(out);
+  BOUNCE_SKINS[skin](soft, t, a);
+}
+const BOUNCE_SKINS = {
+  // 눈알: 살짝 말랑한 젤리 '톡'
+  jelly(o, t, { amp, p }) {
+    mode(o, t, 820 * p, 0.32 * amp, 0.012, 0.18);
+    mode(o, t, 300 * p, 0.22 * amp, 0.02, 0.1);
+    burst(o, t, { type: 'lowpass', f: 1300 * p, f2: 500, q: 1.5, amp: 0.12 * amp, a: 0.003, d: 0.015, sweep: 0.03 });
+  },
+  // 스마일: 통통한 고무공 '통'
+  rubber(o, t, { amp, p }) {
+    mode(o, t, 430 * p, 0.42 * amp, 0.028, 0.12);
+    mode(o, t, 860 * p, 0.1 * amp, 0.012);
+    mode(o, t, 150 * p, 0.2 * amp, 0.03);
+    tick(o, t, 1400 * p, 0.8, 0.12 * amp, 0.003, 'lowpass');
+  },
+  // 귤: 껍질이 둔탁한 '톡'
+  peel(o, t, { amp, p }) {
+    mode(o, t, 620 * p, 0.32 * amp, 0.01, 0.06);
+    burst(o, t, { type: 'lowpass', f: 900 * p, q: 0.8, amp: 0.26 * amp, a: 0.002, d: 0.014 });
+    mode(o, t, 190 * p, 0.2 * amp, 0.018);
+    crackle(o, t + 0.002, 3, 0.02, 900, 1600, 0.05 * amp, 'bandpass', 1.5);
+  },
+  // 방울토마토: 탱글한 '퐁' (음이 살짝 올라감)
+  tomato(o, t, { amp, p }) {
+    mode(o, t, 640 * p, 0.38 * amp, 0.03, -0.28);
+    mode(o, t, 1300 * p, 0.08 * amp, 0.012, -0.2);
+    mode(o, t, 200 * p, 0.16 * amp, 0.02);
+    burst(o, t, { type: 'lowpass', f: 1500, q: 0.7, amp: 0.08 * amp, a: 0.002, d: 0.006 });
+  },
+  // 찹쌀떡: 쫀득 (낮고 끈적하게 늘어나는 소리)
+  mochi(o, t, { amp, p }) {
+    burst(o, t, { type: 'lowpass', f: 650 * p, f2: 260, q: 2.2, amp: 0.36 * amp, a: 0.008, d: 0.035, sweep: 0.07 });
+    chirp(o, t + 0.004, [[0, 250 * p], [0.06, 165 * p]], 0.16 * amp, 'sine', 0.03);
+    mode(o, t, 120 * p, 0.2 * amp, 0.03);
+  },
+  // 타코야끼: 따끈 말랑한 '폭'
+  tako(o, t, { amp, p }) {
+    burst(o, t, { type: 'lowpass', f: 950 * p, f2: 420, q: 1, amp: 0.34 * amp, a: 0.004, d: 0.028, sweep: 0.05 });
+    mode(o, t, 230 * p, 0.24 * amp, 0.024, 0.05);
+    crackle(o, t + 0.006, 3, 0.04, 500, 1000, 0.06 * amp, 'lowpass', 2);
+  },
+  // 계란: 속이 빈 단단한 껍데기 '톡' (가볍고 맑게)
+  eggshell(o, t, { amp, p }) {
+    mode(o, t, 1500 * p, 0.3 * amp, 0.008);
+    mode(o, t, 3100 * p, 0.1 * amp, 0.004);
+    mode(o, t, 640 * p, 0.14 * amp, 0.012); // 빈 속 울림
+    tick(o, t, 2400 * p, 1.3, 0.2 * amp, 0.003);
+  },
+  // 8번 당구공: 단단하고 맑은 '딱'
+  billiard(o, t, { amp, p }) {
+    mode(o, t, 2350 * p, 0.34 * amp, 0.011);
+    mode(o, t, 3900 * p, 0.12 * amp, 0.006);
+    mode(o, t, 1150 * p, 0.2 * amp, 0.008);
+    mode(o, t, 420 * p, 0.12 * amp, 0.012);
+    tick(o, t, 3200 * p, 1.6, 0.25 * amp, 0.003);
+  },
+  // 소행성: 운석이 떨어지듯 묵직한 '쿵-' (낮게 꺼지는 울림 + 퍼지는 먼지 + 튀는 자갈)
+  rock(o, t, { amp, p, s }) {
+    mode(o, t, 70 * p, 0.6 * amp, 0.09, 0.45);           // 땅이 울리는 낮은 쿵
+    mode(o, t, 140 * p, 0.3 * amp, 0.05, 0.3);
+    burst(o, t, { type: 'lowpass', f: 700 * p, f2: 160, q: 0.9, amp: 0.45 * amp, a: 0.002, d: 0.06, sweep: 0.12 }); // 충돌
+    burst(o, t + 0.02, { type: 'lowpass', f: 420, f2: 200, q: 0.5, amp: 0.16 * amp, a: 0.03, d: 0.12, sweep: 0.25 }); // 먼지 '스으'
+    crackle(o, t + 0.03, 8 + Math.round(s * 6), 0.22, 800, 2200, 0.06 * amp, 'bandpass', 1.4); // 자갈 후두두
+  },
+  // 드래곤 알: 단단한 알 껍데기 '톡' + 낮은 '화르륵'
+  dragon(o, t, { amp, p }) {
+    mode(o, t, 1150 * p, 0.28 * amp, 0.01);
+    mode(o, t, 2300 * p, 0.08 * amp, 0.005);
+    tick(o, t, 1800 * p, 1.2, 0.18 * amp, 0.003);
+    burst(o, t + 0.01, { type: 'bandpass', f: 500, f2: 1300, q: 0.6, amp: 0.13 * amp, a: 0.03, d: 0.07, sweep: 0.14 });
+    crackle(o, t + 0.02, 5, 0.14, 400, 900, 0.05 * amp, 'lowpass', 2);
+    mode(o, t, 110 * p, 0.15 * amp, 0.06);
+  },
+  // 미니 태양: '치익'(달군 팬에 물방울) + 따뜻한 울림
+  sun(o, t, { amp, p }) {
+    mode(o, t, 900 * p, 0.2 * amp, 0.01);
+    burst(o, t + 0.004, { type: 'bandpass', f: 2600, f2: 1700, q: 0.9, amp: 0.12 * amp, a: 0.006, d: 0.06, sweep: 0.18 });
+    crackle(o, t + 0.01, 6, 0.12, 1800, 3000, 0.035 * amp, 'bandpass', 1);
+    mode(o, t, 220 * p, 0.17 * amp, 0.14);
+    mode(o, t, 330 * p, 0.08 * amp, 0.11);
+  },
+};
+
 // 체육관 나무 바닥에 통통
-export function playFloor(speed, pos, when) {
+export function playFloor(speed, pos, when, skin = null) {
   if (!ctx) return;
   const t = at(when);
   const s = Math.max(0, Math.min(1, speed / 5));
   const p = jitter(0.04);
   const amp = (0.1 + 0.75 * s) * jitter(0.05);
   const out = chain(t, pos, 1.3);
+  if (skin && BOUNCE_SKINS[skin]) return bounceSkin(skin, out, t, { s, amp, p, floor: true });
   mode(out, t, 960 * p, 0.45 * amp, 0.02, 0.04);
   mode(out, t, 2200 * p, 0.18 * amp, 0.008);
   mode(out, t, 340 * p, 0.3 * amp, 0.03);
@@ -467,6 +563,63 @@ export function playNet(pos, when) {
 }
 
 // 서브 토스: 아주 작게
+// ── 알이 깨질 때 (balls.js의 hatch) ──
+// 껍데기가 '빠직' 깨지는 소리. kind: 'chick'(계란) | 'dragon'(드래곤 알: 더 묵직 + 불 '화르륵')
+export function playCrack(pos, kind = 'chick') {
+  if (!ctx) return;
+  const t = at();
+  const out = chain(t, pos, 1);
+  const soft = ctx.createBiquadFilter();
+  soft.type = 'lowpass'; soft.frequency.value = 6500;
+  const vol = ctx.createGain(); vol.gain.value = 4.5;
+  soft.connect(vol).connect(out);
+  const heavy = kind === 'dragon';
+  mode(soft, t, heavy ? 900 : 1400, 0.3, 0.01);
+  burst(soft, t, { type: 'bandpass', f: heavy ? 1300 : 2200, q: 0.9, amp: 0.3, a: 0.001, d: 0.012 });
+  crackle(soft, t + 0.004, heavy ? 10 : 8, 0.09, heavy ? 1200 : 1800, heavy ? 3200 : 4200, 0.12, 'bandpass', 1.2); // 조각이 바스락
+  if (heavy) {
+    mode(soft, t, 110, 0.3, 0.06, 0.3);
+    burst(soft, t + 0.02, { type: 'bandpass', f: 450, f2: 1400, q: 0.6, amp: 0.2, a: 0.05, d: 0.12, sweep: 0.25 });
+  }
+}
+// 털뭉치 병아리 '삐약' (두 음절, 작고 귀엽게)
+export function playPeep(pos) {
+  if (!ctx) return;
+  const t = at();
+  const out = chain(t, pos, 0.8);
+  const q = 1 + (Math.random() - 0.5) * 0.1;
+  for (const [dt, a, b, c] of [[0, 2600, 3500, 3000], [0.13, 3100, 3700, 2500]]) {
+    chirp(out, t + dt, [[0, a * q], [0.03, b * q], [0.09, c * q]], 0.17, 'sine', 0.025);
+    chirp(out, t + dt, [[0, a * 2 * q], [0.03, b * 2 * q], [0.09, c * 2 * q]], 0.022, 'sine', 0.025);
+  }
+}
+// 아기 용 '꺄오!' (작은 울음) + 불 뿜는 '화르륵'
+export function playRoar(pos) {
+  if (!ctx) return;
+  const t = at();
+  const out = chain(t, pos, 1);
+  const o = ctx.createOscillator();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(420, t);
+  o.frequency.exponentialRampToValueAtTime(760, t + 0.08);
+  o.frequency.exponentialRampToValueAtTime(380, t + 0.3);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.22, t + 0.03);
+  g.gain.setValueAtTime(0.22, t + 0.2);
+  g.gain.linearRampToValueAtTime(0, t + 0.32);
+  const mix = ctx.createGain();
+  for (const [f, qq, k] of [[800, 4, 1], [1500, 5, 0.6], [2600, 6, 0.25]]) {
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = qq;
+    bp.frequency.setValueAtTime(f * 0.8, t); bp.frequency.linearRampToValueAtTime(f, t + 0.1);
+    const kg = ctx.createGain(); kg.gain.value = k;
+    g.connect(bp).connect(kg).connect(mix);
+  }
+  o.connect(g); mix.connect(out);
+  o.start(t); o.stop(t + 0.35);
+  burst(out, t + 0.08, { type: 'bandpass', f: 500, f2: 1500, q: 0.6, amp: 0.3, a: 0.06, d: 0.15, sweep: 0.3 });
+}
+
 export function playToss(pos) {
   if (!ctx) return;
   const t = at();

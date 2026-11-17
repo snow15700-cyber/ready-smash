@@ -53,11 +53,12 @@ export function createLobbyDemo() {
       played++;
       if (ahead < -0.1) continue;
       if (s.ev === 'hit') world.hitFx(chars[s.side], s.p, s.grade); // 전설 탁구채 효과는 소리가 꺼져 있어도 보인다
+      if (s.ev === 'table' || s.ev === 'floor') world.ballBounce(Math.max(0, ahead), s.p, false, s.ev === 'floor'); // 탁구공 튈 때 효과
       if (!on) continue;
       const when = A.audioNow() + Math.max(0, ahead);
       if (s.ev === 'hit') A.playHit(s.grade, s.p, when, s.sound);
-      else if (s.ev === 'table') A.playTable(s.speed, s.p, when);
-      else if (s.ev === 'floor') A.playFloor(s.speed, s.p, when);
+      else if (s.ev === 'table') A.playTable(s.speed, s.p, when, world.ballSound);
+      else if (s.ev === 'floor') A.playFloor(s.speed, s.p, when, world.ballSound);
       else if (s.ev === 'net') A.playNet(s.p, when);
     }
   }

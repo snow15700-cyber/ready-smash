@@ -326,6 +326,8 @@ export class Game {
         break;
       case 'serveReady':
         this.phase = 'serve';
+        this.smashWatch = null;
+        this.hatched = null;
         this.server = ev.server;
         this.turn = ev.turn ?? 0;
         this.segs = null;
@@ -372,6 +374,8 @@ export class Game {
         if (!mine) this.charOf(ev.side, ev.slot ?? 0).swingT = performance.now() / 1000;
         this.turn = ev.turn ?? (this.turn + 1) % this.order.length;
         const next = findIdealHit(this.segs, 1 - ev.side);
+        if (this.hatched) { this.w.clearHatch(); this.hatched = null; } // 알이 깨진 뒤에 받아쳤다는 결과가 옴 → 되돌림
+        this.smashWatch = ev.kind === 'smash' && next ? { segs: this.segs, t: next.t } : null;
         this.expect = next ? { ...next, slot: this.order[this.turn].slot, whiffed: false } : null;
         const toMe = this.expect && this.isMe(this.expect.side, this.expect.slot);
         if (!mine && toMe) this.announceTurn(false);
@@ -451,7 +455,8 @@ export class Game {
     if (this.holdPos) {
       w.setBall(this.holdPos);
     } else if (this.segs) {
-      w.setBall(ballPos(this.segs, now));
+      this.checkHatch(now);
+      w.setBall(ballPos(this.segs, now), this.hatched !== this.segs, !!this.segs[0]?.smash);
       this.scheduleSounds(now);
     } else if (this.phase === 'serve') {
       const p = this.tossPos(this.server);
@@ -558,10 +563,27 @@ export class Game {
       if (ahead < -0.25) continue; // 너무 지난 소리는 생략 (네트워크로 늦게 온 소리는 0.25초까지 바로 재생)
       const when = A.audioNow() + Math.max(0, ahead);
       if (s.ev === 'hit') { A.playHit(s.grade, s.p, when, s.sound); if (s.by) this.w.hitFx(s.by, s.p, s.grade); }
-      else if (s.ev === 'table') A.playTable(s.speed, s.p, when);
-      else if (s.ev === 'floor') A.playFloor(s.speed, s.p, when);
+      else if (s.ev === 'table' || s.ev === 'floor') {
+        const skin = this.w.ballSound; // 방장(또는 내)이 장착한 탁구공의 바운드음
+        if (s.ev === 'table') A.playTable(s.speed, s.p, when, skin);
+        else A.playFloor(s.speed, s.p, when, skin);
+        this.w.ballBounce(Math.max(0, ahead), s.p, !!segs[0]?.smash, s.ev === 'floor');
+      }
       else if (s.ev === 'net') A.playNet(s.p, when);
     }
+  }
+
+  // 스매시로 득점: 받는 사람이 놓쳐 공이 몸을 지나가면(받을 수 있는 마지막 순간 뒤) 알 공은 깨진다 (보기만, 판정과 무관)
+  // 방장 결과보다 먼저 보여 주므로, 늦게 '받아쳤다'는 결과가 오면 'shot'에서 되돌린다
+  checkHatch(now) {
+    const h = this.smashWatch;
+    if (!h || h.done || this.segs !== h.segs || now < h.t + WIN_LATE.bad + HOLD + 0.03) return;
+    h.done = true;
+    if (this.predicted || this.pendingHit) return; // 누군가 받아치는 중
+    const p = ballPos(this.segs, now);
+    const v = ballPos(this.segs, now + 0.01);
+    const dir = Math.sign(v[2] - p[2]) || 1;
+    if (this.w.hatch(p, dir)) this.hatched = this.segs;
   }
 }
 

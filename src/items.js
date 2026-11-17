@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { fxTex } from './fx.js';
 import { OUTFITS, makeOutfit } from './outfits.js';
+import { BALLS, makeBall } from './balls.js';
 
 // 상점 아이템 목록 (기획서 4장). 이름·모양은 여기, 뽑기·구매 규칙은 서버(supabase/06_shop.sql)가 정한다.
 // ⚠️ 아이템을 추가·변경하면 06_shop.sql의 pingpong_items 목록(insert)도 똑같이 고쳐야 한다.
@@ -31,11 +32,11 @@ export const CATS = {
   trail: { name: '궤적', pool: 'char' },
   table: { name: '탁구대', pool: 'arena' },
   bg: { name: '배경', pool: 'arena', ready: true },
-  ball: { name: '탁구공', pool: 'arena' },
+  ball: { name: '탁구공', pool: 'arena', ready: true },
 };
 
 // 기본 아이템 (카테고리마다 하나, 장착 안 했을 때 이것)
-export const DEFAULTS = { paddle: 'paddle_red', body: 'body_none', bg: 'bg_gym' };
+export const DEFAULTS = { paddle: 'paddle_red', body: 'body_none', bg: 'bg_gym', ball: 'ball_white' };
 
 // model: 모양이 다른 탁구채(아래 PADDLE_MODELS). 없으면 기본 탁구채에 color만 바꾼다
 const paddle = (id, name, grade, color, extra = {}) => ({ id, cat: 'paddle', name, grade, color, ...extra });
@@ -89,6 +90,9 @@ export const ITEMS = [
   { id: 'bg_picnic', cat: 'bg', name: '소풍길', grade: 'rare', arena: 'picnic' },
   { id: 'bg_beach', cat: 'bg', name: '해변', grade: 'rare', arena: 'beach' },
   { id: 'bg_bakery', cat: 'bg', name: '빵집', grade: 'rare', arena: 'bakery' },
+  // 탁구공 (경기장 뽑기). ball = balls.js의 BALLS id, sound = 바운드음(audio.js의 BOUNCE_SKINS). 방에서는 방장 것이 모두에게 보인다
+  { id: 'ball_white', cat: 'ball', name: '흰색', grade: 'default', ball: 'white' },
+  ...BALLS.map((b) => ({ id: 'ball_' + b.id, cat: 'ball', name: b.name, grade: b.grade, ball: b.id, ...(b.sound ? { sound: b.sound } : {}), ...(b.hatch ? { hatch: b.hatch } : {}) })),
 ];
 for (const it of ITEMS) it.pool = CATS[it.cat].pool;
 export const ITEM = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
@@ -1264,12 +1268,34 @@ export function outfitImage(it, px = 128) {
   return thumbs[key];
 }
 
+// 탁구공은 비스듬히 내려다본 3D 모양 (전설의 반짝이 그림은 빼고 공만)
+export function ballImage(it, px = 128) {
+  const key = it.id + '/' + px;
+  if (thumbs[key] != null) return thumbs[key];
+  try {
+    const b = makeBall(it.ball);
+    b.rotation.x = 0.3;
+    const zero = new THREE.Vector3();
+    for (let i = 0; i < 10; i++) b.userData.tick(1 + i / 30, 1 / 30, { vel: zero, smash: false });
+    b.traverse((o) => { if (o.isSprite) o.visible = false; });
+    thumbs[key] = snap(b, px);
+  } catch {
+    thumbs[key] = '';
+  }
+  return thumbs[key];
+}
+
 // 배경 그림: public/arenas/<arena>.jpg (경기 화면을 찍어 둔 것)
 const ARENA_IMG = (import.meta.env?.BASE_URL || '/') + 'arenas/';
 export const arenaOf = (look) => equipped(look, 'bg').arena;
+export const ballOf = (look) => equipped(look, 'ball').ball;
 
 export function swatch(it) {
   if (it.cat === 'bg') return `<img class="sw img bg" src="${ARENA_IMG}${it.arena}.jpg" alt="" />`;
+  if (it.cat === 'ball') {
+    const src = ballImage(it);
+    if (src) return `<img class="sw img" src="${src}" alt="" />`;
+  }
   if (it.cat === 'body') {
     const src = outfitImage(it);
     if (src) return `<img class="sw img" src="${src}" alt="" />`;

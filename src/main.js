@@ -3,12 +3,12 @@ import { sideSign } from './physics.js';
 import { createLobbyDemo, LOBBY_CAM } from './lobbyDemo.js';
 import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
-import { initAudio, playUI, playHit, setEcho, setQuiet, setListener } from './audio.js';
+import { initAudio, playUI, playHit, playTable, setEcho, setQuiet, setListener } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
 import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, newMatchId, matchJoin, matchFinish, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking, checkAch, setTitle, myTitle, matchAch, matchPeople, aiAch } from './account.js';
 import { ACHS, ACH, ACH_CATS, REWARD, titleText } from './achievements.js';
 
-import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLook, swatch, equipped, arenaOf, poolOpen } from './items.js';
+import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLook, swatch, equipped, arenaOf, ballOf, poolOpen } from './items.js';
 
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('c'));
@@ -600,8 +600,9 @@ function renderRoom() {
   renderStageLabels();
   $('room-hint').textContent = room.teams[myId] ? '🏓 화면을 누른 채 위로 밀면 연습 스윙!' : '👇 아래 빈 칸을 눌러 팀을 골라 주세요';
   // 배경은 방장 것이 모두에게 보인다 (방장이 바꾸면 다음 입장부터)
-  const bgIt = equipped(room.hostM?.look, 'bg');
-  $('room-bg').textContent = `🏟️ ${bgIt.name} · ${room.host ? '내 배경' : '방장 배경'}`;
+  const bgIt = equipped(room.hostM?.look, 'bg'), ballIt = equipped(room.hostM?.look, 'ball');
+  const ballTxt = ballIt.grade === 'default' ? '' : ` · ⚪ ${ballIt.name}`; // 탁구공도 방장 것
+  $('room-bg').textContent = `🏟️ ${bgIt.name}${ballTxt} · ${room.host ? '내 꾸미기' : '방장 꾸미기'}`;
 
   const full = room.mode && isFull();
   $('btn-start').classList.toggle('hidden', !room.host);
@@ -991,12 +992,15 @@ function renderDress() {
   renderSpot();
 }
 
-// 카테고리 칩 (아이템이 아직 없는 카테고리는 '곧')
+// 카테고리 칩: 첫 줄 = 캐릭터(탁구채·몸·머리·궤적), 둘째 줄 = 경기장(배경·탁구공·탁구대) (사용자 확정)
+// 아이템이 아직 없는 카테고리는 흐리게 잠금 (글자 '곧'은 안 씀)
+const CHIP_ROWS = [['paddle', 'body', 'head', 'trail'], ['bg', 'ball', 'table']];
 function renderChips() {
-  $('cat-chips').innerHTML = Object.entries(CATS).map(([cat, info]) => {
-    const ready = ITEMS.some((i) => i.cat === cat);
-    return `<button class="${cat === closetCat ? 'on' : ''}" data-cat="${cat}" ${ready ? '' : 'disabled'}>${CAT_ICON[cat] || ''} ${info.name}${ready ? '' : '<small>곧</small>'}</button>`;
-  }).join('');
+  const has = (cat) => ITEMS.some((i) => i.cat === cat);
+  $('cat-chips').innerHTML = CHIP_ROWS.map((row) => '<div class="chip-row">' + row.map((cat) => {
+    const ready = has(cat);
+    return `<button class="${cat === closetCat ? 'on' : ''}" data-cat="${cat}" ${ready ? '' : 'disabled'}>${CAT_ICON[cat] || ''} ${CATS[cat].name}</button>`;
+  }).join('') + '</div>').join('');
 }
 
 // 아이템 카드: 가진 것 먼저(없는 건 🔒 흐리게). 없는 건 '크게 보기' 카드에서 사기
@@ -1024,7 +1028,8 @@ function renderSpot() {
   $('spot-grade').textContent = gradeName(it.grade);
   $('spot-name').textContent = it.name;
   const status = isOn ? '장착 중' : have ? '가지고 있어요' : '입어 보는 중';
-  const snd = it.sound ? ' · 🔊 특별한 소리' : ''; // 소리 이름은 보여 주지 않는다 (사용자 결정)
+  const snd = (it.sound ? ' · 🔊 특별한 소리' : '') // 소리 이름은 보여 주지 않는다 (사용자 결정)
+    + (it.hatch ? ' · ✨ 스매시 득점 시 특별한 효과' : ''); // 계란·드래곤 알: 깨지고 병아리·아기 용
   $('spot-desc').textContent = status + snd;
   let acts = '';
   if (isOn) acts += '<span class="pill">✓ 장착 중</span>';
@@ -1039,7 +1044,7 @@ function renderSpot() {
     };
     acts += b('coins', '🪙', g.buy, p.coins ?? 0) + b('pieces', '🧩', g.pieces, p.pieces ?? 0);
   }
-  if (it.cat === 'paddle') acts += '<button class="small" data-act="sound" title="소리 들어 보기">🔊</button>';
+  if (it.cat === 'paddle' || it.cat === 'ball') acts += '<button class="small" data-act="sound" title="소리 들어 보기">🔊</button>';
   $('spot-acts').innerHTML = acts;
 }
 
@@ -1213,6 +1218,7 @@ $('spot-acts').addEventListener('click', (e) => {
   const it = selId ? ITEM[selId] : equipped(myEquip(), closetCat);
   if (b.dataset.buy) doBuy(b.dataset.buy, b.dataset.pay);
   else if (b.dataset.act === 'equip') { playUI('click'); doEquip(it); }
+  else if (b.dataset.act === 'sound' && it.cat === 'ball') { initAudio(); playTable(4.5, null, null, it.sound || null); } // 탁구공: 튀는 소리
   else if (b.dataset.act === 'sound') { initAudio(); playHit('perfect', null, null, it.sound || null); world.hitFx(world.team[0][0], null, 'perfect'); }
 });
 
@@ -1652,7 +1658,10 @@ function loop() {
   loop.last = now;
   for (const side of world.team) for (const c of side) if (c.group.visible) c.tickOutfit(now, odt);
   // 배경: 방(대기실·경기)에서는 방장이 장착한 배경을 모두에게, 그 밖(로비·꾸미기·혼자 하기)은 내 것(입어 보는 중이면 그것)
-  world.setArena(arenaOf(room ? room.hostM?.look : preview && !game ? preview.look : myEquip()));
+  const arenaLook = room ? room.hostM?.look : preview && !game ? preview.look : myEquip();
+  world.setArena(arenaOf(arenaLook));
+  world.setBallSkin(ballOf(arenaLook)); // 탁구공도 배경처럼: 방에서는 방장 것
+
   world.render();
   requestAnimationFrame(loop);
 }
