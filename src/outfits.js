@@ -1431,8 +1431,8 @@ BUILD.cape = (root, char) => {
   mesh(geo, outM, 0, 0, 0, capeRoot);
   mesh(geo, inM, 0, 0, 0, capeRoot);
   // 세운 깃: 목 뒤를 감싸며 위로 벌어짐 (바깥 빨강·안 금색)
-  const collarGeo = new THREE.CylinderGeometry(0.215, 0.15, 0.09, 32, 1, true, Math.PI / 2 - 1.05 + Math.PI, 2.1);
-  collarGeo.rotateY(Math.PI);
+  // CylinderGeometry의 각도 0 = +z(등) 쪽. 가운데가 목 뒤에 오도록 -1.05 ~ +1.05
+  const collarGeo = new THREE.CylinderGeometry(0.215, 0.15, 0.09, 32, 1, true, -1.05, 2.1);
   mesh(collarGeo, redM, 0, 0.995, 0.01, root);
   mesh(collarGeo, inM, 0, 0.995, 0.01, root);
   // 어깨 금 고정쇠(보석) + 가슴을 잇는 금 사슬
