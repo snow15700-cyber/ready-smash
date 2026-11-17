@@ -593,3 +593,4 @@ body.watching #exit, body.watching #hint { display: none; }
 .watch-wait p small { display: block; font-size: 14px; color: var(--muted); margin-top: 6px; }
 .watch-wait .row { justify-content: center; }
 .watch-wait button:disabled { opacity: .45; }
+.watch-list .spec { color: var(--muted); margin-left: 4px; }

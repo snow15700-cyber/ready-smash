@@ -129,13 +129,17 @@
 - ③ `supabase/12_ach_people.sql`(11 다음): `pingpong_ach_people(token, mode, won, opp, mate)` — `achMatch` 다음에 부름(같은 경기 한 번만, `ach_n.people_at`). 천적 = h2h `lose_run` 5 → 칭호 「(상대 닉네임) 공포증」(`ach_n.nemesis`, 처음 깬 상대로 고정, `titleText(id, x)`·presence `titleX`·랭킹 `title_x`·player json `nemesis`). 복수 = 그 상대에게 3패 이상인데 이김. 짝꿍 = `ach_n.duo{팀원 번호: 승수}`. 뽑기 횟수 = 트리거 `pingpong_count_gacha`(코인이 100·900 줄면 `ach_n.gacha`). 출석 = `pingpong_daily`가 `ach_n.days`·`days_run`(이 SQL 넣은 날부터).
 - 이제 58개 모두 깰 수 있음. 다음 후보 ④: 연출 다듬기(승리 세리머니 등, 기획서 11장).
 
-## 관전 모드 (1단계 test에서 사용자 테스트 중)
+## 관전 모드 (1·2단계 test에 올림, 사용자 테스트는 나중에 한꺼번에)
 - 전체 규칙은 **기획서 12장**. 핵심: 선수 네트워크 부담 0 — 관전자는 게임 채널을 듣기만(presence X, ping X, 상황 요청 X), 응원·관전자 출석부는 방마다 관전석 채널. 응원은 1인 3초에 1개, 관전자 12명 넘으면 간격 = 관전자 수 ÷ 4초.
 - 사용자 확정: 응원은 선수에게 보이고 작게 들림, 관전자는 꾸민 캐릭터 그대로, 방 목록 = 경기 중 + 대기 중(참가하기), 보상 없음, 손님 가능, 인원·캐릭터 제한 없음, 휴대폰 관전 가능.
 - **1단계 (test에서 사용자 테스트 중)**: 로비 '👀 구경하기'(`#watch`, 방 목록·🎲 아무 방이나) → 관전(`main.js`의 `startWatch`/`stopWatch`/`watch`).
   - 로비 채널 `pingpong(-test)-lobby`(`net.js`의 `joinLobby`): 방장만 presence에 `roomInfo()`(코드·모드·팀 닉네임·인원·경기 중·선수·점수)를 올린다(`announce`, 바뀐 것만 0.25초 모아서, `update(me)`). 목록 보는 사람·관전자는 `watch`로 듣기만(`lobbyList`, 구경하기 화면·관전 중에만).
   - 관전자는 `joinRoom(code, null, h, { watch: true })` — track 안 함. 방장 시계는 참가자의 `pong`의 `th`를 엿들어 맞춤(가장 큰 값). 이벤트는 `watch.queue`에 모아 `watchFrame`이 처리: `shot`/`toss`는 친 시각 `t`에, 나머지는 받은 뒤 `WATCH.delay`(0.4초) 뒤에. 화면은 `game.offset = 방장 시계 - delay`.
   - 중간 입장 = 로비 정보의 `players`·`score`로 바로 경기 화면(공은 다음 이벤트부터). 경기 끝(`needIdle`)·선수 나감 → 대기 안내 `#watch-wait`(참가하기·다른 방). 방장 나감 → '방이 닫혔어요'.
+  - 1단계 보강: 출석부가 잠깐 흔들려도 관전이 끊기지 않게 — 방장 빠짐은 3초, 방 정보 사라짐은 6초 기다린 뒤 '방이 닫혔어요'. 선수 빠짐으로는 경기 화면을 끄지 않고 방장 방 정보(inGame false)로만. 경기 중인 방이면 `tryWatchGame`이 방 정보로 다시 들어간다.
+- **2단계 관전석 (test에 올림, 자리 배치 안 고르는 중)**: 방마다 관전석 채널 `...-room-XXXX-fan`(`net.js`의 `joinFan`). 관전자만 track(`{id, nick, look, at, guest}`), 선수(방에 있는 모두)는 듣기만 → `room.fans`/`watch.fans` → `refreshCrowd` → `src/crowd.js`의 `createCrowd`(`set(list, me)`, 매 프레임 `update`). 방 목록에 관전자 수(`roomInfo().spec`, 👀 N).
+  - 관전석은 탁구대 -x 쪽(관전 '옆에서' 카메라 맞은편, 선수 화면에서는 A팀 왼쪽·B팀 오른쪽 가장자리). 먼저 온 사람이 앞줄 가운데부터, 한 줄 6명(탁구대 길이 안), 뒷줄로 늘어남(제한 없음). 공을 눈으로 따라감, 몰입 연출 때 흐려짐(`DIM`), 이름표 작게(관전자 본인은 노랗게), 탁구채는 몸 옆에(`setHold`).
+  - 배치 안 `CROWD_LAYOUTS`: a 가까이 서서 한 줄 / b 계단 관중석 / c 긴 의자에 앉아서. 지금 기본 a, 주소 `?crowd=b`로 바꿔 보기. 시험용 `__smash.crowdLayout(id)`·`fakeCrowd(list)`.
   - `Game`의 `spectator`(mySlot -1, 입력 없음, 이름표 모두, `view` = side | a | b). 옆에서 보기 카메라 `scene.js`의 `SIDE_CAM`·`sideCamera`(세로 화면은 넓게, 벽 안쪽까지만). 아래 막대 `#watch-bar`(◀ 방 ▶ + 카메라).
 
 ## 사용자가 확정한 결정 (바꾸기 전에 사용자에게 확인)

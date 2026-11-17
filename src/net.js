@@ -34,6 +34,12 @@ export function joinRoom(code, me, handlers, { watch = false } = {}) {
   return join(`${ROOM_PREFIX}${code}`, me, handlers, watch);
 }
 
+// 관전석 채널 (방마다): 관전자만 출석부에 이름·꾸밈을 올리고(me), 선수들은 듣기만(me = null).
+// 나중에 응원도 여기로만 오간다 → 게임 채널은 그대로
+export function joinFan(code, me, handlers) {
+  return join(`${ROOM_PREFIX}${code}-fan`, me, handlers, !me);
+}
+
 // 로비 방 목록 채널: 방장만 자기 방 정보를 출석부에 올린다(me = 방 정보). 목록을 보는 사람은 watch로 듣기만
 const LOBBY_NAME = IS_TEST ? 'pingpong-test-lobby' : 'pingpong-lobby';
 export function joinLobby(me, handlers) {
