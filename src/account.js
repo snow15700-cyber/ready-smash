@@ -100,20 +100,26 @@ export async function changePin(newPin) {
 /* ───────── 전적 ───────── */
 const token = () => store.get(TOKEN_KEY) || '';
 
-// 경기 결과 기록 (내 결과만). oppId = 1v1 상대의 선수 번호(손님이면 null). 결과 { status, player, h2h }
-export async function recordMatch(mode, won, oppId) {
-  if (!account.loggedIn) return { status: 'guest' };
-  const r = await call('pingpong_record_match', { p_token: token(), p_mode: mode, p_won: won, p_opp: oppId || null });
-  if (r.status === 'ok') account.player = { ...EMPTY_STATS, ...r.player };
-  return r;
+// 경기 번호 만들기 (방장이 'go'에 실어 보낸다)
+export function newMatchId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const h = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-// 경기 결과 기록 + 코인 정산 (supabase/04_coins.sql). bonus = { perfect3, rally10 } 이번 경기에서 한 횟수
+// 경기 입장 (supabase/13_match_check.sql). 경기가 시작될 때 각자 자기 열쇠로. side = 내 팀(0|1)
+export async function matchJoin(matchId, mode, side) {
+  if (!account.loggedIn || !matchId) return { status: 'guest' };
+  return call('pingpong_match_join', { p_token: token(), p_match: matchId, p_mode: mode, p_side: side });
+}
+
+// 경기 결과 기록 + 코인 정산 (내 결과만, 입장한 경기만). bonus = { perfect3, rally10 } 이번 경기에서 한 횟수
+// 상대 전적·같은 상대 판 수는 서버가 경기 입장 기록으로 정한다
 // 결과 { status, player, h2h, coins: { total, items: [{ label, coins }] } }
-export async function finishMatch(mode, won, oppId, bonus) {
+export async function matchFinish(matchId, won, bonus) {
   if (!account.loggedIn) return { status: 'guest' };
-  const r = await call('pingpong_finish_match', {
-    p_token: token(), p_mode: mode, p_won: won, p_opp: oppId || null,
+  const r = await call('pingpong_match_finish', {
+    p_token: token(), p_match: matchId, p_won: won,
     p_perfect3: bonus.perfect3 | 0, p_rally10: bonus.rally10 | 0,
   });
   if (r.status === 'ok') account.player = { ...EMPTY_STATS, ...r.player };
@@ -213,15 +219,20 @@ export async function setTitle(id) {
   if (!account.loggedIn) return { status: 'guest' };
   return takeAch(await call('pingpong_set_title', { p_token: token(), p_ach: id }));
 }
-// 경기 업적 기록 보내기 (supabase/11_ach_match.sql). mode '1v1'|'2v2'|'ai', s = game.achSummary()
-export async function achMatch(mode, won, s) {
+// 경기 업적 기록 보내기 (supabase/13의 pingpong_match_ach → 11의 규칙). s = game.achSummary(). matchFinish 다음에
+export async function matchAch(matchId, s) {
   if (!account.loggedIn) return { status: 'guest', new: [] };
-  return takeAch(await call('pingpong_ach_match', { p_token: token(), p_mode: mode, p_won: won, p_s: s }));
+  return takeAch(await call('pingpong_match_ach', { p_token: token(), p_match: matchId, p_s: s }));
 }
-// 사람 관계 업적 (supabase/12_ach_people.sql). achMatch 다음에 부른다. opp = 1v1 상대, mate = 2v2 팀원의 선수 번호
-export async function achPeople(mode, won, opp, mate) {
+// 사람 관계 업적 (13의 pingpong_match_people → 12의 규칙). 상대·팀원은 서버가 찾는다. matchAch 다음에
+export async function matchPeople(matchId) {
   if (!account.loggedIn) return { status: 'guest', new: [] };
-  return takeAch(await call('pingpong_ach_people', { p_token: token(), p_mode: mode, p_won: won, p_opp: opp, p_mate: mate }));
+  return takeAch(await call('pingpong_match_people', { p_token: token(), p_match: matchId }));
+}
+// 혼자 하기 업적 (s = { aizero: 1 })
+export async function aiAch(s) {
+  if (!account.loggedIn) return { status: 'guest', new: [] };
+  return takeAch(await call('pingpong_ai_ach', { p_token: token(), p_s: s }));
 }
 export const myTitle = () => (account.loggedIn && account.player?.title) || null;
 
@@ -315,6 +326,25 @@ function localServer(fn, a) {
   const shopOut = (p, extra = {}) => ({ status: 'ok', player: pj(p), owned: p.owned || [], pity: { char: p.pityChar || 0, arena: p.pityArena || 0 }, ...extra });
   const onSale = (pool, grade) => ITEMS.filter((i) => i.pool === pool && i.grade !== 'default' && (!grade || i.grade === grade));
   const h2h = (p, opp) => { const h = db.h2h[p.id + '>' + opp] || [0, 0]; return { wins: h[0], losses: h[1] }; };
+  // 13의 경기 업적 함수 → 11·12의 규칙 (입장해서 결과를 낸 경기에 한 번씩만)
+  if (fn === 'pingpong_ai_ach') { fn = 'pingpong_ach_match'; a = { p_token: a.p_token, p_mode: 'ai', p_won: false, p_s: a.p_s }; }
+  if (fn === 'pingpong_match_ach' || fn === 'pingpong_match_people') {
+    const p = me();
+    const m = db.matches?.[a.p_match];
+    const mp = m && p && m.players[p.id];
+    if (!p) return { status: 'no_session' };
+    if (!mp || !mp.at || (fn === 'pingpong_match_people' && !mp.ach)) return { status: 'no_match' };
+    const flag = fn === 'pingpong_match_ach' ? 'ach' : 'people';
+    if (mp[flag]) return { status: 'too_soon' };
+    mp[flag] = true;
+    save();
+    if (fn === 'pingpong_match_ach') { fn = 'pingpong_ach_match'; a = { p_token: a.p_token, p_mode: m.mode, p_won: mp.won, p_s: a.p_s }; }
+    else {
+      const other = (same) => Object.entries(m.players).find(([id, x]) => id !== p.id && (x.side === mp.side) === same)?.[0] || null;
+      fn = 'pingpong_ach_people';
+      a = { p_token: a.p_token, p_mode: m.mode, p_won: mp.won, p_opp: m.mode === '1v1' ? other(false) : null, p_mate: m.mode === '2v2' ? other(true) : null };
+    }
+  }
   let out;
   if (fn === 'pingpong_login') {
     const p = db.players[key(a.p_nick)];
@@ -343,43 +373,55 @@ function localServer(fn, a) {
       for (const t of Object.keys(db.sessions)) if (db.sessions[t] === mine && t !== a.p_token) delete db.sessions[t];
       out = { status: 'ok' };
     }
-  } else if (fn === 'pingpong_record_match') {
+  } else if (fn === 'pingpong_match_join') {
     const p = me();
+    db.matches ||= {};
     if (!p) out = { status: 'no_session' };
-    else if (!['1v1', '2v2'].includes(a.p_mode)) out = { status: 'bad' };
-    else if (p.lastMatch > now - 10000) out = { status: 'too_soon' };
+    else if (!a.p_match || !['1v1', '2v2'].includes(a.p_mode) || ![0, 1].includes(a.p_side)) out = { status: 'bad' };
     else {
-      p.lastMatch = now;
-      const f = (a.p_mode === '1v1' ? '1' : '2');
-      if (a.p_won) p['w' + f] = (p['w' + f] || 0) + 1; else p['l' + f] = (p['l' + f] || 0) + 1;
-      const opp = a.p_opp;
-      if (a.p_mode === '1v1' && opp && opp !== p.id && Object.values(db.players).some((x) => x.id === opp)) {
-        const h = db.h2h[p.id + '>' + opp] ||= [0, 0];
-        h[a.p_won ? 0 : 1]++;
-      }
-      out = { status: 'ok', player: pj(p), h2h: opp ? h2h(p, opp) : null };
+      const m = db.matches[a.p_match] ||= { mode: a.p_mode, at: now, players: {} };
+      if (m.mode !== a.p_mode) out = { status: 'mode' };
+      else if (m.players[p.id]) out = { status: 'ok' };
+      else if (m.at < now - 30000) out = { status: 'late' };
+      else if (Object.values(m.players).filter((x) => x.side === a.p_side).length >= (m.mode === '1v1' ? 1 : 2)) out = { status: 'full' };
+      else { m.players[p.id] = { side: a.p_side }; out = { status: 'ok' }; }
     }
-  } else if (fn === 'pingpong_finish_match') {
+  } else if (fn === 'pingpong_match_finish') {
     const p = me();
+    const m = db.matches?.[a.p_match];
+    const mp = m && p && m.players[p.id];
     if (!p) out = { status: 'no_session' };
-    else if (!['1v1', '2v2'].includes(a.p_mode)) out = { status: 'bad' };
-    else if (p.lastMatch > now - 10000) out = { status: 'too_soon' };
+    else if (typeof a.p_won !== 'boolean') out = { status: 'bad' };
+    else if (!mp) out = { status: 'no_match' };
+    else if (mp.at) out = { status: 'done' };
+    else if (m.at > now - 25000) out = { status: 'too_fast' };
+    else if (m.at < now - 3600e3) out = { status: 'too_old' };
     else {
+      const wonSide = a.p_won ? mp.side : 1 - mp.side;
+      if (m.winner == null) m.winner = wonSide; else if (m.winner !== wonSide) m.disputed = true;
+      const opps = Object.entries(m.players).filter(([, x]) => x.side !== mp.side).map(([id]) => id).sort();
+      const okey = m.mode + ':' + (opps.join(',') || 'guest');
+      const dayStart = Date.parse(new Date(now + 9 * 3600e3).toISOString().slice(0, 10) + 'T00:00:00+09:00');
+      const played = Object.values(db.matches).filter((x) => { const y = x.players[p.id]; return y && y.okey === okey && y.at >= dayStart; }).length;
+      const full = played < 5;
       p.lastMatch = now;
-      const f = (a.p_mode === '1v1' ? '1' : '2');
+      const f = (m.mode === '1v1' ? '1' : '2');
       if (a.p_won) p['w' + f] = (p['w' + f] || 0) + 1; else p['l' + f] = (p['l' + f] || 0) + 1;
       p.streak = a.p_won ? (p.streak || 0) + 1 : 0;
       const clamp = (n) => Math.min(3, Math.max(0, n | 0));
       const nPerf = clamp(a.p_perfect3), nRally = clamp(a.p_rally10);
       const items = [{ label: '경기 참여', coins: 10 }];
-      if (a.p_won) items.push({ label: '승리', coins: 10 });
-      if (nPerf) items.push({ label: `퍼펙트 3연속 ×${nPerf}`, coins: 5 * nPerf });
-      if (nRally) items.push({ label: `랠리 10회 이상 ×${nRally}`, coins: 5 * nRally });
-      if (a.p_won && p.streak % 3 === 0) items.push({ label: `${p.streak}연승`, coins: 15 });
+      if (full) {
+        if (a.p_won) items.push({ label: '승리', coins: 10 });
+        if (nPerf) items.push({ label: `퍼펙트 3연속 ×${nPerf}`, coins: 5 * nPerf });
+        if (nRally) items.push({ label: `랠리 10회 이상 ×${nRally}`, coins: 5 * nRally });
+        if (a.p_won && p.streak % 3 === 0) items.push({ label: `${p.streak}연승`, coins: 15 });
+      } else items.push({ label: '같은 상대 오늘 6판째부터는 참여 코인만', coins: 0 });
       const total = items.reduce((s, i) => s + i.coins, 0);
       p.coins = (p.coins || 0) + total;
-      const opp = a.p_opp;
-      if (a.p_mode === '1v1' && opp && opp !== p.id && Object.values(db.players).some((x) => x.id === opp)) {
+      Object.assign(mp, { at: now, won: a.p_won, okey });
+      const opp = m.mode === '1v1' ? opps[0] : null;
+      if (opp) {
         const h = db.h2h[p.id + '>' + opp] ||= [0, 0];
         h[a.p_won ? 0 : 1]++;
       }

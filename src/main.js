@@ -5,7 +5,7 @@ import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, playHit, setEcho, setQuiet, setListener } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
-import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking, checkAch, setTitle, myTitle, achMatch, achPeople } from './account.js';
+import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, newMatchId, matchJoin, matchFinish, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking, checkAch, setTitle, myTitle, matchAch, matchPeople, aiAch } from './account.js';
 import { ACHS, ACH, ACH_CATS, REWARD, titleText } from './achievements.js';
 
 import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLook, swatch, equipped } from './items.js';
@@ -174,7 +174,7 @@ function startAI() {
     onRally: async (hits) => {
       const g = game;
       // 김제빵의 첫 공을 못 받고 끝남 (업적 '첫 공 실수')
-      if (hits <= 1 && account.loggedIn) achMatch('ai', false, { aizero: 1 }).then(gotAch);
+      if (hits <= 1 && account.loggedIn) aiAch({ aizero: 1 }).then(gotAch);
       const got = await aiRally(hits);
       if (!got) return;
       aiCoins += got;
@@ -369,7 +369,7 @@ function onRoomMsg(m) {
       if (room.host) break;
       const p = m.players.find((x) => x.id === myId);
       if (!p) break;
-      startGuestGame(m.mode, m.players, p);
+      startGuestGame(m.mode, m.players, p, m.mid);
       break;
     }
     case 'ping':
@@ -428,9 +428,12 @@ function names() {
   return [0, 1].map((s) => ofSide(s).map((p) => nickOf(p.id)).join('·') || '상대');
 }
 
-function beginRoomGame(players) {
+// 경기 시작: 선수마다 자기 열쇠로 서버의 그 경기에 입장 (supabase/13_match_check.sql, 결과는 입장한 경기에만)
+function beginRoomGame(players, mode, mine, mid) {
   room.inGame = true;
   room.players = players;
+  room.mid = mid || null;
+  if (mid) matchJoin(mid, mode, mine.side);
   room.result = '';
   room.coins = null;
   stopGame();
@@ -439,8 +442,9 @@ function beginRoomGame(players) {
 // 방장: 경기 시작 (1v1 / 2v2)
 function startOnline(mode, players) {
   const mine = players.find((p) => p.id === myId);
-  beginRoomGame(players);
-  room.link.send({ k: 'go', mode, players });
+  const mid = newMatchId();
+  beginRoomGame(players, mode, mine, mid);
+  room.link.send({ k: 'go', mode, players, mid });
   show('hud');
   game = new Game(world, {
     mySide: mine.side, mySlot: mine.slot || 0, mode, hud, names: names(), playerNames: playerNames(), playerTitles: titles(), looks: looks(),
@@ -462,8 +466,8 @@ function startOnline(mode, players) {
 }
 
 // 참가자 PC: 방장의 시작 신호를 받으면 경기 화면으로
-function startGuestGame(mode, players, mine) {
-  beginRoomGame(players);
+function startGuestGame(mode, players, mine, mid) {
+  beginRoomGame(players, mode, mine, mid);
   show('hud');
   game = new Game(world, {
     mySide: mine.side, mySlot: mine.slot || 0, mode, hud, names: names(), playerNames: playerNames(), playerTitles: titles(), looks: looks(), authority: false,
@@ -500,12 +504,10 @@ function renderPing() {
 async function saveResult(mode, win, stats, achStats) {
   if (!account.loggedIn) return;
   const r0 = room;
+  const mid = r0?.mid;
   const opp = mode === '1v1' ? oppMember() : null;
-  const mate = mode === '2v2' && r0 ? mateMember(r0) : null; // 대기실로 돌아가면 선수 목록이 지워지므로 먼저
   const bonus = { perfect3: stats.perfect3, rally10: stats.rally10 };
-  let r = await finishMatch(mode, win, opp?.pid, bonus);
-  // 서버에 코인 기능(04_coins.sql)이 아직 없으면 전적만이라도 저장 (10초 규칙이 두 번 저장을 막는다)
-  if (r.status === 'error') r = await recordMatch(mode, win, opp?.pid);
+  const r = mid ? await matchFinish(mid, win, bonus) : { status: 'no_match' };
   if (r.status === 'ok') {
     if (opp?.pid && r.h2h && r0) r0.h2h[opp.pid] = r.h2h;
     if (r.coins && r0) r0.coins = r.coins;
@@ -513,17 +515,16 @@ async function saveResult(mode, win, stats, achStats) {
       renderRoom();
       if (r.coins && !room.inGame) playUI('coin');
     }
-  }
-  // 경기 기록으로 깬 업적 (결과 띠가 사라진 뒤 '🏅 업적 달성!')
-  if (r.status === 'ok' || r.status === 'too_soon') {
-    const ra = await achMatch(mode, win, achStats || {});
+    // 경기 기록으로 깬 업적 (결과 띠가 사라진 뒤 '🏅 업적 달성!'), 그다음 사람 관계 업적 (상대·팀원은 서버가 찾음)
+    const ra = await matchAch(mid, achStats || {});
     if (ra.status === 'ok') {
       gotAch(ra);
-      // 사람 관계 업적: 1대1 상대·2대2 팀원의 선수 번호 (로그인한 사람만)
-      const rp = await achPeople(mode, win, opp?.pid || null, mate?.pid || null);
+      const rp = await matchPeople(mid);
       if (rp.status === 'ok') gotAch(rp);
     } else runAchCheck();
-  } else if (r.status !== 'too_soon') hud.toast('전적을 저장하지 못했어요 (인터넷 연결 확인)', 2600);
+  } else if (r.status === 'too_fast') hud.toast('너무 빨리 끝난 경기라 기록·코인이 남지 않아요', 2600);
+  else if (r.status === 'no_match') hud.toast('이번 경기는 서버에 등록되지 않아 기록이 남지 않았어요', 2600);
+  else if (r.status !== 'done') hud.toast('전적을 저장하지 못했어요 (인터넷 연결 확인)', 2600);
 }
 
 // 방금 경기에서 받은 코인 (대기실 결과 아래)
@@ -533,16 +534,10 @@ function renderCoins() {
   if (!room.result) el.innerHTML = '';
   else if (!account.loggedIn) el.innerHTML = '<small>로그인하면 경기마다 코인을 모을 수 있어요</small>';
   else if (!c) el.innerHTML = '<small>코인 정산 중…</small>';
-  else el.innerHTML = `<b>🪙 +${c.total} 코인</b><small>${c.items.map((i) => `${esc(i.label)} +${i.coins}`).join(' · ')}</small>`;
+  else el.innerHTML = `<b>🪙 +${c.total} 코인</b><small>${c.items.map((i) => `${esc(i.label)}${i.coins ? ` +${i.coins}` : ""}`).join(' · ')}</small>`;
 }
 
 // 1v1 방의 상대 (나 말고 다른 한 사람)
-// 2v2 방의 내 팀원 (경기 선수 목록에서 같은 쪽의 다른 사람)
-function mateMember(r) {
-  const mine = r.players?.find((p) => p.id === myId);
-  const mate = mine && r.players.find((p) => p.side === mine.side && p.id !== myId);
-  return mate ? r.members.find((m) => m.id === mate.id) : null;
-}
 const oppMember = () => (room ? room.members.find((m) => m.id !== myId) : null);
 
 function renderH2H() {
