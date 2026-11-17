@@ -9,6 +9,7 @@
 // 모양은 반지름 1로 만들고 BALL_R 배로 줄인다. 효과 그림(Sprite)은 줄이지 않은 root에 붙인다.
 import * as THREE from 'three';
 import { fxTex } from './fx.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const BALL_R = 0.028; // 보이는 공 반지름 (scene.js의 기본 공과 같음)
 
@@ -30,13 +31,12 @@ export const BALLS = [
   { id: 'tomato', name: '방울토마토', grade: 'rare', sound: 'tomato' },
   { id: 'mochi', name: '찹쌀떡', grade: 'rare', sound: 'mochi' },
   { id: 'takoyaki', name: '타코야끼', grade: 'rare', sound: 'tako' },
-  { id: 'chick', name: '털뭉치 병아리', grade: 'rare', sound: 'chick' },
+  { id: 'egg', name: '계란', grade: 'rare', sound: 'eggshell' },
   { id: 'eight', name: '8번 당구공', grade: 'rare', sound: 'billiard' },
   // 전설: 움직이는 효과 + 튈 때·스매시 연출
   { id: 'asteroid', name: '소행성', grade: 'legend', sound: 'rock' },
   { id: 'dragon', name: '드래곤 알', grade: 'legend', sound: 'dragon' },
   { id: 'sun', name: '미니 태양', grade: 'legend', sound: 'sun' },
-  { id: 'cat', name: '냥냥 공', grade: 'legend', sound: 'cat' },
 ];
 export const BALL = Object.fromEntries(BALLS.map((b) => [b.id, b]));
 
@@ -150,6 +150,15 @@ function aura(root, color, { r = 0.05, glow = 0.35, n = 3 } = {}) {
   };
 }
 const SPH = new THREE.SphereGeometry(1, 40, 28);
+// 달걀 모양 (아래 통통, 위 뾰족). 높이 약 ±1.2, 가장 굵은 곳 반지름 약 0.92 — 공처럼 굴러가지만 뒤뚱
+const EGG = (() => {
+  const pts = [];
+  for (let i = 0; i <= 32; i++) {
+    const a = -Math.PI / 2 + (i / 32) * Math.PI, y = Math.sin(a);
+    pts.push(new THREE.Vector2(Math.cos(a) * 0.92 * (1 - 0.16 * (y + 1) / 2), y * 1.2));
+  }
+  return new THREE.LatheGeometry(pts, 40);
+})();
 
 /* ───────────── 일반: 색·무늬 ───────────── */
 // 탁구공 플라스틱 (살짝 윤기 + 스스로 은은히 빛나 어두운 곳에서도 보이게)
@@ -436,54 +445,19 @@ const RARE = {
     b.root.userData.bounce = () => b.squish(1.1);
     return b;
   },
-  chick() {
-    const b = base('face');
-    const fuzzT = sphereTex((c, w, h) => {
-      c.fillStyle = '#ffd84a'; c.fillRect(0, 0, w, h);
-      const r = rng(4);
-      for (let i = 0; i < 3000; i++) { c.strokeStyle = r() < 0.5 ? 'rgba(255,240,150,0.6)' : 'rgba(230,170,30,0.35)'; c.lineWidth = 2; const x = r() * w, y = r() * h; c.beginPath(); c.moveTo(x, y); c.lineTo(x + (r() - 0.5) * 10, y + 6 + r() * 6); c.stroke(); }
-      face(c, (c) => {
-        c.fillStyle = 'rgba(255,120,110,0.55)';
-        for (const s of [-1, 1]) { c.beginPath(); c.ellipse(s * 0.5, 0.12, 0.13, 0.08, 0, 0, Math.PI * 2); c.fill(); }
-        c.fillStyle = '#2b2a33';
-        for (const s of [-1, 1]) { c.beginPath(); c.ellipse(s * 0.28, -0.14, 0.085, 0.11, 0, 0, Math.PI * 2); c.fill(); }
-        c.fillStyle = '#fff';
-        for (const s of [-1, 1]) { c.beginPath(); c.arc(s * 0.28 - 0.03, -0.18, 0.03, 0, Math.PI * 2); c.fill(); }
-      });
+  egg() {
+    // 계란: 달걀 모양(아래가 통통, 위가 뾰족) + 연한 갈색 껍데기 점박이. 데굴데굴 굴러가며 살짝 뒤뚱
+    const b = base();
+    const shell = sphereTex((c, w, h) => {
+      const g = c.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, '#f6e2c6'); g.addColorStop(0.5, '#f2d8b6'); g.addColorStop(1, '#e8c9a2');
+      c.fillStyle = g; c.fillRect(0, 0, w, h);
+      const r = rng(23);
+      for (let i = 0; i < 260; i++) { c.fillStyle = `rgba(${150 + r() * 40 | 0},${95 + r() * 30 | 0},${60 + r() * 20 | 0},${0.12 + r() * 0.22})`; c.beginPath(); c.ellipse(r() * w, r() * h, 1.5 + r() * 4, 1.5 + r() * 3, r() * 3, 0, Math.PI * 2); c.fill(); }
     });
-    mesh(SPH, lam('#ffffff', { map: fuzzT, emissive: '#ffc000', emissiveIntensity: 0.18 }), b.spin);
-    // 복슬 털 껍질 (가장자리가 보송보송)
-    const shellT = sphereTex((c, w, h) => {
-      c.clearRect(0, 0, w, h);
-      const r = rng(8);
-      for (let i = 0; i < 2500; i++) { c.fillStyle = `rgba(255,${220 + r() * 30 | 0},${90 + r() * 60 | 0},${0.5 + r() * 0.5})`; c.beginPath(); c.arc(r() * w, r() * h, 2 + r() * 3, 0, Math.PI * 2); c.fill(); }
-    });
-    mesh(SPH, lam('#ffffff', { map: shellT, transparent: true, alphaTest: 0.3, emissive: '#ffc000', emissiveIntensity: 0.18 }), b.spin).scale.setScalar(1.06);
-    // 부리
-    const beak = mesh(new THREE.ConeGeometry(0.16, 0.3, 8), lam('#ff9a1a'), b.spin, 0, 0.0, 1.02);
-    beak.rotation.x = Math.PI / 2; beak.scale.set(1, 1, 0.7);
-    // 삐침 털 3가닥
-    const tuft = new THREE.Group(); tuft.position.set(0, 0.95, 0.05); b.spin.add(tuft);
-    for (const [rz, rx, L] of [[0.3, -0.3, 0.42], [-0.35, -0.1, 0.36], [0.05, 0.4, 0.3]]) {
-      const c = new THREE.Mesh(new THREE.ConeGeometry(0.06, L, 6), lam('#ffcf2a'));
-      c.geometry.translate(0, L / 2, 0); c.rotation.set(rx, 0, rz); tuft.add(c);
-    }
-    // 작은 날개
-    const wings = [-1, 1].map((sx) => {
-      const p = new THREE.Group(); p.position.set(sx * 0.92, -0.1, 0); b.spin.add(p);
-      const w = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), lam('#ffcc2a'));
-      w.scale.set(0.35, 0.8, 0.6); w.position.set(sx * 0.08, -0.1, 0); p.add(w);
-      return { p, sx };
-    });
-    let flap = 0;
-    b.root.userData.tick = (t, dt, s) => {
-      b.move(dt, s, 0.35);
-      flap = Math.max(0, flap - dt);
-      for (const w of wings) w.p.rotation.z = w.sx * (0.15 + Math.sin(t * (flap > 0 ? 40 : 5)) * (flap > 0 ? 0.6 : 0.12));
-      tuft.rotation.x = Math.sin(t * 6) * 0.08;
-    };
-    b.root.userData.bounce = () => { b.squish(1.1); flap = 0.35; };
-    b.root.userData.hit = () => { flap = 0.3; };
+    mesh(EGG, phong('#ffffff', 45, { map: shell, specular: '#6a6a6a', emissive: '#ffcf9a', emissiveIntensity: 0.16 }), b.spin);
+    b.root.userData.tick = (t, dt, s) => b.move(dt, s, 0.06); // 껍데기라 단단함
+    b.root.userData.bounce = () => b.squish(0.3);
     return b;
   },
   eight() {
@@ -504,25 +478,48 @@ const RARE = {
 };
 
 /* ───────────── 전설 ───────────── */
-// 울퉁불퉁한 돌 모양 (정해진 난수라 늘 같은 모양)
-function rockGeo(seed, detail = 3, amt = 0.16) {
-  const g = new THREE.IcosahedronGeometry(1, detail);
+// 울퉁불퉁한 소행성 (참고 그림: 길쭉한 땅콩 모양, 밝은 회색 윗면 + 보랏빛 그늘, 크고 작은 구덩이가 빽빽)
+// 정해진 난수라 늘 같은 모양. 반지름 1 기준으로 길이 약 ±1.35
+function asteroidGeo(seed) {
+  let g = new THREE.IcosahedronGeometry(1, 5);
+  g.deleteAttribute('normal'); g.deleteAttribute('uv');
+  g = mergeVertices(g); // 면마다 따로인 점을 이어야 매끈하게 음영이 진다
   const r = rng(seed);
-  const bumps = Array.from({ length: 14 }, () => ({ d: new THREE.Vector3(r() - 0.5, r() - 0.5, r() - 0.5).normalize(), k: (r() - 0.35) * amt, w: 0.25 + r() * 0.35 }));
-  const p = g.attributes.position, v = new THREE.Vector3();
+  // 구덩이: 큰 것 몇 개 + 작은 것 많이. 가운데는 오목, 가장자리는 살짝 솟은 테
+  const craters = [];
+  for (let i = 0; i < 120; i++) {
+    const big = i < 10;
+    craters.push({ d: new THREE.Vector3(r() - 0.5, r() - 0.5, r() - 0.5).normalize(), w: big ? 0.26 + r() * 0.2 : 0.05 + r() * 0.11, k: big ? 0.13 + r() * 0.07 : 0.04 + r() * 0.05 });
+  }
+  const lumps = Array.from({ length: 8 }, () => ({ d: new THREE.Vector3(r() - 0.5, r() - 0.5, r() - 0.5).normalize(), w: 0.6 + r() * 0.5, k: (r() - 0.4) * 0.18 }));
+  const p = g.attributes.position, v = new THREE.Vector3(), n = new THREE.Vector3();
   const col = new Float32Array(p.count * 3);
+  const deep = new Float32Array(p.count);
   for (let i = 0; i < p.count; i++) {
-    v.fromBufferAttribute(p, i).normalize();
-    let d = 1, crater = 0;
-    for (const bmp of bumps) {
-      const x = 1 - v.dot(bmp.d);
-      if (x < bmp.w) { const k = 1 - x / bmp.w; d += bmp.k * k * k; if (bmp.k < 0) crater += k * 0.6; }
+    n.fromBufferAttribute(p, i).normalize();
+    // 땅콩 모양: x로 길게, 가운데 허리를 살짝 잘록하게
+    const x = n.x * 1.38, waist = 1 - 0.13 * Math.exp(-(n.x * n.x) / 0.08) * (1 - Math.abs(n.y) * 0.3);
+    v.set(x, n.y * 0.86 * waist, n.z * 0.9 * waist);
+    let d = 1, pit = 0, rim = 0;
+    for (const l of lumps) { const a = 1 - n.dot(l.d); if (a < l.w) { const k = 1 - a / l.w; d += l.k * k * k; } }
+    for (const c of craters) {
+      const a = Math.acos(Math.min(1, n.dot(c.d))) / c.w; // 0 = 가운데, 1 = 테
+      if (a < 1.4) {
+        if (a < 1) { const q = 1 - Math.pow(a, 3); d -= c.k * q; pit = Math.max(pit, Math.min(1, q * 1.4)); } // 바닥은 평평, 벽은 가파르게
+        else { const e = Math.sin((a - 1) / 0.4 * Math.PI); d += c.k * 0.5 * e; rim = Math.max(rim, e); } // 솟은 테
+      }
     }
-    d += (r() - 0.5) * 0.05;
+    d += (r() - 0.5) * 0.012; // 자잘한 거칠기
     v.multiplyScalar(d);
     p.setXYZ(i, v.x, v.y, v.z);
-    const sh = Math.max(0.45, 0.85 - crater * 0.5 + (r() - 0.5) * 0.1);
-    col[i * 3] = sh * 1.0; col[i * 3 + 1] = sh * 0.9; col[i * 3 + 2] = sh * 0.82;
+    deep[i] = pit;
+    // 색: 밝은 회색 바탕, 구덩이 안은 어둡고 보랏빛, 아래쪽은 은은한 보라 반사
+    const base = 0.86 + (r() - 0.5) * 0.06 + rim * 0.12;
+    const dk = 1 - pit * 0.78;
+    const purple = Math.max(0, -n.y) * 0.35 + pit * 0.45;
+    col[i * 3] = base * dk * (1 + purple * 0.15);
+    col[i * 3 + 1] = base * dk * (1 - purple * 0.25);
+    col[i * 3 + 2] = base * dk * (1 + purple * 0.35);
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.computeVertexNormals();
@@ -531,26 +528,22 @@ function rockGeo(seed, detail = 3, amt = 0.16) {
 const LEGEND = {
   asteroid() {
     const b = base();
-    const m = phong('#b8a898', 8, { vertexColors: true, flatShading: true, emissive: '#3a2a20', emissiveIntensity: 0.25 });
-    mesh(rockGeo(17), m, b.spin);
-    // 가장자리 빛 테두리 (어두운 배경에서도 보이게)
-    const rim = mesh(SPH, new THREE.ShaderMaterial({
-      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.BackSide,
-      uniforms: { col: { value: new THREE.Color('#ffb070') }, k: { value: 0.75 } },
-      vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0); vN = normalize(normalMatrix*normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix*mv; }',
-      fragmentShader: 'uniform vec3 col; uniform float k; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0-abs(dot(vN,vV)), 2.0); gl_FragColor = vec4(col*f*k, f*k); }',
-    }), b.squash);
-    rim.scale.setScalar(1.22); rim.userData.fx = true;
-    const glow = aura(b.root, '#ffa060', { r: 0.045, glow: 0.22 });
-    b.root.userData.tick = (t, dt, s) => { b.move(dt, s, 0.05); glow(t); rim.material.uniforms.k.value = s.smash ? 1.4 : 0.75; };
-    b.root.userData.bounce = () => b.squish(0.25);
+    const m = phong('#ffffff', 18, { vertexColors: true, specular: '#4a4a55', emissive: '#2a2438', emissiveIntensity: 0.35 });
+    const rock = mesh(asteroidGeo(17), m, b.spin);
+    rock.rotation.set(0.3, 0.5, 0.2);
+    const glow = aura(b.root, '#c8c0ff', { r: 0.05, glow: 0, n: 3 }); // 후광 없이 반짝이만
+    b.root.userData.tick = (t, dt, s) => { b.move(dt, s, 0.03); glow(t); };
+    b.root.userData.bounce = () => b.squish(0.15);
     b.root.userData.fx = {
-      bounce(emit, s) { // 작은 조각이 탁구대 위에 떨어졌다 사라짐 + 먼지
+      bounce(emit, s) { // 운석 충돌: 충격파 + 먼지 + 돌 조각이 탁구대 위에 떨어졌다 사라짐
         const fl = s.floor + 0.004;
-        emit({ tex: 'rock', n: s.smash ? 7 : 4, color: ['#a89888', '#8a7a6c', '#c0b0a0'], size: 0.014, life: 1.3, speed: 0.6, up: 0.9, g: 7, spin: 6, floor: fl, rot: Math.random() * 6 });
-        emit({ tex: 'puff', n: 2, color: '#c8b8a8', size: 0.04, grow: 2.2, life: 0.6, speed: 0.15, up: 0.15, alpha: 0.45 });
+        emit({ tex: 'ring', n: 1, color: '#e8e0ff', size: 0.04, grow: s.smash ? 6 : 4, life: 0.35, speed: 0, up: 0, add: true, alpha: 0.8 });
+        emit({ tex: 'puff', n: s.smash ? 5 : 3, color: ['#c8c0d0', '#a8a0b8'], size: 0.045, grow: 2.6, life: 0.8, speed: 0.35, up: 0.2, g: -0.1, drag: 3, alpha: 0.5 });
+        emit({ tex: 'rock', n: s.smash ? 9 : 5, color: ['#b8b4c4', '#8a8498', '#d0ccd8'], size: 0.014, life: 1.4, speed: 0.7, up: 1.1, g: 7, spin: 6, floor: fl, rot: Math.random() * 6 });
+        emit({ tex: 'dot', n: s.smash ? 8 : 4, color: ['#ffd8a0', '#ffb070'], size: 0.006, life: 0.35, speed: 1.2, up: 0.8, g: 6, add: true });
       },
-      trail: { tex: ['glow', 'glow', 'puff'], color: ['#ffb84a', '#ff7a2a', '#ffe08a'], size: 0.05, life: 0.4, rate: 90 },
+      mark: 'crater', // 탁구대에 잠깐 남는 충돌 자국
+      trail: { tex: ['glow', 'glow', 'puff'], color: ['#ffb84a', '#ff7a2a', '#ffe08a'], size: 0.04, life: 0.4, rate: 90 },
     };
     return b;
   },
@@ -680,93 +673,8 @@ const LEGEND = {
           emit({ tex: 'star4', n: 4, color: '#fff0b0', size: 0.05, life: 0.45, speed: 0.6, up: 0.3, add: true, spin: 3 });
         }
       },
-      scorch: true, // 탁구대에 불꽃 자국
+      mark: 'scorch', // 탁구대에 불꽃 자국
       trail: { tex: ['glow'], color: ['#ffb030', '#ff6a10', '#fff0a0'], size: 0.035, life: 0.3, rate: 80 },
-    };
-    return b;
-  },
-  cat() {
-    const b = base('face');
-    const fur = '#fff6ea', cheese = '#ffb35c';
-    const faceTex = (kind) => sphereTex((c, w, h) => {
-      c.fillStyle = fur; c.fillRect(0, 0, w, h);
-      // 치즈 무늬: 이마 줄 3개 + 뒤통수 얼룩
-      c.fillStyle = cheese;
-      face(c, (c) => {
-        for (const x of [-0.16, 0, 0.16]) { c.beginPath(); c.ellipse(x, -0.78, 0.05, 0.2, 0, 0, Math.PI * 2); c.fill(); }
-      });
-      c.beginPath(); c.ellipse(W * 0.75, H * 0.35, 200, 120, 0, 0, Math.PI * 2); c.fill();
-      c.beginPath(); c.ellipse(W * 0.6, H * 0.2, 90, 60, 0.3, 0, Math.PI * 2); c.fill();
-      face(c, (c) => {
-        const ey = -0.08, ex = 0.32;
-        c.lineCap = 'round'; c.lineJoin = 'round';
-        if (kind === 'open' || kind === 'puff') {
-          for (const s of [-1, 1]) {
-            c.fillStyle = '#2b2a33'; c.beginPath(); c.ellipse(s * ex, ey, 0.13, 0.16, 0, 0, Math.PI * 2); c.fill();
-            c.fillStyle = '#fff'; c.beginPath(); c.arc(s * ex - 0.04, ey - 0.06, 0.05, 0, Math.PI * 2); c.fill();
-            c.beginPath(); c.arc(s * ex + 0.05, ey + 0.05, 0.022, 0, Math.PI * 2); c.fill();
-          }
-        } else if (kind === 'blink') {
-          c.strokeStyle = '#2b2a33'; c.lineWidth = 0.05;
-          for (const s of [-1, 1]) { c.beginPath(); c.arc(s * ex, ey - 0.03, 0.11, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke(); }
-        } else { // 'shut' > <
-          c.strokeStyle = '#2b2a33'; c.lineWidth = 0.055;
-          for (const s of [-1, 1]) { c.beginPath(); c.moveTo(s * (ex + 0.12), ey - 0.1); c.lineTo(s * (ex - 0.08), ey); c.lineTo(s * (ex + 0.12), ey + 0.1); c.stroke(); }
-        }
-        // 볼터치 (puff는 크게)
-        const big = kind === 'puff' ? 1.6 : 1;
-        c.fillStyle = kind === 'puff' ? 'rgba(255,110,150,0.7)' : 'rgba(255,130,160,0.5)';
-        for (const s of [-1, 1]) { c.beginPath(); c.ellipse(s * 0.55, 0.2, 0.13 * big, 0.08 * big, 0, 0, Math.PI * 2); c.fill(); }
-        // 코·입 (ω)
-        c.fillStyle = '#ff8fab'; c.beginPath(); c.moveTo(-0.06, 0.1); c.lineTo(0.06, 0.1); c.lineTo(0, 0.17); c.closePath(); c.fill();
-        c.strokeStyle = '#5a3a3a'; c.lineWidth = 0.035;
-        c.beginPath(); c.moveTo(0, 0.17); c.quadraticCurveTo(-0.02, 0.27, -0.1, 0.25); c.moveTo(0, 0.17); c.quadraticCurveTo(0.02, 0.27, 0.1, 0.25); c.stroke();
-        // 수염
-        c.strokeStyle = 'rgba(120,90,80,0.7)'; c.lineWidth = 0.02;
-        for (const s of [-1, 1]) for (const dy of [-0.04, 0.04]) { c.beginPath(); c.moveTo(s * 0.2, 0.18 + dy); c.lineTo(s * 0.52, 0.12 + dy * 2.5); c.stroke(); }
-      });
-    });
-    const tex = { open: faceTex('open'), blink: faceTex('blink'), shut: faceTex('shut'), puff: faceTex('puff') };
-    const mat = lam('#ffffff', { map: tex.open, emissive: '#ffd6e0', emissiveIntensity: 0.2 });
-    const head = mesh(SPH, mat, b.spin);
-    // 귀 (바깥 털 + 안쪽 분홍)
-    for (const s of [-1, 1]) {
-      const g = new THREE.Group(); g.position.set(s * 0.52, 0.72, 0.05); g.rotation.set(-0.1, 0, -s * 0.42); b.spin.add(g);
-      const outer = mesh(new THREE.ConeGeometry(0.3, 0.52, 4), lam(s < 0 ? cheese : fur, { emissive: '#ffd6e0', emissiveIntensity: 0.15 }), g, 0, 0.18, 0);
-      outer.rotation.y = Math.PI / 4; outer.scale.set(1, 1, 0.55);
-      const inner = mesh(new THREE.ConeGeometry(0.18, 0.36, 3), lam('#ffa8c0'), g, 0, 0.14, 0.09);
-      inner.rotation.y = Math.PI; inner.scale.set(1, 1, 0.3);
-    }
-    // 꼬리 (뒤쪽, 살랑)
-    const tailPiv = new THREE.Group(); tailPiv.position.set(0, -0.3, -0.92); b.spin.add(tailPiv);
-    const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.15, -0.35), new THREE.Vector3(0.1, 0.55, -0.5), new THREE.Vector3(0.28, 0.85, -0.38)]);
-    const tail = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.1, 8), lam(cheese, { emissive: '#ffd6e0', emissiveIntensity: 0.15 }));
-    tailPiv.add(tail);
-    mesh(new THREE.SphereGeometry(0.1, 8, 6), lam(fur), tailPiv, 0.28, 0.85, -0.38);
-    // 작은 앞발 두 개 (아래)
-    for (const s of [-1, 1]) mesh(new THREE.SphereGeometry(0.17, 10, 8), lam(fur), b.spin, s * 0.28, -0.9, 0.4).scale.set(1, 0.7, 1.1);
-    const glow = aura(b.root, '#ff8fc0', { r: 0.045, glow: 0.3, n: 4 });
-    let shut = 0, puff = 0, nextBlink = 1.5;
-    b.root.userData.tick = (t, dt, s) => {
-      b.move(dt, s, 0.3);
-      glow(t);
-      shut -= dt; nextBlink -= dt;
-      puff = smooth(puff, s.smash ? 1 : 0, 1 - Math.exp(-dt * 10));
-      const blinking = nextBlink < 0 && nextBlink > -0.12;
-      if (nextBlink < -0.12) nextBlink = 1.8 + Math.random() * 2.2;
-      mat.map = shut > 0 ? tex.shut : puff > 0.5 ? tex.puff : blinking ? tex.blink : tex.open;
-      head.scale.set(1 + puff * 0.09, 1, 1);
-      tailPiv.rotation.z = Math.sin(t * 3.2) * 0.5;
-      tailPiv.rotation.x = Math.sin(t * 1.7) * 0.15;
-    };
-    b.root.userData.bounce = () => { shut = 0.3; b.squish(0.9); };
-    b.root.userData.hit = () => { shut = 0.2; };
-    b.root.userData.fx = {
-      bounce(emit, s) {
-        emit({ tex: 'nyang', n: 1, color: '#ffffff', size: s.smash ? 0.07 : 0.055, grow: 1.2, life: 0.7, speed: 0, up: 0.45, drag: 3, rot: (Math.random() - 0.5) * 0.4, pop: true, spread: 0.005 });
-        emit({ tex: 'heart', n: s.smash ? 5 : 2, color: ['#ff6fa3', '#ff9cc4', '#ffc0d8'], size: 0.025, grow: 1.3, life: 0.8, speed: 0.35, up: 0.6, g: -0.3, drag: 2, wob: 0.15, rot: 0 });
-      },
-      trail: { tex: ['star4', 'heart', 'glow'], color: ['#ff8fc0', '#ffc0e0', '#ffffff'], size: 0.03, life: 0.45, rate: 70 },
     };
     return b;
   },
@@ -793,18 +701,22 @@ export function makeBall(id) {
 /* ───────────── 튈 때·스매시 효과 (월드 공간) ─────────────
    fx = fx.js의 createFx(scene). 공이 튈 때 bounce(), 매 프레임 frame()을 부른다 */
 export function ballFx(scene, fx) {
-  // 탁구대 불꽃 자국 (미니 태양): 탁구대에 납작하게 붙는 그림
-  const scorchTex = (() => {
+  // 탁구대에 잠깐 남는 자국: scorch = 불꽃 자국(미니 태양), crater = 충돌 자국(소행성)
+  const markTex = (stops) => {
     const c = document.createElement('canvas'); c.width = c.height = 128;
     const g = c.getContext('2d');
     const gr = g.createRadialGradient(64, 64, 0, 64, 64, 62);
-    gr.addColorStop(0, 'rgba(255,220,120,1)'); gr.addColorStop(0.25, 'rgba(255,120,20,0.9)'); gr.addColorStop(0.55, 'rgba(60,20,10,0.6)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    for (const [k, col] of stops) gr.addColorStop(k, col);
     g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
-  })();
+  };
+  const TEX = {
+    scorch: markTex([[0, 'rgba(255,220,120,1)'], [0.25, 'rgba(255,120,20,0.9)'], [0.55, 'rgba(60,20,10,0.6)'], [1, 'rgba(0,0,0,0)']]),
+    crater: markTex([[0, 'rgba(30,26,40,0.75)'], [0.45, 'rgba(50,46,60,0.55)'], [0.62, 'rgba(210,205,225,0.5)'], [0.75, 'rgba(120,115,135,0.25)'], [1, 'rgba(0,0,0,0)']]),
+  };
   const marks = [];
   for (let i = 0; i < 5; i++) {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: scorchTex, transparent: true, depthWrite: false, opacity: 0 }));
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: TEX.scorch, transparent: true, depthWrite: false, opacity: 0 }));
     m.rotation.x = -Math.PI / 2; m.visible = false; m.renderOrder = 5;
     scene.add(m);
     marks.push({ m, age: 9 });
@@ -817,9 +729,10 @@ export function ballFx(scene, fx) {
       ball?.userData.bounce?.({ pos, smash });
       if (!f) return;
       if (f.bounce) fx.hit((emit) => f.bounce(emit, { smash, floor: floorY, pos }), [pos[0], pos[1] - BALL_R * 0.6, pos[2]], smash ? 2 : 1, 0);
-      if (f.scorch) {
+      if (f.mark) {
         const mk = marks[mi++ % marks.length];
-        mk.age = 0; mk.size = smash ? 0.11 : 0.075;
+        mk.age = 0; mk.size = (smash ? 0.11 : 0.075) * (f.mark === 'crater' ? 0.8 : 1); mk.kind = f.mark;
+        mk.m.material.map = TEX[f.mark];
         mk.m.position.set(pos[0], floorY + 0.0015, pos[2]);
         mk.m.visible = true;
       }
@@ -829,11 +742,12 @@ export function ballFx(scene, fx) {
       for (const mk of marks) {
         if (!mk.m.visible) continue;
         mk.age += dt;
-        const k = mk.age / 1.6;
+        const k = mk.age / (mk.kind === 'crater' ? 2.2 : 1.6);
         if (k >= 1) { mk.m.visible = false; continue; }
         mk.m.material.opacity = (1 - k) * (1 - k) * 0.9;
         mk.m.scale.setScalar(mk.size * (0.7 + 0.3 * ease(mk.age * 6)));
-        mk.m.material.color.setRGB(1, 1 - k * 0.5, 1 - k * 0.7);
+        if (mk.kind === 'scorch') mk.m.material.color.setRGB(1, 1 - k * 0.5, 1 - k * 0.7);
+        else mk.m.material.color.setRGB(1, 1, 1);
       }
       const tr = ball?.userData.fx?.trail;
       if (!tr || !smash || !pos) { acc = 0; last.set(pos?.[0] ?? 0, pos?.[1] ?? 0, pos?.[2] ?? 0); return; }

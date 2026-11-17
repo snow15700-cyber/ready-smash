@@ -7,7 +7,7 @@ import * as A from './audio.js';
 import { TY, TABLE_W, TABLE_L } from './physics.js';
 
 const GRADE = { common: '일반', rare: '고급', legend: '전설' };
-const SOUND = { jelly: '말랑 젤리 톡', rubber: '고무공 통', peel: '둔탁한 톡', tomato: '탱글 퐁', mochi: '쫀득', tako: '말랑 폭', chick: '폭신 폭 + 가끔 삐약', billiard: '맑은 딱', rock: '묵직한 쿵 + 자갈', dragon: '껍데기 톡 + 화르륵', sun: '치익 + 따뜻한 울림', cat: '톡 + 냥' };
+const SOUND = { jelly: '말랑 젤리 톡', rubber: '고무공 통', peel: '둔탁한 톡', tomato: '탱글 퐁', mochi: '쫀득', tako: '말랑 폭', eggshell: '껍데기 톡', billiard: '맑은 딱', rock: '운석 충돌 쿵-', dragon: '껍데기 톡 + 화르륵', sun: '치익 + 따뜻한 울림' };
 const params = new URLSearchParams(location.search);
 const opt = { mode: params.get('mode') || 'normal', cam: params.get('cam') || 'near', bg: params.get('bg') || 'light' };
 
@@ -215,6 +215,6 @@ for (const gr of ['common', 'rare', 'legend']) {
   }
 }
 document.body.dataset.ready = '1';
-wear(params.get('id') || 'cat');
+wear(params.get('id') || 'asteroid');
 loop();
 window.__balls = { wear, opt, cam, get ball() { return ball; } };
