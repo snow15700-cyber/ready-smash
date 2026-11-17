@@ -45,13 +45,15 @@ export function createLobbyDemo() {
   }
 
   // 다가오는 소리를 예약 (타구·탁구대·바닥·네트). sound가 false면 소리 없이 건너뛴다
-  function sounds(now, on) {
+  function sounds(now, on, chars, world) {
     while (played < segs.length) {
       const s = segs[played];
       const ahead = s.t0 - now;
       if (ahead > 0.06) break;
       played++;
-      if (!on || ahead < -0.1) continue;
+      if (ahead < -0.1) continue;
+      if (s.ev === 'hit') world.hitFx(chars[s.side], s.p, s.grade); // 전설 탁구채 효과는 소리가 꺼져 있어도 보인다
+      if (!on) continue;
       const when = A.audioNow() + Math.max(0, ahead);
       if (s.ev === 'hit') A.playHit(s.grade, s.p, when, s.sound);
       else if (s.ev === 'table') A.playTable(s.speed, s.p, when);
@@ -75,7 +77,7 @@ export function createLobbyDemo() {
         next = null;
         shoot(n.side, n.pos, n.t, false, chars);
       }
-      sounds(now, sound);
+      sounds(now, sound, chars, world);
       const t0 = segs[0].t0;
       world.setBall(now >= t0 ? ballPos(segs, now) : segs[0].p, true);
 

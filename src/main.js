@@ -1165,7 +1165,7 @@ $('spot-acts').addEventListener('click', (e) => {
   const it = selId ? ITEM[selId] : equipped(myEquip(), closetCat);
   if (b.dataset.buy) doBuy(b.dataset.buy, b.dataset.pay);
   else if (b.dataset.act === 'equip') { playUI('click'); doEquip(it); }
-  else if (b.dataset.act === 'sound') { initAudio(); playHit('perfect', null, null, it.sound || null); }
+  else if (b.dataset.act === 'sound') { initAudio(); playHit('perfect', null, null, it.sound || null); world.hitFx(world.team[0][0], null, 'perfect'); }
 });
 
 $('btn-shop').addEventListener('click', () => openDress('gacha'));

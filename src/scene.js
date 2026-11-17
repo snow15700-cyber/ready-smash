@@ -1,5 +1,6 @@
 // Three.js 로우폴리 카툰 체육관, 탁구대, 캐릭터
 import * as THREE from 'three';
+import { createFx } from './fx.js';
 import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H, HIT_Z, sideSign } from './physics.js';
 
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts });
@@ -97,6 +98,10 @@ export function createWorld(canvas) {
   const camPos = new THREE.Vector3();
   const camLook = new THREE.Vector3();
   let camInit = false;
+  // 전설 탁구채 효과 (칠 때 튀는 그림 + 탁구채가 스스로 움직이는 연출)
+  const fx = createFx(scene);
+  const fxPos = new THREE.Vector3();
+  let fxLast = 0;
 
   return {
     renderer, scene, camera, chars, team, ball, shadow, ring, ringMove, aim,
@@ -136,6 +141,14 @@ export function createWorld(canvas) {
       return [((v.x + 1) / 2) * window.innerWidth, ((1 - v.y) / 2) * window.innerHeight];
     },
     kick(amount) { this.shake = Math.max(this.shake, amount); },
+    // 전설 탁구채로 쳤을 때 효과. pos가 없으면 탁구채 자리에서
+    hitFx(char, pos, grade) {
+      const model = char?.paddleModel;
+      if (!char?.fx || !model) return;
+      if (!pos) pos = model.getWorldPosition(fxPos).toArray();
+      model.userData.hit?.(grade);
+      fx.hit(char.fx, pos, grade, char.group.position.z >= 0 ? -1 : 1);
+    },
     // ballX: 공이 지금 있는 좌우 위치 (공 따라가기용)
     // charZ: 내 캐릭터가 테이블에서 떨어진 거리 (2v2에서 뒤로 물러나면 카메라도 같이)
     updateCamera(side, charX, dt, ballX = 0, charZ = CHAR_Z) {
@@ -180,7 +193,14 @@ export function createWorld(canvas) {
       shadow.material.opacity = Math.max(0.08, 0.4 - hgt * 0.35);
     },
     clearTrail() { trailHist.length = 0; },
-    render() { renderer.render(scene, camera); },
+    render() {
+      const t = performance.now() / 1000;
+      const dt = Math.min(0.1, t - fxLast || 0.016);
+      fxLast = t;
+      for (const side of team) for (const c of side) if (c.group.visible) c.paddleModel?.userData.tick?.(t, dt);
+      fx.update(dt);
+      renderer.render(scene, camera);
+    },
   };
 }
 
@@ -368,9 +388,10 @@ export function makeCharacter(paddleColor) {
       });
     }
     if (model) {
-      model.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+      model.traverse((m) => { if (m.isMesh && !m.userData.fxKeep) m.castShadow = true; });
       custom.add(model);
     }
+    api.paddleModel = model || null;
     handle.visible = blade.visible = !model;
     if (lastOp) { group.userData.op = null; setOpacity(...lastOp); }
   };
@@ -384,8 +405,8 @@ export function makeCharacter(paddleColor) {
     if (group.userData.op === key) return;
     group.userData.op = key;
     group.traverse((o) => {
-      // keepOp: 대기실 빛 고리, fx: 옷 효과(반짝이 등) — 스스로 투명도를 정한다
-      if (!o.isMesh || o.userData.keepOp || o.userData.fx) return;
+      // keepOp: 대기실 빛 고리, fx: 옷 효과(반짝이 등), fxKeep: 전설 탁구채 효과 부품 — 스스로 투명도를 정한다
+      if (!o.isMesh || o.userData.keepOp || o.userData.fx || o.userData.fxKeep) return;
       const isPaddle = isPaddlePart(o);
       const op = isPaddle ? paddleOp : bodyOp;
       for (const m of [].concat(o.material)) {
@@ -454,7 +475,8 @@ export function makeCharacter(paddleColor) {
     glow.material.color.set(color);
     glow.visible = true;
   };
-  return { group, body, arm, head, handle, blade, swingT: -1, setOpacity, setPaddleColor, setPaddle, setPaddleModel, setTag, setHold, setGlow, setOutfit, tickOutfit };
+  const api = { group, body, arm, head, handle, blade, swingT: -1, paddleModel: null, setOpacity, setPaddleColor, setPaddle, setPaddleModel, setTag, setHold, setGlow, setOutfit, tickOutfit };
+  return api;
 }
 
 // 탁구채 색: 지금은 모두 빨강 (나중에 꾸미기에서 색·모양을 바꿀 수 있게 할 예정)

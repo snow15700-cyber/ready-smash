@@ -161,6 +161,7 @@ export class Game {
     }
     // 서버를 기다리지 않고 클릭 즉시 타구음. 방향은 클릭 직후 마우스 움직임까지 보고 정한다
     A.playHit(grade, ballPos(this.segs, t), undefined, char.sound);
+    this.w.hitFx(char, ballPos(this.segs, t), grade);
     this.w.kick(grade === 'perfect' ? 1 : grade === 'good' ? 0.6 : 0.3);
     this.localHitT = t;
     this.holdPos = ballPos(this.segs, t);
@@ -286,7 +287,7 @@ export class Game {
         const mine = this.isMe(ev.side, ev.slot ?? 0);
         const wasPredicted = this.predicted && mine && Math.abs(this.predicted.t - ev.t) < 1e-6;
         this.predicted = null;
-        this.segs = simulate(ev.p, ev.v, ev.t0, 'hit', { side: ev.side, grade: ev.grade, smash: ev.kind === 'smash', sound: this.charOf(ev.side, ev.slot ?? 0).sound });
+        this.segs = simulate(ev.p, ev.v, ev.t0, 'hit', { side: ev.side, grade: ev.grade, smash: ev.kind === 'smash', sound: this.charOf(ev.side, ev.slot ?? 0).sound, by: this.charOf(ev.side, ev.slot ?? 0) });
         this.holdPos = null;
         if (!wasPredicted) this.played = new Set();
         if (mine && Math.abs(this.localHitT - ev.t) < 0.001) this.played.add(0);
@@ -477,7 +478,7 @@ export class Game {
       this.played.add(i);
       if (ahead < -0.25) continue; // 너무 지난 소리는 생략 (네트워크로 늦게 온 소리는 0.25초까지 바로 재생)
       const when = A.audioNow() + Math.max(0, ahead);
-      if (s.ev === 'hit') A.playHit(s.grade, s.p, when, s.sound);
+      if (s.ev === 'hit') { A.playHit(s.grade, s.p, when, s.sound); if (s.by) this.w.hitFx(s.by, s.p, s.grade); }
       else if (s.ev === 'table') A.playTable(s.speed, s.p, when);
       else if (s.ev === 'floor') A.playFloor(s.speed, s.p, when);
       else if (s.ev === 'net') A.playNet(s.p, when);
