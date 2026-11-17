@@ -41,7 +41,7 @@
   - 로컬 테스트에서 탭마다 다른 계정: 주소에 `?acct=2`(로그인 열쇠를 따로 보관).
 - 3단계 랭킹: `supabase/03_ranking.sql`의 `pingpong_ranking('wins'|'rally')`(로그인 없이 호출, 닉네임과 숫자만, 상위 50, 같은 기록은 공동 등수). 로비 '🏆 랭킹' 버튼 → `#rank` 화면(승수/최장 랠리 탭, 1~3위 메달, 내 줄 강조). `main.js`의 `showRank`.
 - 알려진 문제: Vercel 미리보기(test)에서 Supabase 환경 변수가 안 들어가 '테스트 모드' 경고가 뜬다(사용자가 Preview 체크했는데도 원인 미해결). 서버 기능은 main 배포에서 확인.
-- 새 SQL은 `09_...sql`처럼 새 파일로 추가. SQL은 로컬 PostgreSQL 16으로 먼저 시험할 수 있다(`service postgresql start`, `extensions` 스키마와 `anon` 역할을 만들어 흉내).
+- 새 SQL은 `13_...sql`처럼 새 파일로 추가. SQL은 로컬 PostgreSQL 16으로 먼저 시험할 수 있다(`service postgresql start`, `extensions` 스키마와 `anon` 역할을 만들어 흉내).
 
 ## 상점·꾸미기 (① 코인, ② 상점·옷장 완료 — test에서 사용자 테스트 중)
 - 설계는 기획서 4장. 순서: ① 코인 벌기 → ② 상점·옷장 화면 → ③ 카테고리 하나씩(탁구채부터). 단계마다 사용자 테스트.
@@ -119,13 +119,15 @@
 - 그림은 로비 장면을 Playwright로 찍고(팀원 한 명씩 더 세움) HTML로 제목을 얹어 캡처해서 만들었다.
 - 카톡은 미리보기를 기억해 둔다 → 바꾼 뒤엔 카카오 공유 디버거(developers.kakao.com/tool/debugger/sharing)에서 '캐시 초기화'.
 
-## 업적·칭호 (기획 중, 사용자 요청으로 보류 — 이어서 할 것)
-- 방향(제안, 대체로 동의받음): 업적 하나 = 칭호 하나. 칭호는 하나만 달고 직접 고름. 이름표·대기실·랭킹에 표시. 보상은 칭호 + 일부 코인 소량, 승리 세리머니는 큰 업적 몇 개에만(나중). 이미 쌓인 전적으로 깰 수 있는 건 처음 열 때 바로 지급. 달성 알림은 경기 결과 띠 다음 '🏅 업적 달성!'. 목록은 꾸미기 화면에 '🏅 칭호' 탭.
-- 업적 종류 초안: 꾸준함(승수)·실력(퍼펙트 연속·스매시·랠리)·혼자 하기(김제빵 랠리)·사람 관계(서로 다른 n명 이기기, 같은 사람과 n판)·2v2(역전승)·웃긴/숨은 업적('???'로 숨김)·수집.
-- 단계 제안: ① 기록형 업적 + 칭호 달기 → ② 경기 중 업적 → ③ 숨은·관계 업적 → ④ 세리머니.
-- 사용자 확정: **웃긴·놀림형 칭호 넣기**, **칭호 등급은 나누되 색은 모두 같게**, **처음 15~20개**.
-- 남은 결정: 이름표 칭호 위치 A(한 줄, 닉네임 앞 노란 글자 「칭호」) / B(두 줄, 이름표 위 칭호 알약). 시안 `docs/시안/칭호_A_한줄.png`, `칭호_B_두줄.png`. B는 2v2 '다음에 칠 사람' 노란 강조와 겹치니 알약 색을 바꿔야 함.
-- 다음 할 일: 위치 고른 뒤 업적 목록 표(이름·조건·보상)를 기획서에 '업적·칭호' 장으로 추가 → 사용자 확인 → ①부터 구현.
+## 업적·칭호 (①②③ test에서 사용자 테스트 중, SQL 10·11은 사용자가 실행함)
+- 전체 목록·규칙은 **기획서 11장**. 사용자 확정: 목록 전부 추가, 놀림형 칭호 OK, **칭호는 하나만** 달고 꾸미기 '🏅 칭호' 탭에서 언제든 바꾸기, 보상 ★20/★★50/★★★150코인, 이름표 **B안(두 줄, 칭호 알약)** — 칭호 알약은 모두 남색 `#3d3b5c`.
+- **숨은 업적 없음**(사용자 확정): 업적 이름·조건은 모두 보이고, **칭호 글자만 깨기 전에 '칭호 ???'**.
+- ① `supabase/10_achievements.sql`: 표 `pingpong_ach`(id·grade)·`pingpong_ach_got`, 선수 `title`. 함수 `pingpong_achievements`(목록 + 새로 깬 것 `new`)·`pingpong_set_title`. 랭킹에 `title`.
+- ② `supabase/11_ach_match.sql`(10 다음): 선수 `ach_n`(누적 숫자 jsonb)·`ach_at`(10초 규칙). `pingpong_ach_match(token, mode, won, stats)` — 한 경기 업적은 바로, 누적은 `ach_n`에 더한 뒤 `pingpong__ach_check`(10의 것 + 누적)로. 지급은 `pingpong__ach_grant`. 오리·빵 탁구채 업적은 서버의 `equip`, 하루 판 수·아침 9시는 서버 시각(한국).
+  - 화면: `game.js`의 `trackAch`(모든 이벤트에서 내 기록: 판정·방향(`lastLocal`)·타이밍·스매시·찬스볼·서브·점수 흐름·2v2 내 득점) → `achSummary(score)` → `main.js` `saveResult` → `achMatch`. 혼자 하기는 `onRally`에서 친 횟수 1 이하면 `achMatch('ai', …, {aizero:1})`.
+  - 목록은 두 곳: `src/achievements.js`(`ACHS`, `live` = 지금 셀 수 있음)와 SQL insert. 로컬 가짜 서버는 `account.js`의 `localAchMatch`(같은 규칙).
+- ③ `supabase/12_ach_people.sql`(11 다음): `pingpong_ach_people(token, mode, won, opp, mate)` — `achMatch` 다음에 부름(같은 경기 한 번만, `ach_n.people_at`). 천적 = h2h `lose_run` 5 → 칭호 「(상대 닉네임) 공포증」(`ach_n.nemesis`, 처음 깬 상대로 고정, `titleText(id, x)`·presence `titleX`·랭킹 `title_x`·player json `nemesis`). 복수 = 그 상대에게 3패 이상인데 이김. 짝꿍 = `ach_n.duo{팀원 번호: 승수}`. 뽑기 횟수 = 트리거 `pingpong_count_gacha`(코인이 100·900 줄면 `ach_n.gacha`). 출석 = `pingpong_daily`가 `ach_n.days`·`days_run`(이 SQL 넣은 날부터).
+- 이제 58개 모두 깰 수 있음. 다음 후보 ④: 연출 다듬기(승리 세리머니 등, 기획서 11장).
 
 ## 사용자가 확정한 결정 (바꾸기 전에 사용자에게 확인)
 - 캐릭터: 흰색 몸통+흰색 머리만, 팔 없음, 탁구채만 떠 있음. **내 캐릭터는 반투명**(0.38), 상대·팀원은 불투명. 탁구채 기본은 빨강, 옷장에서 장착한 것으로 바뀐다(`items.js`).

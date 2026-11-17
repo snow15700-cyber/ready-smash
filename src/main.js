@@ -5,7 +5,8 @@ import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, playHit, setEcho, setQuiet, setListener } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
-import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking } from './account.js';
+import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking, checkAch, setTitle, myTitle, achMatch, achPeople } from './account.js';
+import { ACHS, ACH, ACH_CATS, REWARD, titleText } from './achievements.js';
 
 import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLook, swatch, equipped } from './items.js';
 
@@ -18,6 +19,10 @@ const unlockAudio = () => { initAudio(); removeEventListener('pointerdown', unlo
 addEventListener('pointerdown', unlockAudio);
 addEventListener('keydown', unlockAudio);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+// 칭호 알약 (이름표 위. 칭호 색은 모두 같게 — 2v2 '다음에 칠 사람' 노란 강조와 겹치지 않는 남색). id = 업적 id
+const tpill = (id, x) => (titleText(id, x) ? `<span class="tpill">${esc(titleText(id, x))}</span>` : '');
+const myNemesis = () => account.player?.nemesis || null; // 천적 칭호에 들어갈 닉네임
+const roomTpill = (id) => { const m = room?.members.find((x) => x.id === id); return tpill(m?.title, m?.titleX); };
 
 if (IS_TEST) {
   const tag = document.createElement('div');
@@ -101,7 +106,7 @@ const hud = {
     clearTimeout(resultTimer);
     resultTimer = setTimeout(() => el.classList.add('hidden'), 2700);
     if (room) {
-      saveResult(room.mode, win, game.stats);
+      saveResult(room.mode, win, game.stats, game.achSummary(score));
       room.result = win ? `🏆 승리! ${score[me]} : ${score[1 - me]}` : `😢 패배 ${score[me]} : ${score[1 - me]}`;
       setTimeout(() => { if (room && room.inGame) backToRoom(); }, 2800);
     }
@@ -162,12 +167,14 @@ function startAI() {
     // 최고 기록: 로그인했으면 서버, 손님이면 이 브라우저에 저장
     best: account.loggedIn ? account.player.best_rally : guestBest(),
     onBest: (r) => {
-      if (account.loggedIn) recordRally(r);
+      if (account.loggedIn) recordRally(r).then(() => runAchCheck());
       else try { localStorage.setItem(GUEST_BEST_KEY, r); } catch {}
     },
     // 랠리가 끝날 때마다 친 횟수만큼 코인 (4번에 1코인, 서버가 계산)
     onRally: async (hits) => {
       const g = game;
+      // 김제빵의 첫 공을 못 받고 끝남 (업적 '첫 공 실수')
+      if (hits <= 1 && account.loggedIn) achMatch('ai', false, { aizero: 1 }).then(gotAch);
       const got = await aiRally(hits);
       if (!got) return;
       aiCoins += got;
@@ -197,7 +204,7 @@ function enterRoom(code, host, mode = null) {
   playUI('click');
   const nick = myNick();
   leaveRoom();
-  const me = { id: myId, nick, host, at: Date.now(), look: myEquip(), ...(account.loggedIn ? { pid: account.player.id } : { guest: true }), ...(host ? { mode } : {}) };
+  const me = { id: myId, nick, host, at: Date.now(), look: myEquip(), title: myTitle(), titleX: myNemesis(), ...(account.loggedIn ? { pid: account.player.id } : { guest: true }), ...(host ? { mode } : {}) };
   room = {
     code, host, me, mode, members: [], hostM: host ? me : null,
     teams: {}, // id → { team, at }  (at = 팀을 고른 시각: 같은 자리를 동시에 누르면 먼저 누른 사람이 이김)
@@ -403,6 +410,12 @@ function playerNames() {
   for (const p of room.players) out[p.side][p.slot || 0] = nickOf(p.id);
   return out;
 }
+// 선수마다 칭호 글자 (presence의 title). titles[side][slot]
+function titles() {
+  const out = [[], []];
+  for (const p of room.players) out[p.side][p.slot || 0] = (({ title, titleX } = {}) => titleText(title, titleX))(room.members.find((m) => m.id === p.id));
+  return out;
+}
 // 선수마다 꾸미기 (presence의 look). looks[side][slot]
 function looks() {
   const out = [[], []];
@@ -430,7 +443,7 @@ function startOnline(mode, players) {
   room.link.send({ k: 'go', mode, players });
   show('hud');
   game = new Game(world, {
-    mySide: mine.side, mySlot: mine.slot || 0, mode, hud, names: names(), playerNames: playerNames(), looks: looks(),
+    mySide: mine.side, mySlot: mine.slot || 0, mode, hud, names: names(), playerNames: playerNames(), playerTitles: titles(), looks: looks(),
     send: {
       toss: (side, t, x, slot) => match.toss(side, t, x, slot),
       swing: (side, t, dir, up, slot) => match.swing(side, t, dir, up, slot),
@@ -453,7 +466,7 @@ function startGuestGame(mode, players, mine) {
   beginRoomGame(players);
   show('hud');
   game = new Game(world, {
-    mySide: mine.side, mySlot: mine.slot || 0, mode, hud, names: names(), playerNames: playerNames(), looks: looks(), authority: false,
+    mySide: mine.side, mySlot: mine.slot || 0, mode, hud, names: names(), playerNames: playerNames(), playerTitles: titles(), looks: looks(), authority: false,
     send: {
       toss: (s, t, x) => room && room.link.send({ k: 'in', kind: 'toss', t, x, from: myId }),
       swing: (s, t, dir, up) => room && room.link.send({ k: 'in', kind: 'swing', t, dir, up, from: myId }),
@@ -484,10 +497,11 @@ function renderPing() {
 
 /* ───────── 전적 ───────── */
 // 경기가 끝나면 내 PC가 내 결과만 기록한다. 1v1이면 상대의 선수 번호(pid)도 함께 (상대 전적)
-async function saveResult(mode, win, stats) {
+async function saveResult(mode, win, stats, achStats) {
   if (!account.loggedIn) return;
   const r0 = room;
   const opp = mode === '1v1' ? oppMember() : null;
+  const mate = mode === '2v2' && r0 ? mateMember(r0) : null; // 대기실로 돌아가면 선수 목록이 지워지므로 먼저
   const bonus = { perfect3: stats.perfect3, rally10: stats.rally10 };
   let r = await finishMatch(mode, win, opp?.pid, bonus);
   // 서버에 코인 기능(04_coins.sql)이 아직 없으면 전적만이라도 저장 (10초 규칙이 두 번 저장을 막는다)
@@ -499,6 +513,16 @@ async function saveResult(mode, win, stats) {
       renderRoom();
       if (r.coins && !room.inGame) playUI('coin');
     }
+  }
+  // 경기 기록으로 깬 업적 (결과 띠가 사라진 뒤 '🏅 업적 달성!')
+  if (r.status === 'ok' || r.status === 'too_soon') {
+    const ra = await achMatch(mode, win, achStats || {});
+    if (ra.status === 'ok') {
+      gotAch(ra);
+      // 사람 관계 업적: 1대1 상대·2대2 팀원의 선수 번호 (로그인한 사람만)
+      const rp = await achPeople(mode, win, opp?.pid || null, mate?.pid || null);
+      if (rp.status === 'ok') gotAch(rp);
+    } else runAchCheck();
   } else if (r.status !== 'too_soon') hud.toast('전적을 저장하지 못했어요 (인터넷 연결 확인)', 2600);
 }
 
@@ -513,6 +537,12 @@ function renderCoins() {
 }
 
 // 1v1 방의 상대 (나 말고 다른 한 사람)
+// 2v2 방의 내 팀원 (경기 선수 목록에서 같은 쪽의 다른 사람)
+function mateMember(r) {
+  const mine = r.players?.find((p) => p.id === myId);
+  const mate = mine && r.players.find((p) => p.side === mine.side && p.id !== myId);
+  return mate ? r.members.find((m) => m.id === mate.id) : null;
+}
 const oppMember = () => (room ? room.members.find((m) => m.id !== myId) : null);
 
 function renderH2H() {
@@ -633,6 +663,7 @@ const showLobby = () => show('lobby');
 
 // 로그인하면 하루 첫 접속 코인 받기 (한국 시간으로 하루 한 번)
 async function checkDaily() {
+  runAchCheck(2600);
   const got = await claimDaily();
   if (!got) return;
   if (!$('lobby').classList.contains('hidden')) renderMe();
@@ -789,7 +820,7 @@ async function showRank(kind = rankKind) {
     if (!r) return `<div class="pod p${i + 1} empty"><em class="av">?</em><b>비어 있어요</b><div class="block">${i + 1}</div></div>`;
     const me = r.nick === myNick ? ' me' : '';
     return `<div class="pod p${i + 1}${me}"><span class="medal">${MEDAL[r.rank] || r.rank}</span>${av(r.nick)}`
-      + `<b>${esc(r.nick)}</b><span class="val">${r.value}<small>${unit}</small></span>${sub(r)}<div class="block">${r.rank}</div></div>`;
+      + `${tpill(r.title, r.title_x)}<b>${esc(r.nick)}</b><span class="val">${r.value}<small>${unit}</small></span>${sub(r)}<div class="block">${r.rank}</div></div>`;
   }).join('');
   podium.classList.toggle('hidden', !rows.length);
 
@@ -797,7 +828,7 @@ async function showRank(kind = rankKind) {
   const rest = rows.slice(3);
   if (!rows.length) list.innerHTML = `<li class="msg-row">${RANK[kind].empty}</li>`;
   else list.innerHTML = rest.map((r) => `<li class="${r.nick === myNick ? 'me' : ''}"><span class="no">${MEDAL[r.rank] || r.rank}</span>${av(r.nick)}`
-    + `<span class="who">${esc(r.nick)}${sub(r)}</span><span class="val">${r.value}<small>${unit}</small></span></li>`).join('');
+    + `<span class="who">${tpill(r.title, r.title_x)}${esc(r.nick)}${sub(r)}</span><span class="val">${r.value}<small>${unit}</small></span></li>`).join('');
 
   // 내 줄이 목록 아래쪽에 있으면 보이게 스크롤
   list.scrollTop = 0;
@@ -879,7 +910,7 @@ window.addEventListener('keydown', (e) => {
 /* ───────── 꾸미기 (옷장 · 뽑기 · 골라 사기를 한 화면에) ─────────
    뽑기·구매·장착은 서버(supabase/06_shop.sql)가 정하고, 화면은 결과만 보여 준다.
    패널은 오른쪽, 왼쪽에는 내 캐릭터(입어 보기)와 고른 아이템을 크게 보여 주는 카드(#spot). */
-let dressTab = 'closet'; // closet | gacha | buy
+let dressTab = 'closet'; // closet | gacha | buy | title
 let shopTab = 'char'; // 뽑기 통 (char | arena)
 let closetCat = 'paddle'; // 옷장·골라 사기에서 보는 카테고리
 let selId = null; // 고른(입어 보는) 아이템. null이면 지금 장착한 것
@@ -946,11 +977,13 @@ function renderWallet() {
 
 function renderDress() {
   renderWallet();
-  for (const t of ['closet', 'gacha', 'buy']) $(`tab-${t}`).classList.toggle('on', dressTab === t);
-  const g = dressTab === 'gacha';
+  for (const t of ['closet', 'gacha', 'buy', 'title']) $(`tab-${t}`).classList.toggle('on', dressTab === t);
+  const g = dressTab === 'gacha', tt = dressTab === 'title';
   $('pane-gacha').classList.toggle('hidden', !g);
-  $('cat-chips').classList.toggle('hidden', g);
-  $('item-grid').classList.toggle('hidden', g);
+  $('pane-title').classList.toggle('hidden', !tt);
+  $('cat-chips').classList.toggle('hidden', g || tt);
+  $('item-grid').classList.toggle('hidden', g || tt);
+  if (tt) { renderTitles(); $('spot').classList.add('hidden'); if (!account.ach) runAchCheck(); return; }
   if (g) renderGacha();
   else { renderChips(); renderGrid(); }
   renderSpot();
@@ -1053,6 +1086,7 @@ async function doGacha(count) {
   }
   renderWallet();
   const gap = count === 1 ? 0 : 0.16;
+  runAchCheck(count === 1 ? 1500 : 3400); // 카드가 다 뒤집힌 뒤
   box.className = `gacha-result${count === 1 ? ' one' : ''}`;
   box.innerHTML = r.results.map((x, i) => {
     const it = ITEM[x.item] || { name: x.item, grade: x.grade };
@@ -1101,6 +1135,7 @@ async function doBuy(id, pay) {
   const r = await buyItem(id, pay);
   shopBusy = false;
   if (r.status === 'ok') {
+    runAchCheck(900);
     playUI(ITEM[id].grade === 'common' ? 'card' : ITEM[id].grade);
     setMsg(`🎉 ${esc(ITEM[id].name)}을(를) 얻었어요! '장착하기'를 누르면 바로 써요`, true);
   } else setMsg(SHOP_MSG[r.status] || SHOP_MSG.error);
@@ -1108,7 +1143,7 @@ async function doBuy(id, pay) {
 }
 
 // 탭 · 카테고리 · 카드 · 크게 보기 카드
-for (const t of ['closet', 'gacha', 'buy']) {
+for (const t of ['closet', 'gacha', 'buy', 'title']) {
   $(`tab-${t}`).addEventListener('click', () => {
     if (dressTab === t) return;
     playUI('click');
@@ -1177,6 +1212,105 @@ $('btn-gacha-10').addEventListener('click', () => doGacha(10));
 $('btn-test-coins').classList.toggle('hidden', ONLINE);
 $('btn-test-coins').addEventListener('click', async () => { playUI('coin'); await testCoins(1000); renderDress(); });
 
+/* ───────── 업적·칭호 (supabase/10_achievements.sql, 기획서 11장) ─────────
+   업적 달성은 서버가 정한다. 화면은 로그인 직후·경기 뒤·뽑기 뒤 등에 checkAch를 불러 새로 깬 업적을 받고
+   '🏅 업적 달성!' 알림을 차례로 띄운다. 칭호는 꾸미기 화면의 '🏅 칭호' 탭에서 단다. */
+const achPop = { queue: [], busy: false, notBefore: 0 };
+let achTimer = 0;
+function runAchCheck(delay = 0) {
+  if (!account.loggedIn) return;
+  clearTimeout(achTimer);
+  achTimer = setTimeout(async () => {
+    gotAch(await checkAch());
+  }, delay);
+}
+// 서버가 알려 준 새 업적을 알림 줄에 넣기
+function gotAch(r) {
+  if (r.status !== 'ok') return;
+  {
+    if (r.new?.length) {
+      achPop.queue.push(...r.new.filter((n) => ACH[n.id]));
+      showAchPop();
+      if (!$('lobby').classList.contains('hidden')) renderMe();
+    }
+    if (!$('dress').classList.contains('hidden')) renderDress();
+  }
+}
+function showAchPop() {
+  if (achPop.busy) return;
+  const n = achPop.queue.shift();
+  if (!n) return;
+  // 경기 결과 띠가 떠 있으면 사라진 뒤에
+  if (!$('result').classList.contains('hidden')) { achPop.queue.unshift(n); setTimeout(showAchPop, 500); return; }
+  achPop.busy = true;
+  const el = $('ach-pop');
+  // 한꺼번에 3개 넘게 깨면(처음 열 때 쌓인 기록 등) 하나로 묶어서
+  if (achPop.queue.length >= 2) {
+    const all = [n, ...achPop.queue.splice(0)];
+    const coins = all.reduce((t, x) => t + x.coins, 0);
+    el.innerHTML = `<div class="ap-head">🏅 업적 ${all.length}개 달성!</div><div class="ap-many">${all.map((x) => `<span class="tpill">${esc(titleText(x.id, myNemesis()))}</span>`).join('')}</div>`
+      + `<div class="ap-coin">🪙 +${coins} 코인 · 칭호는 꾸미기 → 🏅 칭호에서 달 수 있어요</div>`;
+    el.className = 'show';
+    playUI(all.some((x) => ACH[x.id].grade === 3) ? 'legend' : 'rare');
+    setTimeout(() => playUI('coin'), 500);
+    setTimeout(() => { el.className = ''; setTimeout(() => { achPop.busy = false; showAchPop(); }, 400); }, 4600);
+    return;
+  }
+  const a = ACH[n.id];
+  el.innerHTML = `<div class="ap-head">🏅 업적 달성!</div><div class="ap-name">${esc(a.name)} <span class="stars">${'★'.repeat(a.grade)}</span></div>`
+    + `<span class="tpill">${esc(titleText(a.id, myNemesis()))}</span><div class="ap-coin">🪙 +${n.coins} 코인 · 칭호는 꾸미기 → 🏅 칭호에서 달 수 있어요</div>`;
+  el.className = 'show';
+  playUI(a.grade === 3 ? 'legend' : 'rare');
+  setTimeout(() => playUI('coin'), 500);
+  setTimeout(() => {
+    el.className = '';
+    setTimeout(() => { achPop.busy = false; showAchPop(); }, 400);
+  }, 3200);
+}
+
+// 꾸미기 '🏅 칭호' 탭: 지금 단 칭호 + 분류별 업적 목록 (깬 것은 '달기'. 칭호 글자는 깨기 전에 '???')
+let titleBusy = false;
+function renderTitles() {
+  const got = account.ach?.got;
+  const box = $('pane-title');
+  if (!got) { box.innerHTML = '<p class="msg">불러오는 중…</p>'; return; }
+  const cur = myTitle();
+  const n = ACHS.filter((a) => got.has(a.id)).length;
+  let html = `<div class="t-now"><span>지금 단 칭호</span>${cur ? tpill(cur, myNemesis()) : '<em>없음</em>'}`
+    + (cur ? `<button class="small ghost" data-title="" ${titleBusy ? 'disabled' : ''}>떼기</button>` : '')
+    + `<span class="t-count">업적 ${n} / ${ACHS.length}</span></div><div class="t-list">`;
+  for (const [cat, catName] of ACH_CATS) {
+    html += `<h4>${catName}</h4><ul>`;
+    for (const a of ACHS.filter((x) => x.cat === cat)) {
+      const have = got.has(a.id);
+
+      const on = cur === a.id;
+      let right;
+      if (on) right = '<span class="t-on">✓ 달고 있음</span>';
+      else if (have) right = `<button class="small primary" data-title="${a.id}" ${titleBusy ? 'disabled' : ''}>달기</button>`;
+      else right = `<span class="t-lock">🔒 🪙 ${REWARD[a.grade]}${a.live ? '' : '<small>준비 중</small>'}</span>`;
+      html += `<li class="ach${have ? ' got' : ''}${on ? ' on' : ''}"><div class="a-main">`
+        + `<div class="a-name">${esc(a.name)} <span class="stars">${'★'.repeat(a.grade)}</span></div>`
+        + `<div class="a-cond">${esc(a.cond)}</div>`
+        + `<span class="tpill${have ? '' : ' off'}">${have ? esc(titleText(a.id, myNemesis())) : '칭호 ???'}</span></div>${right}</li>`;
+    }
+    html += '</ul>';
+  }
+  box.innerHTML = html + '</div>';
+}
+$('pane-title').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-title]');
+  if (!b || b.disabled || titleBusy) return;
+  playUI('click');
+  titleBusy = true;
+  renderTitles();
+  const r = await setTitle(b.dataset.title || null);
+  titleBusy = false;
+  if (r.status === 'ok') setMsg(b.dataset.title ? `🏅 칭호 「${esc(titleText(b.dataset.title, myNemesis()))}」을(를) 달았어요` : '칭호를 뗐어요', true);
+  else setMsg(SHOP_MSG[r.status] || SHOP_MSG.error);
+  renderTitles();
+});
+
 /* ───────── 대기실 무대 (안 B '자리 위에 서기') ─────────
    아래 카드의 자리 칸마다 바로 위에 그 선수의 3D 캐릭터가 서 있다. 장착한 탁구채를 몸 옆에 들고,
    머리 위에는 닉네임 + 아이템 이름 (등급은 색·빛으로만). 빈자리는 흐린 실루엣 */
@@ -1196,7 +1330,7 @@ function renderStageLabels() {
   box.innerHTML = stage.seats.map(({ team, m }) => {
     if (!m) return '<div class="rl ghost"><div class="nm">빈자리 · 기다리는 중</div></div>';
     const tags = (m.id === myId ? '<small>나</small>' : '') + (m.host ? '<small>👑</small>' : '');
-    return `<div class="rl"><div class="nm t${team}">${esc(m.nick)}${tags}</div>${lookPills(m.look)}</div>`;
+    return `<div class="rl">${tpill(m.title, m.titleX)}<div class="nm t${team}">${esc(m.nick)}${tags}</div>${lookPills(m.look)}</div>`;
   }).join('');
   stage.els = [...box.children];
 }
@@ -1340,7 +1474,7 @@ function startIntro(players, mySide, mode) {
   if (game) game.paused = true;
   document.body.classList.add('intro');
   const card = (s) => {
-    return `<div class="vi-card"><div class="nm t${s.side}">${esc(s.name)}${s.id === myId ? '<small>나</small>' : ''}</div>${lookPills(s.look)}</div>`;
+    return `<div class="vi-card">${roomTpill(s.id)}<div class="nm t${s.side}">${esc(s.name)}${s.id === myId ? '<small>나</small>' : ''}</div>${lookPills(s.look)}</div>`;
   };
   const team = (side) => `<div class="vi-team">${side === mySide ? (mode === '2v2' ? '우리 팀' : '나') : (mode === '2v2' ? '상대 팀' : '상대')} · ${TEAM_NAME[side]}</div>`
     + seats.filter((s) => s.side === side).map(card).join('');
