@@ -261,7 +261,7 @@ export function buildBeach() {
         p[i * 3 + 1] = (Math.sin(x * 0.18 + t * 1.3) * 0.22 + Math.sin(z * 0.11 - t * 0.9) * 0.16 + Math.sin((x + z) * 0.35 + t * 2.1) * 0.06) * near;
       }
       sp.needsUpdate = true;
-      seaGeo.computeVertexNormals();
+      // (바다는 flatShading이라 면 방향을 셰이더가 직접 구한다 → computeVertexNormals는 필요 없음, 매 프레임 약 2ms 아낌)
       // 거품: 두 겹이 엇갈려 밀려왔다 빠진다
       foams.forEach((f, k) => {
         const u = (t * 0.16 + k * 0.5) % 1;

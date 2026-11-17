@@ -5,7 +5,7 @@ import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, playHit, playTable, setEcho, setQuiet, setListener } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
-import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, newMatchId, matchJoin, matchFinish, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking, checkAch, setTitle, myTitle, matchAch, matchPeople, aiAch } from './account.js';
+import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, newMatchId, matchJoin, matchFinish, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, getH2H, getRanking, checkAch, setTitle, myTitle, matchAch, matchPeople, aiAch } from './account.js';
 import { ACHS, ACH, ACH_CATS, REWARD, titleText } from './achievements.js';
 
 import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLook, swatch, equipped, arenaOf, ballOf, poolOpen } from './items.js';
@@ -166,16 +166,18 @@ function startAI() {
     looks: [[myEquip()], [{}]],
     // 최고 기록: 로그인했으면 서버, 손님이면 이 브라우저에 저장
     best: account.loggedIn ? account.player.best_rally : guestBest(),
+    // 로그인한 사람의 최고 기록은 서버가 aiRally에서 정한다 (브라우저가 보낸 숫자를 그대로 믿지 않게)
     onBest: (r) => {
-      if (account.loggedIn) recordRally(r).then(() => runAchCheck());
-      else try { localStorage.setItem(GUEST_BEST_KEY, r); } catch {}
+      if (!account.loggedIn) try { localStorage.setItem(GUEST_BEST_KEY, r); } catch {}
     },
     // 랠리가 끝날 때마다 친 횟수만큼 코인 (4번에 1코인, 서버가 계산)
     onRally: async (hits) => {
       const g = game;
       // 김제빵의 첫 공을 못 받고 끝남 (업적 '첫 공 실수')
       if (hits <= 1 && account.loggedIn) aiAch({ aizero: 1 }).then(gotAch);
+      const before = account.player?.best_rally || 0;
       const got = await aiRally(hits);
+      if ((account.player?.best_rally || 0) > before) runAchCheck(); // 최고 기록 업적
       if (!got) return;
       aiCoins += got;
       if (game === g) { playUI('coin'); hud.stats(game.stats); }
@@ -523,6 +525,7 @@ async function saveResult(mode, win, stats, achStats) {
       if (rp.status === 'ok') gotAch(rp);
     } else runAchCheck();
   } else if (r.status === 'too_fast') hud.toast('너무 빨리 끝난 경기라 기록·코인이 남지 않아요', 2600);
+  else if (r.status === 'stale') hud.toast('다른 경기에 들어가서 이 경기 기록은 남지 않았어요', 2600);
   else if (r.status === 'no_match') hud.toast('이번 경기는 서버에 등록되지 않아 기록이 남지 않았어요', 2600);
   else if (r.status !== 'done') hud.toast('전적을 저장하지 못했어요 (인터넷 연결 확인)', 2600);
 }
@@ -1663,7 +1666,28 @@ function loop() {
   world.setBallSkin(ballOf(arenaLook)); // 탁구공도 배경처럼: 방에서는 방장 것
 
   world.render();
+  if (perf) perf.frame(now);
   requestAnimationFrame(loop);
 }
+
+// 프레임 측정 (최적화 ④): 주소에 ?fps=1을 붙이면 왼쪽 아래에 초당 프레임·가장 느린 프레임·그리기 호출 수가 뜬다
+// 0.5초마다 갱신. 느린 PC에서 어떤 배경·화면이 무거운지 직접 확인하는 용도 (일반 사용자에게는 안 보임)
+const perf = new URLSearchParams(location.search).has('fps') ? (() => {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:9999;padding:6px 9px;border-radius:8px;background:rgba(0,0,0,.72);color:#fff;font:12px/1.45 ui-monospace,monospace;pointer-events:none;white-space:pre';
+  document.body.appendChild(el);
+  let t0 = 0, n = 0, last = 0, worst = 0;
+  return {
+    frame(now) {
+      if (last) worst = Math.max(worst, now - last);
+      last = now; n++;
+      if (!t0) t0 = now;
+      if (now - t0 < 0.5) return;
+      const fps = n / (now - t0), info = world.renderer.info.render, b = world.arena?.bake;
+      el.textContent = `${fps.toFixed(0)} fps  (가장 느린 프레임 ${(worst * 1000).toFixed(0)}ms)\n그리기 ${info.calls}회 · 삼각형 ${(info.triangles / 1000).toFixed(0)}k\n배경 ${world.arenaId}` + (b ? ` · 합침 ${b.removed}→${b.added} (${b.ms}ms)` : '');
+      t0 = now; n = 0; worst = 0;
+    },
+  };
+})() : null;
 requestAnimationFrame(loop);
 window.__smash = { PV, STAGE, INTRO, world, shop: { testCoins, gacha, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; } };

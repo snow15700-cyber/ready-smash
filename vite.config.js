@@ -10,6 +10,10 @@ export default defineConfig({
         outfits: fileURLToPath(new URL('./outfits.html', import.meta.url)),
         balls: fileURLToPath(new URL('./balls.html', import.meta.url)),
       },
+      // three.js는 자주 안 바뀌므로 따로 묶어 두면 게임만 고쳐 올렸을 때 브라우저가 three를 다시 안 받는다
+      output: {
+        manualChunks(id) { if (id.includes('node_modules/three/')) return 'three'; },
+      },
     },
   },
 });

@@ -3,7 +3,6 @@ import * as THREE from 'three';
 import { createFx } from './fx.js';
 import { makeBall, ballFx } from './balls.js';
 import { playCrack, playPeep, playRoar } from './audio.js';
-import { buildArena, arenaFromUrl, disposeArena } from './arenas.js';
 import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H, HIT_Z, sideSign } from './physics.js';
 
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts });
@@ -14,6 +13,21 @@ const CAM = { y: 1.5, back: 1.2, x: 0.3, lookY: 0.86, lookZ: 1.0, fov: 60, follo
 // 몰입 연출: 최대일 때 체육관 밝기를 이만큼 줄인다 (0.9 = 원래의 10%)
 const FOCUS_DARK = 0.9;
 const FOCUS_BG = new THREE.Color('#120f14');
+
+// 주소에 ?bg=commute 처럼 붙이면 그 배경으로 (시안 보기용)
+function arenaFromUrl() {
+  try { return new URLSearchParams(location.search).get('bg'); } catch { return null; }
+}
+// 배경을 바꿀 때 옛 배경의 그림·모양을 GPU에서 내린다 (여러 배경이 같이 쓰는 것도 다시 쓰면 자동으로 다시 올라간다)
+function disposeArena(root) {
+  root.traverse((o) => {
+    o.geometry?.dispose();
+    for (const m of [].concat(o.material || [])) {
+      for (const k of ['map', 'emissiveMap', 'alphaMap', 'normalMap']) m[k]?.dispose?.();
+      m.dispose();
+    }
+  });
+}
 
 export function createWorld(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -46,16 +60,33 @@ export function createWorld(canvas) {
   let envMats = [];
   let bg0 = scene.background.clone();
   let focusK = 0;
+  // 배경 코드(arenas.js, 약 170KB)는 첫 로딩을 빠르게 하려고 처음에는 안 받고, 체육관이 아닌 배경이 필요할 때 받는다
+  // (첫 화면 몇 초 뒤 쉬는 시간에도 미리 받아 둔다). 받는 동안·그림 준비(셰이더) 동안은 지금 배경을 그대로 보여 준다
+  let arenaMod = null, arenaLoad = null, pending = null;
+  const loadArenas = () => (arenaLoad ||= import('./arenas.js').then((m) => (arenaMod = m)).catch((e) => { arenaLoad = null; console.warn('[배경] 불러오기 실패', e); }));
+  setTimeout(() => (window.requestIdleCallback || setTimeout)(loadArenas), 4000);
   function setArena(id) {
     if (urlBg) id = urlBg;
     id = id || 'gym';
-    if (id === arenaId) return;
-    const next = id === 'gym' ? null : buildArena(id);
+    if (id === arenaId) { if (pending) { disposeArena(pending.a.root); pending = null; } return; }
+    if (pending) { if (pending.id === id) return; disposeArena(pending.a.root); pending = null; }
+    if (id !== 'gym' && !arenaMod) { loadArenas(); return; }
+    const next = id === 'gym' ? null : arenaMod.buildArena(id);
     if (id !== 'gym' && !next) { if (arenaId) return; id = 'gym'; }
+    const a = next || gymArena();
+    // 새 배경의 그림 준비(셰이더 컴파일)를 화면을 멈추지 않고 먼저 끝낸 뒤 바꿔 끼운다
+    if (arenaId && renderer.compileAsync) {
+      const job = (pending = { id, a });
+      renderer.compileAsync(a.root, camera, scene).catch(() => {}).then(() => { if (pending === job) { pending = null; swapArena(id, a); } });
+      return;
+    }
+    swapArena(id, a);
+  }
+  function swapArena(id, next) {
     // 몰입 연출을 풀어 원래 색으로 되돌린 뒤 옛 배경을 치운다
     for (const e of envMats) e.m.color.copy(e.c);
     if (arena) { scene.remove(arena.root); disposeArena(arena.root); }
-    arena = next || gymArena();
+    arena = next;
     arenaId = id;
     scene.add(arena.root);
     scene.background = new THREE.Color(arena.sky);
@@ -149,6 +180,7 @@ export function createWorld(canvas) {
   const ballBfx = ballFx(scene, fx); // 탁구공의 튈 때·스매시·알 깨짐 효과
   const fxPos = new THREE.Vector3();
   let fxLast = 0;
+  let warm = false, warm0 = false;
   let ballPrevY = 0, ballPrevVy = 0;
 
   const world = {
@@ -283,10 +315,16 @@ export function createWorld(canvas) {
         ballBfx.frame(ballModel, ball.visible ? ball.position.toArray() : null, ballSmash && ball.visible, dt);
       }
       fx.update(dt);
+      // 첫 화면: 그림 준비(셰이더 컴파일)를 먼저 끝낸다. 그동안 글자·버튼(HTML)은 먼저 보이고 화면이 멈추지 않는다
+      if (!warm) {
+        if (!warm0) { warm0 = true; (renderer.compileAsync ? renderer.compileAsync(scene, camera) : Promise.resolve()).catch(() => {}).then(() => (warm = true)); }
+        return;
+      }
       renderer.render(scene, camera);
     },
     setArena,
     get arenaId() { return arenaId; },
+    get arena() { return arena; },
   };
   setArena(null);
   return world;

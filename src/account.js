@@ -186,13 +186,6 @@ export async function testCoins(n) {
 export const myEquip = () => (account.loggedIn && account.player?.equip) || {};
 
 // 혼자 하기 최장 랠리 기록
-export async function recordRally(rally) {
-  if (!account.loggedIn) return { status: 'guest' };
-  const r = await call('pingpong_record_rally', { p_token: token(), p_rally: rally });
-  if (r.status === 'ok') account.player = { ...EMPTY_STATS, ...r.player };
-  return r;
-}
-
 // 1v1 상대 전적 (나 vs oppId). 결과 { wins, losses } 또는 null
 export async function getH2H(oppId) {
   if (!account.loggedIn || !oppId) return null;
@@ -338,11 +331,18 @@ function localServer(fn, a) {
     if (mp[flag]) return { status: 'too_soon' };
     mp[flag] = true;
     save();
-    if (fn === 'pingpong_match_ach') { fn = 'pingpong_ach_match'; a = { p_token: a.p_token, p_mode: m.mode, p_won: mp.won, p_s: a.p_s }; }
+    // 18: 상대 쪽에 로그인한 사람이 없으면(손님) 이긴 경기도 승리 업적에 안 넣는다
+    const hasOpp = Object.entries(m.players).some(([id, x]) => id !== p.id && x.side !== mp.side);
+    const won = mp.won && hasOpp;
+    if (fn === 'pingpong_match_ach') {
+      const s = { ...(a.p_s || {}) };
+      if (mp.won && !hasOpp) delete s.led40;
+      fn = 'pingpong_ach_match'; a = { p_token: a.p_token, p_mode: m.mode, p_won: won, p_s: s };
+    }
     else {
       const other = (same) => Object.entries(m.players).find(([id, x]) => id !== p.id && (x.side === mp.side) === same)?.[0] || null;
       fn = 'pingpong_ach_people';
-      a = { p_token: a.p_token, p_mode: m.mode, p_won: mp.won, p_opp: m.mode === '1v1' ? other(false) : null, p_mate: m.mode === '2v2' ? other(true) : null };
+      a = { p_token: a.p_token, p_mode: m.mode, p_won: won, p_opp: m.mode === '1v1' ? other(false) : null, p_mate: m.mode === '2v2' ? other(true) : null };
     }
   }
   let out;
@@ -384,7 +384,7 @@ function localServer(fn, a) {
       else if (m.players[p.id]) out = { status: 'ok' };
       else if (m.at < now - 30000) out = { status: 'late' };
       else if (Object.values(m.players).filter((x) => x.side === a.p_side).length >= (m.mode === '1v1' ? 1 : 2)) out = { status: 'full' };
-      else { m.players[p.id] = { side: a.p_side }; out = { status: 'ok' }; }
+      else { db.joinSeq = (db.joinSeq || 0) + 1; m.players[p.id] = { side: a.p_side, joined: db.joinSeq }; out = { status: 'ok' }; } // joined = 입장 순서
     }
   } else if (fn === 'pingpong_match_finish') {
     const p = me();
@@ -396,27 +396,35 @@ function localServer(fn, a) {
     else if (mp.at) out = { status: 'done' };
     else if (m.at > now - 25000) out = { status: 'too_fast' };
     else if (m.at < now - 3600e3) out = { status: 'too_old' };
+    // 18: 이 경기 뒤에 다른 경기에 또 입장했으면 결과를 낼 수 없다
+    else if (Object.entries(db.matches).some(([id, x]) => id !== a.p_match && x.players[p.id]?.joined > (mp.joined || 0))) out = { status: 'stale' };
     else {
       const wonSide = a.p_won ? mp.side : 1 - mp.side;
       if (m.winner == null) m.winner = wonSide; else if (m.winner !== wonSide) m.disputed = true;
       const opps = Object.entries(m.players).filter(([, x]) => x.side !== mp.side).map(([id]) => id).sort();
+      const hasOpp = opps.length > 0;
       const okey = m.mode + ':' + (opps.join(',') || 'guest');
       const dayStart = Date.parse(new Date(now + 9 * 3600e3).toISOString().slice(0, 10) + 'T00:00:00+09:00');
       const played = Object.values(db.matches).filter((x) => { const y = x.players[p.id]; return y && y.okey === okey && y.at >= dayStart; }).length;
-      const full = played < 5;
+      // 18: 손님 상대 = 승수 X, 코인 하루 5판까지 / 같은 상대 = 1~5판 보통, 6~10판 참여만, 11판째부터 0
+      const full = played < 5, join = hasOpp ? played < 10 : played < 5;
       p.lastMatch = now;
       const f = (m.mode === '1v1' ? '1' : '2');
-      if (a.p_won) p['w' + f] = (p['w' + f] || 0) + 1; else p['l' + f] = (p['l' + f] || 0) + 1;
-      p.streak = a.p_won ? (p.streak || 0) + 1 : 0;
+      if (hasOpp) {
+        if (a.p_won) p['w' + f] = (p['w' + f] || 0) + 1; else p['l' + f] = (p['l' + f] || 0) + 1;
+        p.streak = a.p_won ? (p.streak || 0) + 1 : 0;
+      }
       const clamp = (n) => Math.min(3, Math.max(0, n | 0));
       const nPerf = clamp(a.p_perfect3), nRally = clamp(a.p_rally10);
-      const items = [{ label: '경기 참여', coins: 10 }];
+      const items = join ? [{ label: '경기 참여', coins: 10 }] : [];
       if (full) {
         if (a.p_won) items.push({ label: '승리', coins: 10 });
         if (nPerf) items.push({ label: `퍼펙트 3연속 ×${nPerf}`, coins: 5 * nPerf });
         if (nRally) items.push({ label: `랠리 10회 이상 ×${nRally}`, coins: 5 * nRally });
-        if (a.p_won && p.streak % 3 === 0) items.push({ label: `${p.streak}연승`, coins: 15 });
-      } else items.push({ label: '같은 상대 오늘 6판째부터는 참여 코인만', coins: 0 });
+        if (hasOpp && a.p_won && p.streak % 3 === 0) items.push({ label: `${p.streak}연승`, coins: 15 });
+      } else if (join) items.push({ label: '같은 상대 오늘 6판째부터는 참여 코인만', coins: 0 });
+      else items.push({ label: hasOpp ? '같은 상대와는 하루 10판까지만 코인' : '손님 상대는 하루 5판까지만 코인', coins: 0 });
+      if (!hasOpp) items.push({ label: '손님 상대 경기는 승수에 안 들어가요', coins: 0 });
       const total = items.reduce((s, i) => s + i.coins, 0);
       p.coins = (p.coins || 0) + total;
       Object.assign(mp, { at: now, won: a.p_won, okey });
@@ -451,7 +459,9 @@ function localServer(fn, a) {
     if (!p) out = { status: 'no_session' };
     else {
       const allowed = p.aiAt ? Math.floor((now - p.aiAt) / 1000) + 1 : 0;
-      const total = (p.aiRem || 0) + Math.min(Math.max(a.p_hits | 0, 0), allowed, 1000);
+      const hits = Math.min(Math.max(a.p_hits | 0, 0), allowed, 1000);
+      const total = (p.aiRem || 0) + hits;
+      p.best = Math.max(p.best || 0, hits); // 최고 기록도 서버가 인정한 횟수로 (18)
       const got = Math.floor(total / AI_HITS_PER_COIN);
       p.aiRem = total % AI_HITS_PER_COIN;
       p.aiAt = now;
@@ -514,10 +524,6 @@ function localServer(fn, a) {
     else if (a.p_item == null) { p.equip = { ...p.equip }; delete p.equip[a.p_cat]; out = shopOut(p); }
     else if (!(p.owned || []).includes(a.p_item) || ITEM[a.p_item]?.cat !== a.p_cat) out = { status: 'not_owned' };
     else { p.equip = { ...p.equip, [a.p_cat]: a.p_item }; out = shopOut(p); }
-  } else if (fn === 'pingpong_record_rally') {
-    const p = me();
-    if (!p) out = { status: 'no_session' };
-    else { p.best = Math.max(p.best || 0, a.p_rally | 0); out = { status: 'ok', player: pj(p) }; }
   } else if (fn === 'pingpong_h2h') {
     out = me() ? { status: 'ok', h2h: h2h(me(), a.p_opp) } : { status: 'no_session' };
   } else if (fn === 'pingpong_ranking') {
