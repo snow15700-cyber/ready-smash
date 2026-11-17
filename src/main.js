@@ -905,12 +905,12 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && game && !room) exitGame();
 });
 
-/* ───────── 꾸미기 (옷장 · 뽑기 · 골라 사기를 한 화면에) ─────────
+/* ───────── 꾸미기 (옷장 · 뽑기 · 칭호를 한 화면에) ─────────
    뽑기·구매·장착은 서버(supabase/06_shop.sql)가 정하고, 화면은 결과만 보여 준다.
    패널은 오른쪽, 왼쪽에는 내 캐릭터(입어 보기)와 고른 아이템을 크게 보여 주는 카드(#spot). */
-let dressTab = 'closet'; // closet | gacha | buy | title
+let dressTab = 'closet'; // closet | gacha | title
 let shopTab = 'char'; // 뽑기 통 (char | arena)
-let closetCat = 'paddle'; // 옷장·골라 사기에서 보는 카테고리
+let closetCat = 'paddle'; // 옷장에서 보는 카테고리
 let selId = null; // 고른(입어 보는) 아이템. null이면 지금 장착한 것
 let shopBusy = false;
 let sureId = null; // '정말 살까요?' 확인 중인 버튼
@@ -975,7 +975,7 @@ function renderWallet() {
 
 function renderDress() {
   renderWallet();
-  for (const t of ['closet', 'gacha', 'buy', 'title']) $(`tab-${t}`).classList.toggle('on', dressTab === t);
+  for (const t of ['closet', 'gacha', 'title']) $(`tab-${t}`).classList.toggle('on', dressTab === t);
   const g = dressTab === 'gacha', tt = dressTab === 'title';
   $('pane-gacha').classList.toggle('hidden', !g);
   $('pane-title').classList.toggle('hidden', !tt);
@@ -995,18 +995,15 @@ function renderChips() {
   }).join('');
 }
 
-// 아이템 카드: 옷장 = 가진 것 먼저(없는 건 🔒 흐리게), 골라 사기 = 파는 것 전부 + 가격
+// 아이템 카드: 가진 것 먼저(없는 건 🔒 흐리게). 없는 건 '크게 보기' 카드에서 사기
 function renderGrid() {
   const on = equipped(myEquip(), closetCat)?.id;
-  const buy = dressTab === 'buy';
-  let list = ITEMS.filter((i) => i.cat === closetCat && (!buy || i.grade !== 'default'));
-  if (!buy) list = list.sort((a, b) => (owns(b.id) - owns(a.id)) || (a.grade === 'default' ? -1 : b.grade === 'default' ? 1 : 0));
+  const list = ITEMS.filter((i) => i.cat === closetCat).sort((a, b) => (owns(b.id) - owns(a.id)) || (a.grade === 'default' ? -1 : b.grade === 'default' ? 1 : 0));
   $('item-grid').innerHTML = list.length ? list.map((it) => {
     const have = owns(it.id);
-    const cls = ['card', `g-${it.grade}`, it.id === on ? 'on' : '', it.id === selId ? 'sel' : '', have || buy ? '' : 'locked'].join(' ');
-    const corner = it.id === on ? '<span class="corner on">✓</span>' : have || buy ? '' : '<span class="corner">🔒</span>';
-    const foot = buy ? `<span class="price${have ? ' have' : ''}">${have ? '✓ 가지고 있음' : `🪙 ${GRADES[it.grade].buy.toLocaleString()}`}</span>` : '';
-    return `<li class="${cls}" data-id="${it.id}">${corner}${swatch(it)}<span class="nm">${esc(it.name)}</span>${foot}<i class="bar"></i></li>`;
+    const cls = ['card', `g-${it.grade}`, it.id === on ? 'on' : '', it.id === selId ? 'sel' : '', have ? '' : 'locked'].join(' ');
+    const corner = it.id === on ? '<span class="corner on">✓</span>' : have ? '' : '<span class="corner">🔒</span>';
+    return `<li class="${cls}" data-id="${it.id}">${corner}${swatch(it)}<span class="nm">${esc(it.name)}</span><i class="bar"></i></li>`;
   }).join('') : '<li class="empty-msg">곧 열려요!</li>';
 }
 
@@ -1141,7 +1138,7 @@ async function doBuy(id, pay) {
 }
 
 // 탭 · 카테고리 · 카드 · 크게 보기 카드
-for (const t of ['closet', 'gacha', 'buy', 'title']) {
+for (const t of ['closet', 'gacha', 'title']) {
   $(`tab-${t}`).addEventListener('click', () => {
     if (dressTab === t) return;
     playUI('click');
@@ -1182,7 +1179,7 @@ $('item-grid').addEventListener('click', (e) => {
   // 옷장: 가진 것을 누르면 바로 장착. 나머지는 입어 보기
   if (dressTab === 'closet' && owns(it.id) && equipped(myEquip(), it.cat).id !== it.id) { doEquip(it); return; }
   select(it.id);
-  setMsg(owns(it.id) || dressTab === 'buy' ? '' : '🔒 아직 없어요. 왼쪽 카드에서 바로 사거나 뽑기로 얻을 수 있어요');
+  setMsg(owns(it.id) ? '' : '🔒 아직 없어요. 왼쪽 카드에서 바로 사거나 뽑기로 얻을 수 있어요');
   renderDress();
 });
 $('gacha-result').addEventListener('click', (e) => {
