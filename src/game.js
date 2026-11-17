@@ -20,8 +20,12 @@ const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 export class Game {
   // authority: 이 PC가 경기를 계산하는지 (혼자 모드, 방장). 아니면 방장 이벤트를 받아 그리고 내 타격은 예측해서 먼저 보여준다
   // playerNames[side][slot]: 2v2 이름표용
-  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, playerTitles = null, best = 0, onBest = null, onRally = null, looks = null }) {
+  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, playerTitles = null, best = 0, onBest = null, onRally = null, looks = null, spectator = false }) {
     this.authority = authority;
+    // 관전: 아무도 '나'가 아니다(mySlot -1). 입력 없음, 모든 선수 불투명 + 이름표, 카메라는 view(side | a | b)
+    this.spectator = spectator;
+    this.view = 'side';
+    if (spectator) { mySide = 0; mySlot = -1; authority = false; this.authority = false; }
     this.names = names;
     this.playerNames = playerNames;
     this.playerTitles = playerTitles; // 칭호 글자 (이름표 위 알약)
@@ -84,6 +88,7 @@ export class Game {
       c.setTag(null);
     }
     if (mode === 'ai') world.team[1][0].setTag(names[1]); // AI 이름표
+    if (spectator) { world.resetCamera(); return; } // 관전자는 마우스 입력을 받지 않는다
 
     this.onMove = (e) => {
       const t = e.timeStamp / 1000 + this.offset;
@@ -102,7 +107,7 @@ export class Game {
   }
 
   destroy() {
-    window.removeEventListener('pointermove', this.onMove);
+    if (this.onMove) window.removeEventListener('pointermove', this.onMove);
     window.removeEventListener('pointerdown', this.onDown);
     for (const side of [0, 1]) for (const slot of [0, 1]) this.w.team[side][slot].setTag(null);
   }
@@ -341,7 +346,7 @@ export class Game {
         {
           const who = this.order[this.turn];
           const mine = this.isMe(who.side, who.slot);
-          this.hud.hint(mine ? '클릭해서 서브 토스!' : who.side === me ? '팀원 서브를 기다리는 중…' : '상대 서브를 기다리는 중…');
+          if (!this.spectator) this.hud.hint(mine ? '클릭해서 서브 토스!' : who.side === me ? '팀원 서브를 기다리는 중…' : '상대 서브를 기다리는 중…');
           if (mine) this.announceTurn(true);
         }
         break;
@@ -428,13 +433,13 @@ export class Game {
         this.focusRally = 0;
         this.score = ev.score;
         this.hud.score(this.score, ev.deuce);
-        A.playUI(ev.winner === me ? 'point' : 'lose');
+        A.playUI(this.spectator || ev.winner === me ? 'point' : 'lose');
         break;
       case 'gameOver':
         this.focusRally = 0;
         this.phase = 'over';
-        A.playUI(ev.winner === me ? 'win' : 'lose');
-        this.hud.gameOver(ev.winner === me, ev.score);
+        A.playUI(this.spectator || ev.winner === me ? 'win' : 'lose');
+        this.hud.gameOver(ev.winner === me, ev.score, ev.winner);
         break;
     }
   }
@@ -494,7 +499,7 @@ export class Game {
         c.body.position.y = Math.sin(now * 2.6 + s + sl * 1.7) * 0.006;
         c.body.rotation.z = -(tx - ox) * 0.25 * m;
         // 다른 캐릭터가 카메라 가까이(1.3m 안) 오면 흐리게: 화면을 가리지 않게
-        if (two && c.fade != null) {
+        if ((two || this.spectator) && c.fade != null) {
           const cp = w.camera.position;
           const d = Math.hypot(c.group.position.x - cp.x, c.group.position.z - cp.z);
           const op = d < 1.3 ? 0.45 : 1;
@@ -503,18 +508,31 @@ export class Game {
           c.setOpacity(q, Math.max(q, 0.9));
         }
         // 이름표: 상대 팀만 (팀원은 가까워서 이름표가 엉뚱한 곳에 뜸). 다음에 칠 사람은 노랗게
-        if (two && this.playerNames && s !== me) {
+        // 관전: 옆에서 볼 때는 모두, 한 팀 뒤에서 볼 때는 맞은편 팀만
+        const tagSide = this.spectator ? (this.view === 'side' || s !== (this.view === 'b' ? 1 : 0)) : s !== me;
+        if ((two || this.spectator) && this.playerNames && tagSide) {
           const nx = this.order[this.turn];
           const next = this.phase !== 'point' && this.phase !== 'over' && nx.side === s && nx.slot === sl;
           c.setTag(this.playerNames[s][sl], next, this.playerTitles?.[s]?.[sl] || '');
-        }
+        } else if (this.spectator) c.setTag(null);
       }
     }
 
     // 카메라 / 소리 위치
-    w.updateCamera(me, this.charX[me][this.mySlot], dt, this.segs ? w.ball.position.x : 0, this.charZ[me][this.mySlot]);
     const cam = w.camera;
-    A.setListener([cam.position.x, cam.position.y, cam.position.z], me === 0 ? [1, 0, 0] : [-1, 0, 0]);
+    if (this.spectator) {
+      if (this.view === 'side') {
+        w.sideCamera(dt, this.segs ? w.ball.position.z : 0);
+        A.setListener([cam.position.x, cam.position.y, cam.position.z], [0, 0, -1]);
+      } else {
+        const s = this.view === 'b' ? 1 : 0, sl = two ? this.activeSlot(s) : 0;
+        w.updateCamera(s, this.charX[s][sl], dt, this.segs ? w.ball.position.x : 0, this.charZ[s][sl]);
+        A.setListener([cam.position.x, cam.position.y, cam.position.z], s === 0 ? [1, 0, 0] : [-1, 0, 0]);
+      }
+    } else {
+      w.updateCamera(me, this.charX[me][this.mySlot], dt, this.segs ? w.ball.position.x : 0, this.charZ[me][this.mySlot]);
+      A.setListener([cam.position.x, cam.position.y, cam.position.z], me === 0 ? [1, 0, 0] : [-1, 0, 0]);
+    }
 
     // 타이밍 링
     const showRing = ex && this.isMe(ex.side, ex.slot) && !ex.whiffed && (this.phase === 'toss' || this.phase === 'rally');

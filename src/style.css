@@ -560,3 +560,36 @@ body.intro #hud { visibility: hidden; }
 #ach-pop .ap-many { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; max-width: 460px; }
 #ach-pop .ap-many .tpill { font-size: 13px; padding: 1px 10px; }
 .t-now .ghost { white-space: nowrap; flex: none; }
+
+/* ───── 구경하기 (방 목록) · 관전 중 ───── */
+.watch-list { max-height: min(46vh, 420px); }
+.watch-list li { gap: 8px; padding: 8px 8px 8px 8px; }
+.watch-list .wl-mode { flex: none; font-size: 13px; color: #fff; background: var(--blue); border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
+.watch-list .who b { font-weight: normal; }
+.watch-list .who i { font-style: normal; font-size: 13px; color: var(--muted); margin: 0 3px; }
+.watch-list .who small { font-size: 13px; }
+.watch-list .live { color: #e0453c; }
+.watch-list .wait { color: #3aa35b; }
+.watch-list button { flex: none; padding: 7px 11px; font-size: 14px; }
+.watch-list li.msg-row small { display: block; font-size: 13px; margin-top: 4px; }
+#btn-watch-random { font-size: 19px; padding: 12px; }
+#btn-watch-random:disabled { opacity: .5; }
+
+body.watching #exit, body.watching #hint { display: none; }
+.watch-bar { position: fixed; left: 0; right: 0; bottom: 14px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 14px; pointer-events: none; z-index: 5; flex-wrap: wrap; }
+.watch-bar > * { pointer-events: auto; }
+#btn-watch-exit { position: fixed; top: 14px; left: 14px; border-radius: 999px; padding: 8px 14px; font-size: 15px; background: rgba(255,255,255,.88); box-shadow: 0 3px 0 rgba(0,0,0,.12); }
+.wb-room { display: flex; align-items: center; gap: 6px; background: rgba(43,42,51,.72); color: #fff; border-radius: 999px; padding: 5px 6px; box-shadow: 0 4px 14px rgba(0,0,0,.18); max-width: 100%; }
+.wb-room button { border-radius: 50%; width: 34px; height: 34px; padding: 0; font-size: 14px; flex: none; }
+.wb-room button:disabled { opacity: .35; }
+.wb-label { display: flex; flex-direction: column; align-items: center; min-width: 140px; padding: 0 6px; line-height: 1.2; overflow: hidden; }
+.wb-label small { font-size: 12px; opacity: .8; }
+.wb-label b { font-weight: normal; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+.wb-label i { font-style: normal; opacity: .7; font-size: 13px; margin: 0 3px; }
+.wb-cam { background: rgba(255,250,240,.92); box-shadow: 0 4px 14px rgba(0,0,0,.14); }
+.wb-cam button { font-size: 14px; padding: 7px 12px; }
+.watch-wait { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(380px, calc(100% - 32px)); text-align: center; z-index: 4; padding: 22px 20px 18px; }
+.watch-wait p { margin: 0; font-size: 20px; }
+.watch-wait p small { display: block; font-size: 14px; color: var(--muted); margin-top: 6px; }
+.watch-wait .row { justify-content: center; }
+.watch-wait button:disabled { opacity: .45; }

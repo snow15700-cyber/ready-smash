@@ -40,6 +40,28 @@
     <div class="vi-go">준비하시고, <b>스매시!</b></div>
   </div>
 
+  <!-- 관전 중: 아래 막대(방 넘기기 + 카메라) / 경기를 기다리는 동안 가운데 안내 -->
+  <div id="watch-bar" class="watch-bar hidden">
+    <button id="btn-watch-exit" class="small">← 나가기</button>
+    <div class="wb-room">
+      <button id="btn-watch-prev" class="small" title="이전 방">◀</button>
+      <span id="watch-label" class="wb-label"></span>
+      <button id="btn-watch-next" class="small" title="다음 방">▶</button>
+    </div>
+    <div id="watch-cam" class="seg wb-cam hidden">
+      <button data-view="side">📺 옆에서</button>
+      <button data-view="a">A팀 뒤</button>
+      <button data-view="b">B팀 뒤</button>
+    </div>
+  </div>
+  <div id="watch-wait" class="panel watch-wait hidden">
+    <p id="watch-wait-msg"></p>
+    <div class="row">
+      <button id="btn-watch-join" class="blue hidden">참가하기</button>
+      <button id="btn-watch-other">🎲 다른 방 구경</button>
+    </div>
+  </div>
+
   <div id="ach-pop"></div>
   <div id="toast"></div>
 
@@ -93,6 +115,19 @@
         <button id="btn-pin-go" class="big">바꾸기</button>
         <button id="btn-pin-cancel">뒤로</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 구경하기: 지금 열린 방 목록 (경기 중 + 대기 중) -->
+  <div id="watch" class="screen hidden">
+    <div class="panel rank-panel watch-panel">
+      <div class="rank-top">
+        <button id="btn-watch-back" class="small ghost">← 로비로</button>
+        <h2>👀 구경하기</h2>
+      </div>
+      <p class="rank-desc">다른 방의 경기를 구경해요 · 선수들에게는 부담이 가지 않아요</p>
+      <button id="btn-watch-random" class="big">🎲 아무 방이나 구경하기</button>
+      <ol id="watch-list" class="rank-list watch-list"></ol>
     </div>
   </div>
 
@@ -171,7 +206,10 @@
           <button id="btn-create-1v1" class="blue">1 대 1<small>방 만들기</small></button>
           <button id="btn-create-2v2" class="blue">2 대 2<small>방 만들기</small></button>
         </div>
-        <button id="btn-join">🔑 코드로 입장</button>
+        <div class="row">
+          <button id="btn-join">🔑 코드로 입장</button>
+          <button id="btn-watch">👀 구경하기</button>
+        </div>
       </div>
       <p class="note soon" id="mode-note"></p>
     </div>

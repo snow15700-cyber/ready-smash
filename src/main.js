@@ -4,7 +4,7 @@ import { createLobbyDemo, LOBBY_CAM } from './lobbyDemo.js';
 import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, playHit, setEcho, setQuiet, setListener } from './audio.js';
-import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
+import { ONLINE, IS_TEST, joinRoom, joinLobby, makeCode, normalizeCode } from './net.js';
 import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking, checkAch, setTitle, myTitle, achMatch, achPeople } from './account.js';
 import { ACHS, ACH, ACH_CATS, REWARD, titleText } from './achievements.js';
 
@@ -59,7 +59,8 @@ const hud = {
     if (!game) return;
     const me = game.mySide, op = 1 - me;
     const bump = (side) => (lastScore && lastScore[side] !== s[side] ? ' bump' : '');
-    $('scoreboard').innerHTML = `<div class="sb t${me}"><span>${game.mode === '2v2' ? '우리 팀' : '나'}</span><b class="${bump(me)}">${s[me]}</b></div>`
+    const myLabel = game.spectator ? esc(game.names[0]) : game.mode === '2v2' ? '우리 팀' : '나';
+    $('scoreboard').innerHTML = `<div class="sb t${me}"><span>${myLabel}</span><b class="${bump(me)}">${s[me]}</b></div>`
       + '<i class="sb-colon">:</i>'
       + `<div class="sb t${op}"><b class="${bump(op)}">${s[op]}</b><span>${esc(game.names[op])}</span></div>`
       + (deuce ? '<em class="sb-deuce">듀스!</em>' : '');
@@ -96,10 +97,22 @@ const hud = {
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove('show'), ms);
   },
-  gameOver(win, score) {
+  gameOver(win, score, winner) {
     const me = game.mySide;
     // 가운데 큰 결과 띠 (약 2.6초 뒤 대기실로)
     const el = $('result');
+    if (game.spectator) { // 관전: 이긴 팀 이름으로. 기록은 남기지 않고, 끝나면 다음 경기를 기다린다
+      el.className = 'win';
+      $('result-title').textContent = `🏆 ${game.names[winner]} 승리!`;
+      $('result-score').textContent = `${score[0]} : ${score[1]}`;
+      clearTimeout(resultTimer);
+      resultTimer = setTimeout(() => el.classList.add('hidden'), 2700);
+      if (watch) {
+        watch.needIdle = true;
+        setTimeout(() => { if (watch && game?.spectator && game.phase === 'over') endWatchGame(); }, 2800);
+      }
+      return;
+    }
     el.className = win ? 'win' : 'lose';
     $('result-title').textContent = win ? '🏆 승리!' : '😢 아쉬워요';
     $('result-score').textContent = `${score[me]} : ${score[1 - me]}`;
@@ -116,6 +129,8 @@ const hud = {
 let game = null;
 let match = null;
 let room = null;
+let watch = null; // 관전 중인 방 (startWatch)
+let lobbyList = null; // 로비 방 목록 채널 (구경하기 화면·관전 중에만 듣는다)
 let preview = null; // 상점·옷장에서 미리보기 중인 꾸미기 { look } (null이면 로비 화면)
 
 const myNick = () => account.nick || '플레이어';
@@ -129,7 +144,8 @@ function show(screen) {
     $('howto').classList.toggle('hidden', seen);
   }
   if (screen !== 'dress') preview = null;
-  for (const id of ['login', 'pin-change', 'rank', 'lobby', 'join', 'room', 'dress']) $(id).classList.toggle('hidden', id !== screen);
+  if (screen === 'watch') { openLobbyList(); renderWatchList(); } else if (!watch) closeLobbyList();
+  for (const id of ['login', 'pin-change', 'rank', 'lobby', 'join', 'room', 'dress', 'watch']) $(id).classList.toggle('hidden', id !== screen);
   $('hud').classList.toggle('hidden', screen !== 'hud');
 }
 
@@ -220,6 +236,8 @@ function enterRoom(code, host, mode = null) {
       if (st === 'error') { leaveRoom(); show('lobby'); hud.toast(text, 3000); }
     },
   });
+  // 방장: 로비 방 목록에 내 방을 올린다 (구경하기·참가하기용)
+  if (host) room.ann = joinLobby(roomInfo(), {});
   // 참가자 PC: 방장과 시계 맞추기
   room.timer = setInterval(() => {
     if (!room || room.host || !room.hostM) return;
@@ -241,7 +259,9 @@ function enterRoom(code, host, mode = null) {
 function leaveRoom() {
   if (!room) return;
   clearInterval(room.timer);
+  clearTimeout(room.annT);
   room.link.leave();
+  room.ann?.leave();
   room = null;
   stopGame();
 }
@@ -402,30 +422,31 @@ function onRoomMsg(m) {
   }
 }
 
-function nickOf(id) {
-  return room.members.find((m) => m.id === id)?.nick || '상대';
+// r = { players, members } (방 = room, 관전 = watch 정보)
+function nickOf(id, r = room) {
+  return r.members.find((m) => m.id === id)?.nick || '상대';
 }
-function playerNames() {
+function playerNames(r = room) {
   const out = [[], []];
-  for (const p of room.players) out[p.side][p.slot || 0] = nickOf(p.id);
+  for (const p of r.players) out[p.side][p.slot || 0] = nickOf(p.id, r);
   return out;
 }
 // 선수마다 칭호 글자 (presence의 title). titles[side][slot]
-function titles() {
+function titles(r = room) {
   const out = [[], []];
-  for (const p of room.players) out[p.side][p.slot || 0] = (({ title, titleX } = {}) => titleText(title, titleX))(room.members.find((m) => m.id === p.id));
+  for (const p of r.players) out[p.side][p.slot || 0] = (({ title, titleX } = {}) => titleText(title, titleX))(r.members.find((m) => m.id === p.id));
   return out;
 }
 // 선수마다 꾸미기 (presence의 look). looks[side][slot]
-function looks() {
+function looks(r = room) {
   const out = [[], []];
-  for (const p of room.players) out[p.side][p.slot || 0] = room.members.find((m) => m.id === p.id)?.look || {};
+  for (const p of r.players) out[p.side][p.slot || 0] = r.members.find((m) => m.id === p.id)?.look || {};
   return out;
 }
 // 쪽(팀)별 이름. 2v2는 'A1·A2'처럼 두 명을 이어서
-function names() {
-  const ofSide = (s) => room.players.filter((p) => p.side === s).sort((a, b) => (a.slot || 0) - (b.slot || 0));
-  return [0, 1].map((s) => ofSide(s).map((p) => nickOf(p.id)).join('·') || '상대');
+function names(r = room) {
+  const ofSide = (s) => r.players.filter((p) => p.side === s).sort((a, b) => (a.slot || 0) - (b.slot || 0));
+  return [0, 1].map((s) => ofSide(s).map((p) => nickOf(p.id, r)).join('·') || '상대');
 }
 
 function beginRoomGame(players) {
@@ -455,9 +476,11 @@ function startOnline(mode, players) {
     emit: (ev) => {
       if (game) game.onEvent(ev);
       if (room) room.link.send({ k: 'ev', ev });
+      if (ev.type === 'start' || ev.type === 'point') announce(); // 방 목록의 점수
     },
   });
   hud.stats(game.stats);
+  announce();
   startIntro(players, mine.side, mode); // 3초 소개가 끝나면 match.start (endIntro)
 }
 
@@ -494,6 +517,296 @@ function renderPing() {
   if (!room || room.host || room.rtt == null) { el.textContent = ''; return; }
   el.textContent = `연결 지연 ${Math.round((room.rtt / 2) * 1000)}ms`;
 }
+
+/* ───────── 방 목록 · 관전 (기획서 12장) ─────────
+   방장만 로비 채널에 방 정보를 올리고(roomInfo), 목록을 보는 사람·관전자는 듣기만 한다.
+   관전자는 게임 채널도 듣기만 한다: 출석부(presence) X, 방장과 시계 맞추기(ping) X, 상황 요청 X.
+   방장 시계는 참가자들의 pong(th)을 엿들어 맞추고, 화면은 WATCH.delay초 늦게 보여 줘서 공이 끊기지 않게 한다. */
+const WATCH = { delay: 0.4, findWait: 6000 };
+let watchView = 'side'; // 관전 카메라: side(옆에서) | a(A팀 뒤) | b(B팀 뒤)
+
+// 방장: 로비 방 목록에 올릴 내 방 정보
+function roomInfo() {
+  const r = room;
+  const teams = [0, 1].map((t) => (r.inGame && r.players
+    ? r.players.filter((p) => p.side === t).sort((a, b) => (a.slot || 0) - (b.slot || 0)).map((p) => nickOf(p.id))
+    : r.mode ? teamList(t).map((m) => m.nick) : []));
+  return {
+    id: r.code, code: r.code, mode: r.mode, at: r.me.at, host: r.me.nick,
+    n: Math.max(1, r.members.length), cap: r.mode ? capacity() : 2,
+    inGame: !!r.inGame, teams, players: r.inGame ? r.players : null,
+    score: r.inGame && game ? [...game.score] : null,
+  };
+}
+// 바뀐 게 있을 때만, 잠깐 모아서 한 번에 (서버 부담 줄이기)
+function announce() {
+  if (!room?.host || !room.ann || !room.mode) return;
+  clearTimeout(room.annT);
+  room.annT = setTimeout(() => {
+    if (!room?.ann) return;
+    const info = roomInfo();
+    const key = JSON.stringify(info);
+    if (key === room.annKey) return;
+    room.annKey = key;
+    room.ann.update(info);
+  }, 250);
+}
+
+function openLobbyList() {
+  if (lobbyList) return;
+  const L = { rooms: [], loaded: false };
+  lobbyList = L;
+  L.link = joinLobby(null, {
+    onMembers: (list) => {
+      if (lobbyList !== L) return;
+      L.loaded = true;
+      L.rooms = list.filter((r) => r && r.code && r.mode).sort((a, b) => (b.inGame - a.inGame) || a.at - b.at);
+      onRooms();
+    },
+    onStatus: (st) => {
+      if (st === 'ok') setTimeout(() => { if (lobbyList === L && !L.loaded) { L.loaded = true; onRooms(); } }, 800);
+      else if (lobbyList === L) { L.failed = true; onRooms(); }
+    },
+  });
+}
+function closeLobbyList() {
+  if (!lobbyList) return;
+  lobbyList.link.leave();
+  lobbyList = null;
+}
+const roomsNow = () => lobbyList?.rooms || [];
+const watchInfo = () => (watch ? roomsNow().find((r) => r.code === watch.code) : null);
+function onRooms() {
+  if (!$('watch').classList.contains('hidden')) renderWatchList();
+  if (watch) onWatchInfo();
+}
+
+const modeText = (m) => (m === '2v2' ? '2 대 2' : '1 대 1');
+const vsHtml = (r) => r.teams.map((t) => (t.length ? t.map(esc).join('·') : '?')).join(' <i>vs</i> ');
+function renderWatchList() {
+  const el = $('watch-list');
+  if (!lobbyList || !lobbyList.loaded) { el.innerHTML = '<li class="msg-row">방 목록을 불러오는 중…</li>'; return; }
+  if (lobbyList.failed) { el.innerHTML = '<li class="msg-row">서버에 연결하지 못했어요</li>'; return; }
+  const rows = roomsNow();
+  $('btn-watch-random').disabled = !rows.length;
+  if (!rows.length) { el.innerHTML = '<li class="msg-row">지금 열린 방이 없어요<br /><small>방이 생기면 여기에 바로 나타나요</small></li>'; return; }
+  el.innerHTML = rows.map((r) => {
+    const canJoin = !r.inGame && r.n < r.cap;
+    const state = r.inGame
+      ? `<span class="live">● 경기 중</span> ${(r.score || [0, 0]).join(' : ')}`
+      : `<span class="wait">● 대기 중</span> ${r.n}/${r.cap}명`;
+    return `<li data-code="${esc(r.code)}">
+      <span class="wl-mode">${modeText(r.mode)}</span>
+      <div class="who"><b>${r.inGame ? vsHtml(r) : `${esc(r.host)}님의 방`}</b><small>${state}</small></div>
+      ${canJoin ? `<button class="small blue${IS_MOBILE ? ' locked' : ''}" data-act="join">참가하기</button>` : ''}
+      <button class="small" data-act="watch">👀 구경</button>
+    </li>`;
+  }).join('');
+}
+
+function startWatch(code) {
+  initAudio();
+  playUI('click');
+  stopWatch();
+  leaveRoom();
+  stopGame();
+  openLobbyList();
+  const w = { code, members: [], pongs: [], offset: null, queue: [], players: null, pending: null, mode: null, sawHost: false, seen: false, needIdle: false };
+  watch = w;
+  w.link = joinRoom(code, null, {
+    onMsg: (m) => { if (watch === w) onWatchMsg(m); },
+    onMembers: (list) => { if (watch === w) onWatchMembers(list); },
+    onStatus: (st, text) => { if (watch === w && st === 'error') { stopWatch(); show('watch'); hud.toast(text, 3000); } },
+  }, { watch: true });
+  setTimeout(() => { if (watch === w && !w.sawHost && !w.seen) closeWatched('방을 찾을 수 없어요'); }, WATCH.findWait);
+  document.body.classList.add('watching');
+  show('hud');
+  onWatchInfo();
+}
+
+function stopWatch() {
+  if (!watch) return;
+  watch.link.leave();
+  watch = null;
+  stopGame();
+  document.body.classList.remove('watching');
+  $('watch-bar').classList.add('hidden');
+  $('watch-wait').classList.add('hidden');
+}
+function closeWatched(msg) {
+  stopWatch();
+  show('watch');
+  hud.toast(msg, 2400);
+}
+function exitWatch() {
+  playUI('click');
+  stopWatch();
+  show('watch');
+}
+
+// 로비 목록에서 이 방 정보가 바뀌었을 때 (경기 시작·점수·끝)
+function onWatchInfo() {
+  const r = watchInfo();
+  if (r) {
+    watch.seen = true;
+    watch.mode = r.mode;
+    if (!r.inGame) {
+      watch.needIdle = false;
+      if (game && game.phase !== 'over') endWatchGame(); // 누가 나가서 경기가 취소됨
+    } else if (!game && !watch.pending && !watch.needIdle && r.players) {
+      watch.pending = { players: r.players, score: r.score }; // 경기 중간에 들어옴: 다음 서브부터 보인다
+    }
+  } else if (watch.seen && lobbyList?.loaded) { closeWatched('방이 닫혔어요'); return; }
+  tryWatchGame();
+  renderWatchBar();
+}
+
+function onWatchMembers(list) {
+  watch.members = list;
+  if (list.some((m) => m.host)) watch.sawHost = true;
+  else if (watch.sawHost) { closeWatched('방이 닫혔어요'); return; }
+  if (game && watch.players && !watch.players.every((p) => list.some((m) => m.id === p.id))) endWatchGame();
+  tryWatchGame();
+  renderWatchBar();
+}
+
+function onWatchMsg(m) {
+  switch (m.k) {
+    case 'pong': { // 참가자의 시계 맞추기 답장을 엿듣는다: 방장 시계 - 내 시계 (늦게 온 표본일수록 작게 나오므로 가장 큰 값)
+      watch.pongs.push(m.th - performance.now() / 1000);
+      if (watch.pongs.length > 15) watch.pongs.shift();
+      watch.offset = Math.max(...watch.pongs);
+      if (game) game.offset = watch.offset - WATCH.delay;
+      tryWatchGame();
+      break;
+    }
+    case 'go':
+      if (game) stopGame();
+      watch.needIdle = false;
+      watch.mode = m.mode;
+      watch.pending = { players: m.players, score: [0, 0] };
+      watch.queue = [];
+      tryWatchGame();
+      renderWatchBar();
+      break;
+    case 'ev': {
+      const ev = m.ev;
+      // 공 궤적(친 순간 t가 있는 것)은 그 시각에, 나머지는 받은 뒤 delay초 뒤에 (보이는 화면과 박자를 맞추려고)
+      const t = ev.type === 'shot' || ev.type === 'toss' ? ev.t : null;
+      watch.queue.push({ at: performance.now() / 1000 + WATCH.delay, t, ev });
+      if (watch.queue.length > 60) watch.queue.shift();
+      break;
+    }
+  }
+}
+
+function tryWatchGame() {
+  const w = watch;
+  if (!w || game || !w.pending || w.offset == null || !w.mode) return;
+  const { players, score } = w.pending;
+  if (!players.every((p) => w.members.some((m) => m.id === p.id))) return; // 선수들 꾸밈 정보(presence)가 올 때까지
+  w.pending = null;
+  w.players = players;
+  const ctx = { players, members: w.members };
+  show('hud');
+  game = new Game(world, {
+    spectator: true, mode: w.mode, hud, authority: false,
+    names: names(ctx), playerNames: playerNames(ctx), playerTitles: titles(ctx), looks: looks(ctx),
+    send: { toss() {}, swing() {} },
+  });
+  game.view = watchView;
+  game.offset = w.offset - WATCH.delay;
+  game.score = score ? [...score] : [0, 0];
+  hud.score(game.score);
+  hud.stats(game.stats);
+  renderWatchBar();
+}
+
+function endWatchGame() {
+  stopGame();
+  if (watch) { watch.players = null; watch.queue = []; }
+  renderWatchBar();
+}
+
+// 매 프레임: 받아 둔 경기 이벤트를 때가 되면 화면에 (관전자만)
+function watchFrame(now) {
+  if (!watch || !game?.spectator) return;
+  const gt = now + game.offset;
+  while (watch.queue.length) {
+    const q = watch.queue[0];
+    if (q.t != null ? gt < q.t : now < q.at) break;
+    watch.queue.shift();
+    game.onEvent(q.ev);
+  }
+}
+
+function renderWatchBar() {
+  if (!watch) return;
+  const r = watchInfo();
+  $('watch-bar').classList.remove('hidden');
+  $('watch-label').innerHTML = `<small>👀 관전 중 · ${modeText(watch.mode || r?.mode)}</small><b>${r ? (r.inGame ? vsHtml(r) : `${esc(r.host)}님의 방`) : '방을 찾는 중…'}</b>`;
+  const others = roomsNow().some((x) => x.code !== watch.code);
+  $('btn-watch-prev').disabled = $('btn-watch-next').disabled = !others;
+  $('watch-cam').classList.toggle('hidden', !game);
+  for (const b of $('watch-cam').querySelectorAll('button')) b.classList.toggle('on', b.dataset.view === watchView);
+  const waiting = !game;
+  $('watch-wait').classList.toggle('hidden', !waiting);
+  if (!waiting) return;
+  let msg;
+  if (!r) msg = '방 정보를 불러오는 중…';
+  else if (r.inGame) msg = '경기를 불러오는 중이에요<small>다음 서브부터 보여요</small>';
+  else msg = `⏳ 경기 시작을 기다리는 중이에요<small>${modeText(r.mode)} · ${r.n}/${r.cap}명 모였어요</small>`;
+  $('watch-wait-msg').innerHTML = msg;
+  const canJoin = r && !r.inGame && r.n < r.cap;
+  $('btn-watch-join').classList.toggle('hidden', !canJoin);
+  $('btn-watch-join').classList.toggle('locked', IS_MOBILE);
+  $('btn-watch-other').disabled = !others;
+}
+
+function watchStep(d) {
+  const rs = roomsNow();
+  let i = rs.findIndex((r) => r.code === watch?.code);
+  if (rs.length < 2 && i >= 0) { hud.toast('다른 방이 없어요'); return; }
+  i = (i + d + rs.length) % rs.length;
+  startWatch(rs[i].code);
+}
+function watchRandom() {
+  const rs = roomsNow().filter((r) => r.code !== watch?.code);
+  const live = rs.filter((r) => r.inGame);
+  const pool = live.length ? live : rs;
+  if (!pool.length) { hud.toast('지금 열린 다른 방이 없어요'); return; }
+  startWatch(pool[(Math.random() * pool.length) | 0].code);
+}
+function joinFromWatch(code) {
+  if (IS_MOBILE) { hud.toast(MOBILE_MSG, 2600); return; }
+  stopWatch();
+  closeLobbyList();
+  enterRoom(code, false);
+}
+
+$('btn-watch').addEventListener('click', () => { initAudio(); playUI('click'); show('watch'); });
+$('btn-watch-back').addEventListener('click', () => { playUI('click'); show('lobby'); });
+$('btn-watch-random').addEventListener('click', watchRandom);
+$('watch-list').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-act]');
+  const code = b?.closest('li')?.dataset.code;
+  if (!code) return;
+  if (b.dataset.act === 'watch') startWatch(code);
+  else joinFromWatch(code);
+});
+$('btn-watch-exit').addEventListener('click', exitWatch);
+$('btn-watch-prev').addEventListener('click', () => watchStep(-1));
+$('btn-watch-next').addEventListener('click', () => watchStep(1));
+$('btn-watch-other').addEventListener('click', watchRandom);
+$('btn-watch-join').addEventListener('click', () => watch && joinFromWatch(watch.code));
+$('watch-cam').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-view]');
+  if (!b) return;
+  playUI('click');
+  watchView = b.dataset.view;
+  if (game?.spectator) game.view = watchView;
+  renderWatchBar();
+});
 
 /* ───────── 전적 ───────── */
 // 경기가 끝나면 내 PC가 내 결과만 기록한다. 1v1이면 상대의 선수 번호(pid)도 함께 (상대 전적)
@@ -615,6 +928,7 @@ function renderRoom() {
   else tip = room.host ? '모두 준비됐어요! 경기 시작을 눌러 주세요' : '방장이 시작하기를 기다리는 중…';
   $('room-tip').textContent = tip;
   renderPing();
+  announce();
 }
 
 
@@ -907,7 +1221,8 @@ function exitGame() {
 }
 $('exit').addEventListener('click', exitGame);
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && game && !room) exitGame();
+  if (e.key === 'Escape' && watch) exitWatch();
+  else if (e.key === 'Escape' && game && !room) exitGame();
 });
 
 /* ───────── 꾸미기 (옷장 · 뽑기 · 골라 사기를 한 화면에) ─────────
@@ -1585,6 +1900,7 @@ function loop() {
   if (game) {
     setQuiet(1);
     stageOff();
+    watchFrame(now);
     if (!(intro && introFrame(now))) game.update(now + game.offset);
   }
   else if (room && !room.inGame && !$('room').classList.contains('hidden')) { setQuiet(1); stageFrame(now); }

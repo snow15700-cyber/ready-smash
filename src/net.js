@@ -29,74 +29,93 @@ export const normalizeCode = (s) => s.toUpperCase().replace(/[^A-Z0-9]/g, '').sl
 
 // 방 입장. me = { id, nick, host, at }
 // handlers.onMsg(payload), handlers.onMembers([{id,nick,host,at}]), handlers.onStatus('ok'|'error', text)
-export function joinRoom(code, me, handlers) {
-  return ONLINE ? joinSupabase(code, me, handlers) : joinLocal(code, me, handlers);
+// watch: 관전 — 듣기만 한다. 출석부(presence)에 이름을 올리지 않아서 선수들에게는 아무것도 안 보이고 안 늘어난다
+export function joinRoom(code, me, handlers, { watch = false } = {}) {
+  return join(`${ROOM_PREFIX}${code}`, me, handlers, watch);
 }
 
-function joinSupabase(code, me, h) {
-  const ch = getClient().channel(`${ROOM_PREFIX}${code}`, {
-    config: { broadcast: { self: false, ack: false }, presence: { key: me.id } },
+// 로비 방 목록 채널: 방장만 자기 방 정보를 출석부에 올린다(me = 방 정보). 목록을 보는 사람은 watch로 듣기만
+const LOBBY_NAME = IS_TEST ? 'pingpong-test-lobby' : 'pingpong-lobby';
+export function joinLobby(me, handlers) {
+  return join(LOBBY_NAME, me, handlers, !me);
+}
+
+function join(name, me, handlers, watch) {
+  return ONLINE ? joinSupabase(name, me, handlers, watch) : joinLocal(name, me, handlers, watch);
+}
+
+function joinSupabase(name, me, h, watch) {
+  const ch = getClient().channel(name, {
+    config: { broadcast: { self: false, ack: false }, presence: { key: watch ? '' : me.id } },
   });
-  ch.on('broadcast', { event: 'm' }, ({ payload }) => h.onMsg(payload));
+  ch.on('broadcast', { event: 'm' }, ({ payload }) => h.onMsg?.(payload));
   ch.on('presence', { event: 'sync' }, () => {
     const st = ch.presenceState();
     const list = Object.values(st).map((arr) => arr[0]).filter(Boolean);
-    h.onMembers(list);
+    h.onMembers?.(list);
   });
+  let ready = false;
   ch.subscribe(async (status) => {
     if (status === 'SUBSCRIBED') {
-      await ch.track(me);
-      h.onStatus('ok');
+      ready = true;
+      if (!watch) await ch.track(me);
+      h.onStatus?.('ok');
     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-      h.onStatus('error', '서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.');
+      h.onStatus?.('error', '서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.');
     }
   });
   return {
     send(payload) { ch.send({ type: 'broadcast', event: 'm', payload }); },
+    // 출석부에 올린 내 정보 바꾸기 (로비 방 목록의 점수·인원 등)
+    update(next) { me = next; if (ready && !watch) ch.track(me); },
     leave() { ch.unsubscribe(); getClient().removeChannel(ch); },
   };
 }
 
 // 로컬 테스트: BroadcastChannel + 1초마다 '나 여기 있어요' 신호로 접속자 목록을 만든다
-function joinLocal(code, me, h) {
-  const bc = new BroadcastChannel(`${ROOM_PREFIX}${code}`);
+function joinLocal(name, me, h, watch) {
+  const bc = new BroadcastChannel(name);
   const lag = Number(new URLSearchParams(location.search).get('lag') || 0) / 1000; // 지연 흉내 (ms)
   const members = new Map();
   const seen = new Map();
   let closed = false;
   const post = (d) => { if (!closed) bc.postMessage(d); };
-  members.set(me.id, me);
+  if (!watch) members.set(me.id, me);
   let lastKey = '';
   const emitMembers = () => {
     const list = [...members.values()];
-    const key = list.map((m) => m.id).sort().join(',');
-    if (key !== lastKey) { lastKey = key; h.onMembers(list); }
+    const key = JSON.stringify(list.map((m) => [m.id, m]).sort((a, b) => (a[0] < b[0] ? -1 : 1)));
+    if (key !== lastKey) { lastKey = key; h.onMembers?.(list); }
   };
   bc.onmessage = (e) => {
     const d = e.data;
     if (d.k === '_hb') {
       seen.set(d.me.id, performance.now());
-      if (!members.has(d.me.id)) { members.set(d.me.id, d.me); emitMembers(); post({ k: '_hb', me }); }
+      const isNew = !members.has(d.me.id);
+      members.set(d.me.id, d.me);
+      emitMembers();
+      if (isNew && !watch) post({ k: '_hb', me });
     } else if (d.k === '_bye') {
       members.delete(d.id); seen.delete(d.id); emitMembers();
-    } else h.onMsg(d);
+    } else h.onMsg?.(d);
   };
   const hb = setInterval(() => {
-    post({ k: '_hb', me });
+    if (!watch) post({ k: '_hb', me });
     const now = performance.now();
     for (const [id, t] of seen) if (now - t > 3500) { members.delete(id); seen.delete(id); }
     emitMembers();
   }, 1000);
   // Supabase처럼 처음에는 '나를 뺀' 목록이 먼저 온다 (실제 서버와 같은 순서로 테스트하려고)
-  setTimeout(() => { if (!closed) h.onMembers([...members.values()].filter((m) => m.id !== me.id)); }, 0);
-  setTimeout(() => { if (closed) return; post({ k: '_hb', me }); h.onStatus('ok'); emitMembers(); }, 50);
-  const bye = () => post({ k: '_bye', id: me.id });
+  setTimeout(() => { if (!closed) h.onMembers?.([...members.values()].filter((m) => m.id !== me?.id)); }, 0);
+  setTimeout(() => { if (closed) return; if (!watch) post({ k: '_hb', me }); h.onStatus?.('ok'); emitMembers(); }, 50);
+  const bye = () => { if (!watch) post({ k: '_bye', id: me.id }); };
   window.addEventListener('beforeunload', bye);
   return {
     send(payload) {
       if (lag) setTimeout(() => post(payload), lag * 1000);
       else post(payload);
     },
+    update(next) { me = next; if (!watch) { members.set(me.id, me); post({ k: '_hb', me }); } },
     leave() { bye(); closed = true; clearInterval(hb); bc.close(); window.removeEventListener('beforeunload', bye); },
   };
 }

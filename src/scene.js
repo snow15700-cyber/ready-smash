@@ -8,6 +8,9 @@ const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatSha
 // 카메라: 어깨 뒤 낮게 + 공 따라가기 + 타격 흔들림
 const CAM = { y: 1.5, back: 1.2, x: 0.3, lookY: 0.86, lookZ: 1.0, fov: 60, followChar: 0.75, followBall: 0.35, lerp: 7, shake: 0.05 };
 
+// 관전 카메라 '옆에서 보기': 탁구대 긴 쪽 옆(+x)에서 TV 중계처럼. 화면이 좁으면(휴대폰 세로) 뒤로 물러나 양쪽 선수가 다 보이게
+const SIDE_CAM = { x: 3.6, y: 1.95, lookY: 0.72, halfW: 3.35, followBall: 0.25, fov: 50, fovTall: 72, maxX: 9, lerp: 4 };
+
 // 몰입 연출: 최대일 때 체육관 밝기를 이만큼 줄인다 (0.9 = 원래의 10%)
 const FOCUS_DARK = 0.9;
 const FOCUS_BG = new THREE.Color('#120f14');
@@ -172,6 +175,25 @@ export function createWorld(canvas) {
       }
       this.shake *= Math.exp(-dt * 12);
       if (camera.fov !== P.fov) { camera.fov = P.fov; camera.updateProjectionMatrix(); }
+      camera.lookAt(camLook);
+    },
+    resetCamera() { camInit = false; }, // 다음 카메라 계산에서 바로 그 자리로 (스르륵 날아오지 않게)
+    // 관전: 옆에서 보기 (ballZ: 공의 앞뒤 위치, 조금만 따라간다)
+    sideCamera(dt, ballZ = 0) {
+      const P = SIDE_CAM;
+      const fov = camera.aspect < 1 ? P.fovTall : P.fov; // 휴대폰 세로: 더 넓게 보고
+      const tanH = Math.tan((fov * Math.PI) / 360) * camera.aspect;
+      const d = Math.min(P.maxX, Math.max(P.x, P.halfW / tanH)); // 체육관 벽(11m)을 넘지 않게
+      const tp = new THREE.Vector3(d, P.y + (d - P.x) * 0.25, ballZ * P.followBall);
+      const tl = new THREE.Vector3(0, P.lookY, ballZ * P.followBall * 1.4);
+      if (!camInit) { camPos.copy(tp); camLook.copy(tl); camInit = true; }
+      const k = 1 - Math.exp(-dt * P.lerp);
+      camPos.lerp(tp, k);
+      camLook.lerp(tl, k);
+      camera.position.copy(camPos);
+      if (this.shake > 0.001) camera.position.y += (Math.random() - 0.5) * this.shake * 0.02;
+      this.shake *= Math.exp(-dt * 12);
+      if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
       camera.lookAt(camLook);
     },
     setBall(p, visible = true) {

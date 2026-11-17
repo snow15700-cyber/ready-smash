@@ -129,9 +129,14 @@
 - ③ `supabase/12_ach_people.sql`(11 다음): `pingpong_ach_people(token, mode, won, opp, mate)` — `achMatch` 다음에 부름(같은 경기 한 번만, `ach_n.people_at`). 천적 = h2h `lose_run` 5 → 칭호 「(상대 닉네임) 공포증」(`ach_n.nemesis`, 처음 깬 상대로 고정, `titleText(id, x)`·presence `titleX`·랭킹 `title_x`·player json `nemesis`). 복수 = 그 상대에게 3패 이상인데 이김. 짝꿍 = `ach_n.duo{팀원 번호: 승수}`. 뽑기 횟수 = 트리거 `pingpong_count_gacha`(코인이 100·900 줄면 `ach_n.gacha`). 출석 = `pingpong_daily`가 `ach_n.days`·`days_run`(이 SQL 넣은 날부터).
 - 이제 58개 모두 깰 수 있음. 다음 후보 ④: 연출 다듬기(승리 세리머니 등, 기획서 11장).
 
-## 관전 모드 (기획 완료, 1단계부터 만드는 중)
+## 관전 모드 (1단계 test에서 사용자 테스트 중)
 - 전체 규칙은 **기획서 12장**. 핵심: 선수 네트워크 부담 0 — 관전자는 게임 채널을 듣기만(presence X, ping X, 상황 요청 X), 응원·관전자 출석부는 방마다 관전석 채널. 응원은 1인 3초에 1개, 관전자 12명 넘으면 간격 = 관전자 수 ÷ 4초.
 - 사용자 확정: 응원은 선수에게 보이고 작게 들림, 관전자는 꾸민 캐릭터 그대로, 방 목록 = 경기 중 + 대기 중(참가하기), 보상 없음, 손님 가능, 인원·캐릭터 제한 없음, 휴대폰 관전 가능.
+- **1단계 (test에서 사용자 테스트 중)**: 로비 '👀 구경하기'(`#watch`, 방 목록·🎲 아무 방이나) → 관전(`main.js`의 `startWatch`/`stopWatch`/`watch`).
+  - 로비 채널 `pingpong(-test)-lobby`(`net.js`의 `joinLobby`): 방장만 presence에 `roomInfo()`(코드·모드·팀 닉네임·인원·경기 중·선수·점수)를 올린다(`announce`, 바뀐 것만 0.25초 모아서, `update(me)`). 목록 보는 사람·관전자는 `watch`로 듣기만(`lobbyList`, 구경하기 화면·관전 중에만).
+  - 관전자는 `joinRoom(code, null, h, { watch: true })` — track 안 함. 방장 시계는 참가자의 `pong`의 `th`를 엿들어 맞춤(가장 큰 값). 이벤트는 `watch.queue`에 모아 `watchFrame`이 처리: `shot`/`toss`는 친 시각 `t`에, 나머지는 받은 뒤 `WATCH.delay`(0.4초) 뒤에. 화면은 `game.offset = 방장 시계 - delay`.
+  - 중간 입장 = 로비 정보의 `players`·`score`로 바로 경기 화면(공은 다음 이벤트부터). 경기 끝(`needIdle`)·선수 나감 → 대기 안내 `#watch-wait`(참가하기·다른 방). 방장 나감 → '방이 닫혔어요'.
+  - `Game`의 `spectator`(mySlot -1, 입력 없음, 이름표 모두, `view` = side | a | b). 옆에서 보기 카메라 `scene.js`의 `SIDE_CAM`·`sideCamera`(세로 화면은 넓게, 벽 안쪽까지만). 아래 막대 `#watch-bar`(◀ 방 ▶ + 카메라).
 
 ## 사용자가 확정한 결정 (바꾸기 전에 사용자에게 확인)
 - 캐릭터: 흰색 몸통+흰색 머리만, 팔 없음, 탁구채만 떠 있음. **내 캐릭터는 반투명**(0.38), 상대·팀원은 불투명. 탁구채 기본은 빨강, 옷장에서 장착한 것으로 바뀐다(`items.js`).
