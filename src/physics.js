@@ -19,7 +19,7 @@ export const HOLD = 0.09;
 
 export const WIN = { perfect: 0.045, good: 0.1, bad: 0.17, whiff: 0.5 };
 // 늦게 친 쪽은 더 좁게 (공이 몸을 지나간 뒤에 넘어가지 않게). bad를 넘기면 블록도 놓침
-export const WIN_LATE = { perfect: 0.035, good: 0.07, bad: 0.11 };
+export const WIN_LATE = { perfect: 0.045, good: 0.08, bad: 0.14 };
 // dt(클릭 - 이상적인 시각)가 늦었으면 늦은 쪽 범위
 export const winFor = (dt) => (dt > 0 ? WIN_LATE : WIN);
 
