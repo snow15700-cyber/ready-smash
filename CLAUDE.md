@@ -171,7 +171,7 @@
 - `src/match.js` 경기 기준 로직(방장/혼자 모드에서만 실행). `computeShot`은 방장과 상대 PC가 같이 쓴다.
 - `src/game.js` 화면 쪽: 이벤트를 받아 공·캐릭터·링·소리 처리, 내 입력 판정, 상대 PC의 타격 예측.
 - `src/scene.js` Three.js 체육관·탁구대·캐릭터·카메라. `src/audio.js` Web Audio 합성음.
-- `src/net.js` Supabase Realtime Broadcast + presence. 채널 `pingpong-room-XXXX`. **같은 이름의 채널은 한 PC에서 연결 하나를 같이 쓴다**(`shared`, `openShared`): Supabase는 같은 이름이면 이미 열린 채널을 돌려주고 거기에 presence 듣기를 더 붙이면 오류(`cannot add presence callbacks … after subscribe()`)가 난다 — 로비에서 방 목록을 듣던 중 방을 만들 때 이 오류로 '방 만들기'가 먹통이었음(고침). 다 나가면 닫고, 닫히는 중에 다시 들어오면 완전히 닫힌 뒤 새로 연다. presence key는 비워 둔다(서버가 정함). 설정이 없으면 BroadcastChannel로 같은 브라우저 탭끼리만 연결(로컬 테스트, `?lag=80`으로 지연 흉내).
+- `src/net.js` Supabase Realtime Broadcast + presence. 채널 `pingpong-room-XXXX`. **같은 이름의 채널은 한 PC에서 연결 하나를 같이 쓴다**(`shared`, `openShared`): Supabase는 같은 이름이면 이미 열린 채널을 돌려주고 거기에 presence 듣기를 더 붙이면 오류(`cannot add presence callbacks … after subscribe()`)가 난다 — 로비에서 방 목록을 듣던 중 방을 만들 때 이 오류로 '방 만들기'가 먹통이었음(고침). 다 나가면 닫고, 닫히는 중에 다시 들어오면 완전히 닫힌 뒤 새로 연다. presence key는 브라우저 창마다 하나(`CLIENT_KEY`), 출석부는 이름표마다 묶인 사람을 모두 꺼내 id로 한 번씩(`memberList`) — key를 비워 뒀더니 서버가 모두를 같은 이름표에 묶어 첫 사람만 보여서, 참가자가 방장을 못 보고 3초 만에 튕겼음(고침). 설정이 없으면 BroadcastChannel로 같은 브라우저 탭끼리만 연결(로컬 테스트, `?lag=80`으로 지연 흉내).
 - `src/main.js` 로비·방·대기실 흐름, 시계 맞추기(ping/pong), 매 프레임 루프.
 
 ## 동기화 규칙

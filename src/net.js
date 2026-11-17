@@ -56,7 +56,14 @@ function join(name, me, handlers, watch) {
 // 다 나가면 닫고, 닫히는 중에 다시 들어오면 완전히 닫힌 뒤에 새로 연다.
 const shared = new Map(); // 채널 이름 → { ch, subs, ready, tracked, closing }
 const ERR_TEXT = '서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.';
-const memberList = (ch) => Object.values(ch.presenceState()).map((arr) => arr[0]).filter(Boolean);
+// 출석부 이름표(presence key): 이 브라우저 창마다 하나씩 따로 (비워 두면 서버가 모두를 같은 이름표에 묶을 수 있다)
+const CLIENT_KEY = `c${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+// 출석부 → 사람 목록. 이름표 하나에 여러 명이 묶여 와도 모두 꺼내고, 같은 id는 한 번만
+const memberList = (ch) => {
+  const out = new Map();
+  for (const arr of Object.values(ch.presenceState())) for (const m of arr || []) if (m) out.set(m.id ?? out.size, m);
+  return [...out.values()];
+};
 
 function openShared(name, after) {
   const e = { name, ch: null, subs: new Set(), ready: false, tracked: null, closing: null };
@@ -66,7 +73,7 @@ function openShared(name, after) {
     // 닫힌 줄 알았던 예전 채널이 아직 남아 있으면 치운다 (같은 이름이면 그걸 돌려받게 되므로)
     const old = client.getChannels().find((c) => c.topic === `realtime:${name}`);
     if (old) { try { old.teardown(); client.realtime._remove?.(old); } catch { /* 이미 정리됨 */ } }
-    const ch = client.channel(name, { config: { broadcast: { self: false, ack: false }, presence: { key: '' } } });
+    const ch = client.channel(name, { config: { broadcast: { self: false, ack: false }, presence: { key: CLIENT_KEY } } });
     e.ch = ch;
     ch.on('broadcast', { event: 'm' }, ({ payload }) => { for (const s of e.subs) s.h.onMsg?.(payload); });
     ch.on('presence', { event: 'sync' }, () => { const list = memberList(ch); for (const s of e.subs) s.h.onMembers?.(list); });
