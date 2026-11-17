@@ -1,5 +1,5 @@
 // 화면 쪽 게임: 이벤트를 받아 공·캐릭터·소리·링을 그리고, 내 입력을 판정해 보낸다
-import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, WIN, HOLD } from './physics.js';
+import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, WIN, WIN_LATE, winFor, HOLD } from './physics.js';
 import { PADDLE_OFFSET, CHAR_Z } from './scene.js';
 import { applyLook } from './items.js';
 import { computeShot, hitOrder } from './match.js';
@@ -20,10 +20,11 @@ const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 export class Game {
   // authority: 이 PC가 경기를 계산하는지 (혼자 모드, 방장). 아니면 방장 이벤트를 받아 그리고 내 타격은 예측해서 먼저 보여준다
   // playerNames[side][slot]: 2v2 이름표용
-  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, best = 0, onBest = null, onRally = null, looks = null }) {
+  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, playerTitles = null, best = 0, onBest = null, onRally = null, looks = null }) {
     this.authority = authority;
     this.names = names;
     this.playerNames = playerNames;
+    this.playerTitles = playerTitles; // 칭호 글자 (이름표 위 알약)
     this.offset = 0; // 방장 시계 - 내 시계 (초)
     this.net = { seed: 0, nextIdx: 0, rally: 0, incoming: null };
     this.focus = 0; // 몰입 정도 (0~1)
@@ -50,6 +51,18 @@ export class Game {
     this.mouse = { x: innerWidth / 2, y: innerHeight / 2, hist: [] };
     // perfect3 = 퍼펙트 3연속 횟수, rally10 = 랠리 10회 이상 이어 간 횟수 (경기 끝나고 코인 정산용)
     this.stats = { rally: 0, best: 0, perfectStreak: 0, perfects: 0, perfect3: 0, rally10: 0 };
+    // 업적용 경기 기록 (내 것만, 경기가 끝나면 서버로. supabase/11_ach_match.sql)
+    this.ach = {
+      hits: 0, perfects: 0, perfRun: 0, perfMax: 0, blocks: 0, centers: 0,
+      dirLast: null, dirRun: 0, dirMax: 0, zigRun: 0, zig: 0,
+      smashes: 0, smashPts: 0, smashBack: 0, chances: [], given: 0,
+      rallyMax: 0, quickPts: 0, aces: 0, serves: 0, serveFaults: 0, tossRun: 0, tossMax: 0,
+      myPts: 0, teamPts: 0, blockPts: 0, whiffLost: 0, maxDeficit: 0, led40: 0, deuce: 0,
+      dtSum: 0, dtN: 0,
+    };
+    this.lastLocal = null; // 내가 방금 친 공의 방향·타이밍 { t, dir, dt }
+    this.lastShot = null; // 마지막으로 친 사람 { mine, grade, kind }
+    this.missMine = false;
     // 혼자 하기 최고 기록: 처음 값과 새 기록 저장은 main.js가 정한다(로그인 = 서버, 손님 = 브라우저)
     if (mode === 'ai') this.stats.best = best;
     this.onBest = onBest;
@@ -187,6 +200,7 @@ export class Game {
       if (this.stats.perfectStreak % 3 === 0) this.stats.perfect3++;
     } else this.stats.perfectStreak = 0;
     this.hud.stats(this.stats);
+    this.lastLocal = { t: h.t, dir, dt: h.t - ex.t };
     if (!this.authority) this.predictHit(h.t, grade, dir, h.t - ex.t);
     this.send.swing(me, h.t, dir, up, this.mySlot);
   }
@@ -237,7 +251,71 @@ export class Game {
     return [this.tossX, TY + 0.1, sideSign(side) * HIT_Z];
   }
 
+  // 업적용 기록 (이벤트를 받을 때마다, 화면 처리 전에. this.net.incoming은 아직 이전 공)
+  trackAch(ev) {
+    const a = this.ach;
+    const mine = ev.slot !== undefined || ev.side !== undefined ? this.isMe(ev.side, ev.slot ?? 0) : false;
+    if (ev.type === 'shot') {
+      if (this.mode !== 'ai') a.rallyMax = Math.max(a.rallyMax, ev.rally);
+      if (mine) {
+        const inc = this.net.incoming;
+        a.hits++;
+        if (ev.grade === 'perfect') { a.perfects++; a.perfRun++; a.perfMax = Math.max(a.perfMax, a.perfRun); } else a.perfRun = 0;
+        if (ev.grade === 'block') a.blocks++;
+        if (ev.kind === 'smash') a.smashes++;
+        if (ev.kind === 'chance') a.given++;
+        if (inc === 'smash' && ev.kind !== 'out') a.smashBack++;
+        if (inc === 'chance' && a.chances.length < 50) a.chances.push(ev.kind === 'smash' ? 1 : 0);
+        if (ev.rally === 1) { a.serves++; a.tossRun = 0; }
+        const L = this.lastLocal;
+        if (L && Math.abs(L.t - ev.t) < 0.01) {
+          if (L.dir === 0) a.centers++;
+          a.dirRun = L.dir === a.dirLast ? a.dirRun + 1 : 1;
+          a.dirMax = Math.max(a.dirMax, a.dirRun);
+          // 좌우 번갈아: 왼쪽→오른쪽→왼쪽처럼 방향이 바뀌며 3번 (한 랠리 안에서)
+          a.zigRun = L.dir !== 0 && a.dirLast !== null && L.dir === -a.dirLast ? a.zigRun + 1 : L.dir !== 0 ? 1 : 0;
+          if (a.zigRun >= 3) a.zig = 1;
+          a.dirLast = L.dir;
+          if (ev.rally > 1) { a.dtSum += L.dt; a.dtN++; }
+        }
+      }
+      this.lastShot = { mine, grade: ev.grade, kind: ev.kind, rally: ev.rally };
+    } else if (ev.type === 'serveReady') {
+      this.lastShot = null; this.missMine = false; a.zigRun = 0; a.dirLast = null;
+    } else if (ev.type === 'serveMiss' && mine) {
+      a.tossRun++; a.tossMax = Math.max(a.tossMax, a.tossRun);
+    } else if (ev.type === 'miss') {
+      this.missMine = mine;
+      if (mine) a.perfRun = 0;
+    } else if (ev.type === 'point') {
+      const me = this.mySide, ls = this.lastShot;
+      const won = ev.winner === me;
+      if (won) a.teamPts++;
+      if (won && ls?.mine) {
+        a.myPts++;
+        if (ls.grade === 'block') a.blockPts++;
+        if (ls.kind === 'smash') a.smashPts++;
+        if (ls.rally <= 3) a.quickPts++;
+        if (ls.rally === 1) a.aces++;
+      }
+      if (!won && ev.reason === 'fault' && ls?.mine && ls.rally === 1) a.serveFaults++;
+      if (!won && ev.reason === 'miss' && this.missMine) a.whiffLost++;
+      const [m, o] = [ev.score[me], ev.score[1 - me]];
+      a.maxDeficit = Math.max(a.maxDeficit, o - m);
+      if (m >= 4 && o === 0) a.led40 = 1;
+      if (ev.deuce) a.deuce = 1;
+    }
+  }
+
+  // 서버로 보낼 업적 기록 (숫자만)
+  achSummary(score) {
+    const a = this.ach, me = this.mySide;
+    const { chances, dirLast, dirRun, zigRun, perfRun, tossRun, ...rest } = a;
+    return { ...rest, chances, dtSum: Math.round(a.dtSum * 1000), scoreMe: score?.[me] ?? 0, scoreOpp: score?.[1 - me] ?? 0 };
+  }
+
   onEvent(ev) {
+    this.trackAch(ev);
     const me = this.mySide;
     switch (ev.type) {
       case 'start':
@@ -428,7 +506,7 @@ export class Game {
         if (two && this.playerNames && s !== me) {
           const nx = this.order[this.turn];
           const next = this.phase !== 'point' && this.phase !== 'over' && nx.side === s && nx.slot === sl;
-          c.setTag(this.playerNames[s][sl], next);
+          c.setTag(this.playerNames[s][sl], next, this.playerTitles?.[s]?.[sl] || '');
         }
       }
     }
@@ -441,7 +519,7 @@ export class Game {
     // 타이밍 링
     const showRing = ex && this.isMe(ex.side, ex.slot) && !ex.whiffed && (this.phase === 'toss' || this.phase === 'rally');
     const remain = ex ? ex.t - now : 9;
-    if (showRing && remain < 0.95 && remain > -WIN.bad) {
+    if (showRing && remain < 0.95 && remain > -WIN_LATE.bad) {
       w.ring.visible = true;
       // 칠 자리가 화면 밖(사이드)이어도 링은 화면 안 가장자리에 붙여서 보이게 한다
       // (카메라 기준 좌표로 바꿔서: 너무 가깝거나 뒤에 있으면 앞으로 밀고, 화면 밖이면 가장자리 안쪽으로)
@@ -459,7 +537,8 @@ export class Game {
       w.ring.quaternion.copy(cam.quaternion); // 화면을 정면으로 보게 (가장자리에서도 동그랗게)
       const k = 1 + Math.max(0, remain) * 3.4;
       w.ringMove.scale.setScalar(k);
-      const col = Math.abs(remain) <= WIN.perfect ? '#5dff8a' : Math.abs(remain) <= WIN.good ? '#ffe24d' : '#ffb347';
+      const rw = winFor(-remain);
+      const col = Math.abs(remain) <= rw.perfect ? '#5dff8a' : Math.abs(remain) <= rw.good ? '#ffe24d' : '#ffb347';
       w.ringMove.material.color.set(col);
     } else w.ring.visible = false;
 

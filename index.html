@@ -40,6 +40,7 @@
     <div class="vi-go">준비하시고, <b>스매시!</b></div>
   </div>
 
+  <div id="ach-pop"></div>
   <div id="toast"></div>
 
   <div id="login" class="screen left hidden">
@@ -124,6 +125,7 @@
         <button id="tab-closet">👕 옷장</button>
         <button id="tab-gacha">🎁 뽑기</button>
         <button id="tab-buy">🛒 골라 사기</button>
+        <button id="tab-title">🏅 칭호</button>
       </div>
       <div id="cat-chips" class="chips"></div>
 
@@ -141,6 +143,7 @@
         <button id="btn-test-coins" class="small hidden">🧪 테스트 코인 +1000 (이 브라우저에서만)</button>
       </div>
       <ul id="item-grid" class="item-grid"></ul>
+      <div id="pane-title" class="pane title-pane hidden"></div>
       <p id="dress-msg" class="msg"></p>
     </div>
 
@@ -243,10 +246,11 @@
       <p id="room-result" class="result hidden"></p>
       <p id="room-coins" class="coins-got"></p>
       <p id="room-h2h" class="h2h"></p>
+      <button id="btn-room-lobby" class="small leave-pill hidden">🏠 메인 메뉴로 나가기</button>
     </div>
     <div id="room-card" class="panel room-panel">
       <div class="room-top">
-        <button id="btn-room-leave" class="small ghost">← 방 나가기</button>
+        <button id="btn-room-leave" class="small leave-pill">🏠 로비로 나가기</button>
         <div class="ticket">
           <span class="ticket-lbl">방 코드</span>
           <div id="room-code" class="code">----</div>

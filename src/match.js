@@ -1,6 +1,6 @@
 // 경기 진행 (방장 PC 또는 혼자 모드에서만 실행되는 '기준' 로직)
 // 모든 결과는 emit(event)으로 알리고, 화면 쪽은 이벤트만 보고 그린다.
-import { simulate, findIdealHit, tossSegs, planShot, judge, ballPos, rng, WIN, HOLD } from './physics.js';
+import { simulate, findIdealHit, tossSegs, planShot, judge, ballPos, rng, WIN, WIN_LATE, winFor, HOLD } from './physics.js';
 
 export const WIN_SCORE = 5;
 // 랠리 3회마다 공 속도 4%씩 증가 (최대 10단계 = 40%)
@@ -26,7 +26,7 @@ export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, 
   const speedLv = SPEED_STEP > 0 ? Math.min(SPEED_MAX_LV, Math.floor(shown / 3)) : 0;
   let kind = null;
   if (!serve) {
-    const poor = grade === 'bad' || (grade === 'block' && Math.abs(dt) > WIN.good);
+    const poor = grade === 'bad' || (grade === 'block' && Math.abs(dt) > winFor(dt).good);
     if (incoming === 'smash' && SMASH_OUT && poor) kind = 'out';
     else if (incoming === 'chance' && grade === 'perfect') kind = 'smash';
     else if (grade === 'bad' && rallyNow > CHANCE_RALLY) kind = 'chance';
@@ -196,7 +196,7 @@ export class Match {
       return;
     }
     const margin = this.isRemote(ex.side, ex.slot) ? 0.45 : 0.12; // 네트워크 지연 여유
-    if (now > ex.t + WIN.bad + HOLD + margin) {
+    if (now > ex.t + WIN_LATE.bad + HOLD + margin) {
       if (this.phase === 'toss') {
         // 서브 헛스윙은 실점 없이 다시 토스
         this.phase = 'point';

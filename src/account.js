@@ -3,6 +3,7 @@
 // 서버 설정이 없으면(로컬 테스트) 브라우저 안의 가짜 서버로 똑같이 동작한다.
 import { ONLINE, getClient } from './net.js';
 import { ITEMS, ITEM, GRADES, GACHA_PRICE, PITY } from './items.js';
+import { ACH, REWARD, GAG_PADDLES } from './achievements.js';
 
 // ?acct=2 처럼 주소에 붙이면 열쇠를 따로 보관한다 (한 브라우저에서 탭마다 다른 계정으로 테스트할 때)
 const ACCT = new URLSearchParams(location.search).get('acct');
@@ -34,10 +35,11 @@ async function call(fn, args) {
   }
 }
 
-const EMPTY_STATS = { wins_1v1: 0, losses_1v1: 0, wins_2v2: 0, losses_2v2: 0, best_rally: 0, coins: 0, win_streak: 0, pieces: 0, equip: {} };
+const EMPTY_STATS = { wins_1v1: 0, losses_1v1: 0, wins_2v2: 0, losses_2v2: 0, best_rally: 0, coins: 0, win_streak: 0, pieces: 0, equip: {}, title: null };
 function setUser(player, token) {
   account.player = { ...EMPTY_STATS, ...player };
   account.shop = null;
+  account.ach = null;
   account.nick = player.nick;
   account.guest = false;
   account.loggedIn = true;
@@ -84,6 +86,7 @@ export async function logout() {
   account.loggedIn = false;
   account.player = null;
   account.shop = null;
+  account.ach = null;
   if (token) await call('pingpong_logout', { p_token: token });
 }
 
@@ -191,6 +194,37 @@ export async function getH2H(oppId) {
   return r.status === 'ok' ? r.h2h : null;
 }
 
+/* ───────── 업적·칭호 (supabase/10_achievements.sql) ───────── */
+// account.ach = { got: Map(id → 깬 시각), loaded }
+function takeAch(r) {
+  if (r.status === 'ok') {
+    account.player = { ...EMPTY_STATS, ...r.player };
+    account.ach = { got: new Map((r.got || []).map((g) => [g.id, g.at])) };
+  }
+  return r;
+}
+// 업적 목록 불러오기 + 새로 깬 업적 지급. 결과 { status, new: [{ id, coins }] }
+export async function checkAch() {
+  if (!account.loggedIn) return { status: 'guest', new: [] };
+  return takeAch(await call('pingpong_achievements', { p_token: token() }));
+}
+// 칭호 달기 (id null = 떼기)
+export async function setTitle(id) {
+  if (!account.loggedIn) return { status: 'guest' };
+  return takeAch(await call('pingpong_set_title', { p_token: token(), p_ach: id }));
+}
+// 경기 업적 기록 보내기 (supabase/11_ach_match.sql). mode '1v1'|'2v2'|'ai', s = game.achSummary()
+export async function achMatch(mode, won, s) {
+  if (!account.loggedIn) return { status: 'guest', new: [] };
+  return takeAch(await call('pingpong_ach_match', { p_token: token(), p_mode: mode, p_won: won, p_s: s }));
+}
+// 사람 관계 업적 (supabase/12_ach_people.sql). achMatch 다음에 부른다. opp = 1v1 상대, mate = 2v2 팀원의 선수 번호
+export async function achPeople(mode, won, opp, mate) {
+  if (!account.loggedIn) return { status: 'guest', new: [] };
+  return takeAch(await call('pingpong_ach_people', { p_token: token(), p_mode: mode, p_won: won, p_opp: opp, p_mate: mate }));
+}
+export const myTitle = () => (account.loggedIn && account.player?.title) || null;
+
 /* ───────── 랭킹 (손님도 볼 수 있음) ───────── */
 // kind 'wins'(승수 합계) | 'rally'(혼자 하기 최장 랠리). 결과 [{ nick, value, rank, w1?, w2? }] 또는 null(실패)
 export async function getRanking(kind) {
@@ -199,6 +233,72 @@ export async function getRanking(kind) {
 }
 
 /* ───────── 로컬 테스트용 가짜 서버 (서버 함수와 같은 규칙) ───────── */
+// pingpong_ach_people과 같은 규칙 (천적·복수·짝꿍)
+function localAchPeople(p, a, now, grant, db) {
+  if (!['1v1', '2v2'].includes(a.p_mode)) return { status: 'bad' };
+  if (!(p.achAt > now - 30000) || p.achN.peopleAt === p.achAt) return { status: 'too_soon' };
+  p.achN.peopleAt = p.achAt;
+  const ids = [];
+  const h = a.p_mode === '1v1' && a.p_opp && db.h2h[p.id + '>' + a.p_opp];
+  if (h) {
+    h[2] = a.p_won ? 0 : (h[2] || 0) + 1; // [승, 패, 지금 연패]
+    if (!a.p_won && h[2] >= 5) {
+      ids.push('nemesis');
+      if (!p.achN.nemesis && !p.ach.nemesis) p.achN.nemesis = Object.values(db.players).find((x) => x.id === a.p_opp)?.nick;
+    }
+    if (a.p_won && h[1] >= 3) ids.push('revenge');
+  }
+  if (a.p_mode === '2v2' && a.p_won && a.p_mate && a.p_mate !== p.id && Object.values(db.players).some((x) => x.id === a.p_mate)) {
+    p.achN.duo ||= {};
+    p.achN.duo[a.p_mate] = (p.achN.duo[a.p_mate] || 0) + 1;
+  }
+  grant(ids);
+  return { status: 'ok' };
+}
+// pingpong_ach_match와 같은 규칙 (한 경기 업적은 grant, 누적 숫자는 p.achN)
+function localAchMatch(p, a, now, grant) {
+  const s = a.p_s || {};
+  const n = (k, hi) => Math.min(Math.max(Number.isFinite(s[k]) ? Math.floor(s[k]) : 0, 0), hi);
+  const N = p.achN;
+  if (a.p_mode === 'ai') {
+    if (n('aizero', 1) && !(p.achAt > now - 1000)) { N.aizero = (N.aizero || 0) + 1; p.achAt = now; }
+    return { status: 'ok' };
+  }
+  if (!['1v1', '2v2'].includes(a.p_mode)) return { status: 'bad' };
+  if (p.achAt > now - 10000) return { status: 'too_soon' };
+  p.achAt = now;
+  const won = !!a.p_won, two = a.p_mode === '2v2';
+  const hits = n('hits', 300), perfects = Math.min(n('perfects', 300), hits), me = n('scoreMe', 50), opp = n('scoreOpp', 50);
+  const paddle = p.equip?.paddle;
+  const ok = {
+    perf3: n('perfMax', 300) >= 3, perf10: n('perfMax', 300) >= 10, perf70: hits > 10 && perfects >= hits * 0.7,
+    block3: n('blockPts', 50) >= 3, zigzag: n('zig', 1) === 1, oneway: n('dirMax', 300) >= 15,
+    noblock: won && hits > 0 && n('blocks', 300) === 0, smash1: n('smashes', 300) >= 1, smashback: n('smashBack', 300) >= 1,
+    santa: n('given', 300) >= 5, rally15: n('rallyMax', 1000) >= 15, rally30: n('rallyMax', 1000) >= 30,
+    servesafe: won && n('serves', 50) >= 1 && n('serveFaults', 50) === 0, tosser: n('tossMax', 100) >= 3, windserve: n('serveFaults', 50) >= 3,
+    comeback: won && n('maxDeficit', 50) >= 3, shutout: won && me >= 5 && opp === 0, blown: !won && n('led40', 1) === 1,
+    zero: !won && me === 0 && opp >= 5, whiff3: n('whiffLost', 50) >= 3,
+    carry: two && n('teamPts', 50) >= 4 && n('myPts', 50) >= n('teamPts', 50) * 0.8, bus: two && won && n('myPts', 50) === 0,
+    early9: won && new Date(now + 9 * 3600e3).getUTCHours() < 9,
+  };
+  const add = (k, v) => { N[k] = (N[k] || 0) + v; };
+  add('perfects', perfects); add('centers', Math.min(n('centers', 300), hits)); add('smash_pts', n('smashPts', 50));
+  add('quick', n('quickPts', 50)); add('aces', n('aces', 50)); add('deuce_wins', won && n('deuce', 1) ? 1 : 0);
+  add('duck_wins', won && paddle === 'paddle_duck' ? 1 : 0);
+  add('bread_perf', ['paddle_toast', 'paddle_baguette', 'paddle_donut', 'paddle_waffle', 'paddle_pizza'].includes(paddle) ? perfects : 0);
+  const today = new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
+  N.day_n = (N.day === today ? N.day_n || 0 : 0) + 1; N.day = today;
+  let run = N.chance_run || 0;
+  for (const c of (Array.isArray(s.chances) ? s.chances : []).slice(0, 50)) {
+    if (c === 1) { run++; if (run >= 10) ok.chance10 = true; } else run = 0;
+  }
+  N.chance_run = run;
+  const dn = n('dtN', 300);
+  add('dt_n', dn); add('dt_sum', Math.round(Math.max(Math.min(Number(s.dtSum) || 0, dn * 150), -dn * 150)));
+  grant(Object.keys(ok).filter((id) => ok[id]));
+  return { status: 'ok' };
+}
+
 const LOCAL_DB = 'smash-local-db';
 function localServer(fn, a) {
   let db;
@@ -211,7 +311,7 @@ function localServer(fn, a) {
   const now = Date.now();
   db.h2h ||= {};
   const me = () => db.players[db.sessions[a.p_token]];
-  const pj = (p) => ({ id: p.id, nick: p.nick, wins_1v1: p.w1 || 0, losses_1v1: p.l1 || 0, wins_2v2: p.w2 || 0, losses_2v2: p.l2 || 0, best_rally: p.best || 0, coins: p.coins || 0, win_streak: p.streak || 0, pieces: p.pieces || 0, equip: p.equip || {} });
+  const pj = (p) => ({ id: p.id, nick: p.nick, wins_1v1: p.w1 || 0, losses_1v1: p.l1 || 0, wins_2v2: p.w2 || 0, losses_2v2: p.l2 || 0, best_rally: p.best || 0, coins: p.coins || 0, win_streak: p.streak || 0, pieces: p.pieces || 0, equip: p.equip || {}, title: p.title || null, nemesis: p.achN?.nemesis || null });
   const shopOut = (p, extra = {}) => ({ status: 'ok', player: pj(p), owned: p.owned || [], pity: { char: p.pityChar || 0, arena: p.pityArena || 0 }, ...extra });
   const onSale = (pool, grade) => ITEMS.filter((i) => i.pool === pool && i.grade !== 'default' && (!grade || i.grade === grade));
   const h2h = (p, opp) => { const h = db.h2h[p.id + '>' + opp] || [0, 0]; return { wins: h[0], losses: h[1] }; };
@@ -291,7 +391,13 @@ function localServer(fn, a) {
     else {
       const today = new Date(now + 9 * 3600e3).toISOString().slice(0, 10); // 한국 시간 날짜
       let got = 0;
-      if (p.daily !== today) { p.daily = today; p.coins = (p.coins || 0) + 20; got = 20; }
+      if (p.daily !== today) {
+        const yest = new Date(now + 9 * 3600e3 - 86400e3).toISOString().slice(0, 10);
+        p.achN ||= {};
+        p.achN.days = (p.achN.days || 0) + 1;
+        p.achN.days_run = p.daily === yest ? (p.achN.days_run || 0) + 1 : 1;
+        p.daily = today; p.coins = (p.coins || 0) + 20; got = 20;
+      }
       out = { status: 'ok', coins: got, player: pj(p) };
     }
   } else if (fn === 'pingpong_ai_start') {
@@ -344,6 +450,8 @@ function localServer(fn, a) {
       }
       p[key] = pity;
       p.coins -= cost;
+      p.achN ||= {};
+      p.achN.gacha = (p.achN.gacha || 0) + a.p_count;
       out = shopOut(p, { results });
     }
   } else if (fn === 'pingpong_buy') {
@@ -372,13 +480,56 @@ function localServer(fn, a) {
   } else if (fn === 'pingpong_ranking') {
     const rows = Object.values(db.players).map((p) => pj(p))
       .map((p) => (a.p_kind === 'wins'
-        ? { nick: p.nick, value: p.wins_1v1 + p.wins_2v2, w1: p.wins_1v1, w2: p.wins_2v2 }
-        : { nick: p.nick, value: p.best_rally }))
+        ? { nick: p.nick, title: p.title, title_x: p.nemesis, value: p.wins_1v1 + p.wins_2v2, w1: p.wins_1v1, w2: p.wins_2v2 }
+        : { nick: p.nick, title: p.title, title_x: p.nemesis, value: p.best_rally }))
       .filter((x) => x.value > 0)
       .sort((x, y) => y.value - x.value || (x.nick < y.nick ? -1 : 1))
       .slice(0, 50);
     rows.forEach((x, i) => { x.rank = i && rows[i - 1].value === x.value ? rows[i - 1].rank : i + 1; });
     return rows;
+  } else if (fn === 'pingpong_achievements' || fn === 'pingpong_set_title' || fn === 'pingpong_ach_match' || fn === 'pingpong_ach_people') {
+    const p = me();
+    if (!p) out = { status: 'no_session' };
+    else {
+      p.ach ||= {};
+      p.achN ||= {};
+      const fresh = [];
+      const grant = (ids) => {
+        for (const id of ids) {
+          if (p.ach[id] || !ACH[id]) continue;
+          p.ach[id] = new Date(now).toISOString();
+          p.coins = (p.coins || 0) + REWARD[ACH[id].grade];
+          fresh.push({ id, coins: REWARD[ACH[id].grade] });
+        }
+      };
+      if (fn === 'pingpong_ach_match') out = localAchMatch(p, a, now, grant);
+      if (fn === 'pingpong_ach_people') out = localAchPeople(p, a, now, grant, db);
+      if ((fn === 'pingpong_ach_match' || fn === 'pingpong_ach_people') && out.status !== 'ok') { /* too_soon 등 */ }
+      else if (fn !== 'pingpong_set_title') {
+        const N = (k) => p.achN[k] || 0;
+        const w = (p.w1 || 0) + (p.w2 || 0), l = (p.l1 || 0) + (p.l2 || 0);
+        const hs = Object.entries(db.h2h).filter(([k]) => k.startsWith(p.id + '>')).map(([, h]) => h);
+        const owned = p.owned || [];
+        const ok = {
+          win1: w >= 1, win30: w >= 30, win100: w >= 100, games50: w + l >= 50, wl10: w >= 10 && l >= 10,
+          streak5: (p.streak || 0) >= 5, streak10: (p.streak || 0) >= 10,
+          meet5: hs.length >= 5, beat10: hs.filter((h) => h[0] > 0).length >= 10, rival10: hs.some((h) => h[0] + h[1] >= 10),
+          ai20: (p.best || 0) >= 20, ai50: (p.best || 0) >= 50, ai100: (p.best || 0) >= 100,
+          own10: owned.length >= 10, legend1: owned.some((id) => ITEM[id]?.grade === 'legend'),
+          gag15: GAG_PADDLES.every((id) => owned.includes(id)),
+          perf500: N('perfects') >= 500, center300: N('centers') >= 300, smash30: N('smash_pts') >= 30, chance10: N('chance_run') >= 10,
+          quick5: N('quick') >= 5, ace20: N('aces') >= 20, deuce5: N('deuce_wins') >= 5, aizero: N('aizero') >= 5,
+          duck10: N('duck_wins') >= 10, bread100: N('bread_perf') >= 100, day20: N('day_n') >= 20,
+          gacha100: N('gacha') >= 100, days5: N('days_run') >= 5, days20: N('days') >= 20,
+          duo5: Object.values(p.achN.duo || {}).some((v) => v >= 5),
+          early: N('dt_n') >= 50 && N('dt_sum') / N('dt_n') < -50, late: N('dt_n') >= 50 && N('dt_sum') / N('dt_n') > 50,
+        };
+        grant(Object.keys(ok).filter((id) => ok[id]));
+        out = { status: 'ok' };
+      } else if (a.p_ach != null && !p.ach[a.p_ach]) out = { status: 'not_owned' };
+      else { p.title = a.p_ach; out = { status: 'ok' }; }
+      if (out.status === 'ok') out = { status: 'ok', player: pj(p), got: Object.entries(p.ach).map(([id, at]) => ({ id, at })), new: fresh };
+    }
   } else if (fn === 'pingpong_logout') {
     delete db.sessions[a.p_token];
     out = { status: 'ok' };
