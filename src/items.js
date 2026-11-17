@@ -1290,8 +1290,15 @@ const ARENA_IMG = (import.meta.env?.BASE_URL || '/') + 'arenas/';
 export const arenaOf = (look) => equipped(look, 'bg').arena;
 export const ballOf = (look) => equipped(look, 'ball').ball;
 
+// 미리 찍어 둔 목록 그림 (npm run thumbs → src/thumbs/<id>.webp). 있으면 바로 쓰고, 없으면 그 자리에서 3D로 찍는다
+// (예전엔 카테고리를 처음 누를 때 수십 개를 한꺼번에 찍느라 화면이 1초쯤 멈췄다)
+const THUMB_FILES = import.meta.glob('./thumbs/*.webp', { eager: true, query: '?no-inline', import: 'default' });
+const thumbFile = (id) => THUMB_FILES[`./thumbs/${id}.webp`];
+
 export function swatch(it) {
   if (it.cat === 'bg') return `<img class="sw img bg" src="${ARENA_IMG}${it.arena}.jpg" alt="" />`;
+  const file = thumbFile(it.id);
+  if (file) return `<img class="sw img" src="${file}" alt="" />`;
   if (it.cat === 'ball') {
     const src = ballImage(it);
     if (src) return `<img class="sw img" src="${src}" alt="" />`;
