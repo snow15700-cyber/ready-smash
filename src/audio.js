@@ -563,6 +563,63 @@ export function playNet(pos, when) {
 }
 
 // 서브 토스: 아주 작게
+// ── 알이 깨질 때 (balls.js의 hatch) ──
+// 껍데기가 '빠직' 깨지는 소리. kind: 'chick'(계란) | 'dragon'(드래곤 알: 더 묵직 + 불 '화르륵')
+export function playCrack(pos, kind = 'chick') {
+  if (!ctx) return;
+  const t = at();
+  const out = chain(t, pos, 1);
+  const soft = ctx.createBiquadFilter();
+  soft.type = 'lowpass'; soft.frequency.value = 6500;
+  const vol = ctx.createGain(); vol.gain.value = 4.5;
+  soft.connect(vol).connect(out);
+  const heavy = kind === 'dragon';
+  mode(soft, t, heavy ? 900 : 1400, 0.3, 0.01);
+  burst(soft, t, { type: 'bandpass', f: heavy ? 1300 : 2200, q: 0.9, amp: 0.3, a: 0.001, d: 0.012 });
+  crackle(soft, t + 0.004, heavy ? 10 : 8, 0.09, heavy ? 1200 : 1800, heavy ? 3200 : 4200, 0.12, 'bandpass', 1.2); // 조각이 바스락
+  if (heavy) {
+    mode(soft, t, 110, 0.3, 0.06, 0.3);
+    burst(soft, t + 0.02, { type: 'bandpass', f: 450, f2: 1400, q: 0.6, amp: 0.2, a: 0.05, d: 0.12, sweep: 0.25 });
+  }
+}
+// 털뭉치 병아리 '삐약' (두 음절, 작고 귀엽게)
+export function playPeep(pos) {
+  if (!ctx) return;
+  const t = at();
+  const out = chain(t, pos, 0.8);
+  const q = 1 + (Math.random() - 0.5) * 0.1;
+  for (const [dt, a, b, c] of [[0, 2600, 3500, 3000], [0.13, 3100, 3700, 2500]]) {
+    chirp(out, t + dt, [[0, a * q], [0.03, b * q], [0.09, c * q]], 0.17, 'sine', 0.025);
+    chirp(out, t + dt, [[0, a * 2 * q], [0.03, b * 2 * q], [0.09, c * 2 * q]], 0.022, 'sine', 0.025);
+  }
+}
+// 아기 용 '꺄오!' (작은 울음) + 불 뿜는 '화르륵'
+export function playRoar(pos) {
+  if (!ctx) return;
+  const t = at();
+  const out = chain(t, pos, 1);
+  const o = ctx.createOscillator();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(420, t);
+  o.frequency.exponentialRampToValueAtTime(760, t + 0.08);
+  o.frequency.exponentialRampToValueAtTime(380, t + 0.3);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.22, t + 0.03);
+  g.gain.setValueAtTime(0.22, t + 0.2);
+  g.gain.linearRampToValueAtTime(0, t + 0.32);
+  const mix = ctx.createGain();
+  for (const [f, qq, k] of [[800, 4, 1], [1500, 5, 0.6], [2600, 6, 0.25]]) {
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = qq;
+    bp.frequency.setValueAtTime(f * 0.8, t); bp.frequency.linearRampToValueAtTime(f, t + 0.1);
+    const kg = ctx.createGain(); kg.gain.value = k;
+    g.connect(bp).connect(kg).connect(mix);
+  }
+  o.connect(g); mix.connect(out);
+  o.start(t); o.stop(t + 0.35);
+  burst(out, t + 0.08, { type: 'bandpass', f: 500, f2: 1500, q: 0.6, amp: 0.3, a: 0.06, d: 0.15, sweep: 0.3 });
+}
+
 export function playToss(pos) {
   if (!ctx) return;
   const t = at();

@@ -119,7 +119,7 @@ addEventListener('pointerdown', () => A.initAudio());
 const cam = new THREE.PerspectiveCamera(40, 1, 0.01, 60);
 let offZ = 0.3;
 const camPos = new THREE.Vector3(0.5, 1.1, 0), look = new THREE.Vector3(0, TY, 0);
-function placeCam(p, dt) {
+function placeCam(p, dt, kid = false) {
   let want, lookAt;
   if (opt.cam === 'game') { // 경기 중 내 자리(+z 끝 뒤)에서
     cam.fov = 60;
@@ -132,7 +132,12 @@ function placeCam(p, dt) {
     want = new THREE.Vector3(p[0] + 0.16, Math.max(TY + 0.1, p[1] + 0.06), p[2] + offZ);
     lookAt = new THREE.Vector3(p[0], Math.max(TY + 0.02, p[1] - 0.02), p[2]);
   }
-  if (opt.cam === 'game') { const k = 1 - Math.exp(-dt * 6); camPos.lerp(want, k); look.lerp(lookAt, k); }
+  if (kid && opt.cam !== 'game') { // 알에서 나온 아이를 비스듬히 위에서
+    const far = bfx.kidKind() === 'dragon' ? 1.9 : 1; // 아기 용은 날아다녀서 조금 멀리서
+    want = new THREE.Vector3(p[0] + 0.25 * far, p[1] + 0.17 * far * 0.7, p[2] + (p[2] > 0 ? 0.32 : -0.32) * far);
+    lookAt = new THREE.Vector3(p[0], p[1] + 0.01, p[2]);
+    const k = 1 - Math.exp(-dt * (far > 1 ? 7 : 4)); camPos.lerp(want, k); look.lerp(lookAt, k);
+  } else if (opt.cam === 'game') { const k = 1 - Math.exp(-dt * 6); camPos.lerp(want, k); look.lerp(lookAt, k); }
   else { camPos.copy(want); look.copy(lookAt); } // 공이 빨라서 바짝 따라간다
   cam.position.copy(camPos);
   cam.lookAt(look);
@@ -143,7 +148,7 @@ function placeCam(p, dt) {
 // ── 매 프레임 ──
 let last = performance.now() / 1000;
 const t0 = last, prev = new THREE.Vector3(), vel = new THREE.Vector3();
-let bounced = false;
+let bounced = false, wait = 0, scoreN = 0;
 function loop() {
   const now = performance.now() / 1000;
   const dt = Math.min(0.05, now - last);
@@ -151,9 +156,30 @@ function loop() {
   const t = params.has('t') ? Number(params.get('t')) + (now - t0) : now - t0;
   const w = canvas.clientWidth, h = canvas.clientHeight;
   if (canvas.width !== Math.round(w * R3.getPixelRatio())) { R3.setSize(w, h, false); cam.aspect = w / h; }
+  if (wait > 0) { // 득점 뒤 쉬는 중 (알에서 나온 아이 구경)
+    wait -= dt;
+    bfx.frame(ball, null, false, dt);
+    fx.update(dt);
+    const kp = bfx.kidPos();
+    if (kp) placeCam([kp.x, kp.y, kp.z], dt, true);
+    R3.render(scene, cam);
+    if (wait <= 0) { ball.visible = true; tr = null; }
+    requestAnimationFrame(loop);
+    return;
+  }
   if (!tr || tt >= tr.T) {
+    if (tr && opt.mode === 'score' && tr.smash) { // 받는 사람이 놓침 → 알이면 깨짐
+      const at = tr.at(tr.T);
+      if (bfx.hatch(ball, at, dir, TY, dir * TABLE_L / 2, { crack: A.playCrack, peep: A.playPeep, roar: A.playRoar })) ball.visible = false;
+      A.playUI('point');
+      wait = 3.0; tr = null; dir = -dir;
+      requestAnimationFrame(loop);
+      return;
+    }
     if (tr) { ball.userData.hit(); A.playHit(tr.smash ? 'perfect' : 'good', tr.at(tr.T)); dir = -dir; }
-    tr = trip(dir, opt.mode === 'smash'); tt = 0; bounced = false;
+    // 스매시 득점 보기: 보통 랠리 한 번 → 스매시 → 놓침
+    const smash = opt.mode === 'smash' || (opt.mode === 'score' && (scoreN++ % 2 === 1));
+    tr = trip(dir, smash); tt = 0; bounced = false;
     prev.set(...tr.at(0));
   }
   tt = Math.min(tr.T, tt + dt);
