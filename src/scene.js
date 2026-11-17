@@ -46,6 +46,7 @@ export function createWorld(canvas) {
     const hemi = scene.children.find((o) => o.isHemisphereLight);
     hemi.color.set(hs); hemi.groundColor.set(hg); hemi.intensity = hi;
     sun.color.set(arena.light.sun[0]); sun.intensity = arena.light.sun[1]; sun.position.set(...arena.light.sun[2]);
+    if (arena.light.shadow) { const b = arena.light.shadow; Object.assign(sun.shadow.camera, { left: -b, right: b, top: b, bottom: -b, far: 60 }); sun.shadow.camera.updateProjectionMatrix(); }
   } else buildGym(scene);
   // 몰입 연출용: 체육관(벽·바닥·무대·현수막) 재질의 원래 색을 기억해 두고 setFocus로 어둡게
   const envMats = [];
