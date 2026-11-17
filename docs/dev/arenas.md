@@ -19,6 +19,7 @@
     - 그리기 호출(로비 화면): 출근길 544→217, 퇴근길 640→228, 소풍길 406→172, 해변 164→115, 눈 오는 밤 611→136, 빵집 480→98 (체육관 88).
     - 합치는 시간은 처음 한 번 약 0.1~0.5초(같은 배경을 다시 고르면 찾은 결과를 다시 써서 더 빠름). 해변 바다의 매 프레임 `computeVertexNormals`는 flatShading이라 필요 없어 뺌.
     - 비교용: 주소 `?nobake=1`(합치기 끔). tick이 아주 드물게(60초보다 길게) 움직이는 물건을 새로 만들면 그 물건에 `userData.dyn = true`(또는 합치면 안 되는 것에 `userData.noBake = true`).
+    - 첫 로딩(최적화 ⑤): 배경 코드(`arenas.js`와 arena-*.js)는 처음에 안 받고, 체육관이 아닌 배경이 필요할 때(또는 시작 4초 뒤 쉬는 시간에) `import()`로 받는다. `scene.js`의 `setArena`는 받는 중이거나 새 배경의 셰이더를 `renderer.compileAsync`로 준비하는 동안 지금 배경을 그대로 보여 주고, 준비되면 바꿔 끼운다(`pending`·`swapArena`). 그래서 `setArena`를 불러도 `arenaId`가 바로 안 바뀔 수 있다.
     - 프레임 측정: 주소 `?fps=1` → 화면 위 가운데에 초당 프레임·가장 느린 프레임·그리기 횟수·삼각형·합친 개수(`main.js`의 `perf`).
 - **상점 연결 (test에 올림, 사용자 테스트 전)**: `supabase/15_backgrounds.sql`(insert만, 사용자가 실행). `items.js`에 `bg_gym`(기본, DEFAULTS.bg)·`bg_commute|evening|picnic|beach|bakery`(고급, `arena` 필드), `CATS.bg.ready`, `arenaOf(look)`. 목록 그림은 `public/arenas/<arena>.jpg`(경기 화면 사진 320×180, `swatch`의 `.sw.img.bg`). **경기장 뽑기는 잠시 닫음(사용자 확정)**: 뽑기 통은 '일반' 아이템이 있어야 열린다 — 화면 `items.js`의 `poolOpen`, 서버 `supabase/16_gacha_open.sql`(`pingpong_gacha`가 `closed` 반환), 로컬 가짜 서버도 같음. 일반 아이템을 넣으면 자동으로 열림. 닫혀 있어도 뽑기 탭에 '🔒 잠시 닫혀 있어요' + 들어 있는 아이템 목록(`.pool-peek`, 누르면 '크게 보기'), 직접 구매·조각 교환은 열려 있다.
   - `world.setArena(id)`(scene.js): 체육관도 배경 하나(`gymArena`). 옛 배경은 `disposeArena`로 내림, 몰입 연출 색을 되돌린 뒤 교체. 주소 `?bg=`가 있으면 그것으로 고정(시안 보기).

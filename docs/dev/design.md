@@ -28,3 +28,9 @@
 - ③ VS 소개 (test에서 사용자 테스트 전): 'go'를 받은 순간부터 3초(`INTRO`), 1v1·2v2만(혼자 하기 X). 0~1초 상대 팀 앞에서 카메라가 다가감 → 1~2초 우리 팀 → 2~3초 옆에서 크게(우리 팀 왼쪽) + VS 도장(`playUI('rare')`) + 2.4초 '준비하시고, 스매시!'(`playUI('turn')`). 팀이 소개될 때 각자 한 번 휘두르며 그 탁구채 소리. 이름 카드(닉네임 + 탁구채 그림·이름, 등급은 색) 상대 오른쪽·우리 왼쪽 `#vs-intro`. 그동안 HUD 숨김(`body.intro`), 클릭 무시(`game.paused`), `game.update` 대신 `introFrame`. 끝나면 `endIntro`가 경기 모습으로 되돌리고 방장만 `match.start`(참가자는 방장의 serveReady를 받음). 경기가 중간에 취소되면 `stopGame` → `endIntro(false)`.
 - 소리 크기 `setQuiet`는 매 프레임 루프에서 정한다(경기·대기실 1, 로비·꾸미기 `LOBBY_QUIET`). 예전에는 이 줄이 'pong' 메시지 처리 안에 잘못 들어가 있어서 로비 배경 소리가 줄지 않았다(고침).
   - 구현: `main.js`의 `STAGE`·`stageFrame`(매 프레임, 칸의 화면 x → `world.screenToX`로 캐릭터 x, `world.toScreen`으로 이름표), `stageOff`(대기실을 떠나면 경기 자세·카메라 되돌림). `scene.js`의 `setStageView(h)`(카드 위 공간 높이에 맞춰 구도, `setViewOffset`), 캐릭터 `setHold`·`setGlow`.
+
+## 첫 로딩 빠르게 (최적화 ⑤, test에서 사용자 테스트 전)
+- 첫 화면(글자·버튼)이 뜨는 시각: 약 1.3초 → 0.6초(10Mbps·지연 60ms 흉내). 첫 3D 그림은 `world.render()`가 처음에 `renderer.compileAsync`로 셰이더를 준비한 뒤부터 그린다(그동안 HTML은 먼저 보임).
+- 글꼴 Jua(구글, 약 250KB)는 화면을 막지 않게 `media="print" onload` 방식 + fonts.gstatic.com preconnect. 받기 전엔 기본 글꼴이 잠깐 보일 수 있다(예전에도 같았음).
+- three.js는 따로 묶음(`vite.config.js`의 `manualChunks` → `three-*.js`), `vercel.json`으로 `/assets/*`를 1년 보관(파일 이름에 해시가 있어 안전) → 두 번째 방문부터 거의 안 받음.
+

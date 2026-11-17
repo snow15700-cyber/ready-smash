@@ -320,11 +320,6 @@ import { buildBakery } from './arena-bakery.js';
 
 const ARENAS = { commute: buildCommute, evening: buildEvening, picnic: buildPicnic, beach: buildBeach, snow: buildSnow, bakery: buildBakery };
 
-// 주소에 ?bg=commute 처럼 붙이면 그 배경으로 (시안 보기용)
-export function arenaFromUrl() {
-  try { return new URLSearchParams(location.search).get('bg'); } catch { return null; }
-}
-
 export function buildArena(id) {
   const f = ARENAS[id];
   if (!f) return null;
@@ -335,19 +330,8 @@ export function buildArena(id) {
   // 움직이지 않는 것을 재질별로 합쳐 가볍게 (주소에 ?nobake=1이면 비교용으로 끔)
   if (!/[?&]nobake=1/.test(location.search)) {
     const t0 = performance.now();
-    const r = bakeArena(a, id);
-    a.bake = { ...r, ms: Math.round(performance.now() - t0), buildMs };
+    // 합치다가 문제가 생기면 합치지 않은 그대로 쓴다 (게임이 멈추지 않게)
+    try { a.bake = { ...bakeArena(a, id), ms: Math.round(performance.now() - t0), buildMs }; } catch (e) { console.warn('[배경 합치기 실패, 그대로 씀]', id, e); }
   }
   return a;
-}
-
-// 배경을 바꿀 때 옛 배경의 그림·모양을 GPU에서 내린다 (여러 배경이 같이 쓰는 것도 다시 쓰면 자동으로 다시 올라간다)
-export function disposeArena(root) {
-  root.traverse((o) => {
-    o.geometry?.dispose();
-    for (const m of [].concat(o.material || [])) {
-      for (const k of ['map', 'emissiveMap', 'alphaMap', 'normalMap']) m[k]?.dispose?.();
-      m.dispose();
-    }
-  });
 }

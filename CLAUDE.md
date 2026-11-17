@@ -22,7 +22,7 @@
 | 배경(경기장)·배경 합치기(성능) | `docs/dev/arenas.md` | test |
 | 화면 디자인(로비·대기실·랭킹·꾸미기·경기 HUD)·대기실 무대·VS 소개 | `docs/dev/design.md` | test |
 
-아직 안 한 것(기획서 8장): 머리·궤적·탁구대 아이템, 출석·미션, 사운드 스킨, 승리 세리머니. 최적화 계획(진행 중): ① 보안 구멍 ✓ ② 옷장 렉 ✓ ③ 이 파일 줄이기 ✓ ④ 프레임 측정(`?fps=1`)·무거운 배경 가볍게(`arena-bake.js`, test에서 사용자 테스트 전) ✓ ⑤ 남은 보안(계정 두 개로 승수 쌓기, 가입 제한)·첫 로딩·자동 점검.
+아직 안 한 것(기획서 8장): 머리·궤적·탁구대 아이템, 출석·미션, 사운드 스킨, 승리 세리머니. 최적화 계획(진행 중): ① 보안 구멍 ✓ ② 옷장 렉 ✓ ③ 이 파일 줄이기 ✓ ④ 프레임 측정(`?fps=1`)·무거운 배경 가볍게(`arena-bake.js`, test에서 사용자 테스트 전) ✓ ⑤ 첫 로딩 빠르게·자동 점검 ✓ (남은 보안 — 계정 두 개로 승수 쌓기, 가입 제한 — 은 사용자가 이번엔 안 하기로).
 
 ## 어디서나 지킬 규칙
 - 매 프레임 순서 `game.decideHit` → `match.update` → `game.update`(느린 PC에서 늦은 스윙이 버려지지 않게). 판정·물리는 결정론적(같은 입력 → 같은 결과).
@@ -55,6 +55,7 @@
 - Supabase 프로젝트는 다른 게임과 공유한다. DB 테이블을 만들 때는 `pingpong_` 접두어를 붙인다.
 
 ## 테스트 요령
+- **`npm run check`** = 자동 점검(`scripts/check.cjs`, 약 2분): 빌드, 서버 SQL을 빈 DB에 01부터 두 번 실행 + anon 권한으로 가입·상점·뽑기 등, `items.js`·`achievements.js` ↔ SQL 목록·목록 그림, 브라우저로 손님·로그인·혼자 하기·꾸미기·랭킹·1대1 방(탭 두 개)·배경 6종·시안 페이지. test에 올리기 전에 돌리고, 새 화면·SQL을 만들면 점검도 추가한다. 화면 점검은 진짜 Supabase를 안 쓴다(VITE_SUPABASE_URL을 비움). GitHub에서도 `.github/workflows/check.yml`이 test·main push마다 돌린다(Actions 탭).
 - `npm run dev` 후 Playwright(사전 설치됨)로 확인. 헤드리스 swiftshader는 매우 느려서(초당 수 프레임) 타이밍 결과가 흔들린다. 판정 테스트는 페이지 안에서 `PointerEvent`를 직접 쏘는 방식이 안정적이다.
 - 1v1은 같은 브라우저 컨텍스트의 탭 두 개(로컬 모드) 또는 컨텍스트 두 개 + Supabase로 확인한다. 디버그 훅: `window.__smash.{world, game, match, room}`.
 - 사용자에게 줄 단일 HTML이 필요하면 `npm run build` 후 `dist/assets/*.js`와 css를 `index.html`에 인라인한다(함수형 replace로 `$` 패턴 주의).
