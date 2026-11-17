@@ -105,6 +105,23 @@ const DRAW = {
   },
   kk(c) { text(c, 'ㅋ', 100, '#ffffff', '#3a3d48', 12); },
   ppyong(c) { text(c, '뿅!', 84, '#ffd23d', '#c2283a', 14); },
+  // 탁구공 효과 (balls.js)
+  nyang(c) { text(c, '냥', 92, '#ffffff', '#ff6fa3', 14); },
+  pyo(c) { text(c, '삐약', 60, '#fff3a0', '#e39a1c', 11); },
+  rock(c) { // 울퉁불퉁 돌 조각
+    c.beginPath();
+    const n = 9;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2, r = 34 + ((i * 37) % 17);
+      c.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r * 0.85);
+    }
+    c.closePath();
+    const g = c.createRadialGradient(54, 52, 4, 64, 64, 52);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#9a9a9a');
+    c.fillStyle = g; c.fill();
+    c.fillStyle = 'rgba(80,80,80,0.5)';
+    c.beginPath(); c.arc(76, 72, 9, 0, Math.PI * 2); c.arc(50, 76, 5, 0, Math.PI * 2); c.fill();
+  },
 };
 function text(c, s, px, fill, stroke, lw) {
   c.font = `bold ${px}px Jua, sans-serif`;
@@ -195,8 +212,9 @@ export function createFx(scene, max = 120) {
   }
   return {
     // kind: 탁구채 종류(HITS), pos: 맞은 자리 [x,y,z], grade: 등급, fz: 친 사람이 보는 앞쪽(z 방향 -1/1)
+    // kind 자리에 함수(emit, lv)를 직접 줘도 된다 (탁구공 효과, balls.js). grade 자리에 숫자 lv(0~2)도 된다
     hit(kind, pos, grade, fz = -1) {
-      const fn = HITS[kind];
+      const fn = typeof kind === 'function' ? kind : HITS[kind];
       if (!fn || !pos) return;
       const emit = (o) => {
         for (let i = 0; i < (o.n || 1); i++) {
@@ -213,6 +231,7 @@ export function createFx(scene, max = 120) {
           p.alpha = o.alpha ?? 1;
           p.wob = o.wob || 0; p.ph = rnd(0, 6);
           p.pop = !!o.pop;
+          p.floor = o.floor ?? null; // 이 높이에 닿으면 멈춘다 (탁구대 위에 떨어진 조각)
           const m = p.s.material;
           m.map = fxTex(pick(o.tex));
           m.color.set(pick(o.color));
@@ -223,7 +242,7 @@ export function createFx(scene, max = 120) {
           p.s.visible = false;
         }
       };
-      fn(emit, LEVEL[grade] || 0);
+      fn(emit, typeof grade === 'number' ? grade : LEVEL[grade] || 0);
       alive = 1;
     },
     update(dt) {
@@ -239,6 +258,7 @@ export function createFx(scene, max = 120) {
         p.vy -= p.g * dt;
         if (p.drag) { const d = Math.exp(-p.drag * dt); p.vx *= d; p.vy *= d; p.vz *= d; }
         p.x += (p.vx + Math.sin(p.age * 7 + p.ph) * p.wob) * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+        if (p.floor != null && p.y < p.floor) { p.y = p.floor; p.vy = 0; p.vx *= 0.3; p.vz *= 0.3; p.spin *= 0.3; }
         const m = p.s.material;
         m.rotation += p.spin * dt;
         m.opacity = p.alpha * Math.min(1, p.age / 0.05) * (1 - k * k * k);

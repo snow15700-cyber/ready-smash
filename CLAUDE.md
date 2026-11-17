@@ -93,6 +93,11 @@
 ## 탁구공 (기획 확정, 제작 전 — 사용자가 '시작' 하면 만든다)
 - 목록·반응·바운드음은 기획서 4장 '탁구공 목록'. 일반 8(색·무늬) · 고급 8(눈알·스마일·귤·방울토마토·찹쌀떡·타코야끼·털뭉치 병아리·8번 당구공) · 전설 4(소행성·드래곤 알·미니 태양·냥냥 공).
 - 사용자 확정: 방장 공을 모두가 봄, 보기만 다름(판정 같음), **바운드음은 공마다 다르게**(소리 초안은 기획서, 만든 뒤 들어 보고 고침). 일반 공이 들어가면 경기장 뽑기 통이 자동으로 열린다(`poolOpen`).
+- **1단계 시안 페이지 (test에서 사용자 확인 전)**: `balls.html`(`src/balls-page.js`, vite 빌드 입력). 탁구대 위를 왔다 갔다 하는 공(보통 랠리/스매시, 가까이/경기 화면, 밝은 곳/어두운 곳) + 20종 목록. 주소 `?id=cat&mode=smash&cam=game&bg=dark`.
+  - `src/balls.js`: `BALLS`(id·name·grade·sound), `makeBall(id)`(반지름 1로 만들고 `BALL_R` 0.028배, root → squash(말랑 찌그러짐) → spin(굴러감 'spin' / 얼굴이 날아가는 쪽 'face' / 위가 늘 위 'upright')), `userData.tick(t, dt, {vel, smash})`·`bounce`·`hit`·`fx`(튈 때 효과 `bounce(emit, s)`, 스매시 꼬리 `trail`, 미니 태양 `scorch`). 월드 효과는 `ballFx(scene, fx)`의 `bounce(ball, pos, smash, 탁구대 높이)`·`frame(...)`.
+  - `fx.js`: `hit(kind, …)`의 kind에 함수도 됨, grade에 숫자 lv도 됨, 파티클 `floor`(탁구대에 떨어져 멈춤), 그림 `nyang`·`pyo`·`rock`.
+  - 소리: `audio.js`의 `BOUNCE_SKINS`·`BOUNCE_GAIN`, `playTable/playFloor(speed, pos, when, skin)`. 음량은 OfflineAudioContext로 재서 기본 바운드음(RMS 약 0.07)에 맞춤.
+  - 다음 단계(사용자 확인 뒤): 게임에 연결(scene.js 공 교체·튈 때 효과·소리, 방장 `look.ball`), 상점 연결(SQL insert, `items.js`의 ball 카테고리 → 경기장 뽑기 열림).
 
 ## 배경(경기장 뽑기) (사용자 확정 — 고급 5종 상점 연결, test에서 사용자 테스트 전)
 - 목록·등급·장면은 기획서 4장 '배경 목록'. 일반 4(체육관 기본·교실·교육장·지하 주차장) · **고급 5(출근길·퇴근길·소풍길·해변·빵집) — 먼저 상점에 넣음** · 전설 3(우주·깊은 바닷속·**눈 오는 밤**).
