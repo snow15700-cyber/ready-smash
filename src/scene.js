@@ -1,6 +1,7 @@
 // Three.js 로우폴리 카툰 체육관, 탁구대, 캐릭터
 import * as THREE from 'three';
 import { createFx } from './fx.js';
+import { buildArena, arenaFromUrl } from './arenas.js';
 import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H, HIT_Z, sideSign } from './physics.js';
 
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts });
@@ -35,11 +36,26 @@ export function createWorld(canvas) {
   scene.add(sun);
 
   const nBefore = scene.children.length;
-  buildGym(scene);
+  // 배경: 지금은 시안 보기용으로 주소의 ?bg=... 가 있으면 그 장소, 없으면 체육관
+  const arena = buildArena(arenaFromUrl(), scene);
+  if (arena) {
+    scene.background = new THREE.Color(arena.sky);
+    scene.fog = new THREE.Fog(arena.sky, arena.fog[0], arena.fog[1]);
+    camera.far = arena.far;
+    const [hs, hg, hi] = arena.light.hemi;
+    const hemi = scene.children.find((o) => o.isHemisphereLight);
+    hemi.color.set(hs); hemi.groundColor.set(hg); hemi.intensity = hi;
+    sun.color.set(arena.light.sun[0]); sun.intensity = arena.light.sun[1]; sun.position.set(...arena.light.sun[2]);
+  } else buildGym(scene);
   // 몰입 연출용: 체육관(벽·바닥·무대·현수막) 재질의 원래 색을 기억해 두고 setFocus로 어둡게
   const envMats = [];
-  for (const o of scene.children.slice(nBefore)) {
-    if (o.material && !envMats.some((e) => e.m === o.material)) envMats.push({ m: o.material, c: o.material.color.clone() });
+  for (const top of scene.children.slice(nBefore)) {
+    top.traverse((o) => {
+      if (o.userData.noFocus || !o.material) return;
+      for (const m of [].concat(o.material)) {
+        if (m.color && !envMats.some((e) => e.m === m)) envMats.push({ m, c: m.color.clone() });
+      }
+    });
   }
   const bg0 = scene.background.clone();
   let focusK = 0;
@@ -102,6 +118,7 @@ export function createWorld(canvas) {
   const fx = createFx(scene);
   const fxPos = new THREE.Vector3();
   let fxLast = 0;
+  let ballPrevY = 0, ballPrevVy = 0;
 
   return {
     renderer, scene, camera, chars, team, ball, shadow, ring, ringMove, aim,
@@ -198,6 +215,13 @@ export function createWorld(canvas) {
       const dt = Math.min(0.1, t - fxLast || 0.016);
       fxLast = t;
       for (const side of team) for (const c of side) if (c.group.visible) c.paddleModel?.userData.tick?.(t, dt);
+      if (arena) {
+        // 공이 막 튄 순간(아래로 가다 위로) → 반려동물이 반응
+        const vy = ball.position.y - ballPrevY;
+        const bounce = ball.visible && ballPrevVy < -0.0005 && vy > 0 ? 1 : 0;
+        ballPrevVy = vy; ballPrevY = ball.position.y;
+        arena.tick(t, dt, ball.visible ? ball.position : null, bounce);
+      }
       fx.update(dt);
       renderer.render(scene, camera);
     },
