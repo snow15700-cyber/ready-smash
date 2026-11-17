@@ -137,9 +137,11 @@
   - 관전자는 `joinRoom(code, null, h, { watch: true })` — track 안 함. 방장 시계는 참가자의 `pong`의 `th`를 엿들어 맞춤(가장 큰 값). 이벤트는 `watch.queue`에 모아 `watchFrame`이 처리: `shot`/`toss`는 친 시각 `t`에, 나머지는 받은 뒤 `WATCH.delay`(0.4초) 뒤에. 화면은 `game.offset = 방장 시계 - delay`.
   - 중간 입장 = 로비 정보의 `players`·`score`로 바로 경기 화면(공은 다음 이벤트부터). 경기 끝(`needIdle`)·선수 나감 → 대기 안내 `#watch-wait`(참가하기·다른 방). 방장 나감 → '방이 닫혔어요'.
   - 1단계 보강: 출석부가 잠깐 흔들려도 관전이 끊기지 않게 — 방장 빠짐은 3초, 방 정보 사라짐은 6초 기다린 뒤 '방이 닫혔어요'. 선수 빠짐으로는 경기 화면을 끄지 않고 방장 방 정보(inGame false)로만. 경기 중인 방이면 `tryWatchGame`이 방 정보로 다시 들어간다.
-- **2단계 관전석 (test에 올림, 자리 배치 안 고르는 중)**: 방마다 관전석 채널 `...-room-XXXX-fan`(`net.js`의 `joinFan`). 관전자만 track(`{id, nick, look, at, guest}`), 선수(방에 있는 모두)는 듣기만 → `room.fans`/`watch.fans` → `refreshCrowd` → `src/crowd.js`의 `createCrowd`(`set(list, me)`, 매 프레임 `update`). 방 목록에 관전자 수(`roomInfo().spec`, 👀 N).
-  - 관전석은 탁구대 -x 쪽(관전 '옆에서' 카메라 맞은편, 선수 화면에서는 A팀 왼쪽·B팀 오른쪽 가장자리). 먼저 온 사람이 앞줄 가운데부터, 한 줄 6명(탁구대 길이 안), 뒷줄로 늘어남(제한 없음). 공을 눈으로 따라감, 몰입 연출 때 흐려짐(`DIM`), 이름표 작게(관전자 본인은 노랗게), 탁구채는 몸 옆에(`setHold`).
-  - 배치 안 `CROWD_LAYOUTS`: a 가까이 서서 한 줄 / b 계단 관중석 / c 긴 의자에 앉아서. 지금 기본 a, 주소 `?crowd=b`로 바꿔 보기. 시험용 `__smash.crowdLayout(id)`·`fakeCrowd(list)`.
+- **2단계 관전석 (test에 올림)**: 방마다 관전석 채널 `...-room-XXXX-fan`(`net.js`의 `joinFan`). 관전자만 track(`{id, nick, look, at, guest}`), 선수(방에 있는 모두)는 듣기만 → `room.fans`/`watch.fans` → `refreshCrowd` → `src/crowd.js`의 `createCrowd`(`set(list, me)`, 매 프레임 `update`). 방 목록에 관전자 수(`roomInfo().spec`, 👀 N).
+  - 사용자 확정 = **탁구대 양옆(±x) 계단 관중석**(B안). 자리 번호 짝수 왼쪽·홀수 오른쪽, 먼저 온 사람이 앞줄 가운데부터, 한 줄 6명(탁구대 길이 안), 4칸까지 높아지고 그 뒤로 같은 높이로 계속(제한 없음). 선수 화면에서는 양쪽 가장자리에 보인다.
+  - 관전 '옆에서' 카메라는 +x 관중석 위 높은 곳(`SIDE_CAM` y 3.2)에서 내려다보고, 카메라 2.4m 안의 관전자는 거의 투명(`NEAR`, 화면 아래를 머리로 가리지 않게).
+  - 공을 눈으로 따라감, 몰입 연출 때 흐려짐(`DIM`), 이름표 작게(관전자 본인은 노랗게), 탁구채는 몸 옆에(`setHold`).
+  - 속도: 관전자는 그림자를 안 그린다(그리기 횟수 약 60% 줄임). CPU 렌더링 측정으로 관전자 60명 = 한 프레임 약 7ms 더, 16명 = 2~3ms. 시험용 `__smash.fakeCrowd(list)`.
   - `Game`의 `spectator`(mySlot -1, 입력 없음, 이름표 모두, `view` = side | a | b). 옆에서 보기 카메라 `scene.js`의 `SIDE_CAM`·`sideCamera`(세로 화면은 넓게, 벽 안쪽까지만). 아래 막대 `#watch-bar`(◀ 방 ▶ + 카메라).
 
 ## 사용자가 확정한 결정 (바꾸기 전에 사용자에게 확인)

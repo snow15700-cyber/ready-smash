@@ -14,8 +14,8 @@ import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLoo
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('c'));
 const lobbyDemo = createLobbyDemo();
-// 관전석 (자리 배치 안: 주소에 ?crowd=a|b|c 로 바꿔 볼 수 있다)
-let crowd = createCrowd(world.scene, new URLSearchParams(location.search).get('crowd') || 'a');
+// 관전석 (탁구대 양옆 계단 관중석)
+const crowd = createCrowd(world.scene);
 const LOBBY_QUIET = 0.4; // 로비 배경 랠리 소리 크기 (경기 중 소리를 1로 볼 때)
 // 브라우저는 사람이 한 번 누르기 전에는 소리를 못 낸다: 첫 클릭·키 입력에 소리를 켠다
 const unlockAudio = () => { initAudio(); removeEventListener('pointerdown', unlockAudio); removeEventListener('keydown', unlockAudio); };
@@ -1997,13 +1997,12 @@ function loop() {
   for (const side of world.team) for (const c of side) if (c.group.visible) c.tickOutfit(now, odt);
   // 관전석: 1v1·2v2 경기 화면(선수·관전자)에서만
   const showCrowd = !!game && game.mode !== 'ai';
-  crowd.update(now, odt, showCrowd, showCrowd && world.ball.visible ? world.ball.position.toArray() : null, game?.focus || 0);
+  crowd.update(now, odt, showCrowd, showCrowd && world.ball.visible ? world.ball.position.toArray() : null, game?.focus || 0, world.camera.position);
   world.render();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 window.__smash = {
-  // 시험용: 관전석 배치 바꾸기 / 가짜 관전자 세우기
-  crowdLayout(id) { crowd.dispose(); crowd = createCrowd(world.scene, id); refreshCrowd(); },
+  // 시험용: 가짜 관전자 세우기
   fakeCrowd(list) { crowdFake = list; refreshCrowd(); },
   get crowd() { return crowd; }, get watch() { return watch; }, ITEMS, PV, STAGE, INTRO, world, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; } };

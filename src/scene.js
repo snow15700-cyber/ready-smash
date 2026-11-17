@@ -8,8 +8,9 @@ const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatSha
 // 카메라: 어깨 뒤 낮게 + 공 따라가기 + 타격 흔들림
 const CAM = { y: 1.5, back: 1.2, x: 0.3, lookY: 0.86, lookZ: 1.0, fov: 60, followChar: 0.75, followBall: 0.35, lerp: 7, shake: 0.05 };
 
-// 관전 카메라 '옆에서 보기': 탁구대 긴 쪽 옆(+x)에서 TV 중계처럼. 화면이 좁으면(휴대폰 세로) 뒤로 물러나 양쪽 선수가 다 보이게
-const SIDE_CAM = { x: 3.6, y: 1.95, lookY: 0.72, halfW: 3.35, followBall: 0.25, fov: 50, fovTall: 72, maxX: 9, lerp: 4 };
+// 관전 카메라 '옆에서 보기': +x 관중석 위 높은 곳에서 TV 중계처럼 내려다본다(앞줄 관전자 머리 너머로).
+// 화면이 좁으면(휴대폰 세로) 뒤로 물러나 양쪽 선수가 다 보이게
+const SIDE_CAM = { x: 4.4, y: 3.2, lookY: 0.95, halfW: 3.35, followBall: 0.25, fov: 50, fovTall: 72, maxX: 9, lerp: 4 };
 
 // 몰입 연출: 최대일 때 체육관 밝기를 이만큼 줄인다 (0.9 = 원래의 10%)
 const FOCUS_DARK = 0.9;
