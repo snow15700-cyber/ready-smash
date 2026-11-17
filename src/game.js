@@ -320,6 +320,7 @@ export class Game {
   }
 
   onEvent(ev) {
+    this.onFx?.(ev, this.net.rally); // 관전석 자동 반응 (main.js의 crowdFx). 두 번째 값 = 이 이벤트 전 랠리 수
     this.trackAch(ev);
     const me = this.mySide;
     switch (ev.type) {

@@ -54,6 +54,15 @@
       <button data-view="b">B팀 뒤</button>
     </div>
   </div>
+  <!-- 관전 중 응원 버튼 (한 사람당 몇 초에 한 번, 동그랗게 차오르는 기다림 표시) -->
+  <div id="cheer-bar" class="cheer-bar hidden">
+    <button data-cheer="clap" title="박수 (1)">👏</button>
+    <button data-cheer="fire" title="화이팅 (2)">🔥</button>
+    <button data-cheer="wow" title="우와 (3)">😮</button>
+    <button data-cheer="lol" title="ㅋㅋ (4)">😂</button>
+    <button data-cheer="a" class="team t0" title="A팀 응원 (5)">🚩<small>A팀</small></button>
+    <button data-cheer="b" class="team t1" title="B팀 응원 (6)">🚩<small>B팀</small></button>
+  </div>
   <div id="watch-wait" class="panel watch-wait hidden">
     <p id="watch-wait-msg"></p>
     <div class="row">

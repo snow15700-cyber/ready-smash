@@ -3,9 +3,9 @@ import { sideSign } from './physics.js';
 import { createLobbyDemo, LOBBY_CAM } from './lobbyDemo.js';
 import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
-import { initAudio, playUI, playHit, setEcho, setQuiet, setListener } from './audio.js';
+import { initAudio, playUI, playHit, setEcho, setQuiet, setListener, playCheer, setCheerDuck } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, joinLobby, joinFan, makeCode, normalizeCode } from './net.js';
-import { createCrowd } from './crowd.js';
+import { createCrowd, CHEERS } from './crowd.js';
 import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking, checkAch, setTitle, myTitle, achMatch, achPeople } from './account.js';
 import { ACHS, ACH, ACH_CATS, REWARD, titleText } from './achievements.js';
 
@@ -242,7 +242,7 @@ function enterRoom(code, host, mode = null) {
   // 관전석 채널은 듣기만: 관전자 캐릭터를 경기 화면 옆에 세운다
   room.fans = [];
   const r0 = room;
-  room.fan = joinFan(code, null, { onMembers: (list) => { if (room !== r0) return; room.fans = list; refreshCrowd(); announce(); } });
+  room.fan = joinFan(code, null, { onMsg: onFanMsg, onMembers: (list) => { if (room !== r0) return; room.fans = list; refreshCrowd(); announce(); } });
   // 방장: 로비 방 목록에 내 방을 올린다 (구경하기·참가하기용)
   if (host) room.ann = joinLobby(roomInfo(), {});
   // 참가자 PC: 방장과 시계 맞추기
@@ -489,6 +489,7 @@ function startOnline(mode, players) {
     },
   });
   hud.stats(game.stats);
+  game.onFx = crowdFx;
   announce();
   startIntro(players, mine.side, mode); // 3초 소개가 끝나면 match.start (endIntro)
 }
@@ -506,6 +507,7 @@ function startGuestGame(mode, players, mine) {
   });
   game.offset = room.offset;
   hud.stats(game.stats);
+  game.onFx = crowdFx;
   startIntro(players, mine.side, mode);
 }
 
@@ -639,6 +641,7 @@ function startWatch(code) {
   // 관전석 채널에는 내 이름·꾸밈을 올린다 (선수·다른 관전자 화면의 관전석에 내 캐릭터가 선다)
   w.fans = [];
   w.fan = joinFan(code, { id: myId, nick: myNick(), look: myEquip(), at: Date.now(), ...(account.loggedIn ? {} : { guest: true }) }, {
+    onMsg: (m) => { if (watch === w) onFanMsg(m); },
     onMembers: (list) => { if (watch !== w) return; w.fans = list; refreshCrowd(); },
   });
   setTimeout(() => { if (watch === w && !w.sawHost && !w.seen) closeWatched('방을 찾을 수 없어요'); }, WATCH.findWait);
@@ -657,6 +660,7 @@ function stopWatch() {
   document.body.classList.remove('watching');
   $('watch-bar').classList.add('hidden');
   $('watch-wait').classList.add('hidden');
+  $('cheer-bar').classList.add('hidden');
 }
 function closeWatched(msg) {
   stopWatch();
@@ -753,6 +757,7 @@ function tryWatchGame() {
     send: { toss() {}, swing() {} },
   });
   game.view = watchView;
+  game.onFx = crowdFx;
   game.offset = w.offset - WATCH.delay;
   game.score = score ? [...score] : [0, 0];
   hud.score(game.score);
@@ -786,6 +791,7 @@ function renderWatchBar() {
   const others = roomsNow().some((x) => x.code !== watch.code);
   $('btn-watch-prev').disabled = $('btn-watch-next').disabled = !others;
   $('watch-cam').classList.toggle('hidden', !game);
+  $('cheer-bar').classList.toggle('hidden', !game);
   for (const b of $('watch-cam').querySelectorAll('button')) b.classList.toggle('on', b.dataset.view === watchView);
   const waiting = !game;
   $('watch-wait').classList.toggle('hidden', !waiting);
@@ -844,6 +850,100 @@ $('watch-cam').addEventListener('click', (e) => {
   watchView = b.dataset.view;
   if (game?.spectator) game.view = watchView;
   renderWatchBar();
+});
+
+/* ───────── 응원 (관전석 채널, 기획서 12장) ─────────
+   관전자가 버튼을 누르면 관전석 채널로 {k:'ch', id, e}를 한 번 보낸다. 선수·다른 관전자는 그 사람이 폴짝 + 말풍선 + 작은 소리.
+   한 사람당 CHEER.gap초에 1개, 관전자가 CHEER.many명을 넘으면 간격 = 관전자 수 ÷ 4초 (몇 명이 오든 서버 부담이 비슷하게). */
+const CHEER = { gap: 3, many: 12, per: 4, recvGap: 2.5, roarN: 3, roarWin: 2, roarGap: 1.4, duck: 0.3, volPlayer: 0.6, volWatch: 0.9 };
+let cheerReady = 0, cheerLen = CHEER.gap, lastRoar = 0;
+const cheerSeen = new Map(); // 보낸 사람 → 마지막으로 받은 시각 (규칙보다 자주 오면 무시)
+const cheerTimes = []; // 최근 응원 시각 (여럿이 동시에 → 함성)
+const cheerGap = () => {
+  const n = watch?.fans?.length || 1;
+  return n > CHEER.many ? n / CHEER.per : CHEER.gap;
+};
+
+function sendCheer(kind) {
+  if (!watch?.fan || !game?.spectator || !CHEERS[kind]) return;
+  initAudio();
+  const now = performance.now() / 1000;
+  if (now < cheerReady) {
+    const el = $('cheer-bar');
+    el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope');
+    return;
+  }
+  cheerLen = cheerGap();
+  cheerReady = now + cheerLen;
+  watch.fan.send({ k: 'ch', id: myId, e: kind });
+  showCheer(myId, kind);
+}
+
+function onFanMsg(m) {
+  if (m?.k !== 'ch' || typeof m.id !== 'string' || !CHEERS[m.e]) return;
+  const now = performance.now() / 1000;
+  if (now - (cheerSeen.get(m.id) || -9) < CHEER.recvGap) return;
+  cheerSeen.set(m.id, now);
+  showCheer(m.id, m.e);
+}
+
+function showCheer(id, kind) {
+  if (!game || game.mode === 'ai') return;
+  const now = performance.now() / 1000;
+  const pos = crowd.cheer(id, kind, now);
+  if (!pos) return;
+  const vol = watch ? CHEER.volWatch : CHEER.volPlayer;
+  playCheer(kind, pos, vol);
+  // 여럿이 거의 동시에 응원하면 '와아~' 함성이 겹쳐 커진다
+  cheerTimes.push(now);
+  while (cheerTimes.length && cheerTimes[0] < now - CHEER.roarWin) cheerTimes.shift();
+  if (cheerTimes.length >= CHEER.roarN && now - lastRoar > CHEER.roarGap) {
+    lastRoar = now;
+    playCheer('roar', crowd.center(), vol * Math.min(1, 0.4 + (cheerTimes.length - CHEER.roarN) * 0.15));
+  }
+}
+
+// 관전석 자동 반응 (메시지 없이 각자 PC에서 경기 이벤트를 보고)
+function crowdFx(ev, rallyBefore) {
+  if (!crowd.count) return;
+  const now = performance.now() / 1000;
+  const c = crowd.center();
+  const vol = watch ? CHEER.volWatch : CHEER.volPlayer;
+  if (ev.type === 'shot' && ev.kind === 'smash') {
+    crowd.react('wow', now, 0.7, 0.35);
+    playCheer('wow', c, vol * 0.8);
+  } else if (ev.type === 'shot' && ev.rally >= 8 && ev.rally % 4 === 0) {
+    crowd.react(null, now, 0.25); // 랠리가 길어지면 술렁술렁
+    playCheer('murmur', c, vol * 0.7);
+  } else if (ev.type === 'point' && rallyBefore >= 6) {
+    crowd.react('clap', now, 0.6, 0.3);
+    playCheer('clap', c, vol * 0.7);
+  } else if (ev.type === 'gameOver') {
+    crowd.react('fire', now, 0.9, 0.5);
+    playCheer('roar', c, vol * 0.8);
+  }
+}
+
+// 매 프레임: 서브 순간엔 응원 소리를 줄이고, 응원 버튼의 기다리는 시간 표시
+function cheerFrame(now) {
+  const duck = game && game.mode !== 'ai' && (game.phase === 'serve' || game.phase === 'toss') ? CHEER.duck : 1;
+  if (duck !== cheerFrame.duck) { cheerFrame.duck = duck; setCheerDuck(duck); }
+  if (!watch || !game) return;
+  const left = Math.max(0, cheerReady - now);
+  const bar = $('cheer-bar');
+  bar.style.setProperty('--cd', (left / cheerLen).toFixed(3));
+  bar.classList.toggle('cool', left > 0);
+}
+
+$('cheer-bar').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-cheer]');
+  if (b) sendCheer(b.dataset.cheer);
+});
+// 키보드 1~6으로도 응원 (관전 중에만)
+window.addEventListener('keydown', (e) => {
+  if (!watch || !game?.spectator) return;
+  const k = ['clap', 'fire', 'wow', 'lol', 'a', 'b'][+e.key - 1];
+  if (k) sendCheer(k);
 });
 
 /* ───────── 전적 ───────── */
@@ -1997,6 +2097,7 @@ function loop() {
   for (const side of world.team) for (const c of side) if (c.group.visible) c.tickOutfit(now, odt);
   // 관전석: 1v1·2v2 경기 화면(선수·관전자)에서만
   const showCrowd = !!game && game.mode !== 'ai';
+  cheerFrame(now);
   crowd.update(now, odt, showCrowd, showCrowd && world.ball.visible ? world.ball.position.toArray() : null, game?.focus || 0, world.camera.position);
   world.render();
   requestAnimationFrame(loop);

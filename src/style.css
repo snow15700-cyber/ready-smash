@@ -594,3 +594,17 @@ body.watching #exit, body.watching #hint { display: none; }
 .watch-wait .row { justify-content: center; }
 .watch-wait button:disabled { opacity: .45; }
 .watch-list .spec { color: var(--muted); margin-left: 4px; }
+
+/* ───── 응원 버튼 (관전 중) ───── */
+.cheer-bar { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); display: flex; gap: 8px; padding: 6px 8px; background: rgba(255,250,240,.9); border-radius: 999px; box-shadow: 0 4px 14px rgba(0,0,0,.16); z-index: 5; --cd: 0; }
+.cheer-bar button { position: relative; width: 48px; height: 48px; padding: 0; border-radius: 50%; font-size: 24px; line-height: 1; background: #fff; box-shadow: 0 3px 0 rgba(0,0,0,.12); overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.cheer-bar button small { font-size: 11px; margin-top: 1px; }
+.cheer-bar button.team.t0 { background: #ffe3cf; color: var(--orange-ink); }
+.cheer-bar button.team.t1 { background: #dbe7ff; color: #2f5fb8; }
+/* 기다리는 동안: 버튼 위에 어두운 부채꼴이 줄어든다 */
+.cheer-bar button::after { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: conic-gradient(rgba(43,42,51,.45) calc(var(--cd) * 360deg), transparent 0); opacity: 0; }
+.cheer-bar.cool button::after { opacity: 1; }
+.cheer-bar.cool button { cursor: default; }
+.cheer-bar.nope { animation: cheerNope .3s; }
+@keyframes cheerNope { 0%, 100% { transform: translateX(-50%); } 25% { transform: translateX(calc(-50% - 6px)); } 75% { transform: translateX(calc(-50% + 6px)); } }
+@media (max-width: 600px) { .cheer-bar { gap: 5px; padding: 5px 6px; bottom: 112px; } .cheer-bar button { width: 42px; height: 42px; font-size: 21px; } }

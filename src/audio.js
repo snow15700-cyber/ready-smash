@@ -3,6 +3,7 @@ let ctx = null;
 let master, dryBus, revSend, noiseBuf;
 let echoIn, echoFb, echoLevel = 0; // 몰입 에코 (랠리가 길어질수록 커짐)
 let listener = { pos: [0, 1.7, 3.6], right: [1, 0, 0] };
+let cheerBus = null; // 응원 소리 묶음 (서브 순간에 작게: setCheerDuck)
 let quiet = 1; // 위치가 있는 소리(타구·바운드)의 전체 크기. 로비 배경 랠리는 작게
 
 // 로비 배경처럼 작게 들려야 할 때 0~1 (경기 중에는 1)
@@ -46,6 +47,13 @@ export function initAudio() {
   echoIn.connect(dl).connect(elp).connect(echoFb).connect(dl);
   elp.connect(conv);
   elp.connect(master);
+
+  // 응원 소리: 따로 묶어서 서브 순간에만 줄인다 (잔향도 조금)
+  cheerBus = ctx.createGain();
+  cheerBus.connect(dryBus);
+  const cheerRev = ctx.createGain();
+  cheerRev.gain.value = 0.7;
+  cheerBus.connect(cheerRev).connect(revSend);
 
   noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
   const d = noiseBuf.getChannelData(0);
@@ -542,5 +550,84 @@ export function playUI(kind = 'click') {
     [784, 988, 1175, 1568, 1976, 2349].forEach((f, i) => mode(out, t + i * 0.07, f, 0.05, 0.3));
   } else if (kind === 'win') {
     [660, 830, 990, 1320].forEach((f, i) => mode(out, t + i * 0.1, f, 0.06, 0.18));
+  }
+}
+
+/* ───── 응원 (관전석, 기획서 12장) ─────
+   모두 노이즈를 걸러 만든 '사람들 소리'. 관전석 쪽에서 작게 들린다. */
+// 서브 순간: 응원 소리를 줄인다 (k = 0~1)
+export function setCheerDuck(k) {
+  if (!ctx || !cheerBus) return;
+  cheerBus.gain.setTargetAtTime(k, ctx.currentTime, 0.12);
+}
+// 사람 목소리처럼: 노이즈를 모음 소리 두 곳(포먼트)으로 걸러서. f1·f2는 [시작, 끝] 주파수
+function voice(dest, when, f1, f2, amp, a, hold, d) {
+  const s = ctx.createBufferSource();
+  s.buffer = noiseBuf;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, when);
+  g.gain.linearRampToValueAtTime(amp, when + a);
+  g.gain.setValueAtTime(amp, when + a + hold);
+  g.gain.setTargetAtTime(0, when + a + hold, d);
+  for (const [fa, fb, q, k] of [[f1[0], f1[1], 5, 1], [f2[0], f2[1], 7, 0.6]]) {
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = q;
+    f.frequency.setValueAtTime(fa, when);
+    f.frequency.exponentialRampToValueAtTime(fb, when + a + hold + d);
+    const gk = ctx.createGain();
+    gk.gain.value = k;
+    s.connect(f).connect(gk).connect(g);
+  }
+  g.connect(dest);
+  s.start(when, Math.random() * 0.4, a + hold + d * 6 + 0.05);
+}
+// kind: clap(박수) | fire·a·b(와!) | wow(우와) | lol(ㅋㅋ) | roar(여럿이 함께 와아~, vol = 세기) | murmur(술렁)
+export function playCheer(kind, pos, vol = 1) {
+  if (!ctx || !cheerBus) return;
+  const t = at() + Math.random() * 0.05;
+  const sp = spatial(pos);
+  const out = ctx.createGain();
+  out.gain.value = sp.gain * vol * 0.55;
+  const pan = ctx.createStereoPanner();
+  pan.pan.value = sp.pan * 0.8;
+  out.connect(pan).connect(cheerBus);
+  if (kind === 'clap') {
+    const n = 5 + ((Math.random() * 3) | 0);
+    for (let i = 0; i < n; i++) {
+      const w = t + i * (0.13 + Math.random() * 0.03);
+      burst(out, w, { f: 1300 + Math.random() * 700, q: 0.9, amp: 0.5 * jitter(0.25), a: 0.001, d: 0.011 });
+      burst(out, w + 0.004, { type: 'lowpass', f: 700, q: 0.7, amp: 0.18, a: 0.001, d: 0.015 });
+    }
+  } else if (kind === 'fire' || kind === 'a' || kind === 'b') {
+    // '와!' 짧고 힘차게 (두 사람쯤 겹친 느낌)
+    voice(out, t, [650, 760], [1080, 1220], 0.55, 0.05, 0.18, 0.16);
+    voice(out, t + 0.03, [720, 820], [1180, 1300], 0.35, 0.06, 0.15, 0.15);
+  } else if (kind === 'wow') {
+    // '우와~': 우(낮은 모음) → 와(열린 모음)로 미끄러지며
+    voice(out, t, [320, 720], [800, 1150], 0.6, 0.08, 0.32, 0.22);
+  } else if (kind === 'lol') {
+    // 'ㅋㅋㅋ': 짧은 숨소리 세 번
+    for (let i = 0; i < 4; i++) burst(out, t + i * 0.1, { f: 2300 + Math.random() * 500, q: 2.5, amp: 0.4 * jitter(0.2), a: 0.006, d: 0.03 });
+  } else if (kind === 'roar') {
+    // 여러 사람이 함께 '와아아~'
+    for (let i = 0; i < 4; i++) voice(out, t + i * 0.05, [600 + i * 60, 700 + i * 50], [1000 + i * 90, 1150 + i * 70], 0.4, 0.25, 0.45, 0.4);
+    const s = ctx.createBufferSource();
+    s.buffer = noiseBuf;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 900;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.25, t + 0.3);
+    g.gain.setTargetAtTime(0, t + 0.7, 0.35);
+    s.connect(lp).connect(g).connect(out);
+    s.start(t, Math.random() * 0.3, 2.5);
+  } else if (kind === 'murmur') {
+    // 웅성웅성: 낮고 작게 여러 목소리
+    for (let i = 0; i < 5; i++) {
+      const f = 380 + Math.random() * 300;
+      voice(out, t + i * 0.12, [f, f * 1.1], [f * 2.2, f * 2.4], 0.18, 0.1, 0.2, 0.18);
+    }
   }
 }

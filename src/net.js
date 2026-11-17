@@ -78,6 +78,9 @@ function joinSupabase(name, me, h, watch) {
   };
 }
 
+// 로컬 테스트에서 이만큼(ms) 신호가 없으면 나간 것으로 (탭을 닫으면 '_bye'로 바로 안다. 탭이 많아 버벅여도 끊기지 않게 넉넉히)
+const LOCAL_TIMEOUT = 10000;
+
 // 로컬 테스트: BroadcastChannel + 1초마다 '나 여기 있어요' 신호로 접속자 목록을 만든다
 function joinLocal(name, me, h, watch) {
   const bc = new BroadcastChannel(name);
@@ -108,7 +111,7 @@ function joinLocal(name, me, h, watch) {
   const hb = setInterval(() => {
     if (!watch) post({ k: '_hb', me });
     const now = performance.now();
-    for (const [id, t] of seen) if (now - t > 3500) { members.delete(id); seen.delete(id); }
+    for (const [id, t] of seen) if (now - t > LOCAL_TIMEOUT) { members.delete(id); seen.delete(id); }
     emitMembers();
   }, 1000);
   // Supabase처럼 처음에는 '나를 뺀' 목록이 먼저 온다 (실제 서버와 같은 순서로 테스트하려고)
