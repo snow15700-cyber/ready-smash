@@ -49,16 +49,29 @@ function canvasTex(w, h, draw) {
 const bodyTex = (draw) => canvasTex(TW, TH, draw);
 
 // 몸통 캡슐 UV를 '둘레 × 높이'로 다시 잡는다 (앞 = u 0.5)
+// 텍스처 이음매(u 0/1)는 등 한가운데(+z)에 오므로, 도형의 이음매(겹친 꼭짓점 줄)도 등 한가운데로 돌려 맞춘다.
+// (안 맞추면 이음매를 가로지르는 삼각형 한 줄에 그림 전체가 눌려 들어가 등에 세로 줄이 생긴다)
 function fixBodyUV(geo, cy, y0 = BY0, y1 = BY1) {
+  const p0 = geo.attributes.position, uv0 = geo.attributes.uv;
+  for (let i = 0; i < p0.count; i++) {
+    if (uv0.getX(i) === 0 && Math.hypot(p0.getX(i), p0.getZ(i)) > 1e-5) {
+      geo.rotateY(Math.atan2(p0.getX(i), p0.getZ(i)) * -1);
+      break;
+    }
+  }
   const pos = geo.attributes.position, uv = geo.attributes.uv;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i) + cy, z = pos.getZ(i);
+    const u0 = uv.getX(i);
     let u;
-    if (Math.hypot(x, z) < 1e-5) u = uv.getX(i);
+    if (Math.hypot(x, z) < 1e-5) u = u0;
     else {
       u = Math.atan2(x, z) / (2 * Math.PI);
       if (u < 0) u += 1;
-      if (u < 1e-4 && uv.getX(i) > 0.5) u = 1;
+      // 이음매 위 꼭짓점: 도형 쪽 u(0 또는 1)를 따른다
+      if (u > 0.5 && u0 < 0.25) u -= 1;
+      else if (u < 0.5 && u0 > 0.75) u += 1;
+      u = Math.min(1, Math.max(0, u));
     }
     uv.setXY(i, u, (y - y0) / (y1 - y0));
   }
