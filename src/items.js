@@ -27,12 +27,12 @@ export const CATS = {
   body: { name: '몸', pool: 'char', ready: true },
   trail: { name: '궤적', pool: 'char' },
   table: { name: '탁구대', pool: 'arena' },
-  bg: { name: '배경', pool: 'arena' },
+  bg: { name: '배경', pool: 'arena', ready: true },
   ball: { name: '탁구공', pool: 'arena' },
 };
 
 // 기본 아이템 (카테고리마다 하나, 장착 안 했을 때 이것)
-export const DEFAULTS = { paddle: 'paddle_red', body: 'body_none' };
+export const DEFAULTS = { paddle: 'paddle_red', body: 'body_none', bg: 'bg_gym' };
 
 // model: 모양이 다른 탁구채(아래 PADDLE_MODELS). 없으면 기본 탁구채에 color만 바꾼다
 const paddle = (id, name, grade, color, extra = {}) => ({ id, cat: 'paddle', name, grade, color, ...extra });
@@ -79,6 +79,13 @@ export const ITEMS = [
   // 몸 (한 벌씩 통째로, 모양은 outfits.js). 기본 = 흰 몸
   { id: 'body_none', cat: 'body', name: '기본 (흰 몸)', grade: 'default' },
   ...OUTFITS.map((o) => ({ id: 'body_' + o.id, cat: 'body', name: o.name, grade: o.grade, outfit: o.id })),
+  // 배경 (경기장 뽑기). arena = scene.js의 setArena / arenas.js의 ARENAS 이름. 방에서는 방장 것이 모두에게 보인다
+  { id: 'bg_gym', cat: 'bg', name: '체육관·강당', grade: 'default', arena: 'gym' },
+  { id: 'bg_commute', cat: 'bg', name: '출근길', grade: 'rare', arena: 'commute' },
+  { id: 'bg_evening', cat: 'bg', name: '퇴근길', grade: 'rare', arena: 'evening' },
+  { id: 'bg_picnic', cat: 'bg', name: '소풍길', grade: 'rare', arena: 'picnic' },
+  { id: 'bg_beach', cat: 'bg', name: '해변', grade: 'rare', arena: 'beach' },
+  { id: 'bg_bakery', cat: 'bg', name: '빵집', grade: 'rare', arena: 'bakery' },
 ];
 for (const it of ITEMS) it.pool = CATS[it.cat].pool;
 export const ITEM = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
@@ -1254,7 +1261,12 @@ export function outfitImage(it, px = 128) {
   return thumbs[key];
 }
 
+// 배경 그림: public/arenas/<arena>.jpg (경기 화면을 찍어 둔 것)
+const ARENA_IMG = (import.meta.env?.BASE_URL || '/') + 'arenas/';
+export const arenaOf = (look) => equipped(look, 'bg').arena;
+
 export function swatch(it) {
+  if (it.cat === 'bg') return `<img class="sw img bg" src="${ARENA_IMG}${it.arena}.jpg" alt="" />`;
   if (it.cat === 'body') {
     const src = outfitImage(it);
     if (src) return `<img class="sw img" src="${src}" alt="" />`;

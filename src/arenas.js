@@ -324,11 +324,21 @@ export function arenaFromUrl() {
   try { return new URLSearchParams(location.search).get('bg'); } catch { return null; }
 }
 
-export function buildArena(id, scene) {
+export function buildArena(id) {
   const f = ARENAS[id];
   if (!f) return null;
-  const a = f(scene);
+  const a = f();
   a.root.traverse((o) => { if (o.isMesh && !o.castShadow) o.receiveShadow = true; });
-  scene.add(a.root);
   return a;
+}
+
+// 배경을 바꿀 때 옛 배경의 그림·모양을 GPU에서 내린다 (여러 배경이 같이 쓰는 것도 다시 쓰면 자동으로 다시 올라간다)
+export function disposeArena(root) {
+  root.traverse((o) => {
+    o.geometry?.dispose();
+    for (const m of [].concat(o.material || [])) {
+      for (const k of ['map', 'emissiveMap', 'alphaMap', 'normalMap']) m[k]?.dispose?.();
+      m.dispose();
+    }
+  });
 }
