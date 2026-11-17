@@ -51,6 +51,7 @@ let cur = null;
 function wear(id) {
   cur = OUTFITS.find((o) => o.id === id) || { id, name: id, grade: 'rare' };
   live.char.setOutfit(makeOutfit(id, live.char));
+  if (params.has('op')) live.char.setOpacity(Number(params.get('op')), 0.9); // ?op=0.38 = 경기 중 내 캐릭터처럼 반투명
   document.getElementById('nm').textContent = cur.name;
   const gd = document.getElementById('gd');
   gd.textContent = GRADE[cur.grade]; gd.className = 'badge ' + cur.grade;

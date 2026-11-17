@@ -344,7 +344,8 @@ export function makeCharacter(paddleColor) {
       body.remove(outfit.group);
       outfit.group.traverse((m) => {
         if (m.geometry) m.geometry.dispose();
-        for (const mt of [].concat(m.material || [])) { if (mt.map) mt.map.dispose(); mt.dispose(); }
+        // 옷이 만든 그림(map·normalMap·emissiveMap·alphaMap)은 버린다. 반사 그림(envMap)은 옷끼리 같이 쓰므로 남긴다
+        for (const mt of [].concat(m.material || [])) { for (const k of ['map', 'normalMap', 'emissiveMap', 'alphaMap']) mt[k]?.dispose(); mt.dispose(); }
       });
     }
     outfit = o;

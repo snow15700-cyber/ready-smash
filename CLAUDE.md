@@ -79,7 +79,13 @@
 - **몸 꾸미기 (test에서 사용자 테스트 중)**: 사용자 확정 = 한 벌씩 통째로, 품목 새로 정함(위트·귀여운 것), 곰 인형탈은 몸만(머리는 나중에 세트), 전설은 움직이는 효과 필수, 정성은 일반 < 고급 < 전설.
   - 29종: 일반 10(칠하기) · 고급 14(몸이 음식·동물로 변신, 소품) · 전설 5(영웅 망토·오리 튜브·미러볼·기사 갑옷·곰 인형탈, 효과). `src/outfits.js`의 `OUTFITS`·`PAINT`·`BUILD`, `makeOutfit(id, char)`.
   - 캐릭터: `char.setOutfit(o|null)`(흰 몸통 숨김), 전설 효과는 매 프레임 `char.tickOutfit(t, dt)`. 효과 메시·스프라이트는 `userData.fx`(반투명 설정 안 받음), 원래 반투명 재질은 `material.userData.baseOp`.
-  - 시안 보기 페이지 `outfits.html`(`src/outfits-page.js`, vite 빌드 입력에 포함).
+  - 시안 보기 페이지 `outfits.html`(`src/outfits-page.js`, vite 빌드 입력에 포함). 주소 옵션 `?id=cape&yaw=3.6&t=2`(각도·시각 고정), `&op=0.38`(경기 중 내 캐릭터처럼 반투명).
+  - **전설 5종 다듬기 (사용자 확정 = A안: 디자인 그대로, 모양·효과만 정교하게, test에서 사용자 테스트 중)**: 반사 그림 `envCube('studio'|'steel'|'disco')`(CubeTexture, 공용이라 버리지 않음 — `setOutfit`은 map·normalMap·emissiveMap·alphaMap만 버림).
+    - 영웅 망토: 어깨를 감싸고 아래로 퍼지는 주름 망토(바깥 빨강·안 금색), 작게 세운 깃, 보석 고정쇠 + 가슴 금 사슬, 입체 금 방패 문장·벨트 버클·부츠 테, 근육 음영.
+    - 오리 튜브: 밝은 노랑, 이음매·바람 꼭지, 위아래 부리·눈 하이라이트·머리 깃털, 파닥이는 날개, 치켜든 꼬리.
+    - 미러볼: 거울 조각마다 기울기(normalMap)가 달라 조명을 비춤(`disco` 반사), 반짝 조각 무지개, 뒤로 펼친 깃털 깃, 보석 목줄·보석 버클 벨트, 몸에서 바닥 조명 점으로 뻗는 은은한 빛줄기.
+    - 기사 갑옷: 가슴판(능선·불룩) + 허리 판 3겹 + 사슬 치마 + 두 겹 목 보호대(`steel` 반사), 3겹 어깨 갑옷, 입체 금 문장, 허리의 빨간 천(앞뒤, 움직이면 날림), 왼쪽 허리의 칼. LatheGeometry 점은 아래→위 순서여야 겉면이 밖을 본다.
+    - 곰 인형탈: 털 껍질 1겹(가장자리 복슬), 볼록한 타원 배 패치(바느질), 입체 하트·단추, 분홍 젤리 발바닥(팔·발), 털뭉치 꼬리, 지퍼 손잡이, 고리 리본, 걸을 때 말랑 출렁.
   - 상점 연결: `supabase/09_bodies.sql`(08 다음, insert만). `items.js`에 `body_<id>`(`outfit` 필드)·기본 `body_none`(DEFAULTS), `applyLook`이 몸도 입힘, 목록 그림 `outfitImage`(탁구채와 같은 `snap`). `main.js` 루프 끝에서 보이는 캐릭터마다 `tickOutfit`. 대기실 이름표·VS 소개에 탁구채+몸 알약(`lookPills`), 발밑 빛 고리는 탁구채·몸 중 높은 등급(`topGrade`).
   - 병아리: 사용자가 준 참고 그림(동글한 노란 공 + 까만 테두리 + 눈·부리·볼터치 + 손 흔드는 날개 + 삐침 털)대로 다시 만듦. 만화 음영 `TOON`(MeshToonMaterial) + 뒤집힌 껍질 테두리. 칠 때 날개 파닥·통 튐.
     - 사용자 확정 = B안: 흰 머리를 숨기고 병아리 한 마리(`HIDE_HEAD` → `makeOutfit`의 `hideHead` → `char.setOutfit`이 `head.visible` 끔). 나중에 머리 아이템을 만들면 병아리를 입었을 때 어떻게 할지 정해야 함(곰 인형탈처럼 세트 처리 등). A안은 `chick(root, char, false)`로 남아 있음.
