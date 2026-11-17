@@ -109,7 +109,7 @@ button.big.on { background: #8a7a66; box-shadow: 0 5px 0 #5f5243; }
 .seg button { white-space: nowrap; }
 .seg.sub button { font-size: 15px; padding: 7px 8px; }
 .pane { display: flex; flex-direction: column; gap: 10px; }
-.chips { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 4px; flex: none; scrollbar-width: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 2px 4px; flex: none; }
 .chips::-webkit-scrollbar { display: none; }
 .chips button { flex: none; font-size: 15px; padding: 7px 12px; border-radius: 999px; box-shadow: 0 2px 0 var(--line); }
 .chips button.on { background: var(--orange); color: #fff; box-shadow: 0 2px 0 var(--orange-d); }

@@ -992,10 +992,12 @@ function renderDress() {
   renderSpot();
 }
 
-// 카테고리 칩 (아이템이 아직 없는 카테고리는 '곧')
+// 카테고리 칩 (아이템이 아직 없는 카테고리는 '곧'). 열린 카테고리를 앞에, 칩이 많으면 두 줄로 (가로로 숨지 않게)
 function renderChips() {
-  $('cat-chips').innerHTML = Object.entries(CATS).map(([cat, info]) => {
-    const ready = ITEMS.some((i) => i.cat === cat);
+  const has = (cat) => ITEMS.some((i) => i.cat === cat);
+  const cats = Object.entries(CATS).sort((a, b) => has(b[0]) - has(a[0]));
+  $('cat-chips').innerHTML = cats.map(([cat, info]) => {
+    const ready = has(cat);
     return `<button class="${cat === closetCat ? 'on' : ''}" data-cat="${cat}" ${ready ? '' : 'disabled'}>${CAT_ICON[cat] || ''} ${info.name}${ready ? '' : '<small>곧</small>'}</button>`;
   }).join('');
 }
