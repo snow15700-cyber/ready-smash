@@ -80,7 +80,7 @@ export class Game {
       while (this.mouse.hist.length && this.mouse.hist[0].t < t - 0.4) this.mouse.hist.shift();
     };
     this.onDown = (e) => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || this.paused) return; // paused: 경기 시작 전 VS 소개 중
       if (e.target.closest && e.target.closest('button, input, .panel')) return;
       this.click(e.timeStamp / 1000 + this.offset, e.clientX, e.clientY);
     };

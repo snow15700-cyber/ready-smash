@@ -1,4 +1,5 @@
 import { createWorld, CHAR_Z } from './scene.js';
+import { sideSign } from './physics.js';
 import { createLobbyDemo, LOBBY_CAM } from './lobbyDemo.js';
 import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
@@ -128,6 +129,7 @@ function show(screen) {
 }
 
 function stopGame() {
+  endIntro(false);
   if (game) game.destroy();
   game = null;
   match = null;
@@ -353,6 +355,9 @@ function onRoomMsg(m) {
       resolveOverflow();
       renderRoom();
       break;
+    case 'sw': // 다른 사람의 연습 스윙
+      if (!room.inGame && ['perfect', 'good', 'block'].includes(m.g)) practiceSwing(m.id, m.g);
+      break;
     case 'go': {
       if (room.host) break;
       const p = m.players.find((x) => x.id === myId);
@@ -365,7 +370,6 @@ function onRoomMsg(m) {
       break;
     case 'pong': {
       const now = performance.now() / 1000;
-  setQuiet(game ? 1 : LOBBY_QUIET);
       const rtt = now - m.t1;
       room.pings.push({ rtt, off: m.th + rtt / 2 - now });
       if (room.pings.length > 12) room.pings.shift();
@@ -441,8 +445,7 @@ function startOnline(mode, players) {
     },
   });
   hud.stats(game.stats);
-  hud.toast(mode === '2v2' ? '2v2 시작! A1 → B1 → A2 → B2 순서로 쳐요' : '경기 시작! 5점 먼저 내면 승리', 2000);
-  match.start(performance.now() / 1000);
+  startIntro(players, mine.side, mode); // 3초 소개가 끝나면 match.start (endIntro)
 }
 
 // 참가자 PC: 방장의 시작 신호를 받으면 경기 화면으로
@@ -458,7 +461,7 @@ function startGuestGame(mode, players, mine) {
   });
   game.offset = room.offset;
   hud.stats(game.stats);
-  hud.toast(mode === '2v2' ? '2v2 시작! A1 → B1 → A2 → B2 순서로 쳐요' : '경기 시작! 5점 먼저 내면 승리', 2000);
+  startIntro(players, mine.side, mode);
 }
 
 // 경기가 끝나면 대기실로. 팀 선택은 모두 초기화 (다시 할 사람만 팀을 다시 고른다)
@@ -543,25 +546,33 @@ function renderRoom() {
   $('room-result').classList.toggle('hidden', !room.result);
   renderCoins();
 
-  // 선수 한 줄: 동그란 얼굴(닉네임 첫 글자) + 닉네임 + 꼬리표(방장·손님·나) + 준비 완료
-  const row = (m, inTeam, i) => {
-    const tags = [inTeam && room.mode === '2v2' ? `${i + 1}번` : '', m.host ? '👑 방장' : '', m.guest ? '손님' : '', m.id === myId ? '나' : ''].filter(Boolean);
-    return `<li class="${m.id === myId ? 'me' : ''}"><em class="av">${esc([...m.nick][0] || '?')}</em><div class="who"><b>${esc(m.nick)}</b><span>${tags.join(' · ') || '참가자'}</span></div>${inTeam ? '<i class="on">✓ 준비</i>' : ''}</li>`;
-  };
-  const empty = '<li class="empty"><em class="av">+</em><div class="who"><b>빈자리</b></div></li>';
-  const n = room.mode ? perTeam() : 0;
+  // 자리 칸 (안 B): A1 A2 | VS | B1 B2. 칸 바로 위에 그 선수의 3D 캐릭터가 선다 (stageFrame)
+  const n = room.mode ? perTeam() : 1;
+  const myTeam = room.teams[myId]?.team;
+  stage.seats = [];
   for (const team of [0, 1]) {
     const ms = teamList(team).slice(0, n);
-    $(`team-${team}`).innerHTML = ms.map((m, i) => row(m, true, i)).join('') + empty.repeat(Math.max(0, n - ms.length));
-    const btn = $(`btn-team-${team}`);
-    const mine = room.teams[myId] && room.teams[myId].team === team;
-    btn.textContent = mine ? '팀에서 빠지기' : `${TEAM_NAME[team]}으로`;
-    btn.classList.toggle('on', !!mine);
-    btn.disabled = !room.mode || room.inGame || (!mine && ms.length >= n);
+    let html = '';
+    for (let i = 0; i < n; i++) {
+      const m = ms[i];
+      stage.seats.push({ team, slot: i, m: m || null });
+      const num = n > 1 ? `${TEAM_NAME[team]} ${i + 1}번` : TEAM_NAME[team];
+      if (!m) {
+        const locked = !room.mode || room.inGame;
+        const go = myTeam === team ? '' : `<span class="go">${TEAM_NAME[team]}으로 ▸</span>`;
+        html += `<div class="slot empty${locked ? ' locked' : ''}" data-team="${team}"><b>${num} · 빈자리</b>${go}</div>`;
+        continue;
+      }
+      const me = m.id === myId;
+      const tags = [num, m.host ? '👑 방장' : '', m.guest ? '손님' : '', me ? '나' : ''].filter(Boolean);
+      html += `<div class="slot${me ? ' me' : ''}" data-team="${team}"${me ? ' title="누르면 팀에서 빠져요"' : ''}><b>${esc(m.nick)}</b><span>${tags.join(' · ')} <i>✓</i></span>${me ? '<span class="out">누르면 빠지기</span>' : ''}</div>`;
+    }
+    $(`team-${team}`).innerHTML = html;
   }
   const none = room.members.filter((m) => !room.teams[m.id]);
-  $('room-members').innerHTML = none.map((m) => row(m, false)).join('');
-  $('room-members-title').textContent = none.length ? '아직 팀을 안 고른 사람' : '';
+  $('room-members').innerHTML = none.length ? `팀 고르는 중${none.map((m) => `<b>${esc(m.nick)}${m.id === myId ? '(나)' : ''}</b>`).join('')}` : '';
+  renderStageLabels();
+  $('room-hint').textContent = room.teams[myId] ? '🏓 화면을 누른 채 위로 밀면 연습 스윙!' : '👇 아래 빈 칸을 눌러 팀을 골라 주세요';
 
   const full = room.mode && isFull();
   $('btn-start').classList.toggle('hidden', !room.host);
@@ -838,8 +849,14 @@ $('btn-join-go').addEventListener('click', doJoin);
 $('join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
 $('btn-join-cancel').addEventListener('click', () => { playUI('click'); show('lobby'); });
 $('btn-start').addEventListener('click', () => { initAudio(); playUI('click'); pressStart(); });
-$('btn-team-0').addEventListener('click', () => pickTeam(0));
-$('btn-team-1').addEventListener('click', () => pickTeam(1));
+// 자리 칸 누르기: 빈자리 = 그 팀으로 (바꾸기), 내 칸 = 팀에서 빠지기
+for (const team of [0, 1]) {
+  $(`team-${team}`).addEventListener('click', (e) => {
+    const el = e.target.closest('.slot');
+    if (!el || el.classList.contains('locked')) return;
+    if (el.classList.contains('empty') || el.classList.contains('me')) pickTeam(team);
+  });
+}
 $('btn-room-leave').addEventListener('click', () => { playUI('click'); leaveRoom(); show('lobby'); });
 $('btn-copy').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(room.code); hud.toast('코드를 복사했어요'); } catch {}
@@ -1160,14 +1177,283 @@ $('btn-gacha-10').addEventListener('click', () => doGacha(10));
 $('btn-test-coins').classList.toggle('hidden', ONLINE);
 $('btn-test-coins').addEventListener('click', async () => { playUI('coin'); await testCoins(1000); renderDress(); });
 
+/* ───────── 대기실 무대 (안 B '자리 위에 서기') ─────────
+   아래 카드의 자리 칸마다 바로 위에 그 선수의 3D 캐릭터가 서 있다. 장착한 탁구채를 몸 옆에 들고,
+   머리 위에는 닉네임 + 아이템 이름 (등급은 색·빛으로만). 빈자리는 흐린 실루엣 */
+const STAGE = { cam: [0, 1.0, 5.0], look: [0, 1.05, 0], fov: 46, z: 1.3, cardAt: 0.73, headY: 1.45 };
+const GLOW = { legend: '#ffb020', rare: '#b07cff' };
+// 발밑 빛 고리는 장착한 것(탁구채·몸) 중 가장 높은 등급 색
+const topGrade = (look) => ['legend', 'rare'].find((g) => ['paddle', 'body'].some((c) => equipped(look, c)?.grade === g)) || null;
+const stage = { seats: [], els: [], on: false, fov: 50 };
+
+// 장착한 탁구채 + 몸(기본이 아닐 때만) 알약
+function lookPills(look) {
+  return ['paddle', 'body'].map((c) => equipped(look, c)).filter((it, i) => i === 0 || it.grade !== 'default')
+    .map((it) => `<div class="it g-${it.grade}">${swatch(it)}${esc(it.name)}</div>`).join('');
+}
+function renderStageLabels() {
+  const box = $('room-labels');
+  box.innerHTML = stage.seats.map(({ team, m }) => {
+    if (!m) return '<div class="rl ghost"><div class="nm">빈자리 · 기다리는 중</div></div>';
+    const tags = (m.id === myId ? '<small>나</small>' : '') + (m.host ? '<small>👑</small>' : '');
+    return `<div class="rl"><div class="nm t${team}">${esc(m.nick)}${tags}</div>${lookPills(m.look)}</div>`;
+  }).join('');
+  stage.els = [...box.children];
+}
+
+function stageFrame(now) {
+  if (!stage.on) { stage.on = true; stage.fov = world.camera.fov; }
+  world.setFocus(0);
+  setEcho(0);
+  const H = innerHeight;
+  const cardTop = $('room-card').getBoundingClientRect().top;
+  world.setStageView(Math.max(200, cardTop / STAGE.cardAt));
+  world.camera.fov = STAGE.fov;
+  world.camera.position.set(...STAGE.cam);
+  world.camera.lookAt(...STAGE.look);
+  world.camera.updateProjectionMatrix();
+  world.setBall([0, -1, 0], false);
+  world.ring.visible = false;
+  world.aim.visible = false;
+  const used = new Set();
+  stage.seats.forEach(({ team, slot, m }, i) => {
+    const c = world.team[team][slot];
+    used.add(c);
+    const el = $(`team-${team}`).children[slot];
+    if (!el) { c.group.visible = false; return; }
+    const r = el.getBoundingClientRect();
+    const x = world.screenToX(r.left + r.width / 2, Math.min(cardTop, H) * 0.6, STAGE.z);
+    applyLook(c, m ? m.look : {});
+    c.group.visible = true;
+    c.setOpacity(m ? 1 : 0.16, m ? 1 : 0);
+    c.setTag(null);
+    c.setHold(true);
+    c.setGlow(m ? GLOW[topGrade(m.look)] : null);
+    c.group.position.set(x, 0, STAGE.z);
+    c.group.rotation.y = Math.PI - x * 0.08; // 가운데 쪽으로 살짝
+    c.body.position.y = Math.sin(now * 2.6 + i) * 0.008;
+    holdPose(c, now, i);
+    const lb = stage.els[i];
+    if (lb) {
+      const [px, py] = world.toScreen(x, STAGE.headY, STAGE.z);
+      lb.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px) translate(-50%, -100%)`;
+    }
+  });
+  for (const side of world.team) for (const c of side) if (!used.has(c)) c.group.visible = false;
+  setListener(STAGE.cam, [1, 0, 0]);
+}
+
+// 몸 옆에 든 자세 + 연습 스윙 (c.stSwing부터: 뒤로 빼기 → 휘두르기 → 제자리, 블록은 툭 내밀기)
+function holdPose(c, now, i) {
+  let yaw = -0.25 + Math.sin(now * 1.7 + i) * 0.05, pitch = -0.15, twist = 0;
+  const st = now - (c.stSwing ?? -9);
+  if (st < 0.5) {
+    if (c.stBlock) {
+      const k = Math.sin(Math.min(1, st / 0.25) * Math.PI);
+      yaw += 0.35 * k;
+      pitch += 0.15 * k;
+    } else {
+      let a;
+      if (st < 0.07) a = (-st / 0.07) * 0.6;
+      else if (st < 0.2) { const u = (st - 0.07) / 0.13; a = -0.6 + 1.9 * (1 - (1 - u) * (1 - u)); }
+      else { const u = (st - 0.2) / 0.3; a = 1.3 * (1 - u * u * (3 - 2 * u)); }
+      yaw += a;
+      pitch += Math.max(0, a) * 0.45;
+      twist = a * 0.22;
+    }
+  }
+  c.arm.rotation.set(pitch, yaw, 0.12);
+  c.body.rotation.set(0, twist, 0);
+}
+
+/* 연습 스윙: 대기실에서 화면을 누른 채 위로 밀면 휘두르고 (그냥 누르면 툭), 내 탁구채 소리가 난다.
+   다른 사람에게도 보이고 들린다 (조금 작게, 그 캐릭터 쪽에서). 경기와 같은 조작: 누르기 직전 0.15초 ~ 직후 0.12초 움직임 */
+const SWING = { before: 0.15, after: 0.12, gap: 0.45, perfect: 40, good: 12 };
+const swMoves = []; // 최근 마우스 위치 { t, y }
+let swDown = 0;
+const mySeat = () => stage.seats.find((x) => x.m && x.m.id === myId);
+
+function practiceSwing(id, grade) {
+  const seat = stage.seats.find((x) => x.m && x.m.id === id);
+  if (!seat) return;
+  const c = world.team[seat.team][seat.slot];
+  const now = performance.now() / 1000;
+  if (now - (c.stSwing ?? -9) < 0.3) return; // 너무 자주 오면 무시
+  c.stSwing = now;
+  c.stBlock = grade === 'block';
+  const it = equipped(seat.m.look, 'paddle');
+  const me = id === myId;
+  const p = c.group.position;
+  playHit(grade, me ? null : [p.x, 1.0, p.z], null, it.sound || null);
+}
+
+function stageActive() {
+  return stage.on && room && !room.inGame && !$('room').classList.contains('hidden');
+}
+$('c').addEventListener('pointermove', (e) => {
+  if (!stageActive()) return;
+  const t = e.timeStamp / 1000; // 이벤트가 생긴 시각 (느린 PC에서 처리가 늦어도 정확하게)
+  swMoves.push({ t, y: e.clientY });
+  while (swMoves.length && swMoves[0].t < t - 0.5) swMoves.shift();
+});
+$('c').addEventListener('pointerdown', (e) => {
+  if (!stageActive() || e.button !== 0) return;
+  if (!mySeat()) { hud.toast('팀을 고르면 연습 스윙을 할 수 있어요'); return; }
+  const t = e.timeStamp / 1000;
+  if (t - swDown < SWING.gap) return;
+  swDown = t;
+  swMoves.push({ t, y: e.clientY });
+  initAudio();
+  setTimeout(() => {
+    if (!stageActive()) return;
+    // 이 구간에서 가장 아래 → 그 뒤 가장 위로 올라간 만큼 = 위로 민 거리(px)
+    const pts = swMoves.filter((m) => m.t >= t - SWING.before && m.t <= t + SWING.after + 0.05);
+    let low = -Infinity, up = 0;
+    for (const m of pts) { low = Math.max(low, m.y); up = Math.max(up, low - m.y); }
+    const grade = up >= SWING.perfect ? 'perfect' : up >= SWING.good ? 'good' : 'block';
+    practiceSwing(myId, grade);
+    room.link.send({ k: 'sw', id: myId, g: grade });
+  }, SWING.after * 1000);
+});
+
+// 대기실을 떠나면 원래 모습으로 (경기 자세, 빛 고리 끄기, 카메라 화면 비율)
+function stageOff() {
+  if (!stage.on) return;
+  stage.on = false;
+  for (const side of world.team) for (const c of side) { c.setHold(false); c.setGlow(null); }
+  world.camera.fov = stage.fov;
+  world.setStageView(null);
+}
+
+/* ───────── 경기 시작 전 VS 소개 (3초, 1v1·2v2) ─────────
+   상대 팀 → 우리 팀을 차례로 비추며 각자 탁구채를 한 번 휘두르고 (그 탁구채 소리),
+   마지막에 옆에서 크게 보며 VS + '준비하시고, 스매시!'. 건너뛰기 없음 (사용자 결정).
+   모든 PC가 'go'를 받은 순간부터 3초. 방장은 소개가 끝나야 경기를 시작한다(match.start) */
+const INTRO = { len: 3.0, p2: 1.0, p3: 2.0, go: 2.4, swing: 0.2, gap: 0.22, far: 2.3, near: 1.85, y: 1.35, lookY: 1.0, fov: 45, wide: 5.2, wideY: 2.7, wideLook: 0.15 };
+let intro = null;
+
+function startIntro(players, mySide, mode) {
+  const nm = playerNames(), lk = looks();
+  const seats = players.map((p) => ({ side: p.side, slot: p.slot || 0, id: p.id, name: nm[p.side][p.slot || 0], look: lk[p.side][p.slot || 0] }))
+    .sort((a, b) => a.side - b.side || a.slot - b.slot);
+  intro = { t0: performance.now() / 1000, mySide, mode, seats, phase: 0, swung: new Set(), go: false, fov: world.camera.fov };
+  if (game) game.paused = true;
+  document.body.classList.add('intro');
+  const card = (s) => {
+    return `<div class="vi-card"><div class="nm t${s.side}">${esc(s.name)}${s.id === myId ? '<small>나</small>' : ''}</div>${lookPills(s.look)}</div>`;
+  };
+  const team = (side) => `<div class="vi-team">${side === mySide ? (mode === '2v2' ? '우리 팀' : '나') : (mode === '2v2' ? '상대 팀' : '상대')} · ${TEAM_NAME[side]}</div>`
+    + seats.filter((s) => s.side === side).map(card).join('');
+  $('vi-opp').innerHTML = team(1 - mySide);
+  $('vi-us').innerHTML = team(mySide);
+  $('vs-intro').className = 'vs-intro';
+}
+
+// 소개 중이면 true (그동안 game.update 대신 소개 화면을 그린다)
+function introFrame(now) {
+  const I = INTRO;
+  const t = now - intro.t0;
+  if (t >= I.len) { endIntro(); return false; }
+  const el = $('vs-intro');
+  const ph = t < I.p2 ? 1 : t < I.p3 ? 2 : 3;
+  if (ph !== intro.phase) {
+    intro.phase = ph;
+    el.className = `vs-intro p${ph}${ph > 1 ? ' flash' : ''}`;
+    if (ph === 3) playUI('rare');
+  }
+  if (t >= I.go && !intro.go) { intro.go = true; el.classList.add('go'); playUI('turn'); }
+  world.setFocus(0);
+  setEcho(0);
+  world.setBall([0, -1, 0], false);
+  world.ring.visible = false;
+  world.aim.visible = false;
+
+  // 선수: 실제 경기 자리에 서서 탁구채를 몸 옆에 들고, 자기 팀이 소개될 때 한 번 휘두른다
+  const used = new Set();
+  intro.seats.forEach((s, i) => {
+    const c = world.team[s.side][s.slot];
+    used.add(c);
+    const m = sideSign(s.side);
+    const x = intro.mode === '2v2' ? (s.slot === 0 ? -0.45 : 0.45) * m : 0; // 1번이 (그 팀이 보기에) 왼쪽
+    c.group.visible = true;
+    c.setOpacity(1, 1);
+    c.setTag(null);
+    c.setHold(true);
+    c.group.position.set(x, 0, m * CHAR_Z);
+    c.group.rotation.y = s.side === 0 ? 0 : Math.PI;
+    c.body.position.y = Math.sin(now * 2.6 + i) * 0.008;
+    const at = (s.side === intro.mySide ? I.p2 : 0) + I.swing + I.gap * s.slot;
+    if (t >= at && !intro.swung.has(i)) {
+      intro.swung.add(i);
+      c.stSwing = now;
+      c.stBlock = false;
+      playHit('perfect', null, null, equipped(s.look, 'paddle').sound || null);
+    }
+    holdPose(c, now, i);
+  });
+  for (const side of world.team) for (const c of side) if (!used.has(c)) c.group.visible = false;
+
+  // 카메라: 1) 상대 팀 앞에서 천천히 다가가기 2) 우리 팀 3) 옆에서 크게 (우리 팀이 왼쪽)
+  let pos, look;
+  if (ph < 3) {
+    const side = ph === 1 ? 1 - intro.mySide : intro.mySide;
+    const k = ease(ph === 1 ? t / I.p2 : (t - I.p2) / (I.p3 - I.p2));
+    const m = sideSign(side);
+    const d = I.far + (I.near - I.far) * k;
+    pos = [(0.3 - 0.6 * k) * m, I.y, m * (CHAR_Z - d)];
+    look = [0, I.lookY, m * CHAR_Z];
+  } else {
+    const k = ease((t - I.p3) / (I.len - I.p3));
+    const sx = intro.mySide === 0 ? 1 : -1;
+    pos = [sx * (I.wide - 0.5 * k), I.wideY - 0.2 * k, 0];
+    look = [0, I.wideLook, 0];
+  }
+  world.camera.fov = I.fov;
+  world.camera.updateProjectionMatrix();
+  world.camera.position.set(...pos);
+  world.camera.lookAt(...look);
+  return true;
+}
+
+// 소개를 끝내고 경기로 (start=false: 경기가 중간에 취소됨)
+function endIntro(start = true) {
+  if (!intro) return;
+  const { mode, fov } = intro;
+  intro = null;
+  document.body.classList.remove('intro');
+  $('vs-intro').className = 'vs-intro hidden';
+  for (const side of world.team) for (const c of side) c.setHold(false);
+  world.camera.fov = fov;
+  world.camera.updateProjectionMatrix();
+  if (!start || !game) return;
+  game.paused = false;
+  // 경기 화면 모습으로 되돌리기 (Game 생성 때와 같게: 내 캐릭터는 반투명)
+  for (const side of [0, 1]) for (const slot of [0, 1]) {
+    const c = world.team[side][slot];
+    const isMe = side === game.mySide && slot === game.mySlot;
+    c.group.visible = slot === 0 || mode === '2v2';
+    c.setOpacity(isMe ? 0.38 : 1, isMe ? 0.9 : 1);
+  }
+  hud.toast(mode === '2v2' ? '2v2 시작! A1 → B1 → A2 → B2 순서로 쳐요' : '경기 시작! 5점 먼저 내면 승리', 2000);
+  if (match && room && room.host) match.start(performance.now() / 1000);
+}
+
 /* ───────── 매 프레임 ───────── */
 function loop() {
   const now = performance.now() / 1000;
   // 내 스윙 판단을 먼저 끝내고 나서 경기 판정 (느린 PC에서도 늦게 친 공이 버려지지 않게)
   if (game) game.decideHit(now + game.offset);
   if (match) match.update(now);
-  if (game) game.update(now + game.offset);
+  // 위치가 있는 소리 크기: 경기·대기실(연습 스윙)은 그대로, 로비·꾸미기 배경 랠리는 작게
+  if (game) {
+    setQuiet(1);
+    stageOff();
+    if (!(intro && introFrame(now))) game.update(now + game.offset);
+  }
+  else if (room && !room.inGame && !$('room').classList.contains('hidden')) { setQuiet(1); stageFrame(now); }
   else {
+    setQuiet(LOBBY_QUIET);
+    stageOff();
     // 로비 배경: 두 캐릭터가 랠리를 주고받고, 카메라는 옆에서 천천히 흔들린다
     // 꾸미기 화면에서도 랠리는 계속되고, 카메라만 내 캐릭터 등 뒤로 스르륵 옮겨 간다
     world.setFocus(0);
@@ -1214,8 +1500,12 @@ function loop() {
     const rallySound = !$('lobby').classList.contains('hidden') || !$('dress').classList.contains('hidden');
     lobbyDemo.update(now, world.chars, world, rallySound);
   }
+  // 움직이는 옷(전설 효과·병아리 파닥): 보이는 캐릭터만
+  const odt = Math.min(0.1, now - (loop.last || now));
+  loop.last = now;
+  for (const side of world.team) for (const c of side) if (c.group.visible) c.tickOutfit(now, odt);
   world.render();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
-window.__smash = { PV, world, get game() { return game; }, get match() { return match; }, get room() { return room; } };
+window.__smash = { PV, STAGE, INTRO, world, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; } };

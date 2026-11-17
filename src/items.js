@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { fxTex } from './fx.js';
+import { OUTFITS, makeOutfit } from './outfits.js';
 
 // 상점 아이템 목록 (기획서 4장). 이름·모양은 여기, 뽑기·구매 규칙은 서버(supabase/06_shop.sql)가 정한다.
 // ⚠️ 아이템을 추가·변경하면 06_shop.sql의 pingpong_items 목록(insert)도 똑같이 고쳐야 한다.
@@ -23,7 +24,7 @@ export const PITY = 40; // 40번 안에 전설이 안 나오면 다음은 무조
 export const CATS = {
   paddle: { name: '탁구채', pool: 'char', ready: true },
   head: { name: '머리', pool: 'char' },
-  body: { name: '몸', pool: 'char' },
+  body: { name: '몸', pool: 'char', ready: true },
   trail: { name: '궤적', pool: 'char' },
   table: { name: '탁구대', pool: 'arena' },
   bg: { name: '배경', pool: 'arena' },
@@ -31,7 +32,7 @@ export const CATS = {
 };
 
 // 기본 아이템 (카테고리마다 하나, 장착 안 했을 때 이것)
-export const DEFAULTS = { paddle: 'paddle_red' };
+export const DEFAULTS = { paddle: 'paddle_red', body: 'body_none' };
 
 // model: 모양이 다른 탁구채(아래 PADDLE_MODELS). 없으면 기본 탁구채에 color만 바꾼다
 const paddle = (id, name, grade, color, extra = {}) => ({ id, cat: 'paddle', name, grade, color, ...extra });
@@ -75,6 +76,9 @@ export const ITEMS = [
   gag('paddle_phone', '스마트폰', 'legend', 'phone', 'phone'),
   gag('paddle_duck', '고무 오리', 'legend', 'duck', 'duck'),
   gag('paddle_hammer', '뿅망치', 'legend', 'hammer', 'hammer'),
+  // 몸 (한 벌씩 통째로, 모양은 outfits.js). 기본 = 흰 몸
+  { id: 'body_none', cat: 'body', name: '기본 (흰 몸)', grade: 'default' },
+  ...OUTFITS.map((o) => ({ id: 'body_' + o.id, cat: 'body', name: o.name, grade: o.grade, outfit: o.id })),
 ];
 for (const it of ITEMS) it.pool = CATS[it.cat].pool;
 export const ITEM = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
@@ -84,6 +88,11 @@ export const equipped = (equip, cat) => ITEM[equip?.[cat]] || ITEM[DEFAULTS[cat]
 
 // 캐릭터에 꾸미기 적용 (scene.js의 makeCharacter). 매 프레임 불려도 바뀐 게 없으면 아무것도 안 한다
 export function applyLook(char, equip) {
+  const b = equipped(equip, 'body');
+  if (char.userData?.body !== b.id) {
+    char.userData = { ...char.userData, body: b.id };
+    char.setOutfit(b.outfit ? makeOutfit(b.outfit, char) : null);
+  }
   const p = equipped(equip, 'paddle');
   if (char.userData?.paddle === p.id) return;
   char.userData = { ...char.userData, paddle: p.id };
@@ -1172,30 +1181,30 @@ export function makePaddle(item) {
 // 탁구채는 3D 모양을 작은 그림으로 찍어 둔다 (처음 한 번만)
 let thumbR = null;
 const thumbs = {};
-export function paddleImage(it, px = 128) {
-  const key = it.id + '/' + px;
-  if (thumbs[key] != null) return thumbs[key];
-  try {
-    if (!thumbR) {
-      const canvas = document.createElement('canvas');
-      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      const scene = new THREE.Scene();
-      scene.add(new THREE.HemisphereLight('#ffffff', '#b98f62', 2.2));
-      const sun = new THREE.DirectionalLight('#ffffff', 1.4);
-      sun.position.set(1, 2, 3);
-      scene.add(sun);
-      thumbR = { renderer, scene, camera: new THREE.PerspectiveCamera(30, 1, 0.01, 10) };
-    }
-    const { renderer, scene, camera } = thumbR;
-    renderer.setSize(px, px, false);
-    const m = makePaddle(it);
-    m.rotation.set(-0.15, -0.45, 0.35);
-    scene.add(m);
-    // 크기는 실제 부품만 잰다 (효과용 그림은 빼고)
+// 3D 물체 하나를 투명 배경 그림(data URL)으로. lookY/dist: 몸처럼 세로로 긴 것은 가운데·거리를 정해 준다
+function snap(obj, px, lookY, dist) {
+  if (!thumbR) {
+    const canvas = document.createElement('canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight('#ffffff', '#b98f62', 2.2));
+    const sun = new THREE.DirectionalLight('#ffffff', 1.4);
+    sun.position.set(1, 2, 3);
+    scene.add(sun);
+    thumbR = { renderer, scene, camera: new THREE.PerspectiveCamera(30, 1, 0.01, 10) };
+  }
+  const { renderer, scene, camera } = thumbR;
+  renderer.setSize(px, px, false);
+  scene.add(obj);
+  obj.updateMatrixWorld(true);
+  if (lookY != null) {
+    camera.position.set(0, lookY + 0.2, dist * 1.9);
+    camera.lookAt(0, lookY, 0);
+  } else {
+    // 크기는 실제 부품만 잰다 (전설 탁구채의 효과용 그림은 빼고)
     const box = new THREE.Box3(), bb = new THREE.Box3();
-    m.updateMatrixWorld(true);
-    m.traverse((o) => {
+    obj.traverse((o) => {
       if (!o.isMesh || o.userData.fxKeep) return;
       if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
       box.union(bb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld));
@@ -1203,14 +1212,42 @@ export function paddleImage(it, px = 128) {
     const c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3()).length();
     camera.position.set(c.x, c.y, c.z + size * 1.9);
     camera.lookAt(c);
-    renderer.setClearColor(0x000000, 0);
-    renderer.render(scene, camera);
-    thumbs[key] = renderer.domElement.toDataURL();
-    scene.remove(m);
-    m.traverse((o) => {
-      if (o.geometry) o.geometry.dispose();
-      for (const mt of [].concat(o.material || [])) { if (mt.map) mt.map.dispose(); mt.dispose(); }
-    });
+  }
+  renderer.setClearColor(0x000000, 0);
+  renderer.render(scene, camera);
+  const url = renderer.domElement.toDataURL();
+  scene.remove(obj);
+  obj.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    for (const mt of [].concat(o.material || [])) { if (mt.map) mt.map.dispose(); mt.dispose(); }
+  });
+  return url;
+}
+export function paddleImage(it, px = 128) {
+  const key = it.id + '/' + px;
+  if (thumbs[key] != null) return thumbs[key];
+  try {
+    const m = makePaddle(it);
+    m.rotation.set(-0.15, -0.45, 0.35);
+    thumbs[key] = snap(m, px);
+  } catch {
+    thumbs[key] = '';
+  }
+  return thumbs[key];
+}
+
+// 몸은 옷 입은 몸통 + 흰 머리를 비스듬히 찍는다
+export function outfitImage(it, px = 128) {
+  const key = it.id + '/' + px;
+  if (thumbs[key] != null) return thumbs[key];
+  try {
+    const o = it.outfit ? makeOutfit(it.outfit, { swingT: -1, group: new THREE.Group() }) : null;
+    const g = new THREE.Group();
+    if (o) { g.add(o.group); if (o.update) for (let i = 0; i < 10; i++) o.update(1 + i / 30, 1 / 30); }
+    else mesh(new THREE.CapsuleGeometry(0.18, 0.62, 6, 16), lam('#f6f5f1'), 0, 0.5, 0, g);
+    if (!o?.hideHead) mesh(new THREE.SphereGeometry(0.16, 20, 14), lam('#f6f5f1'), 0, 1.17, 0, g);
+    g.rotation.y = Math.PI + 0.45; // 앞(-z)이 카메라 쪽으로, 살짝 비스듬히
+    thumbs[key] = snap(g, px, 0.66, 1.2);
   } catch {
     thumbs[key] = '';
   }
@@ -1218,6 +1255,10 @@ export function paddleImage(it, px = 128) {
 }
 
 export function swatch(it) {
+  if (it.cat === 'body') {
+    const src = outfitImage(it);
+    if (src) return `<img class="sw img" src="${src}" alt="" />`;
+  }
   if (it.cat === 'paddle') {
     const src = paddleImage(it);
     if (src) return `<img class="sw img" src="${src}" alt="" />`;
