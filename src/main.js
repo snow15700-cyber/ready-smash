@@ -5,7 +5,7 @@ import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, playHit, setEcho, setQuiet, setListener } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
-import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking, checkAch, setTitle, myTitle, achMatch } from './account.js';
+import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking, checkAch, setTitle, myTitle, achMatch, achPeople } from './account.js';
 import { ACHS, ACH, ACH_CATS, REWARD, titleText } from './achievements.js';
 
 import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLook, swatch, equipped } from './items.js';
@@ -20,8 +20,9 @@ addEventListener('pointerdown', unlockAudio);
 addEventListener('keydown', unlockAudio);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // 칭호 알약 (이름표 위. 칭호 색은 모두 같게 — 2v2 '다음에 칠 사람' 노란 강조와 겹치지 않는 남색). id = 업적 id
-const tpill = (id) => (titleText(id) ? `<span class="tpill">${esc(titleText(id))}</span>` : '');
-const roomTitle = (id) => room?.members.find((m) => m.id === id)?.title || null;
+const tpill = (id, x) => (titleText(id, x) ? `<span class="tpill">${esc(titleText(id, x))}</span>` : '');
+const myNemesis = () => account.player?.nemesis || null; // 천적 칭호에 들어갈 닉네임
+const roomTpill = (id) => { const m = room?.members.find((x) => x.id === id); return tpill(m?.title, m?.titleX); };
 
 if (IS_TEST) {
   const tag = document.createElement('div');
@@ -203,7 +204,7 @@ function enterRoom(code, host, mode = null) {
   playUI('click');
   const nick = myNick();
   leaveRoom();
-  const me = { id: myId, nick, host, at: Date.now(), look: myEquip(), title: myTitle(), ...(account.loggedIn ? { pid: account.player.id } : { guest: true }), ...(host ? { mode } : {}) };
+  const me = { id: myId, nick, host, at: Date.now(), look: myEquip(), title: myTitle(), titleX: myNemesis(), ...(account.loggedIn ? { pid: account.player.id } : { guest: true }), ...(host ? { mode } : {}) };
   room = {
     code, host, me, mode, members: [], hostM: host ? me : null,
     teams: {}, // id → { team, at }  (at = 팀을 고른 시각: 같은 자리를 동시에 누르면 먼저 누른 사람이 이김)
@@ -412,7 +413,7 @@ function playerNames() {
 // 선수마다 칭호 글자 (presence의 title). titles[side][slot]
 function titles() {
   const out = [[], []];
-  for (const p of room.players) out[p.side][p.slot || 0] = titleText(room.members.find((m) => m.id === p.id)?.title);
+  for (const p of room.players) out[p.side][p.slot || 0] = (({ title, titleX } = {}) => titleText(title, titleX))(room.members.find((m) => m.id === p.id));
   return out;
 }
 // 선수마다 꾸미기 (presence의 look). looks[side][slot]
@@ -500,6 +501,7 @@ async function saveResult(mode, win, stats, achStats) {
   if (!account.loggedIn) return;
   const r0 = room;
   const opp = mode === '1v1' ? oppMember() : null;
+  const mate = mode === '2v2' && r0 ? mateMember(r0) : null; // 대기실로 돌아가면 선수 목록이 지워지므로 먼저
   const bonus = { perfect3: stats.perfect3, rally10: stats.rally10 };
   let r = await finishMatch(mode, win, opp?.pid, bonus);
   // 서버에 코인 기능(04_coins.sql)이 아직 없으면 전적만이라도 저장 (10초 규칙이 두 번 저장을 막는다)
@@ -515,8 +517,12 @@ async function saveResult(mode, win, stats, achStats) {
   // 경기 기록으로 깬 업적 (결과 띠가 사라진 뒤 '🏅 업적 달성!')
   if (r.status === 'ok' || r.status === 'too_soon') {
     const ra = await achMatch(mode, win, achStats || {});
-    if (ra.status === 'ok') gotAch(ra);
-    else runAchCheck();
+    if (ra.status === 'ok') {
+      gotAch(ra);
+      // 사람 관계 업적: 1대1 상대·2대2 팀원의 선수 번호 (로그인한 사람만)
+      const rp = await achPeople(mode, win, opp?.pid || null, mate?.pid || null);
+      if (rp.status === 'ok') gotAch(rp);
+    } else runAchCheck();
   } else if (r.status !== 'too_soon') hud.toast('전적을 저장하지 못했어요 (인터넷 연결 확인)', 2600);
 }
 
@@ -531,6 +537,12 @@ function renderCoins() {
 }
 
 // 1v1 방의 상대 (나 말고 다른 한 사람)
+// 2v2 방의 내 팀원 (경기 선수 목록에서 같은 쪽의 다른 사람)
+function mateMember(r) {
+  const mine = r.players?.find((p) => p.id === myId);
+  const mate = mine && r.players.find((p) => p.side === mine.side && p.id !== myId);
+  return mate ? r.members.find((m) => m.id === mate.id) : null;
+}
 const oppMember = () => (room ? room.members.find((m) => m.id !== myId) : null);
 
 function renderH2H() {
@@ -808,7 +820,7 @@ async function showRank(kind = rankKind) {
     if (!r) return `<div class="pod p${i + 1} empty"><em class="av">?</em><b>비어 있어요</b><div class="block">${i + 1}</div></div>`;
     const me = r.nick === myNick ? ' me' : '';
     return `<div class="pod p${i + 1}${me}"><span class="medal">${MEDAL[r.rank] || r.rank}</span>${av(r.nick)}`
-      + `${tpill(r.title)}<b>${esc(r.nick)}</b><span class="val">${r.value}<small>${unit}</small></span>${sub(r)}<div class="block">${r.rank}</div></div>`;
+      + `${tpill(r.title, r.title_x)}<b>${esc(r.nick)}</b><span class="val">${r.value}<small>${unit}</small></span>${sub(r)}<div class="block">${r.rank}</div></div>`;
   }).join('');
   podium.classList.toggle('hidden', !rows.length);
 
@@ -816,7 +828,7 @@ async function showRank(kind = rankKind) {
   const rest = rows.slice(3);
   if (!rows.length) list.innerHTML = `<li class="msg-row">${RANK[kind].empty}</li>`;
   else list.innerHTML = rest.map((r) => `<li class="${r.nick === myNick ? 'me' : ''}"><span class="no">${MEDAL[r.rank] || r.rank}</span>${av(r.nick)}`
-    + `<span class="who">${tpill(r.title)}${esc(r.nick)}${sub(r)}</span><span class="val">${r.value}<small>${unit}</small></span></li>`).join('');
+    + `<span class="who">${tpill(r.title, r.title_x)}${esc(r.nick)}${sub(r)}</span><span class="val">${r.value}<small>${unit}</small></span></li>`).join('');
 
   // 내 줄이 목록 아래쪽에 있으면 보이게 스크롤
   list.scrollTop = 0;
@@ -1236,7 +1248,7 @@ function showAchPop() {
   if (achPop.queue.length >= 2) {
     const all = [n, ...achPop.queue.splice(0)];
     const coins = all.reduce((t, x) => t + x.coins, 0);
-    el.innerHTML = `<div class="ap-head">🏅 업적 ${all.length}개 달성!</div><div class="ap-many">${all.map((x) => `<span class="tpill">${esc(ACH[x.id].title)}</span>`).join('')}</div>`
+    el.innerHTML = `<div class="ap-head">🏅 업적 ${all.length}개 달성!</div><div class="ap-many">${all.map((x) => `<span class="tpill">${esc(titleText(x.id, myNemesis()))}</span>`).join('')}</div>`
       + `<div class="ap-coin">🪙 +${coins} 코인 · 칭호는 꾸미기 → 🏅 칭호에서 달 수 있어요</div>`;
     el.className = 'show';
     playUI(all.some((x) => ACH[x.id].grade === 3) ? 'legend' : 'rare');
@@ -1246,7 +1258,7 @@ function showAchPop() {
   }
   const a = ACH[n.id];
   el.innerHTML = `<div class="ap-head">🏅 업적 달성!</div><div class="ap-name">${esc(a.name)} <span class="stars">${'★'.repeat(a.grade)}</span></div>`
-    + `<span class="tpill">${esc(a.title)}</span><div class="ap-coin">🪙 +${n.coins} 코인 · 칭호는 꾸미기 → 🏅 칭호에서 달 수 있어요</div>`;
+    + `<span class="tpill">${esc(titleText(a.id, myNemesis()))}</span><div class="ap-coin">🪙 +${n.coins} 코인 · 칭호는 꾸미기 → 🏅 칭호에서 달 수 있어요</div>`;
   el.className = 'show';
   playUI(a.grade === 3 ? 'legend' : 'rare');
   setTimeout(() => playUI('coin'), 500);
@@ -1264,7 +1276,7 @@ function renderTitles() {
   if (!got) { box.innerHTML = '<p class="msg">불러오는 중…</p>'; return; }
   const cur = myTitle();
   const n = ACHS.filter((a) => got.has(a.id)).length;
-  let html = `<div class="t-now"><span>지금 단 칭호</span>${cur ? tpill(cur) : '<em>없음</em>'}`
+  let html = `<div class="t-now"><span>지금 단 칭호</span>${cur ? tpill(cur, myNemesis()) : '<em>없음</em>'}`
     + (cur ? `<button class="small ghost" data-title="" ${titleBusy ? 'disabled' : ''}>떼기</button>` : '')
     + `<span class="t-count">업적 ${n} / ${ACHS.length}</span></div><div class="t-list">`;
   for (const [cat, catName] of ACH_CATS) {
@@ -1280,7 +1292,7 @@ function renderTitles() {
       html += `<li class="ach${have ? ' got' : ''}${on ? ' on' : ''}"><div class="a-main">`
         + `<div class="a-name">${esc(a.name)} <span class="stars">${'★'.repeat(a.grade)}</span></div>`
         + `<div class="a-cond">${esc(a.cond)}</div>`
-        + `<span class="tpill${have ? '' : ' off'}">${have ? esc(a.title) : '칭호 ???'}</span></div>${right}</li>`;
+        + `<span class="tpill${have ? '' : ' off'}">${have ? esc(titleText(a.id, myNemesis())) : '칭호 ???'}</span></div>${right}</li>`;
     }
     html += '</ul>';
   }
@@ -1294,7 +1306,7 @@ $('pane-title').addEventListener('click', async (e) => {
   renderTitles();
   const r = await setTitle(b.dataset.title || null);
   titleBusy = false;
-  if (r.status === 'ok') setMsg(b.dataset.title ? `🏅 칭호 「${esc(titleText(b.dataset.title))}」을(를) 달았어요` : '칭호를 뗐어요', true);
+  if (r.status === 'ok') setMsg(b.dataset.title ? `🏅 칭호 「${esc(titleText(b.dataset.title, myNemesis()))}」을(를) 달았어요` : '칭호를 뗐어요', true);
   else setMsg(SHOP_MSG[r.status] || SHOP_MSG.error);
   renderTitles();
 });
@@ -1318,7 +1330,7 @@ function renderStageLabels() {
   box.innerHTML = stage.seats.map(({ team, m }) => {
     if (!m) return '<div class="rl ghost"><div class="nm">빈자리 · 기다리는 중</div></div>';
     const tags = (m.id === myId ? '<small>나</small>' : '') + (m.host ? '<small>👑</small>' : '');
-    return `<div class="rl">${tpill(m.title)}<div class="nm t${team}">${esc(m.nick)}${tags}</div>${lookPills(m.look)}</div>`;
+    return `<div class="rl">${tpill(m.title, m.titleX)}<div class="nm t${team}">${esc(m.nick)}${tags}</div>${lookPills(m.look)}</div>`;
   }).join('');
   stage.els = [...box.children];
 }
@@ -1462,7 +1474,7 @@ function startIntro(players, mySide, mode) {
   if (game) game.paused = true;
   document.body.classList.add('intro');
   const card = (s) => {
-    return `<div class="vi-card">${tpill(roomTitle(s.id))}<div class="nm t${s.side}">${esc(s.name)}${s.id === myId ? '<small>나</small>' : ''}</div>${lookPills(s.look)}</div>`;
+    return `<div class="vi-card">${roomTpill(s.id)}<div class="nm t${s.side}">${esc(s.name)}${s.id === myId ? '<small>나</small>' : ''}</div>${lookPills(s.look)}</div>`;
   };
   const team = (side) => `<div class="vi-team">${side === mySide ? (mode === '2v2' ? '우리 팀' : '나') : (mode === '2v2' ? '상대 팀' : '상대')} · ${TEAM_NAME[side]}</div>`
     + seats.filter((s) => s.side === side).map(card).join('');

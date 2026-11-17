@@ -63,9 +63,9 @@ export const ACHS = [
   A('meet5', 'people', '인싸', '인싸', '서로 다른 5명과 1대1', 1, L),
   A('beat10', 'people', '모두의 친구', '모두의 친구', '1대1에서 서로 다른 10명 이기기', 3, L),
   A('rival10', 'people', '라이벌', '영원한 라이벌', '같은 사람과 1대1 10판', 2, L),
-  A('nemesis', 'people', '천적', '○○ 공포증', '같은 사람에게 5연패', 1),
-  A('revenge', 'people', '복수 성공', '복수는 나의 것', '3번 넘게 진 상대를 이김', 2),
-  A('duo5', 'people', '환상의 짝꿍', '환상의 짝꿍', '2대2에서 같은 팀원과 5승', 2),
+  A('nemesis', 'people', '천적', '○○ 공포증', '1대1에서 같은 사람에게 5연패', 1, L),
+  A('revenge', 'people', '복수 성공', '복수는 나의 것', '1대1에서 3번 이상 진 상대를 이김', 2, L),
+  A('duo5', 'people', '환상의 짝꿍', '환상의 짝꿍', '2대2에서 같은 팀원(로그인한 사람)과 5승', 2, L),
   A('carry', 'people', '하드캐리', '버스 기사', '2대2에서 팀 점수의 80% 이상을 내가 땀', 2, L),
   A('bus', 'people', '버스 승객', '편안한 버스 승객', '2대2에서 내가 0점인데 팀이 이김', 1, L),
   // 혼자 하기
@@ -77,12 +77,12 @@ export const ACHS = [
   A('own10', 'collect', '옷장 정리', '패셔니스타', '아이템 10개 모으기', 1, L),
   A('legend1', 'collect', '전설의 시작', '전설 아이템 OWNER', '전설 아이템 처음 얻기', 2, L),
   A('gag15', 'collect', '개그 수집가', '코미디언', '개그 탁구채 15종 다 모으기', 3, L),
-  A('gacha100', 'collect', '뽑기 중독', '한 번만 더…', '뽑기 누적 100번', 2),
+  A('gacha100', 'collect', '뽑기 중독', '한 번만 더…', '뽑기 누적 100번', 2, L),
   A('duck10', 'collect', '오리의 힘', '꽥꽥 장군', '고무 오리 탁구채로 10승', 2, L),
   A('bread100', 'collect', '빵 냄새', '빵 굽는 탁구인', '빵 탁구채(식빵·바게트 등)로 퍼펙트 100번', 2, L),
   // 출석·시간
-  A('days5', 'days', '성실한 교육생', '성실 교육생', '5일 연속 출석', 1),
-  A('days20', 'days', '출석왕', '출석왕', '총 출석 20일', 2),
+  A('days5', 'days', '성실한 교육생', '성실 교육생', '5일 연속 출석', 1, L),
+  A('days20', 'days', '출석왕', '출석왕', '총 출석 20일', 2, L),
   A('day20', 'days', '쉬는 시간 전부', '공부는 언제 해?', '하루에 20판', 1, L),
   A('early9', 'days', '아침형 탁구인', '09시 전 출근 완료', '오전 9시 전에 승리', 1, L),
 ];
@@ -93,4 +93,5 @@ export const ACH = Object.fromEntries(ACHS.map((a) => [a.id, a]));
 export const GAG_PADDLES = ['toast', 'baguette', 'donut', 'pizza', 'melon', 'waffle', 'mackerel', 'scoop', 'slipper', 'swatter', 'fan', 'sponge', 'book', 'eraser', 'board'].map((s) => 'paddle_' + s);
 
 // 칭호 글자 (없거나 모르는 id면 '')
-export const titleText = (id) => ACH[id]?.title || '';
+// 천적 칭호는 「(상대 닉네임) 공포증」 — x = 그 닉네임 (서버의 ach_n.nemesis)
+export const titleText = (id, x) => (id === 'nemesis' ? `${x || '○○'} 공포증` : ACH[id]?.title || '');
