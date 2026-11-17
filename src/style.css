@@ -214,7 +214,7 @@ button.big small { display: block; font-size: 14px; opacity: .92; }
 
 /* ───────── 로비 (안 A: 왼쪽 메뉴, 배경에서 두 캐릭터가 랠리) ───────── */
 .screen.lobby { display: block; padding: 0; background: linear-gradient(90deg, rgba(255,246,230,.55) 0%, rgba(255,246,230,.18) 32%, rgba(255,246,230,0) 48%); backdrop-filter: none; overflow: auto; }
-.lb-left { position: absolute; left: clamp(20px, 4.5vw, 64px); top: 50%; transform: translateY(-50%); width: min(380px, calc(100vw - 40px)); display: flex; flex-direction: column; gap: 14px; }
+.lb-left { position: absolute; left: clamp(20px, 4.5vw, 64px); top: 32px; width: min(380px, calc(100vw - 40px)); display: flex; flex-direction: column; gap: 14px; }
 .logo { margin: 0 0 2px; line-height: 1; font-weight: normal; font-size: 44px; color: var(--blue-ink); -webkit-text-stroke: 7px #fff; paint-order: stroke fill; filter: drop-shadow(0 4px 0 rgba(120,80,30,.18)); }
 .logo span { display: block; font-size: 80px; color: var(--orange-ink); -webkit-text-stroke: 9px #fff; margin-top: -2px; }
 .lb-sub { margin: -6px 0 6px 4px; font-size: 17px; color: #5b4c3a; text-shadow: 0 1px 0 #fff, 0 0 8px rgba(255,255,255,.9); }
@@ -229,7 +229,7 @@ button.blue:active:not(:disabled) { box-shadow: 0 2px 0 var(--blue-d); }
 button.blue small { display: block; font-size: 13px; opacity: .85; }
 .lobby .soon { text-align: left; padding-left: 4px; color: #6b5c4a; }
 
-.lb-me { position: absolute; top: 18px; right: clamp(16px, 2.5vw, 32px); display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.lb-me { position: absolute; top: 32px; right: clamp(16px, 2.5vw, 32px); display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .me-chip { position: relative; display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,.94); border-radius: 999px; padding: 6px 6px 6px 18px; box-shadow: 0 6px 18px rgba(80,50,20,.16); max-width: calc(100vw - 32px); }
 .me-name { min-width: 0; font-size: 21px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .me-name small { font-size: 13px; color: var(--muted); margin-left: 4px; }
@@ -244,14 +244,16 @@ button.gear:active:not(:disabled) { box-shadow: none; transform: scale(.94); }
 .me-stats b { display: block; font-weight: normal; font-size: 19px; color: var(--ink); }
 .me-stats span.guest { font-size: 13px; padding: 6px 12px; }
 
-.lb-icons { position: absolute; right: clamp(16px, 3vw, 40px); bottom: 26px; display: flex; gap: 18px; }
+.lb-icons { position: absolute; right: clamp(20px, 4.5vw, 64px); bottom: 32px; display: flex; gap: 18px; }
 button.icon-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; box-shadow: none; padding: 0; color: #fff; font-size: 17px; text-shadow: 0 2px 4px rgba(60,30,0,.55); }
 button.icon-btn i { font-style: normal; width: 76px; height: 76px; border-radius: 24px; background: var(--paper); display: grid; place-items: center; font-size: 38px; box-shadow: 0 5px 0 #d6c6a8, 0 10px 20px rgba(80,50,20,.2); transition: transform .08s; }
+button.icon-btn i { position: relative; }
+.new-dot { position: absolute; top: -6px; right: -6px; width: 24px; height: 24px; border-radius: 50%; background: #ff3b30; color: #fff; font-size: 12px; font-weight: normal; display: grid; place-items: center; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
 button.icon-btn:hover:not(:disabled) i { transform: translateY(-2px) rotate(-3deg); }
 button.icon-btn:active:not(:disabled) { box-shadow: none; }
 button.icon-btn:active:not(:disabled) i { transform: translateY(3px); box-shadow: 0 1px 0 #d6c6a8; }
-.lb-bottom { position: absolute; left: clamp(20px, 4.5vw, 64px); bottom: 26px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.lb-help { border-radius: 999px; padding: 10px 18px; font-size: 17px; background: rgba(255,255,255,.92); }
+.lb-bottom { position: absolute; left: clamp(20px, 4.5vw, 64px); bottom: 32px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.lb-help { display: inline-flex; align-items: center; height: 50px; border-radius: 999px; padding: 0 20px; font-size: 17px; background: rgba(255,255,255,.92); box-shadow: 0 4px 0 #d6c6a8; }
 /* 다른 게임 바로가기(새 탭): 버튼과 같은 알약 모양 */
 a.lb-ext { display: inline-flex; align-items: center; gap: 6px; color: var(--blue-ink); text-decoration: none; font-family: inherit; box-shadow: 0 4px 0 #d6c6a8; transition: transform .12s, background .12s; }
 a.lb-ext:hover { transform: translateY(-2px); background: #fff; }
@@ -261,6 +263,20 @@ a.lb-ext .ext { font-size: 15px; opacity: .7; }
 .howto-pop .howto { width: min(420px, 100%); background: var(--paper); padding: 20px 22px 18px; border-radius: 24px; box-shadow: 0 16px 40px rgba(60,40,20,.3); display: flex; flex-direction: column; gap: 8px; animation: popIn .22s ease-out; }
 .howto-title { font-weight: normal; font-size: 24px; color: var(--blue-ink); text-align: center; }
 .howto-pop .howto ul { margin: 4px 0; }
+/* 업데이트 내역 창 */
+.howto-pop .howto.upd { width: min(500px, 100%); max-height: calc(100vh - 32px); }
+.upd-list { overflow-y: auto; margin: 0 -10px; padding: 0 10px; display: flex; flex-direction: column; gap: 14px; }
+.upd-day h3 { margin: 4px 0 8px; font-size: 18px; font-weight: normal; color: var(--ink); display: flex; align-items: center; gap: 6px; }
+.upd-new { font-size: 12px; color: #fff; background: #ff3b30; border-radius: 999px; padding: 2px 8px; }
+.upd-tag { font-size: 13px; color: var(--orange-ink); background: #ffe9d8; border-radius: 999px; padding: 2px 10px; }
+.howto-pop .upd-big { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.upd-big li { display: flex; gap: 10px; align-items: flex-start; background: var(--cream); border-radius: 14px; padding: 9px 12px; }
+.upd-big i { font-style: normal; font-size: 22px; line-height: 1.2; }
+.upd-big b { display: block; font-weight: normal; font-size: 16px; color: var(--blue-ink); }
+.upd-big p { margin: 2px 0 0; font-size: 13.5px; line-height: 1.45; color: #5b4c3a; }
+.upd-day details { margin-top: 6px; font-size: 14px; color: #5b4c3a; }
+.upd-day summary { cursor: pointer; color: var(--muted); padding: 4px 2px; }
+.upd-day details ul { margin: 2px 0 0; }
 @keyframes popIn { 0% { transform: scale(.92); opacity: 0; } 100% { transform: none; opacity: 1; } }
 
 /* 좁은 화면(휴대폰·작은 창): 위에서 아래로 차례로 쌓는다 */

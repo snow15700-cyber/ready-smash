@@ -7,6 +7,7 @@ import { initAudio, playUI, playHit, playTable, setEcho, setQuiet, setListener }
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
 import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, newMatchId, matchJoin, matchFinish, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, getH2H, getRanking, checkAch, setTitle, myTitle, matchAch, matchPeople, aiAch } from './account.js';
 import { ACHS, ACH, ACH_CATS, REWARD, titleText } from './achievements.js';
+import { UPDATES, LATEST_UPDATE } from './updates.js';
 
 import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLook, swatch, equipped, arenaOf, ballOf, poolOpen } from './items.js';
 
@@ -127,6 +128,7 @@ function show(screen) {
     let seen = true;
     try { seen = !!localStorage.getItem(HOWTO_KEY); } catch { /* 저장 안 되는 브라우저: 띄우지 않음 */ }
     $('howto').classList.toggle('hidden', seen);
+    $('upd-dot').classList.toggle('hidden', updSeen());
   }
   if (screen !== 'dress') preview = null;
   for (const id of ['login', 'pin-change', 'rank', 'lobby', 'join', 'room', 'dress']) $(id).classList.toggle('hidden', id !== screen);
@@ -662,6 +664,28 @@ const closeHowto = () => {
 };
 $('btn-howto-close').addEventListener('click', () => { playUI('click'); closeHowto(); });
 $('howto').addEventListener('click', (e) => { if (e.target === $('howto')) closeHowto(); });
+
+// 업데이트 내역 창 (src/updates.js). 아직 못 본 최신 업데이트가 있으면 아이콘에 N 표시(자동으로 띄우지는 않음).
+const UPD_KEY = 'smash-updates-seen'; // 본 업데이트 id
+function updSeen() {
+  try { return localStorage.getItem('smash-updates-seen') === LATEST_UPDATE; } catch { return true; }
+}
+$('upd-list').innerHTML = UPDATES.map((u, i) => `
+  <section class="upd-day">
+    <h3>${u.date}${u.tag ? ` <span class="upd-tag">${u.tag}</span>` : ''}${i === 0 ? ' <span class="upd-new">NEW</span>' : ''}</h3>
+    <ul class="upd-big">${u.big.map(([ico, t, d]) => `<li><i>${ico}</i><div><b>${t}</b><p>${d}</p></div></li>`).join('')}</ul>
+    ${u.small.length ? `<details><summary>자잘한 변경·고침 ${u.small.length}개</summary><ul>${u.small.map((t) => `<li>${t}</li>`).join('')}</ul></details>` : ''}
+  </section>`).join('');
+$('btn-updates').addEventListener('click', () => {
+  playUI('click');
+  $('upd-list').scrollTop = 0;
+  $('updates').classList.remove('hidden');
+  try { localStorage.setItem(UPD_KEY, LATEST_UPDATE); } catch { /* 무시 */ }
+  $('upd-dot').classList.add('hidden');
+});
+const closeUpdates = () => $('updates').classList.add('hidden');
+$('btn-updates-close').addEventListener('click', () => { playUI('click'); closeUpdates(); });
+$('updates').addEventListener('click', (e) => { if (e.target === $('updates')) closeUpdates(); });
 const showLobby = () => show('lobby');
 
 // 로그인하면 하루 첫 접속 코인 받기 (한국 시간으로 하루 한 번)
@@ -1225,7 +1249,6 @@ $('spot-acts').addEventListener('click', (e) => {
   else if (b.dataset.act === 'sound') { initAudio(); playHit('perfect', null, null, it.sound || null); world.hitFx(world.team[0][0], null, 'perfect'); }
 });
 
-$('btn-shop').addEventListener('click', () => openDress('gacha'));
 $('btn-closet').addEventListener('click', () => openDress('closet'));
 $('btn-dress-back').addEventListener('click', () => { playUI('click'); show('lobby'); });
 $('btn-gacha-1').addEventListener('click', () => doGacha(1));
