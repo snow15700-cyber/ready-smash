@@ -608,3 +608,15 @@ body.watching #exit, body.watching #hint { display: none; }
 .cheer-bar.nope { animation: cheerNope .3s; }
 @keyframes cheerNope { 0%, 100% { transform: translateX(-50%); } 25% { transform: translateX(calc(-50% - 6px)); } 75% { transform: translateX(calc(-50% + 6px)); } }
 @media (max-width: 600px) { .cheer-bar { gap: 5px; padding: 5px 6px; bottom: 112px; } .cheer-bar button { width: 42px; height: 42px; font-size: 21px; } }
+
+/* ───── 관전 다듬기 (4단계) ───── */
+#btn-watch .live-badge { display: inline-block; margin-left: 6px; font-size: 12px; color: #fff; background: #e0453c; border-radius: 999px; padding: 2px 8px; vertical-align: 2px; animation: livePulse 1.6s ease-in-out infinite; }
+@keyframes livePulse { 50% { opacity: .65; } }
+.spec-count { position: absolute; top: 58px; left: 14px; font-size: 14px; color: #fff; background: rgba(43,42,51,.55); border-radius: 999px; padding: 5px 12px; pointer-events: none; }
+body.watching .spec-count { display: none; }
+.watch-switch { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; background: rgba(43,42,51,.55); backdrop-filter: blur(4px); animation: fadeIn .2s; pointer-events: none; }
+.watch-switch span { font-size: 22px; color: #fff; background: rgba(43,42,51,.7); border-radius: 999px; padding: 12px 24px; }
+.watch-switch span i { font-style: normal; opacity: .7; font-size: 16px; margin: 0 4px; }
+.watch-switch.out { opacity: 0; transition: opacity .3s; }
+@keyframes fadeIn { from { opacity: 0; } }
+#btn-watch-other.big { width: auto; font-size: 17px; padding: 12px 16px; }

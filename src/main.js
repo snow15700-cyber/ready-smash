@@ -147,7 +147,8 @@ function show(screen) {
     $('howto').classList.toggle('hidden', seen);
   }
   if (screen !== 'dress') preview = null;
-  if (screen === 'watch') { openLobbyList(); renderWatchList(); } else if (!watch) closeLobbyList();
+  // 방 목록 채널은 로비(경기 중인 방 수 배지)·구경하기 화면·관전 중에만 듣는다
+  if (screen === 'watch') { openLobbyList(); renderWatchList(); } else if (screen === 'lobby') { openLobbyList(); renderLiveBadge(); } else if (!watch) closeLobbyList();
   for (const id of ['login', 'pin-change', 'rank', 'lobby', 'join', 'room', 'dress', 'watch']) $(id).classList.toggle('hidden', id !== screen);
   $('hud').classList.toggle('hidden', screen !== 'hud');
 }
@@ -161,6 +162,7 @@ function stopGame() {
   $('stats').textContent = '';
   $('scoreboard').textContent = '';
   $('result').classList.add('hidden');
+  $('spec-count').classList.add('hidden');
   lastScore = null;
 }
 
@@ -490,6 +492,7 @@ function startOnline(mode, players) {
   });
   hud.stats(game.stats);
   game.onFx = crowdFx;
+  renderSpecCount();
   announce();
   startIntro(players, mine.side, mode); // 3초 소개가 끝나면 match.start (endIntro)
 }
@@ -508,6 +511,7 @@ function startGuestGame(mode, players, mine) {
   game.offset = room.offset;
   hud.stats(game.stats);
   game.onFx = crowdFx;
+  renderSpecCount();
   startIntro(players, mine.side, mode);
 }
 
@@ -567,8 +571,16 @@ function announce() {
 // 관전석 캐릭터 다시 세우기 (방에 있으면 그 방의 관전자, 관전 중이면 나를 포함한 관전자)
 let crowdFake = null; // 시험용 가짜 관전자 (window.__smash.fakeCrowd)
 function refreshCrowd() {
-  if (crowdFake) { crowd.set(crowdFake, myId); return; }
-  crowd.set(room ? room.fans || [] : watch ? watch.fans || [] : [], myId);
+  if (crowdFake) crowd.set(crowdFake, myId);
+  else crowd.set(room ? room.fans || [] : watch ? watch.fans || [] : [], myId);
+  renderSpecCount();
+}
+// 선수 화면: '👀 N명 관전 중' (관전자가 있을 때만)
+function renderSpecCount() {
+  const n = room && game ? (crowdFake || room.fans || []).length : 0;
+  const el = $('spec-count');
+  el.textContent = n ? `👀 ${n}명 관전 중` : '';
+  el.classList.toggle('hidden', !n);
 }
 
 function openLobbyList() {
@@ -595,7 +607,15 @@ function closeLobbyList() {
 }
 const roomsNow = () => lobbyList?.rooms || [];
 const watchInfo = () => (watch ? roomsNow().find((r) => r.code === watch.code) : null);
+// 로비 '👀 구경하기' 버튼의 배지: 지금 경기 중인 방 수
+function renderLiveBadge() {
+  const n = roomsNow().filter((r) => r.inGame).length;
+  const el = $('watch-live');
+  el.textContent = n ? `경기 중 ${n}` : '';
+  el.classList.toggle('hidden', !n);
+}
 function onRooms() {
+  renderLiveBadge();
   if (!$('watch').classList.contains('hidden')) renderWatchList();
   if (watch) onWatchInfo();
 }
@@ -627,6 +647,11 @@ function renderWatchList() {
 function startWatch(code) {
   initAudio();
   playUI('click');
+  // 보던 방에서 다른 방으로: 잠깐 화면을 덮어 자연스럽게 넘어간다
+  if (watch && watch.code !== code) {
+    const r = roomsNow().find((x) => x.code === code);
+    switchFx(r ? (r.inGame ? `${vsHtml(r)} 경기로 이동 중…` : `${esc(r.host)}님의 방으로 이동 중…`) : '다른 방으로 이동 중…');
+  }
   stopWatch();
   leaveRoom();
   stopGame();
@@ -648,6 +673,22 @@ function startWatch(code) {
   document.body.classList.add('watching');
   show('hud');
   onWatchInfo();
+}
+
+let switchTimer = 0;
+function switchFx(html) {
+  const el = $('watch-switch');
+  el.querySelector('span').innerHTML = html;
+  el.classList.remove('hidden', 'out');
+  clearTimeout(switchTimer);
+  switchTimer = setTimeout(endSwitchFx, 1600); // 늦어도 이쯤엔 걷는다
+}
+function endSwitchFx() {
+  const el = $('watch-switch');
+  if (el.classList.contains('hidden') || el.classList.contains('out')) return;
+  clearTimeout(switchTimer);
+  el.classList.add('out');
+  switchTimer = setTimeout(() => el.classList.add('hidden'), 350);
 }
 
 function stopWatch() {
@@ -787,7 +828,10 @@ function renderWatchBar() {
   if (!watch) return;
   const r = watchInfo();
   $('watch-bar').classList.remove('hidden');
-  $('watch-label').innerHTML = `<small>👀 관전 중 · ${modeText(watch.mode || r?.mode)}</small><b>${r ? (r.inGame ? vsHtml(r) : `${esc(r.host)}님의 방`) : '방을 찾는 중…'}</b>`;
+  const rs = roomsNow(), idx = rs.findIndex((x) => x.code === watch.code);
+  const pos = rs.length > 1 && idx >= 0 ? ` · ${idx + 1}/${rs.length}번째 방` : '';
+  if (game || r) endSwitchFx(); // 경기 화면이나 대기 안내가 준비되면 덮개를 걷는다
+  $('watch-label').innerHTML = `<small>👀 관전 중 · ${modeText(watch.mode || r?.mode)}${pos}</small><b>${r ? (r.inGame ? vsHtml(r) : `${esc(r.host)}님의 방`) : '방을 찾는 중…'}</b>`;
   const others = roomsNow().some((x) => x.code !== watch.code);
   $('btn-watch-prev').disabled = $('btn-watch-next').disabled = !others;
   $('watch-cam').classList.toggle('hidden', !game);
@@ -804,7 +848,11 @@ function renderWatchBar() {
   const canJoin = r && !r.inGame && r.n < r.cap;
   $('btn-watch-join').classList.toggle('hidden', !canJoin);
   $('btn-watch-join').classList.toggle('locked', IS_MOBILE);
+  // 다른 방에서 경기 중이면 그쪽으로 가는 버튼을 눈에 띄게
+  const live = rs.filter((x) => x.inGame && x.code !== watch.code).length;
   $('btn-watch-other').disabled = !others;
+  $('btn-watch-other').textContent = live ? `🎲 다른 경기 보기 (경기 중 ${live}곳)` : '🎲 다른 방 구경';
+  $('btn-watch-other').classList.toggle('big', !!live);
 }
 
 function watchStep(d) {
@@ -1359,6 +1407,7 @@ function exitGame() {
 }
 $('exit').addEventListener('click', exitGame);
 window.addEventListener('keydown', (e) => {
+  if (watch && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { watchStep(e.key === 'ArrowLeft' ? -1 : 1); return; }
   if (e.key === 'Escape' && watch) exitWatch();
   else if (e.key === 'Escape' && game && !room) exitGame();
 });

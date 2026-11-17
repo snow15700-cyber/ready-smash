@@ -27,6 +27,7 @@
     <div id="stats"></div>
     <div id="hint"></div>
     <div id="judge"></div>
+    <div id="spec-count" class="spec-count hidden"></div>
     <div id="turn"></div>
     <div id="result" class="hidden"><b id="result-title"></b><span id="result-score"></span></div>
     <button id="exit" class="small">← 나가기</button>
@@ -63,6 +64,8 @@
     <button data-cheer="a" class="team t0" title="A팀 응원 (5)">🚩<small>A팀</small></button>
     <button data-cheer="b" class="team t1" title="B팀 응원 (6)">🚩<small>B팀</small></button>
   </div>
+  <!-- 다른 방으로 넘어갈 때 잠깐 -->
+  <div id="watch-switch" class="watch-switch hidden"><span></span></div>
   <div id="watch-wait" class="panel watch-wait hidden">
     <p id="watch-wait-msg"></p>
     <div class="row">
@@ -217,7 +220,7 @@
         </div>
         <div class="row">
           <button id="btn-join">🔑 코드로 입장</button>
-          <button id="btn-watch">👀 구경하기</button>
+          <button id="btn-watch">👀 구경하기<span id="watch-live" class="live-badge hidden"></span></button>
         </div>
       </div>
       <p class="note soon" id="mode-note"></p>
