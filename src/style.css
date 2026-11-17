@@ -309,6 +309,10 @@ button.ghost:hover:not(:disabled) { color: var(--ink); background: var(--cream);
 .waiting-list b { font-weight: normal; color: var(--ink); background: var(--cream); border-radius: 8px; padding: 2px 7px; margin-left: 4px; }
 .room-panel .note.tiny { margin: -4px 0 0; text-align: right; }
 .room-news { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; width: min(520px, calc(100% - 32px)); background: rgba(255,250,240,.92); border-radius: 18px; padding: 10px 14px; box-shadow: 0 8px 24px rgba(80,50,20,.15); }
+/* 대기실 '로비로 나가기': 회색 글씨만 있으면 버튼인 줄 몰라서 흰 알약으로 */
+button.leave-pill { border-radius: 999px; padding: 7px 14px; font-size: 16px; background: #fff; color: var(--ink); border: 2px solid #e6d7bb; box-shadow: 0 3px 0 rgba(120,80,30,.12); white-space: nowrap; }
+button.leave-pill:hover:not(:disabled) { border-color: #ffbf8f; }
+#btn-room-lobby { margin-top: 4px; }
 .room-news:not(:has(.result:not(.hidden), .coins-got:not(:empty), .h2h:not(:empty))) { display: none; }
 
 .slots { display: flex; align-items: stretch; gap: 10px; }

@@ -574,6 +574,7 @@ function renderRoom() {
     : '방 정보를 불러오는 중…';
   $('room-result').textContent = room.result;
   $('room-result').classList.toggle('hidden', !room.result);
+  $('btn-room-lobby').classList.toggle('hidden', !room.result);
   renderCoins();
 
   // 자리 칸 (안 B): A1 A2 | VS | B1 B2. 칸 바로 위에 그 선수의 3D 캐릭터가 선다 (stageFrame)
@@ -888,7 +889,9 @@ for (const team of [0, 1]) {
     if (el.classList.contains('empty') || el.classList.contains('me')) pickTeam(team);
   });
 }
-$('btn-room-leave').addEventListener('click', () => { playUI('click'); leaveRoom(); show('lobby'); });
+const leaveToLobby = () => { playUI('click'); leaveRoom(); show('lobby'); };
+$('btn-room-leave').addEventListener('click', leaveToLobby);
+$('btn-room-lobby').addEventListener('click', leaveToLobby); // 경기가 끝난 뒤 결과 아래에도
 $('btn-copy').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(room.code); hud.toast('코드를 복사했어요'); } catch {}
 });
