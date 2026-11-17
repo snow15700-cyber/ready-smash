@@ -2,7 +2,7 @@
 // 브라우저에는 '로그인 열쇠(토큰)'만 기억한다. 열쇠가 지워져도 닉네임+PIN으로 다시 로그인하면 된다.
 // 서버 설정이 없으면(로컬 테스트) 브라우저 안의 가짜 서버로 똑같이 동작한다.
 import { ONLINE, getClient } from './net.js';
-import { ITEMS, ITEM, GRADES, GACHA_PRICE, PITY } from './items.js';
+import { ITEMS, ITEM, GRADES, GACHA_PRICE, PITY, poolOpen } from './items.js';
 import { ACH, REWARD, GAG_PADDLES } from './achievements.js';
 
 // ?acct=2 처럼 주소에 붙이면 열쇠를 따로 보관한다 (한 브라우저에서 탭마다 다른 계정으로 테스트할 때)
@@ -471,6 +471,7 @@ function localServer(fn, a) {
     if (!p) out = { status: 'no_session' };
     else if (!cost || !['char', 'arena'].includes(a.p_pool)) out = { status: 'bad' };
     else if (!onSale(a.p_pool).length) out = { status: 'empty' };
+    else if (!poolOpen(a.p_pool)) out = { status: 'closed' }; // 일반 아이템이 들어오기 전엔 잠시 닫힘 (16_gacha_open.sql)
     else if ((p.coins || 0) < cost) out = { status: 'no_coins' };
     else {
       p.owned ||= [];

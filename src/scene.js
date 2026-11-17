@@ -1,6 +1,7 @@
 // Three.js 로우폴리 카툰 체육관, 탁구대, 캐릭터
 import * as THREE from 'three';
 import { createFx } from './fx.js';
+import { buildArena, arenaFromUrl, disposeArena } from './arenas.js';
 import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H, HIT_Z, sideSign } from './physics.js';
 
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts });
@@ -34,15 +35,44 @@ export function createWorld(canvas) {
   sun.shadow.bias = -0.0005;
   scene.add(sun);
 
-  const nBefore = scene.children.length;
-  buildGym(scene);
-  // 몰입 연출용: 체육관(벽·바닥·무대·현수막) 재질의 원래 색을 기억해 두고 setFocus로 어둡게
-  const envMats = [];
-  for (const o of scene.children.slice(nBefore)) {
-    if (o.material && !envMats.some((e) => e.m === o.material)) envMats.push({ m: o.material, c: o.material.color.clone() });
-  }
-  const bg0 = scene.background.clone();
+  // 배경 (경기장 뽑기의 '배경'). 체육관도 배경 하나로 다룬다. setArena(id)로 언제든 바꾼다
+  // 주소에 ?bg=... 가 있으면 그 배경으로 고정 (시안 보기용)
+  const urlBg = arenaFromUrl();
+  const hemi = scene.children.find((o) => o.isHemisphereLight);
+  let arena = null, arenaId = null;
+  // 몰입 연출용: 배경 재질의 원래 색을 기억해 두고 setFocus로 어둡게
+  let envMats = [];
+  let bg0 = scene.background.clone();
   let focusK = 0;
+  function setArena(id) {
+    if (urlBg) id = urlBg;
+    id = id || 'gym';
+    if (id === arenaId) return;
+    const next = id === 'gym' ? null : buildArena(id);
+    if (id !== 'gym' && !next) { if (arenaId) return; id = 'gym'; }
+    // 몰입 연출을 풀어 원래 색으로 되돌린 뒤 옛 배경을 치운다
+    for (const e of envMats) e.m.color.copy(e.c);
+    if (arena) { scene.remove(arena.root); disposeArena(arena.root); }
+    arena = next || gymArena();
+    arenaId = id;
+    scene.add(arena.root);
+    scene.background = new THREE.Color(arena.sky);
+    scene.fog = new THREE.Fog(arena.sky, arena.fog[0], arena.fog[1]);
+    camera.far = arena.far; camera.updateProjectionMatrix();
+    const [hs, hg, hi] = arena.light.hemi;
+    hemi.color.set(hs); hemi.groundColor.set(hg); hemi.intensity = hi;
+    sun.color.set(arena.light.sun[0]); sun.intensity = arena.light.sun[1]; sun.position.set(...arena.light.sun[2]);
+    const b = arena.light.shadow || 5;
+    Object.assign(sun.shadow.camera, { left: -b, right: b, top: b, bottom: -b, far: arena.light.shadow ? 60 : 20 });
+    sun.shadow.camera.updateProjectionMatrix();
+    envMats = [];
+    arena.root.traverse((o) => {
+      if (o.userData.noFocus || !o.material) return;
+      for (const m of [].concat(o.material)) if (m.color && !envMats.some((e) => e.m === m)) envMats.push({ m, c: m.color.clone() });
+    });
+    bg0 = scene.background.clone();
+    if (focusK) { const k = focusK; focusK = -1; world.setFocus(k); }
+  }
   buildTable(scene);
 
   // team[side][slot]: 2v2용으로 한쪽에 두 명씩. chars = 각 쪽 1번 선수 (1v1·AI용)
@@ -102,8 +132,9 @@ export function createWorld(canvas) {
   const fx = createFx(scene);
   const fxPos = new THREE.Vector3();
   let fxLast = 0;
+  let ballPrevY = 0, ballPrevVy = 0;
 
-  return {
+  const world = {
     renderer, scene, camera, chars, team, ball, shadow, ring, ringMove, aim,
     shake: 0,
     // 몰입 정도 k (0~1): 체육관을 어둡게 해서 선수·탁구대·공만 보이게
@@ -198,10 +229,21 @@ export function createWorld(canvas) {
       const dt = Math.min(0.1, t - fxLast || 0.016);
       fxLast = t;
       for (const side of team) for (const c of side) if (c.group.visible) c.paddleModel?.userData.tick?.(t, dt);
+      if (arena) {
+        // 공이 막 튄 순간(아래로 가다 위로) → 반려동물이 반응
+        const vy = ball.position.y - ballPrevY;
+        const bounce = ball.visible && ballPrevVy < -0.0005 && vy > 0 ? 1 : 0;
+        ballPrevVy = vy; ballPrevY = ball.position.y;
+        arena.tick?.(t, dt, ball.visible ? ball.position : null, bounce);
+      }
       fx.update(dt);
       renderer.render(scene, camera);
     },
+    setArena,
+    get arenaId() { return arenaId; },
   };
+  setArena(null);
+  return world;
 }
 
 function canvasTex(w, h, draw) {
@@ -214,7 +256,19 @@ function canvasTex(w, h, draw) {
   return t;
 }
 
-function buildGym(scene) {
+// 기본 배경: 체육관·강당 (배경 하나처럼 { root, sky, fog, far, light })
+function gymArena() {
+  return {
+    root: buildGym(),
+    sky: '#efe3cc',
+    fog: [18, 40],
+    far: 80,
+    light: { hemi: ['#fff7ea', '#b98f62', 1.6], sun: ['#fff1dc', 1.6, [-3, 8, 4]] },
+  };
+}
+
+function buildGym() {
+  const scene = new THREE.Group(); // 아래 코드는 이 묶음에 붙인다
   const W = 22, D = 30, H = 9;
   // 나무 바닥 + 코트 라인
   const floorTex = canvasTex(1024, 1400, (g, w, h) => {
@@ -272,6 +326,7 @@ function buildGym(scene) {
   const ban = new THREE.Mesh(new THREE.PlaneGeometry(7, 1.1), new THREE.MeshBasicMaterial({ map: banner }));
   ban.position.set(0, 8, -D / 2 + 0.2);
   scene.add(ban);
+  return scene;
 }
 
 function buildTable(scene) {

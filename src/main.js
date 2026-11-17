@@ -8,7 +8,7 @@ import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
 import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, newMatchId, matchJoin, matchFinish, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking, checkAch, setTitle, myTitle, matchAch, matchPeople, aiAch } from './account.js';
 import { ACHS, ACH, ACH_CATS, REWARD, titleText } from './achievements.js';
 
-import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLook, swatch, equipped } from './items.js';
+import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLook, swatch, equipped, arenaOf, poolOpen } from './items.js';
 
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('c'));
@@ -599,6 +599,9 @@ function renderRoom() {
   $('room-members').innerHTML = none.length ? `팀 고르는 중${none.map((m) => `<b>${esc(m.nick)}${m.id === myId ? '(나)' : ''}</b>`).join('')}` : '';
   renderStageLabels();
   $('room-hint').textContent = room.teams[myId] ? '🏓 화면을 누른 채 위로 밀면 연습 스윙!' : '👇 아래 빈 칸을 눌러 팀을 골라 주세요';
+  // 배경은 방장 것이 모두에게 보인다 (방장이 바꾸면 다음 입장부터)
+  const bgIt = equipped(room.hostM?.look, 'bg');
+  $('room-bg').textContent = `🏟️ ${bgIt.name} · ${room.host ? '내 배경' : '방장 배경'}`;
 
   const full = room.mode && isFull();
   $('btn-start').classList.toggle('hidden', !room.host);
@@ -922,6 +925,7 @@ const SHOP_MSG = {
   no_coins: '코인이 모자라요',
   no_pieces: '조각이 모자라요',
   empty: '아직 이 뽑기에는 아이템이 없어요',
+  closed: '이 뽑기는 잠시 닫혀 있어요',
   owned: '이미 가지고 있어요',
   not_owned: '가지고 있지 않은 아이템이에요',
   no_session: '로그인이 풀렸어요. 다시 로그인해 주세요',
@@ -1047,8 +1051,14 @@ function renderGacha() {
   const coins = account.player?.coins ?? 0;
   const ready = !!account.shop;
   const head = `<b>${POOLS[pool].icon} ${POOLS[pool].name}</b><span class="g-cats">${POOLS[pool].desc}</span>`;
+  const open = poolOpen(pool);
   if (!items.length) {
     $('gacha-desc').innerHTML = `${head}<p class="soon-box">곧 열려요! 아직 아이템을 만드는 중이에요 🛠️</p>`;
+  } else if (!open) {
+    // 잠시 닫힘 (일반 아이템이 아직 없음). 무엇이 들어 있는지는 보여 주고, 누르면 왼쪽 '크게 보기'에
+    const list = items.map((it) => `<li class="g-${it.grade}" data-id="${it.id}">${swatch(it)}<span>${esc(it.name)}</span></li>`).join('');
+    $('gacha-desc').innerHTML = `${head}<p class="soon-box">🔒 잠시 닫혀 있어요<br><small>일반 아이템이 들어오면 열려요</small></p>`
+      + `<div class="pity-row">지금 들어 있는 것 ${items.length}종</div><ul class="pool-peek">${list}</ul>`;
   } else {
     const hasLegend = items.some((i) => i.grade === 'legend');
     const used = account.shop?.pity[pool] ?? 0;
@@ -1059,8 +1069,8 @@ function renderGacha() {
         : '<div class="pity-row">전설 아이템은 아직 준비 중이에요</div>')
       + `<small>지금 들어 있는 것 ${items.length}종 · 중복이면 🧩 조각으로 바뀌어요</small>`;
   }
-  $('btn-gacha-1').disabled = shopBusy || !ready || !items.length || coins < GACHA_PRICE[1];
-  $('btn-gacha-10').disabled = shopBusy || !ready || !items.length || coins < GACHA_PRICE[10];
+  $('btn-gacha-1').disabled = shopBusy || !ready || !open || coins < GACHA_PRICE[1];
+  $('btn-gacha-10').disabled = shopBusy || !ready || !open || coins < GACHA_PRICE[10];
 }
 
 async function doGacha(count) {
@@ -1181,6 +1191,14 @@ $('item-grid').addEventListener('click', (e) => {
   select(it.id);
   setMsg(owns(it.id) ? '' : '🔒 아직 없어요. 왼쪽 카드에서 바로 사거나 뽑기로 얻을 수 있어요');
   renderDress();
+});
+// 닫힌 뽑기의 '지금 들어 있는 것' 목록: 누르면 왼쪽 '크게 보기'에 (배경이면 미리 보기)
+$('gacha-desc').addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-id]');
+  if (!li || shopBusy) return;
+  playUI('click');
+  select(li.dataset.id);
+  renderSpot();
 });
 $('gacha-result').addEventListener('click', (e) => {
   const li = e.target.closest('li[data-id]');
@@ -1633,8 +1651,10 @@ function loop() {
   const odt = Math.min(0.1, now - (loop.last || now));
   loop.last = now;
   for (const side of world.team) for (const c of side) if (c.group.visible) c.tickOutfit(now, odt);
+  // 배경: 방(대기실·경기)에서는 방장이 장착한 배경을 모두에게, 그 밖(로비·꾸미기·혼자 하기)은 내 것(입어 보는 중이면 그것)
+  world.setArena(arenaOf(room ? room.hostM?.look : preview && !game ? preview.look : myEquip()));
   world.render();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
-window.__smash = { PV, STAGE, INTRO, world, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; } };
+window.__smash = { PV, STAGE, INTRO, world, shop: { testCoins, gacha, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; } };
