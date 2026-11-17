@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { seeded, canvasTex, glowSprite, std, addBox, petYaw, makeFacade } from './arena-kit.js';
 import { buildCorgi, buildCat } from './arena-pets.js';
 import { makeCar, CAR_TYPES } from './arena-cars.js';
+import { bakeArena } from './arena-bake.js';
 
 /* ================= 도시 (빌딩·신호등·가로등) ================= */
 
@@ -327,8 +328,16 @@ export function arenaFromUrl() {
 export function buildArena(id) {
   const f = ARENAS[id];
   if (!f) return null;
+  const tb = performance.now();
   const a = f();
+  const buildMs = Math.round(performance.now() - tb);
   a.root.traverse((o) => { if (o.isMesh && !o.castShadow) o.receiveShadow = true; });
+  // 움직이지 않는 것을 재질별로 합쳐 가볍게 (주소에 ?nobake=1이면 비교용으로 끔)
+  if (!/[?&]nobake=1/.test(location.search)) {
+    const t0 = performance.now();
+    const r = bakeArena(a, id);
+    a.bake = { ...r, ms: Math.round(performance.now() - t0), buildMs };
+  }
   return a;
 }
 

@@ -287,6 +287,7 @@ export function createWorld(canvas) {
     },
     setArena,
     get arenaId() { return arenaId; },
+    get arena() { return arena; },
   };
   setArena(null);
   return world;

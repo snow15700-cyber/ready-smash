@@ -1666,7 +1666,28 @@ function loop() {
   world.setBallSkin(ballOf(arenaLook)); // 탁구공도 배경처럼: 방에서는 방장 것
 
   world.render();
+  if (perf) perf.frame(now);
   requestAnimationFrame(loop);
 }
+
+// 프레임 측정 (최적화 ④): 주소에 ?fps=1을 붙이면 왼쪽 아래에 초당 프레임·가장 느린 프레임·그리기 호출 수가 뜬다
+// 0.5초마다 갱신. 느린 PC에서 어떤 배경·화면이 무거운지 직접 확인하는 용도 (일반 사용자에게는 안 보임)
+const perf = new URLSearchParams(location.search).has('fps') ? (() => {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:9999;padding:6px 9px;border-radius:8px;background:rgba(0,0,0,.72);color:#fff;font:12px/1.45 ui-monospace,monospace;pointer-events:none;white-space:pre';
+  document.body.appendChild(el);
+  let t0 = 0, n = 0, last = 0, worst = 0;
+  return {
+    frame(now) {
+      if (last) worst = Math.max(worst, now - last);
+      last = now; n++;
+      if (!t0) t0 = now;
+      if (now - t0 < 0.5) return;
+      const fps = n / (now - t0), info = world.renderer.info.render, b = world.arena?.bake;
+      el.textContent = `${fps.toFixed(0)} fps  (가장 느린 프레임 ${(worst * 1000).toFixed(0)}ms)\n그리기 ${info.calls}회 · 삼각형 ${(info.triangles / 1000).toFixed(0)}k\n배경 ${world.arenaId}` + (b ? ` · 합침 ${b.removed}→${b.added} (${b.ms}ms)` : '');
+      t0 = now; n = 0; worst = 0;
+    },
+  };
+})() : null;
 requestAnimationFrame(loop);
 window.__smash = { PV, STAGE, INTRO, world, shop: { testCoins, gacha, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; } };
