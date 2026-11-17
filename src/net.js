@@ -88,7 +88,8 @@ function openShared(name, after) {
       }
     });
   };
-  if (after) after.finally(start); else start();
+  // 처음 들어온 사람이 등록된 다음에 연다 (바로 열면 '쓰는 사람 없음'으로 보고 연결을 안 했다)
+  if (after) after.finally(start); else queueMicrotask(start);
   return e;
 }
 
