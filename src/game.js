@@ -1,5 +1,5 @@
 // 화면 쪽 게임: 이벤트를 받아 공·캐릭터·소리·링을 그리고, 내 입력을 판정해 보낸다
-import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, WIN, HOLD } from './physics.js';
+import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, WIN, WIN_LATE, winFor, HOLD } from './physics.js';
 import { PADDLE_OFFSET, CHAR_Z } from './scene.js';
 import { applyLook } from './items.js';
 import { computeShot, hitOrder } from './match.js';
@@ -441,7 +441,7 @@ export class Game {
     // 타이밍 링
     const showRing = ex && this.isMe(ex.side, ex.slot) && !ex.whiffed && (this.phase === 'toss' || this.phase === 'rally');
     const remain = ex ? ex.t - now : 9;
-    if (showRing && remain < 0.95 && remain > -WIN.bad) {
+    if (showRing && remain < 0.95 && remain > -WIN_LATE.bad) {
       w.ring.visible = true;
       // 칠 자리가 화면 밖(사이드)이어도 링은 화면 안 가장자리에 붙여서 보이게 한다
       // (카메라 기준 좌표로 바꿔서: 너무 가깝거나 뒤에 있으면 앞으로 밀고, 화면 밖이면 가장자리 안쪽으로)
@@ -459,7 +459,8 @@ export class Game {
       w.ring.quaternion.copy(cam.quaternion); // 화면을 정면으로 보게 (가장자리에서도 동그랗게)
       const k = 1 + Math.max(0, remain) * 3.4;
       w.ringMove.scale.setScalar(k);
-      const col = Math.abs(remain) <= WIN.perfect ? '#5dff8a' : Math.abs(remain) <= WIN.good ? '#ffe24d' : '#ffb347';
+      const rw = winFor(-remain);
+      const col = Math.abs(remain) <= rw.perfect ? '#5dff8a' : Math.abs(remain) <= rw.good ? '#ffe24d' : '#ffb347';
       w.ringMove.material.color.set(col);
     } else w.ring.visible = false;
 

@@ -18,6 +18,10 @@ export const sideSign = (side) => (side === 0 ? 1 : -1);
 export const HOLD = 0.09;
 
 export const WIN = { perfect: 0.045, good: 0.1, bad: 0.17, whiff: 0.5 };
+// 늦게 친 쪽은 더 좁게 (공이 몸을 지나간 뒤에 넘어가지 않게). bad를 넘기면 블록도 놓침
+export const WIN_LATE = { perfect: 0.035, good: 0.07, bad: 0.11 };
+// dt(클릭 - 이상적인 시각)가 늦었으면 늦은 쪽 범위
+export const winFor = (dt) => (dt > 0 ? WIN_LATE : WIN);
 
 const E_TABLE = 0.8;
 // 스매시는 상대 탁구대에 처음 맞을 때 덜 튀어서 낮고 빠르게 깔려 온다 (높이 뜨지 않게)
@@ -219,10 +223,11 @@ export function planShot(from, hitter, grade, dir, seed, serve = false, speed = 
 
 export function judge(dt, isSwing) {
   const a = Math.abs(dt);
+  const w = winFor(dt);
   if (dt < -WIN.whiff) return 'early'; // 너무 이름: 무시
-  if (a > WIN.bad) return 'miss';
+  if (a > w.bad) return 'miss';
   if (!isSwing) return 'block';
-  if (a <= WIN.perfect) return 'perfect';
-  if (a <= WIN.good) return 'good';
+  if (a <= w.perfect) return 'perfect';
+  if (a <= w.good) return 'good';
   return 'bad';
 }
