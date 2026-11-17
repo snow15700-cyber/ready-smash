@@ -41,7 +41,7 @@
   - 로컬 테스트에서 탭마다 다른 계정: 주소에 `?acct=2`(로그인 열쇠를 따로 보관).
 - 3단계 랭킹: `supabase/03_ranking.sql`의 `pingpong_ranking('wins'|'rally')`(로그인 없이 호출, 닉네임과 숫자만, 상위 50, 같은 기록은 공동 등수). 로비 '🏆 랭킹' 버튼 → `#rank` 화면(승수/최장 랠리 탭, 1~3위 메달, 내 줄 강조). `main.js`의 `showRank`.
 - 알려진 문제: Vercel 미리보기(test)에서 Supabase 환경 변수가 안 들어가 '테스트 모드' 경고가 뜬다(사용자가 Preview 체크했는데도 원인 미해결). 서버 기능은 main 배포에서 확인.
-- 새 SQL은 `11_...sql`처럼 새 파일로 추가. SQL은 로컬 PostgreSQL 16으로 먼저 시험할 수 있다(`service postgresql start`, `extensions` 스키마와 `anon` 역할을 만들어 흉내).
+- 새 SQL은 `12_...sql`처럼 새 파일로 추가. SQL은 로컬 PostgreSQL 16으로 먼저 시험할 수 있다(`service postgresql start`, `extensions` 스키마와 `anon` 역할을 만들어 흉내).
 
 ## 상점·꾸미기 (① 코인, ② 상점·옷장 완료 — test에서 사용자 테스트 중)
 - 설계는 기획서 4장. 순서: ① 코인 벌기 → ② 상점·옷장 화면 → ③ 카테고리 하나씩(탁구채부터). 단계마다 사용자 테스트.
@@ -119,12 +119,14 @@
 - 그림은 로비 장면을 Playwright로 찍고(팀원 한 명씩 더 세움) HTML로 제목을 얹어 캡처해서 만들었다.
 - 카톡은 미리보기를 기억해 둔다 → 바꾼 뒤엔 카카오 공유 디버거(developers.kakao.com/tool/debugger/sharing)에서 '캐시 초기화'.
 
-## 업적·칭호 (① test에서 사용자 테스트 중)
-- 전체 목록·규칙은 **기획서 11장**. 사용자 확정: 목록 전부 추가(처음 20개 계획 폐기), 놀림형 칭호 OK(꾸미기 '🏅 칭호' 탭에서 언제든 바꾸기), 보상 ★20/★★50/★★★150코인, 이름표 **B안(두 줄, 칭호 알약)** — 칭호 알약은 모두 남색 `#3d3b5c`(노란 강조·팀 색과 안 겹치게).
-- **① 완료**: `supabase/10_achievements.sql`(09 다음). 표 `pingpong_ach`(id·grade)·`pingpong_ach_got`, 선수 `title`(업적 id). `pingpong__ach_check`가 이미 있는 기록(승패·지금 연승·1v1 상대 전적·혼자 하기 최장 랠리·가진 아이템)으로 깰 수 있는 16개를 지급(`live: true`). 함수 `pingpong_achievements`(목록 + 새로 깬 것 `new`)·`pingpong_set_title`. 랭킹에 `title` 추가.
-  - 목록은 두 곳: `src/achievements.js`(`ACHS`: 이름·칭호·조건·등급·hidden·live)와 SQL insert. 천적 「○○ 공포증」은 이름이 들어가야 해서 나중에.
-  - 화면: `main.js`의 `runAchCheck`(로그인 직후·경기 뒤 2.9초·혼자 하기 최고 기록·뽑기·구매 뒤) → `#ach-pop` 알림(3개 이상이면 한 장으로 묶음, 결과 띠가 사라진 뒤). 꾸미기 `tab-title`/`#pane-title`(`renderTitles`, 숨은 업적 '???', 아직 못 세는 업적은 '준비 중'). 칭호 표시 `tpill`: 대기실 이름표·VS 소개·랭킹, 게임 속 이름표(2v2 상대 팀, `char.setTag(name, next, title)`, `Game`의 `playerTitles`). presence에 `title`.
-- 다음: ② 경기 기록 보내기(판정·방향·스매시·서브·점수 흐름) → ③ 관계·수집·출석·숨은 업적 → ④ 연출.
+## 업적·칭호 (①② test에서 사용자 테스트 중)
+- 전체 목록·규칙은 **기획서 11장**. 사용자 확정: 목록 전부 추가, 놀림형 칭호 OK, **칭호는 하나만** 달고 꾸미기 '🏅 칭호' 탭에서 언제든 바꾸기, 보상 ★20/★★50/★★★150코인, 이름표 **B안(두 줄, 칭호 알약)** — 칭호 알약은 모두 남색 `#3d3b5c`.
+- **숨은 업적 없음**(사용자 확정): 업적 이름·조건은 모두 보이고, **칭호 글자만 깨기 전에 '칭호 ???'**.
+- ① `supabase/10_achievements.sql`: 표 `pingpong_ach`(id·grade)·`pingpong_ach_got`, 선수 `title`. 함수 `pingpong_achievements`(목록 + 새로 깬 것 `new`)·`pingpong_set_title`. 랭킹에 `title`.
+- ② `supabase/11_ach_match.sql`(10 다음): 선수 `ach_n`(누적 숫자 jsonb)·`ach_at`(10초 규칙). `pingpong_ach_match(token, mode, won, stats)` — 한 경기 업적은 바로, 누적은 `ach_n`에 더한 뒤 `pingpong__ach_check`(10의 것 + 누적)로. 지급은 `pingpong__ach_grant`. 오리·빵 탁구채 업적은 서버의 `equip`, 하루 판 수·아침 9시는 서버 시각(한국).
+  - 화면: `game.js`의 `trackAch`(모든 이벤트에서 내 기록: 판정·방향(`lastLocal`)·타이밍·스매시·찬스볼·서브·점수 흐름·2v2 내 득점) → `achSummary(score)` → `main.js` `saveResult` → `achMatch`. 혼자 하기는 `onRally`에서 친 횟수 1 이하면 `achMatch('ai', …, {aizero:1})`.
+  - 목록은 두 곳: `src/achievements.js`(`ACHS`, `live` = 지금 셀 수 있음)와 SQL insert. 로컬 가짜 서버는 `account.js`의 `localAchMatch`(같은 규칙).
+- 아직 '준비 중'(③): 천적 「○○ 공포증」·복수 성공·환상의 짝꿍(사람 관계), 뽑기 중독, 출석 2개.
 
 ## 사용자가 확정한 결정 (바꾸기 전에 사용자에게 확인)
 - 캐릭터: 흰색 몸통+흰색 머리만, 팔 없음, 탁구채만 떠 있음. **내 캐릭터는 반투명**(0.38), 상대·팀원은 불투명. 탁구채 기본은 빨강, 옷장에서 장착한 것으로 바뀐다(`items.js`).

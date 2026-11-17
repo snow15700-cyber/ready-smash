@@ -213,6 +213,11 @@ export async function setTitle(id) {
   if (!account.loggedIn) return { status: 'guest' };
   return takeAch(await call('pingpong_set_title', { p_token: token(), p_ach: id }));
 }
+// 경기 업적 기록 보내기 (supabase/11_ach_match.sql). mode '1v1'|'2v2'|'ai', s = game.achSummary()
+export async function achMatch(mode, won, s) {
+  if (!account.loggedIn) return { status: 'guest', new: [] };
+  return takeAch(await call('pingpong_ach_match', { p_token: token(), p_mode: mode, p_won: won, p_s: s }));
+}
 export const myTitle = () => (account.loggedIn && account.player?.title) || null;
 
 /* ───────── 랭킹 (손님도 볼 수 있음) ───────── */
@@ -223,6 +228,50 @@ export async function getRanking(kind) {
 }
 
 /* ───────── 로컬 테스트용 가짜 서버 (서버 함수와 같은 규칙) ───────── */
+// pingpong_ach_match와 같은 규칙 (한 경기 업적은 grant, 누적 숫자는 p.achN)
+function localAchMatch(p, a, now, grant) {
+  const s = a.p_s || {};
+  const n = (k, hi) => Math.min(Math.max(Number.isFinite(s[k]) ? Math.floor(s[k]) : 0, 0), hi);
+  const N = p.achN;
+  if (a.p_mode === 'ai') {
+    if (n('aizero', 1) && !(p.achAt > now - 1000)) { N.aizero = (N.aizero || 0) + 1; p.achAt = now; }
+    return { status: 'ok' };
+  }
+  if (!['1v1', '2v2'].includes(a.p_mode)) return { status: 'bad' };
+  if (p.achAt > now - 10000) return { status: 'too_soon' };
+  p.achAt = now;
+  const won = !!a.p_won, two = a.p_mode === '2v2';
+  const hits = n('hits', 300), perfects = Math.min(n('perfects', 300), hits), me = n('scoreMe', 50), opp = n('scoreOpp', 50);
+  const paddle = p.equip?.paddle;
+  const ok = {
+    perf3: n('perfMax', 300) >= 3, perf10: n('perfMax', 300) >= 10, perf70: hits > 10 && perfects >= hits * 0.7,
+    block3: n('blockPts', 50) >= 3, zigzag: n('zig', 1) === 1, oneway: n('dirMax', 300) >= 15,
+    noblock: won && hits > 0 && n('blocks', 300) === 0, smash1: n('smashes', 300) >= 1, smashback: n('smashBack', 300) >= 1,
+    santa: n('given', 300) >= 5, rally15: n('rallyMax', 1000) >= 15, rally30: n('rallyMax', 1000) >= 30,
+    servesafe: won && n('serves', 50) >= 1 && n('serveFaults', 50) === 0, tosser: n('tossMax', 100) >= 3, windserve: n('serveFaults', 50) >= 3,
+    comeback: won && n('maxDeficit', 50) >= 3, shutout: won && me >= 5 && opp === 0, blown: !won && n('led40', 1) === 1,
+    zero: !won && me === 0 && opp >= 5, whiff3: n('whiffLost', 50) >= 3,
+    carry: two && n('teamPts', 50) >= 4 && n('myPts', 50) >= n('teamPts', 50) * 0.8, bus: two && won && n('myPts', 50) === 0,
+    early9: won && new Date(now + 9 * 3600e3).getUTCHours() < 9,
+  };
+  const add = (k, v) => { N[k] = (N[k] || 0) + v; };
+  add('perfects', perfects); add('centers', Math.min(n('centers', 300), hits)); add('smash_pts', n('smashPts', 50));
+  add('quick', n('quickPts', 50)); add('aces', n('aces', 50)); add('deuce_wins', won && n('deuce', 1) ? 1 : 0);
+  add('duck_wins', won && paddle === 'paddle_duck' ? 1 : 0);
+  add('bread_perf', ['paddle_toast', 'paddle_baguette', 'paddle_donut', 'paddle_waffle', 'paddle_pizza'].includes(paddle) ? perfects : 0);
+  const today = new Date(now + 9 * 3600e3).toISOString().slice(0, 10);
+  N.day_n = (N.day === today ? N.day_n || 0 : 0) + 1; N.day = today;
+  let run = N.chance_run || 0;
+  for (const c of (Array.isArray(s.chances) ? s.chances : []).slice(0, 50)) {
+    if (c === 1) { run++; if (run >= 10) ok.chance10 = true; } else run = 0;
+  }
+  N.chance_run = run;
+  const dn = n('dtN', 300);
+  add('dt_n', dn); add('dt_sum', Math.round(Math.max(Math.min(Number(s.dtSum) || 0, dn * 150), -dn * 150)));
+  grant(Object.keys(ok).filter((id) => ok[id]));
+  return { status: 'ok' };
+}
+
 const LOCAL_DB = 'smash-local-db';
 function localServer(fn, a) {
   let db;
@@ -403,13 +452,25 @@ function localServer(fn, a) {
       .slice(0, 50);
     rows.forEach((x, i) => { x.rank = i && rows[i - 1].value === x.value ? rows[i - 1].rank : i + 1; });
     return rows;
-  } else if (fn === 'pingpong_achievements' || fn === 'pingpong_set_title') {
+  } else if (fn === 'pingpong_achievements' || fn === 'pingpong_set_title' || fn === 'pingpong_ach_match') {
     const p = me();
     if (!p) out = { status: 'no_session' };
     else {
       p.ach ||= {};
+      p.achN ||= {};
       const fresh = [];
-      if (fn === 'pingpong_achievements') {
+      const grant = (ids) => {
+        for (const id of ids) {
+          if (p.ach[id] || !ACH[id]) continue;
+          p.ach[id] = new Date(now).toISOString();
+          p.coins = (p.coins || 0) + REWARD[ACH[id].grade];
+          fresh.push({ id, coins: REWARD[ACH[id].grade] });
+        }
+      };
+      if (fn === 'pingpong_ach_match') out = localAchMatch(p, a, now, grant);
+      if (fn === 'pingpong_ach_match' && out.status !== 'ok') { /* too_soon 등 */ }
+      else if (fn !== 'pingpong_set_title') {
+        const N = (k) => p.achN[k] || 0;
         const w = (p.w1 || 0) + (p.w2 || 0), l = (p.l1 || 0) + (p.l2 || 0);
         const hs = Object.entries(db.h2h).filter(([k]) => k.startsWith(p.id + '>')).map(([, h]) => h);
         const owned = p.owned || [];
@@ -420,13 +481,12 @@ function localServer(fn, a) {
           ai20: (p.best || 0) >= 20, ai50: (p.best || 0) >= 50, ai100: (p.best || 0) >= 100,
           own10: owned.length >= 10, legend1: owned.some((id) => ITEM[id]?.grade === 'legend'),
           gag15: GAG_PADDLES.every((id) => owned.includes(id)),
+          perf500: N('perfects') >= 500, center300: N('centers') >= 300, smash30: N('smash_pts') >= 30, chance10: N('chance_run') >= 10,
+          quick5: N('quick') >= 5, ace20: N('aces') >= 20, deuce5: N('deuce_wins') >= 5, aizero: N('aizero') >= 5,
+          duck10: N('duck_wins') >= 10, bread100: N('bread_perf') >= 100, day20: N('day_n') >= 20,
+          early: N('dt_n') >= 50 && N('dt_sum') / N('dt_n') < -50, late: N('dt_n') >= 50 && N('dt_sum') / N('dt_n') > 50,
         };
-        for (const [id, yes] of Object.entries(ok)) {
-          if (!yes || p.ach[id] || !ACH[id]) continue;
-          p.ach[id] = new Date(now).toISOString();
-          p.coins = (p.coins || 0) + REWARD[ACH[id].grade];
-          fresh.push({ id, coins: REWARD[ACH[id].grade] });
-        }
+        grant(Object.keys(ok).filter((id) => ok[id]));
         out = { status: 'ok' };
       } else if (a.p_ach != null && !p.ach[a.p_ach]) out = { status: 'not_owned' };
       else { p.title = a.p_ach; out = { status: 'ok' }; }

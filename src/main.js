@@ -5,7 +5,7 @@ import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, playHit, setEcho, setQuiet, setListener } from './audio.js';
 import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
-import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking, checkAch, setTitle, myTitle } from './account.js';
+import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, recordMatch, finishMatch, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, recordRally, getH2H, getRanking, checkAch, setTitle, myTitle, achMatch } from './account.js';
 import { ACHS, ACH, ACH_CATS, REWARD, titleText } from './achievements.js';
 
 import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLook, swatch, equipped } from './items.js';
@@ -105,7 +105,7 @@ const hud = {
     clearTimeout(resultTimer);
     resultTimer = setTimeout(() => el.classList.add('hidden'), 2700);
     if (room) {
-      saveResult(room.mode, win, game.stats);
+      saveResult(room.mode, win, game.stats, game.achSummary(score));
       room.result = win ? `🏆 승리! ${score[me]} : ${score[1 - me]}` : `😢 패배 ${score[me]} : ${score[1 - me]}`;
       setTimeout(() => { if (room && room.inGame) backToRoom(); }, 2800);
     }
@@ -172,6 +172,8 @@ function startAI() {
     // 랠리가 끝날 때마다 친 횟수만큼 코인 (4번에 1코인, 서버가 계산)
     onRally: async (hits) => {
       const g = game;
+      // 김제빵의 첫 공을 못 받고 끝남 (업적 '첫 공 실수')
+      if (hits <= 1 && account.loggedIn) achMatch('ai', false, { aizero: 1 }).then(gotAch);
       const got = await aiRally(hits);
       if (!got) return;
       aiCoins += got;
@@ -494,7 +496,7 @@ function renderPing() {
 
 /* ───────── 전적 ───────── */
 // 경기가 끝나면 내 PC가 내 결과만 기록한다. 1v1이면 상대의 선수 번호(pid)도 함께 (상대 전적)
-async function saveResult(mode, win, stats) {
+async function saveResult(mode, win, stats, achStats) {
   if (!account.loggedIn) return;
   const r0 = room;
   const opp = mode === '1v1' ? oppMember() : null;
@@ -509,7 +511,12 @@ async function saveResult(mode, win, stats) {
       renderRoom();
       if (r.coins && !room.inGame) playUI('coin');
     }
-    runAchCheck(2900); // 결과 띠가 사라진 뒤 '🏅 업적 달성!'
+  }
+  // 경기 기록으로 깬 업적 (결과 띠가 사라진 뒤 '🏅 업적 달성!')
+  if (r.status === 'ok' || r.status === 'too_soon') {
+    const ra = await achMatch(mode, win, achStats || {});
+    if (ra.status === 'ok') gotAch(ra);
+    else runAchCheck();
   } else if (r.status !== 'too_soon') hud.toast('전적을 저장하지 못했어요 (인터넷 연결 확인)', 2600);
 }
 
@@ -1202,15 +1209,20 @@ function runAchCheck(delay = 0) {
   if (!account.loggedIn) return;
   clearTimeout(achTimer);
   achTimer = setTimeout(async () => {
-    const r = await checkAch();
-    if (r.status !== 'ok') return;
+    gotAch(await checkAch());
+  }, delay);
+}
+// 서버가 알려 준 새 업적을 알림 줄에 넣기
+function gotAch(r) {
+  if (r.status !== 'ok') return;
+  {
     if (r.new?.length) {
       achPop.queue.push(...r.new.filter((n) => ACH[n.id]));
       showAchPop();
       if (!$('lobby').classList.contains('hidden')) renderMe();
     }
     if (!$('dress').classList.contains('hidden')) renderDress();
-  }, delay);
+  }
 }
 function showAchPop() {
   if (achPop.busy) return;
@@ -1244,7 +1256,7 @@ function showAchPop() {
   }, 3200);
 }
 
-// 꾸미기 '🏅 칭호' 탭: 지금 단 칭호 + 분류별 업적 목록 (깬 것은 '달기', 숨은 업적은 '???')
+// 꾸미기 '🏅 칭호' 탭: 지금 단 칭호 + 분류별 업적 목록 (깬 것은 '달기'. 칭호 글자는 깨기 전에 '???')
 let titleBusy = false;
 function renderTitles() {
   const got = account.ach?.got;
@@ -1259,16 +1271,16 @@ function renderTitles() {
     html += `<h4>${catName}</h4><ul>`;
     for (const a of ACHS.filter((x) => x.cat === cat)) {
       const have = got.has(a.id);
-      const secret = a.hidden && !have;
+
       const on = cur === a.id;
       let right;
       if (on) right = '<span class="t-on">✓ 달고 있음</span>';
       else if (have) right = `<button class="small primary" data-title="${a.id}" ${titleBusy ? 'disabled' : ''}>달기</button>`;
       else right = `<span class="t-lock">🔒 🪙 ${REWARD[a.grade]}${a.live ? '' : '<small>준비 중</small>'}</span>`;
       html += `<li class="ach${have ? ' got' : ''}${on ? ' on' : ''}"><div class="a-main">`
-        + `<div class="a-name">${secret ? '???' : esc(a.name)} <span class="stars">${'★'.repeat(a.grade)}</span></div>`
-        + `<div class="a-cond">${secret ? '숨은 업적이에요. 깨면 보여요' : esc(a.cond)}</div>`
-        + `<span class="tpill${have ? '' : ' off'}">${secret ? '???' : esc(a.title)}</span></div>${right}</li>`;
+        + `<div class="a-name">${esc(a.name)} <span class="stars">${'★'.repeat(a.grade)}</span></div>`
+        + `<div class="a-cond">${esc(a.cond)}</div>`
+        + `<span class="tpill${have ? '' : ' off'}">${have ? esc(a.title) : '칭호 ???'}</span></div>${right}</li>`;
     }
     html += '</ul>';
   }
