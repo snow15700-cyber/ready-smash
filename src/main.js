@@ -992,14 +992,15 @@ function renderDress() {
   renderSpot();
 }
 
-// 카테고리 칩 (아이템이 아직 없는 카테고리는 '곧'). 열린 카테고리를 앞에, 칩이 많으면 두 줄로 (가로로 숨지 않게)
+// 카테고리 칩: 첫 줄 = 캐릭터(탁구채·몸·머리·궤적), 둘째 줄 = 경기장(배경·탁구공·탁구대) (사용자 확정)
+// 아이템이 아직 없는 카테고리는 흐리게 잠금 (글자 '곧'은 안 씀)
+const CHIP_ROWS = [['paddle', 'body', 'head', 'trail'], ['bg', 'ball', 'table']];
 function renderChips() {
   const has = (cat) => ITEMS.some((i) => i.cat === cat);
-  const cats = Object.entries(CATS).sort((a, b) => has(b[0]) - has(a[0]));
-  $('cat-chips').innerHTML = cats.map(([cat, info]) => {
+  $('cat-chips').innerHTML = CHIP_ROWS.map((row) => '<div class="chip-row">' + row.map((cat) => {
     const ready = has(cat);
-    return `<button class="${cat === closetCat ? 'on' : ''}" data-cat="${cat}" ${ready ? '' : 'disabled'}>${CAT_ICON[cat] || ''} ${info.name}${ready ? '' : '<small>곧</small>'}</button>`;
-  }).join('');
+    return `<button class="${cat === closetCat ? 'on' : ''}" data-cat="${cat}" ${ready ? '' : 'disabled'}>${CAT_ICON[cat] || ''} ${CATS[cat].name}</button>`;
+  }).join('') + '</div>').join('');
 }
 
 // 아이템 카드: 가진 것 먼저(없는 건 🔒 흐리게). 없는 건 '크게 보기' 카드에서 사기
@@ -1027,7 +1028,8 @@ function renderSpot() {
   $('spot-grade').textContent = gradeName(it.grade);
   $('spot-name').textContent = it.name;
   const status = isOn ? '장착 중' : have ? '가지고 있어요' : '입어 보는 중';
-  const snd = it.sound ? ' · 🔊 특별한 소리' : ''; // 소리 이름은 보여 주지 않는다 (사용자 결정)
+  const snd = (it.sound ? ' · 🔊 특별한 소리' : '') // 소리 이름은 보여 주지 않는다 (사용자 결정)
+    + (it.hatch ? ' · ✨ 스매시 득점 시 특별한 효과' : ''); // 계란·드래곤 알: 깨지고 병아리·아기 용
   $('spot-desc').textContent = status + snd;
   let acts = '';
   if (isOn) acts += '<span class="pill">✓ 장착 중</span>';

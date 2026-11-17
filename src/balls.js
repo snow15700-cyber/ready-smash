@@ -31,11 +31,11 @@ export const BALLS = [
   { id: 'tomato', name: '방울토마토', grade: 'rare', sound: 'tomato' },
   { id: 'mochi', name: '찹쌀떡', grade: 'rare', sound: 'mochi' },
   { id: 'takoyaki', name: '타코야끼', grade: 'rare', sound: 'tako' },
-  { id: 'egg', name: '계란', grade: 'rare', sound: 'eggshell' },
+  { id: 'egg', name: '계란', grade: 'rare', sound: 'eggshell', hatch: 'chick' },
   { id: 'eight', name: '8번 당구공', grade: 'rare', sound: 'billiard' },
   // 전설: 움직이는 효과 + 튈 때·스매시 연출
   { id: 'asteroid', name: '소행성', grade: 'legend', sound: 'rock' },
-  { id: 'dragon', name: '드래곤 알', grade: 'legend', sound: 'dragon' },
+  { id: 'dragon', name: '드래곤 알', grade: 'legend', sound: 'dragon', hatch: 'dragon' },
   { id: 'sun', name: '미니 태양', grade: 'legend', sound: 'sun' },
 ];
 export const BALL = Object.fromEntries(BALLS.map((b) => [b.id, b]));

@@ -92,7 +92,7 @@ export const ITEMS = [
   { id: 'bg_bakery', cat: 'bg', name: '빵집', grade: 'rare', arena: 'bakery' },
   // 탁구공 (경기장 뽑기). ball = balls.js의 BALLS id, sound = 바운드음(audio.js의 BOUNCE_SKINS). 방에서는 방장 것이 모두에게 보인다
   { id: 'ball_white', cat: 'ball', name: '흰색', grade: 'default', ball: 'white' },
-  ...BALLS.map((b) => ({ id: 'ball_' + b.id, cat: 'ball', name: b.name, grade: b.grade, ball: b.id, ...(b.sound ? { sound: b.sound } : {}) })),
+  ...BALLS.map((b) => ({ id: 'ball_' + b.id, cat: 'ball', name: b.name, grade: b.grade, ball: b.id, ...(b.sound ? { sound: b.sound } : {}), ...(b.hatch ? { hatch: b.hatch } : {}) })),
 ];
 for (const it of ITEMS) it.pool = CATS[it.cat].pool;
 export const ITEM = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
