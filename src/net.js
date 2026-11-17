@@ -50,31 +50,68 @@ function join(name, me, handlers, watch) {
   return ONLINE ? joinSupabase(name, me, handlers, watch) : joinLocal(name, me, handlers, watch);
 }
 
+// Supabase는 같은 이름의 채널을 한 PC에서 하나만 연다(두 번째로 열면 이미 열린 것을 돌려주고,
+// 거기에 듣기를 더 붙이면 오류가 난다). 그래서 이름마다 연결 하나를 같이 쓴다:
+// 예) 로비에서 방 목록을 듣던 중에 방을 만들면, 같은 로비 채널로 내 방 정보를 올린다.
+// 다 나가면 닫고, 닫히는 중에 다시 들어오면 완전히 닫힌 뒤에 새로 연다.
+const shared = new Map(); // 채널 이름 → { ch, subs, ready, tracked, closing }
+const ERR_TEXT = '서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.';
+const memberList = (ch) => Object.values(ch.presenceState()).map((arr) => arr[0]).filter(Boolean);
+
+function openShared(name, after) {
+  const e = { name, ch: null, subs: new Set(), ready: false, tracked: null, closing: null };
+  const start = () => {
+    if (e.closing || !e.subs.size) return;
+    const client = getClient();
+    // 닫힌 줄 알았던 예전 채널이 아직 남아 있으면 치운다 (같은 이름이면 그걸 돌려받게 되므로)
+    const old = client.getChannels().find((c) => c.topic === `realtime:${name}`);
+    if (old) { try { old.teardown(); client.realtime._remove?.(old); } catch { /* 이미 정리됨 */ } }
+    const ch = client.channel(name, { config: { broadcast: { self: false, ack: false }, presence: { key: '' } } });
+    e.ch = ch;
+    ch.on('broadcast', { event: 'm' }, ({ payload }) => { for (const s of e.subs) s.h.onMsg?.(payload); });
+    ch.on('presence', { event: 'sync' }, () => { const list = memberList(ch); for (const s of e.subs) s.h.onMembers?.(list); });
+    ch.subscribe(async (status) => {
+      if (e.ch !== ch || e.closing) return;
+      if (status === 'SUBSCRIBED') {
+        e.ready = true;
+        if (e.tracked) await ch.track(e.tracked);
+        for (const s of e.subs) s.h.onStatus?.('ok');
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        for (const s of e.subs) s.h.onStatus?.('error', ERR_TEXT);
+      }
+    });
+  };
+  if (after) after.finally(start); else start();
+  return e;
+}
+
 function joinSupabase(name, me, h, watch) {
-  const ch = getClient().channel(name, {
-    config: { broadcast: { self: false, ack: false }, presence: { key: watch ? '' : me.id } },
-  });
-  ch.on('broadcast', { event: 'm' }, ({ payload }) => h.onMsg?.(payload));
-  ch.on('presence', { event: 'sync' }, () => {
-    const st = ch.presenceState();
-    const list = Object.values(st).map((arr) => arr[0]).filter(Boolean);
-    h.onMembers?.(list);
-  });
-  let ready = false;
-  ch.subscribe(async (status) => {
-    if (status === 'SUBSCRIBED') {
-      ready = true;
-      if (!watch) await ch.track(me);
-      h.onStatus?.('ok');
-    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-      h.onStatus?.('error', '서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.');
-    }
-  });
+  let e = shared.get(name);
+  if (!e || e.closing) {
+    e = openShared(name, e?.closing);
+    shared.set(name, e);
+  }
+  const sub = { h, me: watch ? null : me };
+  e.subs.add(sub);
+  const track = (m) => { e.tracked = m; if (e.ready && e.ch) e.ch.track(m); };
+  if (sub.me) track(sub.me);
+  // 이미 열려 있던 연결에 합류: 바로 '연결됨'과 지금 출석부를 알려 준다
+  if (e.ready) setTimeout(() => { if (e.subs.has(sub)) { h.onStatus?.('ok'); h.onMembers?.(memberList(e.ch)); } }, 0);
   return {
-    send(payload) { ch.send({ type: 'broadcast', event: 'm', payload }); },
+    send(payload) { if (e.ch) e.ch.send({ type: 'broadcast', event: 'm', payload }); },
     // 출석부에 올린 내 정보 바꾸기 (로비 방 목록의 점수·인원 등)
-    update(next) { me = next; if (ready && !watch) ch.track(me); },
-    leave() { ch.unsubscribe(); getClient().removeChannel(ch); },
+    update(next) { if (!watch) { sub.me = next; track(next); } },
+    leave() {
+      if (!e.subs.delete(sub)) return;
+      if (sub.me && e.tracked) {
+        e.tracked = [...e.subs].find((s) => s.me)?.me || null;
+        if (e.ready && e.ch) { if (e.tracked) e.ch.track(e.tracked); else e.ch.untrack(); }
+      }
+      if (e.subs.size) return;
+      const ch = e.ch;
+      e.closing = ch ? getClient().removeChannel(ch).catch(() => {}) : Promise.resolve();
+      e.closing.finally(() => { if (shared.get(name) === e) shared.delete(name); });
+    },
   };
 }
 
