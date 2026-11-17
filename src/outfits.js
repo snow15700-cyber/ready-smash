@@ -1451,7 +1451,7 @@ BUILD.cape = (root, char) => {
   }
   const hit = swingWatch(char), motion = motionWatch(char);
   const fx = particles(root, 'star', 30);
-  let lift = 0, kick = 0, nextStar = 0;
+  let lift = 0, liftV = 0, kick = 0, nextStar = 0, side = 0, sideV = 0, ph = 0;
   const rr = rng(77);
   const q = new THREE.Quaternion();
   const sm = (x) => x * x * (3 - 2 * x);
@@ -1461,8 +1461,14 @@ BUILD.cape = (root, char) => {
     const speed = Math.min(2, Math.hypot(local.x, local.z));
     if (hit()) kick = 1;
     kick = Math.max(0, kick - dt * 2.2);
-    lift += (Math.min(1, speed * 0.7 + kick * 0.9) - lift) * Math.min(1, dt * 5);
-    const side = Math.max(-1, Math.min(1, -local.x * 0.6));
+    // 날림(lift)·옆 쏠림(side)은 용수철처럼 따라간다: 공을 쫓아 방향을 휙 바꿔도 망토가 한 프레임에 꺾이지 않고 부드럽게 가속한다
+    // (그냥 '목표 쪽으로 n%씩'으로 따라가면 움직이기 시작하는 순간 속도가 확 바뀌어 덜컥거린다)
+    liftV += ((Math.min(1, speed * 0.7 + kick * 0.9) - lift) * 49 - liftV * 14) * dt;
+    lift = Math.max(0, Math.min(1.2, lift + liftV * dt));
+    sideV += ((Math.max(-1, Math.min(1, -local.x * 0.6)) - side) * 25 - sideV * 10) * dt;
+    side += sideV * dt;
+    // 물결 위상은 쌓아 간다. sin(t * 속도)로 쓰면 t(페이지 연 뒤 초)가 커서 속도가 조금만 바뀌어도 물결이 튀어 덜덜 떨린다
+    ph += dt * (5 + lift * 6);
     const p = geo.attributes.position;
     for (let i = 0; i < p.count; i++) {
       const bx = base[i * 3], by = base[i * 3 + 1];
@@ -1476,7 +1482,7 @@ BUILD.cape = (root, char) => {
       let x = wx + (fxx - wx) * k;
       let z = wz + (fz - wz) * k;
       // 세로 주름 (아래로 갈수록 깊게) + 살랑
-      z += Math.sin(u * Math.PI * 3.5) * 0.03 * k + Math.sin(t * (5 + lift * 6) + d * 5 + u * 3) * 0.02 * d * (0.4 + lift * 1.6);
+      z += Math.sin(u * Math.PI * 3.5) * 0.03 * k + Math.sin(ph + d * 5 + u * 3) * 0.02 * d * (0.4 + lift * 1.6);
       // 뒤로 날림 (위쪽 줄을 축으로)
       const ang = d * d * (0.08 + lift * 1.05);
       let y = by * Math.cos(ang);
