@@ -104,7 +104,7 @@
   - 눈 오는 밤: 별·달 밤하늘, 공이 눈에 안 묻히게 어두운 돌바닥 광장, 불 켜진 집(굴뚝 연기), 소나무, A팀 끝 큰 트리(전구 반짝·별), B팀 끝 눈사람·'메리 크리스마스' 간판, 양 팀 머리 위 전구 줄, 가로등(가까운 둘은 PointLight).
   - 빵집: A팀 벽 벽돌 오븐(불꽃 일렁임 + PointLight)·칠판 메뉴판·빵 랙(김), B팀 벽 유리 진열장·계산대·OPEN 문·'스매시 베이커리', 왼쪽 빵 선반, 오른쪽 창가 카페 자리(커피 김).
   - 성능: 체육관보다 그리기 호출이 많다(약 160~630, 체육관 87). 느린 PC에서 문제가 되면 움직이지 않는 메시를 재질별로 합치기(09시 게임의 `12-background-update.js` 방식)를 할 것.
-- **상점 연결 (test에 올림, 사용자 테스트 전)**: `supabase/15_backgrounds.sql`(insert만, 사용자가 실행). `items.js`에 `bg_gym`(기본, DEFAULTS.bg)·`bg_commute|evening|picnic|beach|bakery`(고급, `arena` 필드), `CATS.bg.ready`, `arenaOf(look)`. 목록 그림은 `public/arenas/<arena>.jpg`(경기 화면 사진 320×180, `swatch`의 `.sw.img.bg`). 경기장 뽑기엔 지금 고급만 있어서 뽑으면 늘 고급(서버가 없는 등급은 있는 등급으로).
+- **상점 연결 (test에 올림, 사용자 테스트 전)**: `supabase/15_backgrounds.sql`(insert만, 사용자가 실행). `items.js`에 `bg_gym`(기본, DEFAULTS.bg)·`bg_commute|evening|picnic|beach|bakery`(고급, `arena` 필드), `CATS.bg.ready`, `arenaOf(look)`. 목록 그림은 `public/arenas/<arena>.jpg`(경기 화면 사진 320×180, `swatch`의 `.sw.img.bg`). **경기장 뽑기는 잠시 닫음(사용자 확정)**: 뽑기 통은 '일반' 아이템이 있어야 열린다 — 화면 `items.js`의 `poolOpen`, 서버 `supabase/16_gacha_open.sql`(`pingpong_gacha`가 `closed` 반환), 로컬 가짜 서버도 같음. 일반 아이템을 넣으면 자동으로 열림. 닫혀 있어도 뽑기 탭에 '🔒 잠시 닫혀 있어요' + 들어 있는 아이템 목록(`.pool-peek`, 누르면 '크게 보기'), 직접 구매·조각 교환은 열려 있다.
   - `world.setArena(id)`(scene.js): 체육관도 배경 하나(`gymArena`). 옛 배경은 `disposeArena`로 내림, 몰입 연출 색을 되돌린 뒤 교체. 주소 `?bg=`가 있으면 그것으로 고정(시안 보기).
   - 어떤 배경을 보이나(`main.js` 루프 끝): **방(대기실·경기) = 방장 presence `look.bg`**, 로비·꾸미기 = 내 장착(입어 보는 중이면 그것), 혼자 하기 = 내 장착. 대기실 오른쪽 위 알약 `#room-bg`('🏟️ 해변 · 방장 배경').
   - 디버그 훅 `window.__smash.shop`(testCoins·gacha·equipItem·myEquip, 로컬 가짜 서버 테스트용).

@@ -11,6 +11,5 @@ insert into public.pingpong_items(id, pool, cat, grade) values
   ('bg_bakery',  'arena', 'bg', 'rare')    -- 빵집
 on conflict (id) do update set pool = excluded.pool, cat = excluded.cat, grade = excluded.grade;
 
--- ※ 경기장 뽑기에는 지금 고급(배경 5종)만 있어서, 뽑으면 늘 고급이 나온다
---   (뽑기 함수는 그 등급에 아이템이 없으면 있는 등급에서 고른다). 일반·전설 배경·탁구대·탁구공이 들어오면 원래 확률대로.
+-- ※ 경기장 뽑기에는 지금 고급(배경 5종)만 있다 → 16_gacha_open.sql로 일반 아이템이 들어올 때까지 뽑기를 닫는다 (직접 구매는 가능).
 -- 경기장 뽑기를 잠깐 닫아 두려면:  update public.pingpong_items set on_sale = false where pool = 'arena';

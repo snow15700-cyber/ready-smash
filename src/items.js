@@ -19,6 +19,9 @@ export const GRADES = {
 };
 export const GACHA_PRICE = { 1: 100, 10: 900 };
 export const PITY = 40; // 40번 안에 전설이 안 나오면 다음은 무조건 전설
+// 뽑기 통은 '일반' 아이템이 들어 있어야 열린다 (고급만 있으면 늘 고급이 나와서, 사용자 확정 2026-11-17).
+// 서버도 같은 규칙(supabase/16_gacha_open.sql). 아이템 목록은 닫혀 있어도 보여 준다
+export const poolOpen = (pool) => ITEMS.some((i) => i.pool === pool && i.grade === 'common');
 
 // 카테고리. 순서대로 옷장 탭에 나온다. ready=false는 아직 아이템이 없음(곧 열림)
 export const CATS = {
