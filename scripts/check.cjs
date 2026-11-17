@@ -145,13 +145,15 @@ function watch(page, tag, errs) {
 const waitFor = (page, fn, arg, ms = 30000, what = '') => page.waitForFunction(fn, arg, { timeout: ms }).catch(() => { throw new Error(`시간 초과: ${what || fn.toString().slice(0, 120)}`); });
 
 async function startVite() {
-  const env = { ...process.env, VITE_SUPABASE_URL: '', VITE_SUPABASE_ANON_KEY: '' };
+  const env = { ...process.env, VITE_SUPABASE_URL: '', VITE_SUPABASE_ANON_KEY: '', NO_COLOR: '1', FORCE_COLOR: '0' };
   // detached: npx 밑의 vite까지 한꺼번에 끄려고 (끝나고 남아 있으면 다음 점검 때 자리가 겹친다)
   const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
   vite.stop = () => { try { process.kill(-vite.pid, 'SIGTERM'); } catch { vite.kill(); } };
   let out = '';
-  vite.stdout.on('data', (d) => (out += d));
-  vite.stderr.on('data', (d) => (out += d));
+  // 글자 색 코드(GitHub 점검 서버에서 붙음)는 지우고 본다
+  const add = (d) => (out += String(d).replace(/\x1b\[[0-9;]*m/g, ''));
+  vite.stdout.on('data', add);
+  vite.stderr.on('data', add);
   for (let i = 0; i < 60 && !/Local:/.test(out); i++) await new Promise((r) => setTimeout(r, 500));
   if (!/Local:/.test(out)) { vite.stop(); throw new Error('개발 서버가 안 켜져요:\n' + out.slice(-800)); }
   return vite;
