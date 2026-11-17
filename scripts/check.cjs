@@ -276,6 +276,8 @@ async function browserChecks() {
       await page.evaluate(() => document.querySelector('#btn-create-1v1').click());
       await waitFor(page, () => window.__smash.room && document.querySelector('#room-code').textContent.trim().length === 4, null, 10000, '방 만들기');
       const code = (await page.textContent('#room-code')).trim();
+      // 로비 방 목록에 방장 방이 뜨는지 (관전 1단계)
+      await waitFor(guest, (c) => [...document.querySelectorAll('#lb-rooms .rl-row')].some((b) => b.dataset.code === c), code, 10000, '로비 방 목록에 방 표시');
       await guest.evaluate(() => document.querySelector('#btn-join').click());
       await guest.fill('#join-code', code);
       await guest.evaluate(() => document.querySelector('#btn-join-go').click());

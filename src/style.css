@@ -587,3 +587,25 @@ body.intro #hud { visibility: hidden; }
 #ach-pop .ap-many { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; max-width: 460px; }
 #ach-pop .ap-many .tpill { font-size: 13px; padding: 1px 10px; }
 .t-now .ghost { white-space: nowrap; flex: none; }
+
+/* ───────── 로비 방 목록 (관전 1단계) ───────── */
+.rl-wrap { display: flex; flex-direction: column; gap: 6px; }
+.lb-rooms-wrap { border-top: 2px dashed #eadcc4; padding-top: 10px; margin-top: 2px; }
+.rl-list { display: flex; flex-direction: column; gap: 6px; }
+button.rl-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; font-size: 15px; padding: 8px 10px; border-radius: 12px; box-shadow: 0 3px 0 #e3d3b6; }
+button.rl-row.off { cursor: default; background: #f6efe3; box-shadow: none; transform: none; }
+.rl-mode { flex: none; font-size: 12px; color: #fff; background: var(--blue); border-radius: 8px; padding: 2px 6px; }
+.rl-nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rl-st { flex: none; font-size: 13px; }
+.rl-st.wait { color: #2e9b4f; }
+.rl-st.play { color: #d6453a; }
+.rl-st.full { color: var(--muted); }
+.rl-act { flex: none; font-size: 13px; color: #fff; background: var(--orange, #ff8a3d); border-radius: 999px; padding: 3px 10px; }
+.rl-act.soon { background: #cfc3ae; }
+.rl-empty { margin: 2px 0; text-align: center; font-size: 14px; color: var(--muted); line-height: 1.4; }
+.rl-more { margin: 0; text-align: center; font-size: 13px; color: var(--muted); }
+.join-rooms-wrap { margin-bottom: 10px; padding-bottom: 14px; border-bottom: 2px dashed #eadcc4; }
+.join-rooms-wrap .rl-list { max-height: 300px; overflow: auto; }
+/* 시안 비교용: ?rl=b 면 로비 대신 '방 찾기' 화면에 목록 */
+body:not(.rl-b) .join-rooms-wrap { display: none; }
+body.rl-b .lb-rooms-wrap { display: none; }

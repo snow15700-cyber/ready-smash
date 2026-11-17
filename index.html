@@ -174,6 +174,10 @@
           <button id="btn-create-2v2" class="blue">2 대 2<small>방 만들기</small></button>
         </div>
         <button id="btn-join">🔑 코드로 입장</button>
+        <div class="rl-wrap lb-rooms-wrap">
+          <div class="lb-label">🏟️ 지금 열린 방</div>
+          <div id="lb-rooms" class="rl-list"></div>
+        </div>
       </div>
       <p class="note soon" id="mode-note"></p>
     </div>
@@ -234,6 +238,10 @@
 
   <div id="join" class="screen hidden">
     <div class="panel">
+      <div class="rl-wrap join-rooms-wrap">
+        <p class="panel-title center">🏟️ 지금 열린 방</p>
+        <div id="join-rooms" class="rl-list"></div>
+      </div>
       <p class="panel-title center">🔑 코드로 입장</p>
       <p class="sub center">친구에게 받은 4자리 방 코드를 입력하세요</p>
       <label class="code-boxes" id="code-boxes">

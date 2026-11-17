@@ -100,3 +100,64 @@ function joinLocal(code, me, h) {
     leave() { bye(); closed = true; clearInterval(hb); bc.close(); window.removeEventListener('beforeunload', bye); },
   };
 }
+
+// ───────── 로비 방 목록 (presence만 쓰는 채널 하나) ─────────
+// 방장 PC가 '내 방' 정보를 올려 두고(track), 로비에 있는 사람은 듣기만 한다.
+// 정보는 상태가 바뀔 때만(사람 들어옴·경기 시작/끝·점수) 고치므로 선수 PC에 부담이 거의 없다.
+// onList([{code, mode, nick, n, cap, play, score}])
+const LOBBY_CH = IS_TEST ? 'pingpong-test-lobby' : 'pingpong-lobby';
+export function joinLobby(onList) {
+  return ONLINE ? lobbySupabase(onList) : lobbyLocal(onList);
+}
+
+function lobbySupabase(onList) {
+  const key = Math.random().toString(36).slice(2, 10);
+  const ch = getClient().channel(LOBBY_CH, { config: { broadcast: { self: false }, presence: { key } } });
+  let ready = false, want = null, closed = false;
+  ch.on('presence', { event: 'sync' }, () => {
+    onList(Object.values(ch.presenceState()).map((arr) => arr[0]).filter((x) => x && x.code));
+  });
+  ch.subscribe((status) => {
+    if (status !== 'SUBSCRIBED' || closed) return;
+    ready = true;
+    if (want) ch.track(want);
+  });
+  return {
+    track(info) { want = info; if (ready) ch.track(info); },
+    untrack() { if (!want) return; want = null; if (ready) ch.untrack(); },
+    leave() { closed = true; ch.unsubscribe(); getClient().removeChannel(ch); },
+  };
+}
+
+// 로컬 테스트: 방장 탭이 1초마다 '내 방' 신호, 새로 온 탭은 'q'로 바로 물어본다
+function lobbyLocal(onList) {
+  const bc = new BroadcastChannel(LOBBY_CH);
+  const key = Math.random().toString(36).slice(2, 10);
+  const others = new Map(); // key → { info, t }
+  let mine = null, closed = false;
+  const post = (d) => { if (!closed) bc.postMessage(d); };
+  const emit = () => { if (!closed) onList([...others.values()].map((o) => o.info).concat(mine ? [mine] : [])); };
+  const hb = () => { if (mine) post({ k: 'hb', key, info: mine }); };
+  bc.onmessage = (e) => {
+    const d = e.data;
+    if (d.k === 'hb') { others.set(d.key, { info: d.info, t: performance.now() }); emit(); }
+    else if (d.k === 'bye') { if (others.delete(d.key)) emit(); }
+    else if (d.k === 'q') hb();
+  };
+  const timer = setInterval(() => {
+    hb();
+    const now = performance.now();
+    let changed = false;
+    for (const [k, o] of others) if (now - o.t > 3500) { others.delete(k); changed = true; }
+    if (changed) emit();
+  }, 1000);
+  const bye = () => { if (mine) post({ k: 'bye', key }); };
+  window.addEventListener('beforeunload', bye);
+  post({ k: 'q' });
+  setTimeout(emit, 0);
+  return {
+    track(info) { mine = info; hb(); emit(); },
+    untrack() { if (!mine) return; bye(); mine = null; emit(); },
+    leave() { bye(); mine = null; closed = true; clearInterval(timer); bc.close(); window.removeEventListener('beforeunload', bye); },
+  };
+}

@@ -4,7 +4,7 @@ import { createLobbyDemo, LOBBY_CAM } from './lobbyDemo.js';
 import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, playHit, playTable, setEcho, setQuiet, setListener } from './audio.js';
-import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
+import { ONLINE, IS_TEST, joinRoom, joinLobby, makeCode, normalizeCode } from './net.js';
 import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, newMatchId, matchJoin, matchFinish, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, getH2H, getRanking, checkAch, setTitle, myTitle, matchAch, matchPeople, aiAch } from './account.js';
 import { ACHS, ACH, ACH_CATS, REWARD, titleText } from './achievements.js';
 import { UPDATES, LATEST_UPDATE } from './updates.js';
@@ -32,6 +32,7 @@ if (IS_TEST) {
   document.body.appendChild(tag);
 }
 if (!ONLINE) $('mode-note').textContent = '⚠️ 서버 설정이 없어 로컬 테스트 모드예요 (같은 브라우저의 탭끼리만 연결)';
+if (new URLSearchParams(location.search).get('rl') === 'b') { document.body.classList.add('rl-b'); $('btn-join').textContent = '🏟️ 방 찾기 · 코드로 입장'; }
 if (!ONLINE) $('login-offline').classList.remove('hidden');
 
 // 휴대폰·태블릿(마우스 없음): 혼자 하기만 열고 온라인 방은 막는다. 주소에 ?mobile=1 이면 PC에서도 흉내.
@@ -121,6 +122,8 @@ let preview = null; // 상점·옷장에서 미리보기 중인 꾸미기 { look
 
 const myNick = () => account.nick || '플레이어';
 
+let curScreen = '';
+let lobbyLink = null, lobbyRooms = [], lobbySent = ''; // 로비 방 목록 (아래 '로비 방 목록')
 const HOWTO_KEY = 'smash-howto-seen'; // 치는 방법 창을 본 적 있는지 (처음 온 사람에게 한 번 자동으로 띄움)
 function show(screen) {
   if (screen === 'lobby') {
@@ -131,6 +134,8 @@ function show(screen) {
     $('upd-dot').classList.toggle('hidden', updSeen());
   }
   if (screen !== 'dress') preview = null;
+  curScreen = screen;
+  syncLobby();
   for (const id of ['login', 'pin-change', 'rank', 'lobby', 'join', 'room', 'dress']) $(id).classList.toggle('hidden', id !== screen);
   $('hud').classList.toggle('hidden', screen !== 'hud');
 }
@@ -240,6 +245,7 @@ function enterRoom(code, host, mode = null) {
   }
   renderRoom();
   show('room');
+  announceRoom();
 }
 
 function leaveRoom() {
@@ -248,6 +254,7 @@ function leaveRoom() {
   room.link.leave();
   room = null;
   stopGame();
+  syncLobby();
 }
 
 function onMembers(list) {
@@ -298,6 +305,7 @@ function onMembers(list) {
     sendState(); // 새로 온 사람에게 내 팀을 알려 준다
   }
   renderRoom();
+  announceRoom();
 }
 
 // 내 팀 선택을 모두에게 알린다
@@ -440,7 +448,9 @@ function beginRoomGame(players, mode, mine, mid) {
   if (mid) matchJoin(mid, mode, mine.side);
   room.result = '';
   room.coins = null;
+  room.score = [0, 0];
   stopGame();
+  announceRoom();
 }
 
 // 방장: 경기 시작 (1v1 / 2v2)
@@ -463,6 +473,7 @@ function startOnline(mode, players) {
     emit: (ev) => {
       if (game) game.onEvent(ev);
       if (room) room.link.send({ k: 'ev', ev });
+      if (room && ev.type === 'point') { room.score = ev.score; announceRoom(); } // 로비 방 목록의 점수
     },
   });
   hud.stats(game.stats);
@@ -494,6 +505,7 @@ function backToRoom() {
   stopGame();
   renderRoom();
   show('room');
+  announceRoom();
   if (room.coins) playUI('coin');
 }
 
@@ -872,6 +884,71 @@ $('btn-rank').addEventListener('click', () => { playUI('click'); showRank('wins'
 $('rank-tab-wins').addEventListener('click', () => { playUI('click'); showRank('wins'); });
 $('rank-tab-rally').addEventListener('click', () => { playUI('click'); showRank('rally'); });
 $('btn-rank-back').addEventListener('click', () => { playUI('click'); show('lobby'); });
+
+/* ───────── 로비 방 목록 ─────────
+   로비 채널(pingpong-lobby)은 로비 화면에 있을 때 + 내가 방장일 때만 붙어 있다.
+   방장은 '내 방' 정보를 상태가 바뀔 때만 올린다(사람 수·경기 시작/끝·점수). */
+function syncLobby() {
+  const need = curScreen === 'lobby' || curScreen === 'join' || !!(room && room.host);
+  if (need && !lobbyLink) {
+    lobbySent = '';
+    lobbyLink = joinLobby((list) => { lobbyRooms = list; renderRoomList(); });
+  } else if (!need && lobbyLink) {
+    lobbyLink.leave();
+    lobbyLink = null;
+    lobbyRooms = [];
+  }
+  announceRoom();
+}
+function announceRoom() {
+  if (!lobbyLink) return;
+  if (!room || !room.host || !room.mode) {
+    if (lobbySent) { lobbyLink.untrack(); lobbySent = ''; }
+    return;
+  }
+  const info = { code: room.code, mode: room.mode, nick: myNick(), n: room.members.length || 1, cap: capacity(), play: !!room.inGame, score: room.inGame ? room.score || [0, 0] : null };
+  const key = JSON.stringify(info);
+  if (key === lobbySent) return;
+  lobbySent = key;
+  lobbyLink.track(info);
+}
+// 목록 순서: 들어갈 수 있는 방 → 경기 중 → 꽉 찬 방 (같으면 코드 순, 깜빡이지 않게)
+function roomListHTML(max) {
+  const mine = room?.code;
+  const rank = (r) => (r.play ? 1 : r.n >= r.cap ? 2 : 0);
+  const list = lobbyRooms.filter((r) => r.code !== mine).sort((a, b) => rank(a) - rank(b) || (a.code < b.code ? -1 : 1));
+  if (!list.length) return '<p class="rl-empty">아직 열린 방이 없어요<br /><small>방을 만들고 친구를 불러 보세요!</small></p>';
+  const row = (r) => {
+    const full = !r.play && r.n >= r.cap;
+    const state = r.play ? `<span class="rl-st play">● 경기 중 <b>${(r.score || [0, 0]).join(' : ')}</b></span>` : full ? '<span class="rl-st full">꽉 참</span>' : `<span class="rl-st wait">● 대기 중 ${r.n}/${r.cap}</span>`;
+    const act = r.play ? '<span class="rl-act soon">관전 · 곧</span>' : full ? '' : '<span class="rl-act">참가</span>';
+    const can = !r.play && !full;
+    return `<button class="rl-row${can ? '' : ' off'}" data-code="${esc(r.code)}"${can ? '' : ' tabindex="-1"'}><span class="rl-mode">${r.mode === '2v2' ? '2:2' : '1:1'}</span><span class="rl-nm"><b>${esc(r.nick)}</b>의 방</span>${state}${act}</button>`;
+  };
+  const more = list.length > max ? `<p class="rl-more">외 ${list.length - max}개 방</p>` : '';
+  return list.slice(0, max).map(row).join('') + more;
+}
+function renderRoomList() {
+  // 로비 안 목록은 화면 높이에 맞춰 줄 수를 줄인다 (아래 버튼과 겹치지 않게)
+  const lbMax = innerHeight >= 860 ? 3 : innerHeight >= 740 ? 2 : 1;
+  for (const [id, max] of [['lb-rooms', lbMax], ['join-rooms', 8]]) {
+    const el = $(id);
+    if (el) el.innerHTML = roomListHTML(max);
+  }
+}
+addEventListener('resize', renderRoomList);
+for (const id of ['lb-rooms', 'join-rooms']) {
+  $(id)?.addEventListener('click', (e) => {
+    const b = e.target.closest('.rl-row');
+    if (!b) return;
+    if (IS_MOBILE) { hud.toast(MOBILE_MSG, 2600); return; }
+    const r = lobbyRooms.find((x) => x.code === b.dataset.code);
+    if (!r) return;
+    if (r.play) { hud.toast('관전은 다음 업데이트에서 열려요', 2200); return; }
+    if (r.n >= r.cap) { hud.toast('방이 꽉 찼어요', 2000); return; }
+    enterRoom(r.code, false);
+  });
+}
 
 /* ───────── 버튼 ───────── */
 $('btn-ai').addEventListener('click', () => startAI());
