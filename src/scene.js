@@ -421,36 +421,49 @@ export function makeCharacter(paddleColor) {
   };
   // 머리 위 이름표 (2v2). text가 없으면 숨김, on이면 '다음에 칠 사람'으로 노랗게 강조
   let tag = null;
-  const setTag = (text, on = false) => {
-    const key = text ? `${text}/${on}` : '';
+  // 이름표 (B안: 칭호가 있으면 이름 위에 남색 칭호 알약을 한 줄 더)
+  const setTag = (text, on = false, title = '') => {
+    const key = text ? `${text}/${on}/${title}` : '';
     if (group.userData.tag === key) return;
     group.userData.tag = key;
     if (!text) { if (tag) tag.visible = false; return; }
     if (!tag) {
       const c = document.createElement('canvas');
-      c.width = 512; c.height = 128;
+      c.width = 512; c.height = 224;
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
       // 거리와 상관없이 화면에서 같은 크기로 보이게 (sizeAttenuation 끔)
       tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
       tag.renderOrder = 20;
-      tag.scale.set(0.15, 0.0375, 1);
+      tag.scale.set(0.15, 0.0656, 1);
+      tag.center.set(0.5, 0.27); // 이름 알약 가운데가 예전 이름표 자리 (칭호는 그 위)
       tag.position.set(0, 1.52, 0);
       group.add(tag);
     }
+    tag.visible = true;
     const c = tag.material.map.image;
     const g = c.getContext('2d');
     g.clearRect(0, 0, c.width, c.height);
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    if (title) {
+      g.font = 'bold 46px Jua, sans-serif';
+      const tw = Math.min(500, g.measureText(title).width + 44);
+      g.fillStyle = 'rgba(61,59,92,0.92)';
+      g.beginPath();
+      g.roundRect((c.width - tw) / 2, 16, tw, 72, 36);
+      g.fill();
+      g.fillStyle = '#fff3c4';
+      g.fillText(title, c.width / 2, 54, 470);
+    }
     g.font = 'bold 64px Jua, sans-serif';
     const w = Math.min(500, g.measureText(text).width + 56);
     g.fillStyle = on ? 'rgba(255,214,61,0.95)' : 'rgba(43,42,51,0.55)';
     g.beginPath();
-    g.roundRect((c.width - w) / 2, 14, w, 100, 50);
+    g.roundRect((c.width - w) / 2, 110, w, 100, 50);
     g.fill();
     g.fillStyle = on ? '#2b2a33' : '#ffffff';
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillText(text, c.width / 2, 68, 470);
+    g.fillText(text, c.width / 2, 164, 470);
     tag.material.map.needsUpdate = true;
     tag.visible = true;
   };

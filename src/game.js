@@ -20,10 +20,11 @@ const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 export class Game {
   // authority: 이 PC가 경기를 계산하는지 (혼자 모드, 방장). 아니면 방장 이벤트를 받아 그리고 내 타격은 예측해서 먼저 보여준다
   // playerNames[side][slot]: 2v2 이름표용
-  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, best = 0, onBest = null, onRally = null, looks = null }) {
+  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, playerTitles = null, best = 0, onBest = null, onRally = null, looks = null }) {
     this.authority = authority;
     this.names = names;
     this.playerNames = playerNames;
+    this.playerTitles = playerTitles; // 칭호 글자 (이름표 위 알약)
     this.offset = 0; // 방장 시계 - 내 시계 (초)
     this.net = { seed: 0, nextIdx: 0, rally: 0, incoming: null };
     this.focus = 0; // 몰입 정도 (0~1)
@@ -428,7 +429,7 @@ export class Game {
         if (two && this.playerNames && s !== me) {
           const nx = this.order[this.turn];
           const next = this.phase !== 'point' && this.phase !== 'over' && nx.side === s && nx.slot === sl;
-          c.setTag(this.playerNames[s][sl], next);
+          c.setTag(this.playerNames[s][sl], next, this.playerTitles?.[s]?.[sl] || '');
         }
       }
     }
