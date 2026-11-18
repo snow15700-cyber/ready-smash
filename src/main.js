@@ -1109,6 +1109,7 @@ function onWatchMsg(w, m) {
     if (ev.type !== 'serveReady') return; // 시계는 바로 뒤 토스·샷의 방장 시각으로 맞춘다 (watchClock이 적용 전에 먼저)
     w.live = true;
     hud.hint('');
+    if (Array.isArray(ev.score)) { game.score = [...ev.score]; hud.score(game.score); } // 직전 득점은 못 받았으니 서브 신호의 점수로 맞춤
   }
   game.onEvent(ev);
 }
@@ -1160,7 +1161,11 @@ function onCrowdList(c, list) {
     if (list.findIndex((x) => x.id === myId) >= WATCH_MAX) { endWatch(`관중석이 꽉 찼어요 (${WATCH_MAX}명까지)`); return; }
     watch.count = list.length;
   }
-  world.crowd.set(list.map((m) => ({ id: m.id, nick: m.nick, title: titleText(m.title, m.titleX), look: m.look, team: m.team ?? null, me: m.id === myId })));
+  // 관중석은 12명까지. 내가 13번째 이후라도 내 화면에서는 나를 꼭 세운다(12번째 자리에)
+  let shown = list;
+  const mine = list.findIndex((x) => x.id === myId);
+  if (mine >= CROWD_MAX) shown = [...list.slice(0, CROWD_MAX - 1), list[mine]];
+  world.crowd.set(shown.map((m) => ({ id: m.id, nick: m.nick, title: titleText(m.title, m.titleX), look: m.look, team: m.team ?? null, me: m.id === myId })));
   renderCrowdPill();
   renderWatchBar();
 }

@@ -260,13 +260,15 @@ export function createWorld(canvas) {
     },
     // 관전 중계 카메라: 탁구대 옆(관중석 쪽)에서 두 선수를 함께 본다. 공을 따라 살짝만 움직인다
     // ballZ: 공의 앞뒤 위치 (탁구대 길이 방향)
-    updateSideCamera(dt, ballZ = 0) {
+    // halfW: 화면 가로에 꼭 들어가야 하는 반폭 (2v2는 선수가 넓게 서서 더 크게)
+    updateSideCamera(dt, ballZ = 0, halfW = SIDE_CAM.halfW) {
       const P = SIDE_CAM;
+      ballZ = Math.max(-HALF_L, Math.min(HALF_L, ballZ)); // 공이 탁구대 밖으로 멀리 날아가도 카메라는 탁구대 안쪽까지만 따라감
       // 세로로 긴 화면(휴대폰)에서는 양쪽 선수가 다 보이게 뒤로 물러난다
       // (최대 2배까지만 물러나고 — 벽 밖으로 안 나가게 — 그래도 모자라면 화각을 넓힌다)
-      const need = P.halfW / (Math.tan((P.fov * Math.PI) / 360) * camera.aspect * P.x);
+      const need = halfW / (Math.tan((P.fov * Math.PI) / 360) * camera.aspect * P.x);
       const far = Math.min(2, Math.max(1, need));
-      const fov = need > far ? (Math.atan(P.halfW / (camera.aspect * P.x * far)) * 360) / Math.PI : P.fov;
+      const fov = need > far ? (Math.atan(halfW / (camera.aspect * P.x * far)) * 360) / Math.PI : P.fov;
       const tp = new THREE.Vector3(P.x * far, P.lookY + (P.y - P.lookY) * far, ballZ * P.follow);
       const tl = new THREE.Vector3(0, P.lookY, ballZ * P.follow * 1.6);
       if (!camInit) { camPos.copy(tp); camLook.copy(tl); camInit = true; }

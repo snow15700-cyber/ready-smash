@@ -533,7 +533,7 @@ export class Game {
     if (this.spectator) {
       // 관전: 옆 중계 화면, 또는 A쪽/B쪽 선수 어깨 뒤 (그 쪽에서 다음에 칠 사람)
       if (this.view === 'side') {
-        w.updateSideCamera(dt, this.segs ? w.ball.position.z : 0);
+        w.updateSideCamera(dt, this.segs ? w.ball.position.z : 0, this.mode === '2v2' ? 4.0 : undefined);
         A.setListener([cam.position.x, cam.position.y, cam.position.z], [0, 0, -1]);
       } else {
         const v = this.view, sl = this.activeSlot(v);
