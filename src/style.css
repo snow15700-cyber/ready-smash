@@ -408,7 +408,7 @@ button.leave-pill:hover:not(:disabled) { border-color: var(--muted); }
 .seg button { flex: 1; box-shadow: none; background: transparent; border-radius: 999px; padding: 9px 10px; font-size: 17px; color: var(--muted); }
 .seg button:hover:not(:disabled) { transform: none; color: var(--ink); }
 .seg button:active:not(:disabled) { transform: none; box-shadow: none; }
-.seg button.on { background: #fff; color: var(--orange-ink); box-shadow: 0 2px 8px rgba(20,22,40,.15); }
+.seg button.on { background: var(--ink); color: #fff; box-shadow: 0 2px 6px rgba(20,22,40,.2); } /* 고른 탭 = 검정(넘김판 색) */
 .rank-desc { margin: -2px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
 
 .podium { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding-top: 6px; }
@@ -439,8 +439,11 @@ button.leave-pill:hover:not(:disabled) { border-color: var(--muted); }
 .rank-list:empty { display: none; }
 .rank-list li { display: flex; align-items: center; gap: 10px; background: var(--cream); border-radius: 14px; padding: 7px 14px 7px 8px; flex: none; }
 .rank-list li.me { background: #fff1e2; box-shadow: inset 0 0 0 2px var(--orange); }
-.rank-list .no { width: 30px; text-align: center; font-size: 18px; color: var(--muted); flex: none; }
-.rank-list .av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 16px; color: #fff; background: #b9a88d; flex: none; }
+/* 4등부터 순위 번호 = 작은 숫자 넘김 카드 */
+.rank-list .no { position: relative; z-index: 0; min-width: 34px; height: 36px; padding: 3px 4px 0; display: grid; place-items: center; font-size: 19px; line-height: 1; color: #fff; border-radius: 6px; background: linear-gradient(#2c2c33 0 50%, #202026 50%); flex: none; }
+.rank-list .no::after { content: ''; position: absolute; z-index: -1; left: 0; right: 0; top: 50%; height: 1px; background: #0a0a0c; }
+.rank-list li.me .no { box-shadow: 0 0 0 2px var(--orange); }
+.rank-list .av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 16px; color: #fff; background: #8e95a3; flex: none; }
 .rank-list li.me .av { background: var(--orange); }
 .rank-list .who { flex: 1; min-width: 0; font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rank-list .who small { display: block; font-size: 12px; color: var(--muted); }
@@ -448,7 +451,7 @@ button.leave-pill:hover:not(:disabled) { border-color: var(--muted); }
 .rank-list li.msg-row { justify-content: center; background: none; color: var(--muted); font-size: 16px; text-align: center; padding: 26px 10px; }
 .rank-me { display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--ink); color: #fff; border-radius: 16px; padding: 10px 16px; font-size: 16px; }
 .rank-me:empty { display: none; }
-.rank-me b { font-weight: normal; font-size: 24px; color: #ffd23d; }
+.rank-me b { font-weight: normal; font-size: 22px; line-height: 1; color: var(--orange); background: linear-gradient(#2c2c33 0 50%, #202026 50%); border-radius: 6px; padding: 6px 10px 4px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); } /* 내 순위 = 주황 숫자 넘김 카드 */
 .rank-me .val { margin-left: auto; font-size: 20px; }
 .rank-me span:first-child { opacity: .8; }
 .rank-me .hint { opacity: .8; font-size: 14px; }
