@@ -780,13 +780,16 @@ html.lite-glass .gx.howto-pop, html.lite-glass .gx.screen { backdrop-filter: non
 #hint:empty { display: none; }
 
 /* 판정 글자: 흰 테두리 + 등급 색 */
-#judge { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); font-size: 60px; opacity: 0; white-space: nowrap; -webkit-text-stroke: 9px #fff; paint-order: stroke fill; filter: drop-shadow(0 5px 0 rgba(0,0,0,.15)); }
+/* 판정 글자 = '빛 글자'(사용자 확정 11/18): 위는 흰색, 아래로 갈수록 등급 색으로 물드는 Pretendard + 등급 색 빛 */
+#judge { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); font-size: 58px; font-weight: 700; letter-spacing: .02em; opacity: 0; white-space: nowrap;
+  --g: 255,255,255; color: rgb(var(--g)); background: linear-gradient(180deg, #fff 15%, rgb(var(--g)) 85%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 14px rgba(var(--g),.75)) drop-shadow(0 4px 10px rgba(0,0,0,.3)); }
 #judge.show { animation: pop .7s ease-out forwards; }
-#judge.perfect { color: #22c55e; font-size: 68px; filter: drop-shadow(0 5px 0 rgba(0,0,0,.15)) drop-shadow(0 0 16px rgba(80,255,140,.7)); }
-#judge.good { color: #f5b400; }
-#judge.bad { color: #ff7a2a; }
-#judge.block { color: #3d8fe0; }
-#judge.miss { color: #ef4444; }
+#judge.perfect { --g: 62,224,122; font-size: 64px; }
+#judge.good { --g: 255,200,40; }
+#judge.bad { --g: 255,138,31; }
+#judge.block { --g: 91,155,255; }
+#judge.miss { --g: 255,59,66; }
 
 /* 2v2 '내 차례!' */
 #turn { position: absolute; top: 58%; left: 50%; transform: translate(-50%, -50%); font-size: 46px; color: #ffc21a; opacity: 0; white-space: nowrap; pointer-events: none; -webkit-text-stroke: 8px #fff; paint-order: stroke fill; filter: drop-shadow(0 4px 0 rgba(0,0,0,.15)) drop-shadow(0 0 14px rgba(255,190,40,.6)); }
@@ -802,7 +805,7 @@ html.lite-glass .gx.howto-pop, html.lite-glass .gx.screen { backdrop-filter: non
 #result b { font-weight: normal; font-size: 56px; line-height: 1; text-shadow: 0 4px 0 rgba(0,0,0,.18); }
 #result span { font-size: 30px; opacity: .95; }
 @keyframes resultIn { 0% { opacity: 0; transform: translateY(-50%) scaleY(.3); } 100% { opacity: 1; transform: translateY(-50%); } }
-@media (max-width: 600px) { #scoreboard { top: 64px; } .st-rally { min-width: 64px; padding: 4px 10px 6px; } .st-rally b { font-size: 30px; } .sb { min-width: 0; padding: 4px 6px 4px 10px; } .sb span { font-size: 13px; max-width: 70px; } .sb b { font-size: 32px; } #judge { font-size: 44px; } #judge.perfect { font-size: 50px; } #hint { font-size: 16px; } }
+@media (max-width: 600px) { #scoreboard { top: 64px; } .st-rally { min-width: 64px; padding: 4px 10px 6px; } .st-rally b { font-size: 30px; } .sb { min-width: 0; padding: 4px 6px 4px 10px; } .sb span { font-size: 13px; max-width: 70px; } .sb b { font-size: 32px; } #judge { font-size: 42px; } #judge.perfect { font-size: 47px; } #hint { font-size: 16px; } }
 
 /* 휴대폰: PC 안내, 온라인 버튼 잠금, 화면에서 밀어도 스크롤·확대 안 되게 */
 .mobile-note { margin: 0; padding: 10px 12px; border-radius: 12px; background: #fff3c4; color: #6b4d00; text-align: center; font-size: 15px; line-height: 1.45; }
@@ -838,9 +841,11 @@ body.intro #hud { visibility: hidden; }
 .vi-card .it.g-default { color: var(--muted); }
 .vi-card .it.g-rare { color: #7a3fc4; box-shadow: inset 0 0 0 3px #b98cf0, 0 3px 0 rgba(0,0,0,.18), 0 0 18px rgba(176,124,255,.6); }
 .vi-card .it.g-legend { color: #9a5b00; background: linear-gradient(90deg, #fff3c4, #ffe08a, #fff3c4); background-size: 200% 100%; box-shadow: inset 0 0 0 3px #f2a20c, 0 0 22px #ffc23d; animation: shine 1.6s linear infinite; }
-.vi-vs { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(3); opacity: 0; font-size: 96px; color: #fff; -webkit-text-stroke: 4px var(--ink); text-shadow: 0 6px 0 var(--ink), 0 0 40px rgba(255,180,60,.8); }
+/* VS · 3·2·1 = '빛 글자'(사용자 확정 11/18): 가늘고 큰 흰 Pretendard + 은은한 빛 (애플 발표 화면 느낌) */
+.vi-vs { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); opacity: 0; font-size: 130px; font-weight: 300; letter-spacing: .06em; color: #fff;
+  text-shadow: 0 0 20px rgba(255,255,255,.7), 0 0 60px rgba(255,59,66,.55), 0 0 100px rgba(47,102,194,.5); }
 .vs-intro.p3 .vi-vs { animation: vsStamp .35s cubic-bezier(.3,1.6,.5,1) forwards; }
-@keyframes vsStamp { from { opacity: 0; transform: translate(-50%, -50%) scale(3) rotate(-12deg); } to { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-6deg); } }
+@keyframes vsStamp { from { opacity: 0; transform: translate(-50%, -50%) scale(1.5); filter: blur(10px); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); } }
 .vi-go { position: absolute; left: 50%; top: 62%; transform: translate(-50%, -50%); opacity: 0; font-size: clamp(26px, 4vw, 44px); color: #fff; white-space: nowrap; text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 20px rgba(0,0,0,.35); }
 .vi-go b { font-weight: normal; color: #ffd23d; font-size: 1.35em; }
 .vs-intro.hush .vi-go { animation: goIn .3s cubic-bezier(.3,1.5,.5,1) forwards; }
@@ -857,13 +862,13 @@ body.intro #hud { visibility: hidden; }
 .vs-intro.hush .vi-dim { opacity: 1; transition-duration: .3s; }
 .vs-intro.go .vi-dim { opacity: 0; transition-duration: .15s; }
 .vs-intro.cd .vi-vs { animation: vsOut .25s ease-in forwards; }
-@keyframes vsOut { from { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-6deg); } to { opacity: 0; transform: translate(-50%, -50%) scale(.6) rotate(-6deg); } }
+@keyframes vsOut { from { opacity: 1; transform: translate(-50%, -50%) scale(1); } to { opacity: 0; transform: translate(-50%, -50%) scale(.8); filter: blur(6px); } }
 .vs-intro.cd .vi-side { opacity: .45; }
 .vs-intro.hush .vi-side { opacity: 0; }
 .vi-num { position: absolute; left: 50%; top: 44%; }
-.vi-num span { position: absolute; left: 0; top: 0; display: block; font-size: clamp(130px, 20vw, 230px); line-height: 1; color: #fff;
-  -webkit-text-stroke: 5px var(--tt-ink, #1b1f3a); text-shadow: 0 8px 0 var(--tt-ink, #1b1f3a), 0 0 60px rgba(255,59,66,.8); animation: numPop 1s ease-out forwards; }
-@keyframes numPop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.4); } 14% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.vi-num span { position: absolute; left: 0; top: 0; display: block; font-size: clamp(180px, 22vw, 280px); font-weight: 300; line-height: 1; color: #fff;
+  text-shadow: 0 0 24px rgba(255,255,255,.75), 0 0 80px rgba(255,138,31,.55); animation: numPop 1s ease-out forwards; }
+@keyframes numPop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); filter: blur(10px); } 14% { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
   75% { opacity: 1; transform: translate(-50%, -50%) scale(.92); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(.7); } }
 .vi-go { top: 47%; font-size: clamp(30px, 4.4vw, 50px); display: flex; flex-direction: column; align-items: center; line-height: 1.05; }
 .vi-go b { display: block; opacity: 0; font-size: 1.9em; }
@@ -895,7 +900,7 @@ body.intro #hud { visibility: hidden; }
 .vi-streak { display: flex; align-items: center; gap: 6px; font-size: 18px; font-weight: 700; padding: 4px 14px; border-radius: 999px; color: #fff;
   background: linear-gradient(135deg, #FF8A1F, #E8343B); box-shadow: 0 0 18px rgba(255,120,40,.6); }
 .vi-streak .ic { width: 1.05em; height: 1.05em; }
-@media (max-width: 760px) { .vi-side { bottom: 4%; } .vi-vs { font-size: 64px; } }
+@media (max-width: 760px) { .vi-side { bottom: 4%; } .vi-vs { font-size: 84px; } }
 
 /* ───────── 업적·칭호 ───────── */
 /* 칭호 알약: 모두 같은 남색 (2v2 '다음에 칠 사람' 노란 강조·팀 색과 겹치지 않게) */
@@ -1008,7 +1013,8 @@ body.watching #hint { bottom: 128px; }
 #hud, #toast, #ach-pop, .vs-intro { font-family: var(--font-ui); letter-spacing: -0.01em; }
 #hud button { font-family: var(--font-ui); font-weight: 600; }
 #hud .ic, #toast .ic, #ach-pop .ic { width: 1em; height: 1em; flex: none; vertical-align: -0.14em; }
-#judge, #turn, #result b, .vi-vs, .vi-go, .vi-num { font-family: 'Jua', system-ui, sans-serif; letter-spacing: 0; }
+#turn, #result b, .vi-go { font-family: 'Jua', system-ui, sans-serif; letter-spacing: 0; }
+#judge, .vi-vs, .vi-num { font-family: var(--font-ui); }
 #exit { display: inline-flex; align-items: center; gap: 4px; color: #fff; background: var(--hud-bg); border: 1px solid var(--hud-line); box-shadow: 0 4px 14px rgba(0,0,0,.2); opacity: .9; }
 #exit:active:not(:disabled) { box-shadow: 0 2px 8px rgba(0,0,0,.2); transform: scale(.97); }
 /* 점수판 */
@@ -1051,7 +1057,6 @@ body.watching #hint { bottom: 128px; }
 .vi-card .it.g-default { color: rgba(255,255,255,.75); }
 .vi-card .it.g-rare { color: #e2c9ff; box-shadow: inset 0 0 0 2px #b98cf0, 0 0 18px rgba(176,124,255,.6); }
 .vi-card .it.g-legend { color: #ffe08a; background: linear-gradient(90deg, rgba(70,45,0,.85), rgba(130,88,0,.9), rgba(70,45,0,.85)); background-size: 200% 100%; box-shadow: inset 0 0 0 2px #f2a20c, 0 0 22px rgba(255,194,61,.8); }
-.vi-vs { -webkit-text-stroke: 4px var(--tt-ink); text-shadow: 0 6px 0 var(--tt-ink), 0 0 40px rgba(255,59,66,.75); }
 .vi-go b { color: var(--tt-red-glow); text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 24px rgba(255,59,66,.6); }
 /* 관전 막대·응원·다음 판 */
 .watch-bar, .crowd-pill { background: var(--hud-bg); border: 1px solid var(--hud-line); }
