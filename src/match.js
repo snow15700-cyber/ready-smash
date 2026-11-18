@@ -53,20 +53,16 @@ export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, 
 // smash = 내 찬스볼이 오면 스매시로 받아칠 확률, dir = 왼쪽/가운데/오른쪽으로 보낼 확률
 export const AI_NAME = '탁구왕 김제빵';
 export const AI = { perfect: 0.22, good: 0.42, block: 0.18, bad: 0.18, smash: 0.5, dir: [0.35, 0.3, 0.35] };
-// 랠리 단계(20·40·60회)마다 AI의 GOOD 확률 일부를 BAD로 옮긴다 (사람처럼 판정이 빡빡해진 효과)
-export const AI_TIER_BAD = [0, 0.05, 0.1, 0.15];
 const AI_DT = { perfect: [0, 0.02], good: [0.05, 0.09], bad: [0.11, 0.16], block: [0, 0.04] };
 
-function aiPlan(incoming, tier = 0) {
+function aiPlan(incoming) {
   let grade;
   if (incoming === 'chance' && Math.random() < AI.smash) grade = 'perfect';
   else {
-    const shift = AI_TIER_BAD[tier];
-    const p = { ...AI, good: AI.good - shift, bad: AI.bad + shift };
-    let r = Math.random() * (p.perfect + p.good + p.block + p.bad);
+    let r = Math.random() * (AI.perfect + AI.good + AI.block + AI.bad);
     for (const g of ['perfect', 'good', 'block', 'bad']) {
       grade = g;
-      if ((r -= p[g]) < 0) break;
+      if ((r -= AI[g]) < 0) break;
     }
   }
   if (incoming === 'smash' && grade === 'bad') grade = 'good'; // 스매시를 BAD로 받으면 아웃이 되므로
@@ -164,7 +160,7 @@ export class Match {
     const nextSlot = this.order[this.turn].slot;
     this.expect = shot.next ? { ...shot.next, slot: nextSlot, whiffed: false } : null;
     // AI 차례면 이번 공을 어떻게 칠지 미리 정해 둔다
-    if (this.mode === 'ai' && this.expect && this.expect.side === 1) this.expect.ai = aiPlan(this.incoming, rallyTier(this.mode, this.rally));
+    if (this.mode === 'ai' && this.expect && this.expect.side === 1) this.expect.ai = aiPlan(this.incoming);
     this.emit({ type: 'shot', side, slot, turn: this.turn, t, t0: shot.t0, p: shot.from, v: shot.v, grade, rally: this.rally, speedLv: shot.speedLv, idx: shot.shotIdx, kind: shot.kind });
     if (!shot.next) this.pointTo(1 - side, shot.t0 + 0.8, 'fault');
   }

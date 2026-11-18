@@ -69,7 +69,7 @@ const hud = {
   stats(st) {
     if (!game) return;
     const hot = st.rally >= 6 ? ' hot' : ''; // 랠리 6회부터 몰입 연출과 함께 🔥
-    const lv = tierOf(st.rally); // 랠리 단계 20·40·60회 (판정이 빡빡해짐)
+    const lv = game.mode === 'ai' ? 0 : tierOf(st.rally); // 랠리 단계 20·40·60회 (판정이 빡빡해짐, 혼자 하기는 없음)
     const fire = hot ? '🔥'.repeat(Math.max(1, lv)) + ' ' : '';
     let html = `<div class="st-rally${hot}${lv ? ` lv${lv}` : ''}"><span>${fire}랠리</span><b>${st.rally}</b></div>`;
     if (game.mode === 'ai') {

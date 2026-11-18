@@ -28,8 +28,8 @@ const GOOD_BY_TIER = [[0.1, 0.08], [0.085, 0.07], [0.07, 0.06], [0.055, 0.05]]; 
 const WINS = GOOD_BY_TIER.map(([e, l]) => [{ ...WIN, good: e }, { ...WIN_LATE, good: l }]);
 // 보이는 랠리 수 → 단계 (0~3)
 export const tierOf = (shown) => TIER_RALLY.filter((r) => shown >= r).length;
-// 지금까지 친 횟수(rally, 양쪽 합계) → 다음 타격의 단계. AI 모드는 화면처럼 내가 친 횟수로 센다
-export const rallyTier = (mode, rally) => tierOf(mode === 'ai' ? Math.ceil(rally / 2) : rally);
+// 지금까지 친 횟수(rally, 양쪽 합계) → 다음 타격의 단계. 혼자 하기(AI)는 단계 없음 (사용자 확정)
+export const rallyTier = (mode, rally) => (mode === 'ai' ? 0 : tierOf(rally));
 // dt(클릭 - 이상적인 시각)가 늦었으면 늦은 쪽 범위
 export const winFor = (dt, tier = 0) => WINS[tier][dt > 0 ? 1 : 0];
 
