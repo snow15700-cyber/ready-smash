@@ -623,3 +623,15 @@ button.rl-random { margin-left: auto; font-size: 13px; padding: 5px 10px; border
 .watch-hop { padding: 6px 10px; border-radius: 999px; font-size: 14px; box-shadow: none; background: rgba(255,255,255,.2); color: #fff; }
 .watch-hop:disabled { opacity: .35; }
 .watch-bar { padding-left: 8px; }
+
+/* ───────── 관전 4단계: 관중 수 · 응원 ───────── */
+.crowd-pill { position: absolute; top: 78px; left: 50%; transform: translateX(-50%); margin: 0; font-size: 14px; color: #fff; background: rgba(43,42,51,.5); padding: 4px 12px; border-radius: 999px; white-space: nowrap; }
+.cheer-bar { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 5px 6px; border-radius: 999px; background: rgba(255,250,240,.92); white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.16); }
+.cheer-bar button { padding: 6px 12px; border-radius: 999px; font-size: 15px; box-shadow: none; background: #f2e9da; }
+.cheer-bar button:disabled { opacity: .4; }
+.cheer-bar .cb-team span { display: inline-block; max-width: 90px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.cheer-bar .cb-team[data-team="0"].on { background: var(--orange); color: #fff; }
+.cheer-bar .cb-team[data-team="1"].on { background: var(--blue); color: #fff; }
+.cheer-bar .cb-sep { width: 1px; height: 22px; background: #d9c9ad; margin: 0 4px; }
+body.watching #hint { bottom: 128px; }
+@media (max-width: 600px) { .cheer-bar [data-cheer] span, .cheer-bar .cb-team span { display: none; } .cheer-bar button { padding: 6px 9px; } .crowd-pill { top: 118px; } }

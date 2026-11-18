@@ -307,6 +307,13 @@ async function browserChecks() {
       await waitFor(viewer, () => document.querySelector('#scoreboard').textContent.includes('점검참가'), null, 10000, '관전 점수판에 선수 이름');
       await viewer.evaluate(() => document.querySelector('[data-view="1"]').click());
       await waitFor(viewer, () => document.querySelector('[data-hop="1"]').disabled, null, 5000, '다른 경기가 없으면 ◀ ▶ 꺼짐');
+      // 4단계: 관중이 응원 팀을 고르고 박수 → 선수 화면에 '관중 1명', 응원 버튼은 2초 동안 잠김
+      await waitFor(viewer, () => !document.querySelector('#cheer-bar').classList.contains('hidden'), null, 5000, '응원 막대');
+      await viewer.evaluate(() => document.querySelector('#cheer-bar [data-team="0"]').click());
+      await viewer.evaluate(() => document.querySelector('#cheer-bar [data-cheer="clap"]').click());
+      await waitFor(viewer, () => document.querySelector('#cheer-bar [data-cheer="fire"]').disabled, null, 3000, '응원 2초 잠김');
+      await waitFor(page, () => document.querySelector('#crowd-pill').textContent.includes('관중 1명'), null, 10000, "선수 화면에 '관중 1명'");
+      await waitFor(page, () => window.__smash.world.crowd.root.children.some((g) => (g.userData.tag || '').startsWith('점검관중/')), null, 10000, '선수 화면 관중석에 관중 캐릭터(이름표)');
       await page.waitForTimeout(1500);
       flush();
       await page.click('#exit').catch(() => {});

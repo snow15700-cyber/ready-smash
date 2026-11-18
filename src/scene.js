@@ -4,12 +4,13 @@ import { createFx } from './fx.js';
 import { makeBall, ballFx } from './balls.js';
 import { playCrack, playPeep, playRoar } from './audio.js';
 import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H, HIT_Z, sideSign } from './physics.js';
+import { createCrowd } from './crowd.js';
 
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts });
 
 // 카메라: 어깨 뒤 낮게 + 공 따라가기 + 타격 흔들림
 // 관전 중계 카메라 (탁구대 옆, +x 쪽). follow: 공을 따라가는 정도
-const SIDE_CAM = { x: 4.3, y: 2.4, lookY: 0.7, fov: 50, follow: 0.12, lerp: 3, halfW: 2.3 }; // halfW: 화면 가로에 꼭 들어가야 하는 반폭(m)
+const SIDE_CAM = { x: 4.3, y: 2.4, lookY: 0.7, fov: 50, follow: 0.12, lerp: 3, halfW: 2.6 }; // halfW: 화면 가로에 꼭 들어가야 하는 반폭(m)
 const CAM = { y: 1.5, back: 1.2, x: 0.3, lookY: 0.86, lookZ: 1.0, fov: 60, followChar: 0.75, followBall: 0.35, lerp: 7, shake: 0.05 };
 
 // 몰입 연출: 최대일 때 체육관 밝기를 이만큼 줄인다 (0.9 = 원래의 10%)
@@ -185,8 +186,9 @@ export function createWorld(canvas) {
   let warm = false, warm0 = false;
   let ballPrevY = 0, ballPrevVy = 0;
 
+  const crowd = createCrowd(scene, makeCharacter); // 관중석 (관전 4단계): 관중도 선수와 같은 캐릭터
   const world = {
-    renderer, scene, camera, chars, team, ball, shadow, ring, ringMove, aim,
+    renderer, scene, camera, chars, team, ball, shadow, ring, ringMove, aim, crowd,
     shake: 0,
     // 몰입 정도 k (0~1): 체육관을 어둡게 해서 선수·탁구대·공만 보이게
     setFocus(k) {

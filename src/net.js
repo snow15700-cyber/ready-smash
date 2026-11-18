@@ -111,20 +111,22 @@ const LOBBY_CH = IS_TEST ? 'pingpong-test-lobby' : 'pingpong-lobby';
 export function joinLobby(onList) {
   return ONLINE ? lobbySupabase(LOBBY_CH, onList) : lobbyLocal(LOBBY_CH, onList);
 }
-// 관중석 채널 (방마다 하나, 선수 채널과 따로): 관중 명단(presence). 선수 PC는 붙지 않는다
-// onList([{id, nick, at}])
-export function joinWatch(code, onList) {
+// 관중석 채널 (방마다 하나, 선수 채널과 따로): 관중 명단(presence) + 응원 메시지.
+// 관중은 track(명단에 들어감), 선수 PC는 듣기만 해서 관중 수·응원을 받는다 (선수 채널에는 아무것도 안 섞임)
+// onList([{id, nick, at, team}]), onMsg(payload)
+export function joinWatch(code, onList, onMsg) {
   const name = (IS_TEST ? 'pingpong-test-watch-' : 'pingpong-watch-') + code;
-  return ONLINE ? lobbySupabase(name, onList) : lobbyLocal(name, onList);
+  return ONLINE ? lobbySupabase(name, onList, onMsg) : lobbyLocal(name, onList, onMsg);
 }
 
-function lobbySupabase(chName, onList) {
+function lobbySupabase(chName, onList, onMsg = null) {
   const key = Math.random().toString(36).slice(2, 10);
   const ch = getClient().channel(chName, { config: { broadcast: { self: false }, presence: { key } } });
   let ready = false, want = null, closed = false;
   ch.on('presence', { event: 'sync' }, () => {
     onList(Object.values(ch.presenceState()).map((arr) => arr[0]).filter(Boolean));
   });
+  if (onMsg) ch.on('broadcast', { event: 'm' }, ({ payload }) => onMsg(payload));
   ch.subscribe((status) => {
     if (status !== 'SUBSCRIBED' || closed) return;
     ready = true;
@@ -133,12 +135,13 @@ function lobbySupabase(chName, onList) {
   return {
     track(info) { want = info; if (ready) ch.track(info); },
     untrack() { if (!want) return; want = null; if (ready) ch.untrack(); },
+    send(payload) { if (ready) ch.send({ type: 'broadcast', event: 'm', payload }); },
     leave() { closed = true; ch.unsubscribe(); getClient().removeChannel(ch); },
   };
 }
 
 // 로컬 테스트: 방장 탭이 1초마다 '내 방' 신호, 새로 온 탭은 'q'로 바로 물어본다
-function lobbyLocal(chName, onList) {
+function lobbyLocal(chName, onList, onMsg = null) {
   const bc = new BroadcastChannel(chName);
   const key = Math.random().toString(36).slice(2, 10);
   const others = new Map(); // key → { info, t }
@@ -151,6 +154,7 @@ function lobbyLocal(chName, onList) {
     if (d.k === 'hb') { others.set(d.key, { info: d.info, t: performance.now() }); emit(); }
     else if (d.k === 'bye') { if (others.delete(d.key)) emit(); }
     else if (d.k === 'q') hb();
+    else if (d.k === 'm' && onMsg) onMsg(d.p);
   };
   const timer = setInterval(() => {
     hb();
@@ -166,6 +170,7 @@ function lobbyLocal(chName, onList) {
   return {
     track(info) { mine = info; hb(); emit(); },
     untrack() { if (!mine) return; bye(); mine = null; emit(); },
+    send(p) { post({ k: 'm', p }); },
     leave() { bye(); mine = null; closed = true; clearInterval(timer); bc.close(); window.removeEventListener('beforeunload', bye); },
   };
 }

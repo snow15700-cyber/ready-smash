@@ -697,3 +697,50 @@ export function playUI(kind = 'click') {
     [660, 830, 990, 1320].forEach((f, i) => mode(out, t + i * 0.1, f, 0.06, 0.18));
   }
 }
+
+// 관중 소리 (관전 4단계). kind: clap(박수) | fire(함성) | go(화이팅) | roar(점수 났을 때 다 같이)
+// vol: 0~1 (랠리 중에는 main.js가 아주 작게 — 찬스볼 신호음·타구음을 가리지 않게). n: 관중 수(roar 크기)
+export function playCrowd(kind, vol = 1, pos = null, n = 1) {
+  if (!ctx || vol <= 0) return;
+  const t = at();
+  const out = chain(t, pos, 0.9);
+  out.gain.value *= vol;
+  const claps = (start, count, gap, amp) => {
+    for (let i = 0; i < count; i++) {
+      const w = start + i * gap + Math.random() * gap * 0.35;
+      burst(out, w, { type: 'bandpass', f: 1100 + Math.random() * 900, q: 1.1, amp: amp * (0.7 + Math.random() * 0.3), a: 0.001, d: 0.011 });
+      burst(out, w, { type: 'lowpass', f: 600, q: 0.7, amp: amp * 0.35, a: 0.001, d: 0.02 });
+    }
+  };
+  // '와아': 톱니파 + 모음처럼 들리는 필터 몇 개, 음높이는 사람마다 조금씩
+  const voice = (start, dur, f0, amp) => {
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f0 * 0.9, start);
+    o.frequency.linearRampToValueAtTime(f0 * 1.12, start + dur * 0.35);
+    o.frequency.linearRampToValueAtTime(f0 * 0.95, start + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, start);
+    g.gain.linearRampToValueAtTime(amp, start + dur * 0.25);
+    g.gain.setValueAtTime(amp, start + dur * 0.6);
+    g.gain.linearRampToValueAtTime(0, start + dur);
+    const mix = ctx.createGain();
+    for (const [f, qq, k] of [[700, 5, 1], [1150, 6, 0.55], [2500, 7, 0.2]]) {
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = qq; bp.frequency.value = f;
+      const kg = ctx.createGain(); kg.gain.value = k;
+      g.connect(bp).connect(kg).connect(mix);
+    }
+    o.connect(g); mix.connect(out);
+    o.start(start); o.stop(start + dur + 0.05);
+  };
+  const hiss = (start, dur, amp) => burst(out, start, { type: 'bandpass', f: 700, f2: 1400, q: 0.5, amp, a: dur * 0.3, d: dur * 0.35, sweep: dur * 0.5 });
+  if (kind === 'clap') claps(t, 7, 0.16, 0.32);
+  else if (kind === 'fire') { voice(t, 0.75, 200 + Math.random() * 60, 0.09); voice(t + 0.03, 0.7, 290 + Math.random() * 60, 0.06); hiss(t, 0.7, 0.12); }
+  else if (kind === 'go') { voice(t, 0.22, 260 + Math.random() * 50, 0.08); voice(t + 0.28, 0.4, 300 + Math.random() * 50, 0.09); claps(t + 0.75, 3, 0.18, 0.25); }
+  else if (kind === 'roar') {
+    const k = Math.min(1, 0.35 + n * 0.06);
+    for (let i = 0; i < Math.min(5, 1 + n); i++) voice(t + Math.random() * 0.12, 0.9 + Math.random() * 0.4, 180 + Math.random() * 160, 0.05 * k);
+    hiss(t, 1.1, 0.16 * k);
+    claps(t + 0.35, 6 + Math.min(10, n * 2), 0.07, 0.22 * k);
+  }
+}
