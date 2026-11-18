@@ -932,3 +932,70 @@ body.watching #hint { bottom: 128px; }
 .watch-next button.big.wait { background: #8a7a66; box-shadow: 0 5px 0 #5f5243; }
 .watch-next .wn-row { display: flex; gap: 8px; }
 .watch-next .wn-row button { flex: 1; }
+
+/* ───────── 5단계 새 디자인 '탁구 색 + 유리' — 경기 중 화면 (사용자 확정 '추천' 안) ─────────
+   경기 중에는 흐림(backdrop-filter) 없이 진한 반투명만(렉 방지). 글꼴: 정보 = Pretendard, 가슴 뛰는 순간(PERFECT·VS·승리·준비하시고 스매시) = Jua.
+   팀 색 A = 빨강 / B = 파랑. 판정 색(초록·노랑·파랑·빨강)은 한눈에 알아보게 그대로. 알림 = 진한 알약 + 공 주황 점. */
+:root { --hud-bg: rgba(16,22,40,.64); --hud-line: rgba(255,255,255,.14); }
+#hud, #toast, #ach-pop, .vs-intro { font-family: var(--font-ui); letter-spacing: -0.01em; }
+#hud button { font-family: var(--font-ui); font-weight: 600; }
+#hud .ic, #toast .ic, #ach-pop .ic { width: 1em; height: 1em; flex: none; vertical-align: -0.14em; }
+#judge, #turn, #result b, .vi-vs, .vi-go { font-family: 'Jua', system-ui, sans-serif; letter-spacing: 0; }
+#exit { display: inline-flex; align-items: center; gap: 4px; color: #fff; background: var(--hud-bg); border: 1px solid var(--hud-line); box-shadow: 0 4px 14px rgba(0,0,0,.2); opacity: .9; }
+#exit:active:not(:disabled) { box-shadow: 0 2px 8px rgba(0,0,0,.2); transform: scale(.97); }
+/* 점수판 */
+.sb { border-radius: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+.sb.t0 { background: linear-gradient(135deg, var(--tt-red-hi), #B81E25); }
+.sb.t1 { background: linear-gradient(135deg, #2F66C2, var(--tt-blue-lo)); }
+.sb span { font-size: 15px; font-weight: 600; }
+.sb b { font-weight: 800; font-size: 40px; font-variant-numeric: tabular-nums; background: rgba(0,0,0,.18); padding: 3px 8px 2px; }
+.sb-colon { font-weight: 800; font-size: 32px; }
+.sb-deuce { font-weight: 800; font-size: 16px; color: #fff; background: var(--tt-ball); box-shadow: 0 4px 14px rgba(255,138,31,.5); }
+/* 랠리 카드: 평소 진한 남색, 6회부터 공 주황 → 빨강 → 분홍 → 보라 */
+.st-rally { background: var(--hud-bg); border: 1px solid var(--hud-line); backdrop-filter: none; }
+.st-rally span { display: inline-flex; align-items: center; gap: 1px; font-size: 13px; font-weight: 600; }
+.st-rally b { font-weight: 800; font-size: 38px; font-variant-numeric: tabular-nums; }
+.st-rally.hot { background: linear-gradient(160deg, var(--tt-ball), #E0453A); border-color: transparent; }
+.st-rally.lv1 { background: linear-gradient(160deg, var(--tt-red-hi), #A81B22); }
+.st-sub span { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; background: var(--hud-bg); border: 1px solid var(--hud-line); }
+.st-sub span.coin { color: #fff; background: var(--tt-ball); border-color: transparent; }
+.st-sub span.coin .coin-dot { background: #fff; }
+#hint { font-size: 18px; font-weight: 600; background: var(--hud-bg); border: 1px solid var(--hud-line); }
+/* 알림 */
+#toast { font-size: 18px; font-weight: 600; background: rgba(16,22,40,.84); border: 1px solid var(--hud-line); box-shadow: 0 8px 24px rgba(0,0,0,.3); padding: 10px 22px 10px 36px; }
+#toast::before { content: ''; position: absolute; left: 16px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: var(--tt-ball); box-shadow: 0 0 10px rgba(255,138,31,.9); }
+/* 결과 띠 */
+#result.win { background: linear-gradient(90deg, transparent, rgba(215,38,46,.9) 20%, rgba(200,31,39,.94) 50%, rgba(215,38,46,.9) 80%, transparent); }
+#result.lose { background: linear-gradient(90deg, transparent, rgba(22,30,54,.86) 20%, rgba(18,24,44,.9) 50%, rgba(22,30,54,.86) 80%, transparent); }
+#result span { font-weight: 800; font-size: 28px; font-variant-numeric: tabular-nums; }
+/* 업적 달성 알림 */
+#ach-pop { background: rgba(16,22,40,.92); box-shadow: inset 0 0 0 1.5px rgba(255,208,77,.8), 0 0 24px rgba(255,190,40,.3), 0 12px 30px rgba(0,0,0,.35); }
+#ach-pop .ap-head { display: inline-flex; align-items: center; gap: 5px; color: #ffd04d; font-weight: 700; font-size: 14px; letter-spacing: .5px; }
+#ach-pop .ap-name { color: #fff; font-weight: 800; font-size: 22px; }
+#ach-pop .ap-coin { color: rgba(255,255,255,.65); }
+#ach-pop .tpill, .vi-card .tpill { color: #fff; background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); font-weight: 600; }
+/* VS 소개 */
+.vi-team { font-weight: 700; }
+.vi-card .nm { font-weight: 800; box-shadow: 0 10px 30px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.3); }
+.vi-card .nm.t0 { background: linear-gradient(135deg, var(--tt-red-hi), #B81E25); }
+.vi-card .nm.t1 { background: linear-gradient(135deg, #2F66C2, var(--tt-blue-lo)); }
+.vi-card .it { font-weight: 600; color: #fff; background: rgba(16,22,40,.78); box-shadow: inset 0 0 0 1px var(--hud-line), 0 6px 16px rgba(0,0,0,.25); }
+.vi-card .it.g-default { color: rgba(255,255,255,.75); }
+.vi-card .it.g-rare { color: #e2c9ff; box-shadow: inset 0 0 0 2px #b98cf0, 0 0 18px rgba(176,124,255,.6); }
+.vi-card .it.g-legend { color: #ffe08a; background: linear-gradient(90deg, rgba(70,45,0,.85), rgba(130,88,0,.9), rgba(70,45,0,.85)); background-size: 200% 100%; box-shadow: inset 0 0 0 2px #f2a20c, 0 0 22px rgba(255,194,61,.8); }
+.vi-vs { -webkit-text-stroke: 4px var(--tt-ink); text-shadow: 0 6px 0 var(--tt-ink), 0 0 40px rgba(255,59,66,.75); }
+.vi-go b { color: var(--tt-red-glow); text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 24px rgba(255,59,66,.6); }
+/* 관전 막대·응원·다음 판 */
+.watch-bar, .crowd-pill { background: var(--hud-bg); border: 1px solid var(--hud-line); }
+.watch-who { font-weight: 600; }
+.cheer-bar { background: var(--hud-bg); border: 1px solid var(--hud-line); }
+.cheer-bar button { color: #fff; background: rgba(255,255,255,.12); }
+.cheer-bar .cb-team[data-team="0"].on { background: var(--tt-red); }
+.cheer-bar .cb-team[data-team="1"].on { background: var(--tt-blue-hi); }
+.cheer-bar .cb-sep { background: rgba(255,255,255,.25); }
+.watch-next { color: #fff; background: rgba(16,22,40,.92); border: 1px solid var(--hud-line); box-shadow: 0 16px 40px rgba(0,0,0,.35); }
+.watch-next b { color: #fff; font-weight: 800; }
+.watch-next p { color: rgba(255,255,255,.65); }
+#hud button.big { font-weight: 700; border-radius: 16px; background: linear-gradient(180deg, var(--tt-red-hi), var(--tt-red-lo)); box-shadow: 0 10px 26px rgba(215,38,46,.4), inset 0 1px 0 rgba(255,255,255,.35); }
+#hud .watch-next button.big.wait { background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+.watch-next .wn-row button { color: #fff; background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); }

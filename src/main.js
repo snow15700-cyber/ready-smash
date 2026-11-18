@@ -76,10 +76,10 @@ const hud = {
     if (!game) return;
     const hot = st.rally >= 6 ? ' hot' : ''; // 랠리 6회부터 몰입 연출과 함께 🔥
     const lv = game.mode === 'ai' ? 0 : tierOf(st.rally); // 랠리 단계 20·40·60회 (판정이 빡빡해짐, 혼자 하기는 없음)
-    const fire = hot ? '🔥'.repeat(Math.max(1, lv)) + ' ' : '';
+    const fire = hot ? ic('flame').repeat(Math.max(1, lv)) + ' ' : '';
     let html = `<div class="st-rally${hot}${lv ? ` lv${lv}` : ''}"><span>${fire}랠리</span><b>${st.rally}</b></div>`;
     if (game.mode === 'ai') {
-      html += `<div class="st-sub"><span>🏅 최고 ${st.best}</span><span>✨ Perfect ${st.perfects}</span>${account.loggedIn ? `<span class="coin">🪙 +${aiCoins}</span>` : ''}</div>`;
+      html += `<div class="st-sub"><span>${ic('trophy')} 최고 ${st.best}</span><span>${ic('sparkle')} Perfect ${st.perfects}</span>${account.loggedIn ? `<span class="coin"><i class="coin-dot"></i> +${aiCoins}</span>` : ''}</div>`;
     }
     $('stats').innerHTML = html;
   },
@@ -1745,8 +1745,8 @@ function showAchPop() {
   if (achPop.queue.length >= 2) {
     const all = [n, ...achPop.queue.splice(0)];
     const coins = all.reduce((t, x) => t + x.coins, 0);
-    el.innerHTML = `<div class="ap-head">🏅 업적 ${all.length}개 달성!</div><div class="ap-many">${all.map((x) => `<span class="tpill">${esc(titleText(x.id, myNemesis()))}</span>`).join('')}</div>`
-      + `<div class="ap-coin">🪙 +${coins} 코인 · 칭호는 꾸미기 → 🏅 칭호에서 달 수 있어요</div>`;
+    el.innerHTML = `<div class="ap-head">${ic('medal')} 업적 ${all.length}개 달성!</div><div class="ap-many">${all.map((x) => `<span class="tpill">${esc(titleText(x.id, myNemesis()))}</span>`).join('')}</div>`
+      + `<div class="ap-coin"><i class="coin-dot"></i> +${coins} 코인 · 칭호는 꾸미기 → 칭호에서 달 수 있어요</div>`;
     el.className = 'show';
     playUI(all.some((x) => ACH[x.id].grade === 3) ? 'legend' : 'rare');
     setTimeout(() => playUI('coin'), 500);
@@ -1754,8 +1754,8 @@ function showAchPop() {
     return;
   }
   const a = ACH[n.id];
-  el.innerHTML = `<div class="ap-head">🏅 업적 달성!</div><div class="ap-name">${esc(a.name)} <span class="stars">${'★'.repeat(a.grade)}</span></div>`
-    + `<span class="tpill">${esc(titleText(a.id, myNemesis()))}</span><div class="ap-coin">🪙 +${n.coins} 코인 · 칭호는 꾸미기 → 🏅 칭호에서 달 수 있어요</div>`;
+  el.innerHTML = `<div class="ap-head">${ic('medal')} 업적 달성!</div><div class="ap-name">${esc(a.name)} <span class="stars">${'★'.repeat(a.grade)}</span></div>`
+    + `<span class="tpill">${esc(titleText(a.id, myNemesis()))}</span><div class="ap-coin"><i class="coin-dot"></i> +${n.coins} 코인 · 칭호는 꾸미기 → 칭호에서 달 수 있어요</div>`;
   el.className = 'show';
   playUI(a.grade === 3 ? 'legend' : 'rare');
   setTimeout(() => playUI('coin'), 500);
