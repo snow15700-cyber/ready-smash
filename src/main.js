@@ -1410,7 +1410,7 @@ const SHOP_MSG = {
   not_owned: '가지고 있지 않은 아이템이에요',
   no_session: '로그인이 풀렸어요. 다시 로그인해 주세요',
 };
-const CAT_ICON = { paddle: '🏓', head: '🎩', body: '👕', trail: '✨', table: '🟦', bg: '🏟️', ball: '⚪' };
+const CAT_ICON = { paddle: ic('paddle'), head: ic('hat'), body: ic('shirt'), trail: ic('trail'), table: ic('table'), bg: ic('image'), ball: ic('ball') };
 
 function needLogin() {
   if (account.loggedIn) return false;
@@ -1453,8 +1453,8 @@ async function openDress(tab) {
 
 function renderWallet() {
   const p = account.player || {};
-  $('shop-coins').textContent = `🪙 ${(p.coins ?? 0).toLocaleString()}`;
-  $('shop-pieces').textContent = `🧩 ${(p.pieces ?? 0).toLocaleString()}`;
+  $('shop-coins').innerHTML = `<i class="coin-dot"></i> ${(p.coins ?? 0).toLocaleString()}`;
+  $('shop-pieces').innerHTML = `${ic('puzzle')} ${(p.pieces ?? 0).toLocaleString()}`;
 }
 
 function renderDress() {
@@ -1489,7 +1489,7 @@ function renderGrid() {
   $('item-grid').innerHTML = list.length ? list.map((it) => {
     const have = owns(it.id);
     const cls = ['card', `g-${it.grade}`, it.id === on ? 'on' : '', it.id === selId ? 'sel' : '', have ? '' : 'locked'].join(' ');
-    const corner = it.id === on ? '<span class="corner on">✓</span>' : have ? '' : '<span class="corner">🔒</span>';
+    const corner = it.id === on ? `<span class="corner on">${ic('check')}</span>` : have ? '' : `<span class="corner">${ic('lock')}</span>`;
     return `<li class="${cls}" data-id="${it.id}">${corner}${swatch(it)}<span class="nm">${esc(it.name)}</span><i class="bar"></i></li>`;
   }).join('') : '<li class="empty-msg">곧 열려요!</li>';
 }
@@ -1507,11 +1507,11 @@ function renderSpot() {
   $('spot-grade').textContent = gradeName(it.grade);
   $('spot-name').textContent = it.name;
   const status = isOn ? '장착 중' : have ? '가지고 있어요' : '입어 보는 중';
-  const snd = (it.sound ? ' · 🔊 특별한 소리' : '') // 소리 이름은 보여 주지 않는다 (사용자 결정)
-    + (it.hatch ? ' · ✨ 스매시 득점 시 특별한 효과' : ''); // 계란·드래곤 알: 깨지고 병아리·아기 용
-  $('spot-desc').textContent = status + snd;
+  const snd = (it.sound ? ` · ${ic('volume')} 특별한 소리` : '') // 소리 이름은 보여 주지 않는다 (사용자 결정)
+    + (it.hatch ? ` · ${ic('sparkle')} 스매시 득점 시 특별한 효과` : ''); // 계란·드래곤 알: 깨지고 병아리·아기 용
+  $('spot-desc').innerHTML = status + snd;
   let acts = '';
-  if (isOn) acts += '<span class="pill">✓ 장착 중</span>';
+  if (isOn) acts += `<span class="pill">${ic('check')} 장착 중</span>`;
   else if (have) acts += `<button class="small primary" data-act="equip" ${shopBusy ? 'disabled' : ''}>장착하기</button>`;
   else if (it.grade !== 'default') {
     const p = account.player || {};
@@ -1521,9 +1521,9 @@ function renderSpot() {
       const sure = sureId === key;
       return `<button class="small${pay === 'coins' ? ' primary' : ''}${sure ? ' sure' : ''}" data-buy="${it.id}" data-pay="${pay}" ${has < cost || shopBusy ? 'disabled' : ''}>${sure ? '정말 살까요?' : `${label} ${cost.toLocaleString()}`}</button>`;
     };
-    acts += b('coins', '🪙', g.buy, p.coins ?? 0) + b('pieces', '🧩', g.pieces, p.pieces ?? 0);
+    acts += b('coins', '<i class="coin-dot"></i>', g.buy, p.coins ?? 0) + b('pieces', ic('puzzle'), g.pieces, p.pieces ?? 0);
   }
-  if (it.cat === 'paddle' || it.cat === 'ball') acts += '<button class="small" data-act="sound" title="소리 들어 보기">🔊</button>';
+  if (it.cat === 'paddle' || it.cat === 'ball') acts += '<button class="small" data-act="sound" title="소리 들어 보기">' + ic('volume') + '</button>';
   $('spot-acts').innerHTML = acts;
 }
 
@@ -1534,14 +1534,14 @@ function renderGacha() {
   const items = ITEMS.filter((i) => i.pool === pool && i.grade !== 'default');
   const coins = account.player?.coins ?? 0;
   const ready = !!account.shop;
-  const head = `<b>${POOLS[pool].icon} ${POOLS[pool].name}</b><span class="g-cats">${POOLS[pool].desc}</span>`;
+  const head = `<b>${ic(pool === 'char' ? 'shirt' : 'image')} ${POOLS[pool].name}</b><span class="g-cats">${POOLS[pool].desc}</span>`;
   const open = poolOpen(pool);
   if (!items.length) {
     $('gacha-desc').innerHTML = `${head}<p class="soon-box">곧 열려요! 아직 아이템을 만드는 중이에요 🛠️</p>`;
   } else if (!open) {
     // 잠시 닫힘 (일반 아이템이 아직 없음). 무엇이 들어 있는지는 보여 주고, 누르면 왼쪽 '크게 보기'에
     const list = items.map((it) => `<li class="g-${it.grade}" data-id="${it.id}">${swatch(it)}<span>${esc(it.name)}</span></li>`).join('');
-    $('gacha-desc').innerHTML = `${head}<p class="soon-box">🔒 잠시 닫혀 있어요<br><small>일반 아이템이 들어오면 열려요</small></p>`
+    $('gacha-desc').innerHTML = `${head}<p class="soon-box">${ic('lock')} 잠시 닫혀 있어요<br><small>일반 아이템이 들어오면 열려요</small></p>`
       + `<div class="pity-row">지금 들어 있는 것 ${items.length}종</div><ul class="pool-peek">${list}</ul>`;
   } else {
     const hasLegend = items.some((i) => i.grade === 'legend');
@@ -1551,7 +1551,7 @@ function renderGacha() {
       + (hasLegend
         ? `<div class="pity-row">전설 보장까지 <em>${PITY - used}번</em></div><div class="pity"><i style="width:${(used / PITY) * 100}%"></i></div>`
         : '<div class="pity-row">전설 아이템은 아직 준비 중이에요</div>')
-      + `<small>지금 들어 있는 것 ${items.length}종 · 중복이면 🧩 조각으로 바뀌어요</small>`;
+      + `<small>지금 들어 있는 것 ${items.length}종 · 중복이면 ${ic('puzzle')} 조각으로 바뀌어요</small>`;
   }
   $('btn-gacha-1').disabled = shopBusy || !ready || !open || coins < GACHA_PRICE[1];
   $('btn-gacha-10').disabled = shopBusy || !ready || !open || coins < GACHA_PRICE[10];
@@ -1581,7 +1581,7 @@ async function doGacha(count) {
     const it = ITEM[x.item] || { name: x.item, grade: x.grade };
     return `<li class="card g-${x.grade}" data-id="${ITEM[x.item] ? x.item : ''}" style="animation-delay:${(i * gap).toFixed(2)}s">`
       + `${x.dup ? '' : '<span class="new">NEW</span>'}${swatch(it)}<span class="nm">${esc(it.name)}</span>`
-      + `<span class="tag">${x.dup ? `중복 🧩+${x.pieces}` : gradeName(x.grade)}</span><i class="bar"></i></li>`;
+      + `<span class="tag">${x.dup ? `중복 ${ic('puzzle')}+${x.pieces}` : gradeName(x.grade)}</span><i class="bar"></i></li>`;
   }).join('');
   r.results.forEach((x, i) => setTimeout(() => playUI(x.grade === 'common' ? 'card' : x.grade), i * gap * 1000));
   // 가장 좋은 아이템을 캐릭터에 입혀 크게 보여 주기
@@ -1783,9 +1783,9 @@ function renderTitles() {
 
       const on = cur === a.id;
       let right;
-      if (on) right = '<span class="t-on">✓ 달고 있음</span>';
+      if (on) right = `<span class="t-on">${ic('check')} 달고 있음</span>`;
       else if (have) right = `<button class="small primary" data-title="${a.id}" ${titleBusy ? 'disabled' : ''}>달기</button>`;
-      else right = `<span class="t-lock">🔒 🪙 ${REWARD[a.grade]}${a.live ? '' : '<small>준비 중</small>'}</span>`;
+      else right = `<span class="t-lock">${ic('lock')} <i class="coin-dot"></i> ${REWARD[a.grade]}${a.live ? '' : '<small>준비 중</small>'}</span>`;
       html += `<li class="ach${have ? ' got' : ''}${on ? ' on' : ''}"><div class="a-main">`
         + `<div class="a-name">${esc(a.name)} <span class="stars">${'★'.repeat(a.grade)}</span></div>`
         + `<div class="a-cond">${esc(a.cond)}</div>`

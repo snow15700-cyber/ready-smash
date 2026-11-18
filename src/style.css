@@ -535,7 +535,7 @@ button.leave-pill:hover:not(:disabled) { border-color: #ffbf8f; }
 .gx .rl.ghost .nm { color: rgba(255,255,255,.8); background: rgba(18,24,44,.5); border: 1px dashed rgba(255,255,255,.45); font-weight: 600; }
 .gx.screen.left { background: linear-gradient(90deg, var(--night-62) 0%, var(--night-30) 38%, var(--night-08) 60%), linear-gradient(0deg, rgba(14,26,58,.4), rgba(14,26,58,0) 35%); }
 @media (max-width: 760px) { .gx.screen.left { background: rgba(14,26,58,.5); } }
-.gx.screen:not(.left):not(.stage) { background: rgba(14,26,58,.45); backdrop-filter: blur(4px); }
+.gx.screen:not(.left):not(.stage):not(.side) { background: rgba(14,26,58,.45); backdrop-filter: blur(4px); }
 /* 랭킹 (밝은 유리 패널 + 금·은·동) */
 .gx .rank-panel { width: min(540px, 100%); padding: 18px 22px; border-radius: 26px; }
 .gx .rank-top h2 { display: flex; align-items: center; gap: 8px; color: #fff; font-weight: 800; font-size: 26px; }
@@ -587,6 +587,79 @@ button.leave-pill:hover:not(:disabled) { border-color: #ffbf8f; }
 .gx .rank-me .val { font-weight: 800; }
 .gx .rank-list::-webkit-scrollbar { width: 6px; } .gx .rank-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.25); border-radius: 3px; }
 .gx .rank-panel .tpill { color: #fff; background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); font-weight: 600; }
+
+/* 꾸미기: 3D는 진짜 색 그대로(어둡게 안 함), 패널·크게 보기 = 어두운 유리 (사용자 확정 '추천' 안) */
+.gx.screen.side { background: linear-gradient(90deg, rgba(14,26,58,0) 45%, rgba(14,26,58,.32)); }
+@media (max-width: 760px) { .gx.screen.side { background: rgba(14,26,58,.3); } }
+.gx .dress-panel, .gx .spot { background: rgba(18,24,44,.7); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%);
+  border: 1px solid rgba(255,255,255,.16); box-shadow: 0 18px 44px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.12); }
+.gx .dress-head h2 { color: #fff; font-weight: 800; font-size: 24px; }
+.gx .wallet span { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; }
+.gx .wallet span:first-child { color: #ffb066; background: rgba(255,138,31,.18); }
+.gx .wallet span + span { color: #b8ccff; background: rgba(42,93,176,.4); }
+.gx .chips button { color: rgba(255,255,255,.8); background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); font-weight: 600; font-size: 14px; }
+.gx .chips button:hover:not(:disabled) { background: rgba(255,255,255,.16); }
+.gx .chips button.on { color: var(--tt-ink); background: rgba(255,255,255,.92); box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+.gx .chips button.on .ic { color: var(--tt-red); }
+.gx .chips button:disabled { opacity: .35; }
+.gx .seg.sub { background: rgba(0,0,0,.18); }
+/* 아이템 카드: 위쪽에 은은한 빛(어두운 탁구채도 잘 보이게) + 등급은 아래 띠·테두리 빛 */
+.gx .card { --lit: radial-gradient(circle at 50% 34%, rgba(255,255,255,.24), rgba(255,255,255,0) 62%);
+  background: var(--lit), rgba(255,255,255,.07); border-radius: 14px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.gx .card:hover { background: var(--lit), rgba(255,255,255,.14); }
+.gx .card.g-rare { background: var(--lit), linear-gradient(rgba(155,93,229,.06), rgba(155,93,229,.26)); box-shadow: inset 0 0 0 1px rgba(185,140,240,.5); }
+.gx .card.g-legend { background: var(--lit), linear-gradient(rgba(255,208,77,.06), rgba(255,190,40,.26)); box-shadow: inset 0 0 0 1px rgba(255,208,77,.6), 0 0 16px rgba(255,190,40,.22); }
+.gx .card .nm { color: #fff; font-weight: 600; font-size: 12.5px; }
+.gx .card.locked .sw { filter: grayscale(.7) opacity(.5); }
+.gx .card.locked .nm { color: rgba(255,255,255,.45); }
+.gx .card .corner { color: rgba(255,255,255,.55); font-size: 13px; line-height: 1; }
+.gx .card .corner.on { color: #fff; background: var(--tt-red); box-shadow: 0 2px 6px rgba(0,0,0,.3); font-size: 12px; }
+.gx .card.sel:not(.on) { box-shadow: inset 0 0 0 2px rgba(255,255,255,.55); }
+.gx .card.on { box-shadow: inset 0 0 0 2px #fff, 0 6px 16px rgba(0,0,0,.3); }
+.gx .item-grid .empty-msg { color: rgba(255,255,255,.6); }
+.gx .item-grid::-webkit-scrollbar, .gx .t-list::-webkit-scrollbar { width: 6px; } .gx .item-grid::-webkit-scrollbar-thumb, .gx .t-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.25); border-radius: 3px; }
+/* 크게 보기 */
+.gx .spot-pic { background: radial-gradient(circle at 50% 40%, rgba(255,255,255,.4), rgba(255,255,255,.08)); box-shadow: inset 0 0 0 2px var(--g); }
+.gx .spot.g-rare .spot-pic { background: radial-gradient(circle at 50% 40%, rgba(255,255,255,.38), rgba(155,93,229,.3)); }
+.gx .spot.g-legend .spot-pic { background: radial-gradient(circle at 50% 40%, rgba(255,250,220,.5), rgba(255,190,40,.32)); box-shadow: inset 0 0 0 2px var(--g), 0 0 22px rgba(255,190,40,.35); }
+.gx .spot-name { color: #fff; font-weight: 800; }
+.gx .spot-desc { color: rgba(255,255,255,.65); }
+.gx .spot-acts button.primary { background: linear-gradient(180deg, var(--tt-red-hi), var(--tt-red-lo)); box-shadow: 0 6px 16px rgba(215,38,46,.35), inset 0 1px 0 rgba(255,255,255,.3); }
+.gx .spot-acts button.sure { background: linear-gradient(180deg, #ffa040, #f07a10); box-shadow: 0 0 0 3px rgba(255,138,31,.3), 0 6px 16px rgba(240,122,16,.4); }
+.gx .spot-acts .pill { display: inline-flex; align-items: center; gap: 5px; color: #5be38a; background: rgba(91,227,138,.14); font-weight: 600; }
+.gx .gbadge { font-weight: 700; }
+/* 뽑기 */
+.gx .gacha-desc { color: rgba(255,255,255,.75); background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); }
+.gx .gacha-desc b { display: inline-flex; align-items: center; gap: 7px; color: #fff; font-weight: 800; }
+.gx .gacha-desc .g-cats, .gx .gacha-desc small { color: rgba(255,255,255,.55); }
+.gx .gacha-desc em { color: var(--tt-ball); font-weight: 700; }
+.gx .pity { background: rgba(255,255,255,.14); }
+.gx .pool-peek li { color: #fff; background: rgba(255,255,255,.08); }
+.gx .gbtns button.big small { display: flex; align-items: center; justify-content: center; gap: 5px; font-weight: 600; }
+.gx .gbtns button.big .coin-dot { background: #fff; }
+.gx .gbtns button.ten { background: linear-gradient(180deg, #a874f2, #7442d6); box-shadow: 0 10px 26px rgba(124,66,214,.45), inset 0 1px 0 rgba(255,255,255,.35); }
+.gx .gbtns button.ten:hover:not(:disabled) { background: linear-gradient(180deg, #b384f5, #7442d6); }
+.gx .gbtns button.ten::after { background: var(--tt-red-glow); font-weight: 700; box-shadow: 0 2px 8px rgba(255,59,66,.5); }
+.gx .gacha-result .card .tag { color: rgba(255,255,255,.6); display: flex; align-items: center; justify-content: center; gap: 3px; }
+.gx .gacha-result .card.g-legend { box-shadow: inset 0 0 0 1px rgba(255,208,77,.7), 0 0 20px rgba(255,190,40,.55); }
+.gx .gacha-result .new { background: var(--tt-red-glow); font-weight: 700; }
+/* 칭호 */
+.gx .t-now { color: #fff; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
+.gx .t-now > span:first-child, .gx .t-now em, .gx .t-now .t-count { color: rgba(255,255,255,.6); }
+.gx .t-list h4 { color: rgba(255,255,255,.6); font-weight: 700; font-size: 13px; }
+.gx .t-list .ach { background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
+.gx .t-list .ach:not(.got) { background: rgba(255,255,255,.03); }
+.gx .t-list .ach:not(.got) .a-name { color: rgba(255,255,255,.45); }
+.gx .t-list .ach.on { background: rgba(215,38,46,.22); box-shadow: inset 0 0 0 2px rgba(255,255,255,.7); }
+.gx .t-list .a-name { color: #fff; font-weight: 700; font-size: 15px; }
+.gx .t-list .a-cond { color: rgba(255,255,255,.55); }
+.gx .t-list .small.primary, .gx .t-list button.primary { background: linear-gradient(180deg, var(--tt-red-hi), var(--tt-red-lo)); box-shadow: none; }
+.gx .t-list .t-on { display: inline-flex; align-items: center; gap: 4px; color: #fff; font-weight: 700; }
+.gx .t-list .t-lock small { flex-basis: 100%; text-align: right; }
+.gx .t-list .t-lock { display: inline-flex; flex-direction: row; flex-wrap: wrap; justify-content: flex-end; max-width: 90px; align-items: center; gap: 4px; flex: none; color: rgba(255,255,255,.45); font-size: 13px; }
+.gx .dress-panel .tpill { color: #fff; background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); font-weight: 600; }
+.gx .dress-panel .tpill.off { color: rgba(255,255,255,.4); background: rgba(255,255,255,.05); }
+html.lite-glass .gx .dress-panel, html.lite-glass .gx .spot { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(18,24,44,.88); }
 
 /* 느린 PC: 흐림 끄기 */
 html.lite-glass .gx .panel, html.lite-glass .gx .howto { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(28,38,66,.86); }
