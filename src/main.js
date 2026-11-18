@@ -400,7 +400,7 @@ function onRoomMsg(m) {
       const p = room.players.find((x) => x.id === m.from);
       if (!p) break;
       if (m.kind === 'toss') match.toss(p.side, m.t, m.x, p.slot || 0);
-      else if (m.kind === 'swing') match.swing(p.side, m.t, m.dir, m.up, p.slot || 0);
+      else if (m.kind === 'swing') match.swing(p.side, m.t, m.dir, m.up, p.slot || 0, performance.now() / 1000); // 도착 시각: 늦게 왔으면 공 출발을 늦춤
       break;
     }
   }
