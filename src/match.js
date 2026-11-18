@@ -15,6 +15,11 @@ export const CHANCE_RALLY = 6;
 export const SMASH_SPEED = [1.2, 1.4]; // 이 사이에서 랜덤 (seed로 정해서 모든 PC가 같은 값)
 export const SMASH_OUT = true;
 
+// 인터넷 지연: 네트워크 너머 선수의 타격이 방장에게 늦게 도착하면, 공이 이미 그만큼 날아간 것으로 계산돼
+// 받는 사람 화면에 공이 '날아오지도 않았는데' 놓침이 될 수 있다. 그래서 늦게 온 타격은 공이 라켓에 조금 더
+// 머물다 출발하게 해서, 도착한 시점에 공이 날아가 있던 시간이 LATE_OK초를 넘지 않게 한다.
+export const LATE_OK = 0.15;
+
 // 한 번의 타격 결과 계산. 방장과 상대 PC가 같은 입력이면 똑같은 결과가 나온다 (상대 PC의 예측용)
 // incoming: 지금 받는 공의 종류 ('chance' | 'smash' | null), dt: 이상적인 타격 시각과의 차이
 export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, grade, dir, hold, incoming = null, dt = 0 }) {
@@ -118,7 +123,8 @@ export class Match {
   }
 
   // 스윙 입력 (t = 클릭 시각, dir = 화면 좌우 -1~1, isSwing = 위로 올리며 클릭)
-  swing(side, t, dir, isSwing, slot = 0) {
+  // now = 네트워크로 받은 입력이 방장에게 도착한 시각 (주면 늦게 온 만큼 공 출발을 늦춘다, LATE_OK 참고)
+  swing(side, t, dir, isSwing, slot = 0, now = null) {
     const ex = this.expect;
     if (!ex || ex.side !== side || ex.slot !== slot || ex.whiffed) return;
     if (this.phase !== 'toss' && this.phase !== 'rally') return;
@@ -131,7 +137,8 @@ export class Match {
       }
       return;
     }
-    this.hit(side, t, grade, dir, HOLD, slot, t - ex.t);
+    const hold = now === null ? HOLD : Math.max(HOLD, now - LATE_OK - t);
+    this.hit(side, t, grade, dir, hold, slot, t - ex.t);
   }
 
   // hold: 사람이 친 공은 방향을 읽는 동안 잠깐 라켓에 머문 뒤 출발
