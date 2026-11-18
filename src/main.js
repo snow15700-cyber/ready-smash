@@ -108,7 +108,8 @@ const hud = {
     $('result-score').textContent = `${score[0]} : ${score[1]}`;
     clearTimeout(resultTimer);
     resultTimer = setTimeout(() => el.classList.add('hidden'), 2700);
-    setTimeout(() => { if (watch) endWatch('경기가 끝났어요. 다른 경기도 구경해 보세요!'); }, 3200);
+    const w = watch;
+    setTimeout(() => { if (watch === w) watchDone(w); }, 2800); // 결과 띠가 사라지면 '다음 판' 창
   },
   gameOver(win, score) {
     const me = game.mySide;
@@ -949,6 +950,7 @@ function endWatch(msg, toLobby = true) {
   w.link.leave();
   document.body.classList.remove('watching');
   $('watch-bar').classList.add('hidden');
+  $('watch-next').classList.add('hidden');
   if (game) watchView = game.view;
   stopGame();
   if (!toLobby) return;
@@ -996,11 +998,13 @@ function onWatchMembers(w, list) {
   w.members = list;
   const host = list.find((m) => m.host);
   if (host) { w.sawHost = true; w.hostM = host; }
-  if (w.sawHost && !host) { endWatch('방장이 나가서 중계가 끝났어요'); return; }
+  if (w.sawHost && !host) { endWatch(w.over ? '방장이 나가서 방이 없어졌어요' : '방장이 나가서 중계가 끝났어요'); return; }
   // 선수가 나감: 한 번이라도 명단에서 본 선수가 사라졌을 때만 (처음엔 명단이 한 명씩 들어올 수 있음)
+  // 경기 중이면 경기가 끝난 것 → '다음 판' 창 (빈자리가 생겼으니 들어갈 수도 있다). 경기 뒤(over)엔 그냥 자리가 나는 것
   for (const m of list) w.seen.add(m.id);
-  if (w.pl.some((p) => w.seen.has(p.id) && !list.some((m) => m.id === p.id))) { endWatch('선수가 나가서 경기가 끝났어요'); return; }
-  if (!game) return;
+  if (!w.over && w.pl.some((p) => w.seen.has(p.id) && !list.some((m) => m.id === p.id))) { hud.toast('선수가 나가서 경기가 끝났어요', 2400); watchDone(w); return; }
+  if (w.over && game) { for (const p of w.pl) world.team[p.side][p.slot].group.visible = list.some((m) => m.id === p.id); } // 경기 뒤 나간 선수는 안 보이게
+  if (!game || w.over) return;
   // 선수 이름·꾸미기 (presence에서)
   const n = watchNames(w);
   game.names = n.names;
@@ -1011,6 +1015,74 @@ function onWatchMembers(w, list) {
   renderCheerBar();
 }
 
+/* ───────── 경기가 끝난 뒤: 다음 판 참가 (관전 5단계) ─────────
+   관중은 방에 그대로 남아(듣기만) 방 정보(로비 채널의 n/cap/play)를 본다.
+   빈자리가 있으면 '🏓 다음 판 참가' → 그 방 대기실로. 꽉 찼으면 '🔔 자리 나면 알려 줘요'.
+   다음 경기가 그냥 시작되면 자동으로 이어서 관전. 아무도 쫓겨나지 않는다(사용자 확정). */
+function watchDone(w) {
+  if (watch !== w || w.over) return;
+  w.over = true;
+  w.idle = false; // 방이 대기실로 돌아간 걸 봤는지 (그다음 play가 되면 새 경기 — 같은 선수끼리 다시 해도)
+  $('result').classList.add('hidden');
+  hud.hint('');
+  renderCheerBar();
+  renderWatchNext();
+}
+const watchRoomInfo = () => (watch ? lobbyRooms.find((r) => r.code === watch.code) : null);
+function renderWatchNext() {
+  const box = $('watch-next');
+  const w = watch;
+  // 방이 대기실로 돌아갔는데(경기 끝 신호를 놓침) 아직 관전 중이면 → 끝난 것으로
+  if (w && !w.over && w.sawHost && watchRoomInfo()?.play === false) { watchDone(w); return; }
+  if (!w || !w.over) { box.classList.add('hidden'); return; }
+  const r = watchRoomInfo();
+  if (r && !r.play) w.idle = true;
+  // 다음 경기가 시작됨 → 이어서 관전 (새 선수 명단으로 다시 들어가기)
+  if (r && r.play && r.pl && w.idle) {
+    endWatch(null, false);
+    startWatch(r);
+    hud.toast('다음 경기가 시작됐어요! 이어서 관전해요', 2200);
+    return;
+  }
+  box.classList.remove('hidden');
+  const free = r ? Math.max(0, r.cap - r.n) : 0;
+  const can = !!r && !r.play && free > 0;
+  $('wn-title').textContent = `${w.nick}의 방 · 다음 판을 기다리는 중`;
+  const join = $('wn-join');
+  if (IS_MOBILE) {
+    join.textContent = '🔒 참가는 PC에서만';
+    join.disabled = true;
+    $('wn-sub').textContent = '다음 경기가 시작되면 이어서 보여 드려요';
+  } else if (can) {
+    join.textContent = `🏓 다음 판 참가 (빈자리 ${free})`;
+    join.disabled = false;
+    $('wn-sub').textContent = '대기실에 들어가서 팀을 고르면 준비 완료!';
+    if (w.notify) { w.notify = false; playUI('turn'); hud.toast('🔔 자리가 났어요! 들어갈래요?', 3000); }
+  } else {
+    join.textContent = w.notify ? '🔔 자리 나면 알려 드릴게요' : '🔔 자리 나면 알려 줘요';
+    join.disabled = !!w.notify;
+    $('wn-sub').textContent = '지금은 자리가 꽉 찼어요 · 다음 경기가 시작되면 이어서 보여 드려요';
+  }
+  join.classList.toggle('wait', !can);
+  $('wn-other').disabled = !watchable().some((x) => x.code !== w.code);
+}
+$('wn-join').addEventListener('click', () => {
+  const w = watch;
+  if (!w || !w.over) return;
+  playUI('click');
+  const r = watchRoomInfo();
+  if (r && !r.play && r.cap - r.n > 0 && !IS_MOBILE) {
+    const code = w.code;
+    endWatch(null, false);
+    enterRoom(code, false); // 그 방 대기실로 (정원이 그새 찼으면 enterRoom이 알려 줌)
+  } else {
+    w.notify = true;
+    renderWatchNext();
+  }
+});
+$('wn-other').addEventListener('click', () => { if (watch) { playUI('click'); hopWatch(1); } });
+$('wn-lobby').addEventListener('click', () => { if (watch) { playUI('click'); endWatch(); } });
+
 function watchClock(w, hostT) {
   const off = hostT - performance.now() / 1000;
   w.offs.push(off);
@@ -1020,11 +1092,12 @@ function watchClock(w, hostT) {
 }
 
 function onWatchMsg(w, m) {
-  if (watch !== w || !game) return;
+  if (watch !== w || !game || w.over) return; // 경기가 끝난 뒤엔 새 경기를 다시 들어가서 받는다
   if (m.k === 'pong' && typeof m.th === 'number') { watchClock(w, m.th); return; }
   if (m.k !== 'ev' || !m.ev) return;
   const ev = m.ev;
   if (typeof ev.t === 'number' && (ev.type === 'shot' || ev.type === 'toss')) watchClock(w, ev.t);
+  if (!w.live && ev.type === 'gameOver') { watchDone(w); return; } // 중계 시작 전에 경기가 끝남
   if (!w.live) {
     // 시계를 한 번이라도 맞춘 뒤의 서브부터 중계
     if (ev.type !== 'serveReady' || !w.offs.length) return;
@@ -1131,7 +1204,7 @@ function pickCheerTeam(t) {
 }
 function renderCheerBar() {
   const bar = $('cheer-bar');
-  if (!watch || !game || !crowd?.me) { bar.classList.add('hidden'); return; }
+  if (!watch || !game || !crowd?.me || watch.over) { bar.classList.add('hidden'); return; }
   bar.classList.remove('hidden');
   const cool = performance.now() / 1000 - crowd.mineT < CHEER_GAP;
   for (const b of bar.querySelectorAll('[data-team]')) {
@@ -1162,7 +1235,7 @@ function syncLobby() {
   const need = curScreen === 'lobby' || !!(room && room.host) || !!watch;
   if (need && !lobbyLink) {
     lobbySent = '';
-    lobbyLink = joinLobby((list) => { lobbyRooms = list; renderRoomList(); renderWatchBar(); });
+    lobbyLink = joinLobby((list) => { lobbyRooms = list; renderRoomList(); renderWatchBar(); renderWatchNext(); });
   } else if (!need && lobbyLink) {
     lobbyLink.leave();
     lobbyLink = null;

@@ -15,7 +15,7 @@
 | 주제 | 파일 | 상태 |
 |---|---|---|
 | 경기 규칙·조작·판정·찬스볼·몰입 연출·**동기화 규칙** | `docs/dev/gameplay.md` | main |
-| 2v2·혼자 하기(AI)·모바일·링크 미리보기·**관전 모드(기획·단계)** | `docs/dev/modes.md` | 2v2·AI main / 모바일·미리보기 test / 관전 ①방 목록 ②관전 기본 ③넘나들기 ④관중석·응원 **`test-spectate` 브랜치**(test 말고) |
+| 2v2·혼자 하기(AI)·모바일·링크 미리보기·**관전 모드(기획·단계)** | `docs/dev/modes.md` | 2v2·AI main / 모바일·미리보기 test / 관전 ①~⑤ 모두(방 목록·관전·넘나들기·관중석 응원·다음 판 참가) **`test-spectate` 브랜치**(test 말고) |
 | PIN 계정·전적·랭킹·코인·경기 확인·**보안(18)**·업적·칭호 | `docs/dev/accounts.md` | 보안 18 test(SQL 실행 전) |
 | 상점·꾸미기 공통, 탁구채(전설 포함)·몸·목록 그림 | `docs/dev/shop.md` | test |
 | 탁구공 | `docs/dev/balls.md` | test |

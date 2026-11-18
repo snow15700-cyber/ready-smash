@@ -314,9 +314,13 @@ async function browserChecks() {
       await waitFor(viewer, () => document.querySelector('#cheer-bar [data-cheer="fire"]').disabled, null, 3000, '응원 2초 잠김');
       await waitFor(page, () => document.querySelector('#crowd-pill').textContent.includes('관중 1명'), null, 10000, "선수 화면에 '관중 1명'");
       await waitFor(page, () => window.__smash.world.crowd.root.children.some((g) => (g.userData.tag || '').startsWith('점검관중/')), null, 10000, '선수 화면 관중석에 관중 캐릭터(이름표)');
+      // 5단계: 경기가 끝나면 관중에게 '다음 판' 창 (자리가 꽉 찼으니 '자리 나면 알려 줘요')
+      await page.evaluate(() => window.__smash.match.emit({ type: 'gameOver', winner: 0, score: [5, 0] }));
+      await waitFor(viewer, () => !document.querySelector('#watch-next').classList.contains('hidden') && document.querySelector('#wn-join').textContent.includes('알려'), null, 20000, "경기 끝 → 관중에게 '다음 판' 창");
       await page.waitForTimeout(1500);
       flush();
-      await page.click('#exit').catch(() => {});
+      // 방장 나가기 (경기 끝나 대기실로 돌아갔으면 대기실의 나가기 버튼)
+      await page.evaluate(() => (document.querySelector('#room').classList.contains('hidden') ? document.querySelector('#exit') : document.querySelector('#btn-room-leave')).click());
       await waitFor(viewer, () => !window.__smash.game && !document.querySelector('#lobby').classList.contains('hidden'), null, 15000, '방장이 나가면 관중도 로비로');
       await viewer.close();
       await guest.close();
