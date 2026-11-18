@@ -133,8 +133,9 @@ let preview = null; // 상점·옷장에서 미리보기 중인 꾸미기 { look
 const myNick = () => account.nick || '플레이어';
 
 let curScreen = '';
-let lobbyLink = null, lobbyRooms = [], lobbySent = '';
-let watch = null; // 관전 중인 방 (아래 '관전') // 로비 방 목록 (아래 '로비 방 목록')
+let lobbyLink = null, lobbyRooms = [], lobbySent = ''; // 로비 방 목록 (아래 '로비 방 목록')
+let watch = null; // 관전 중인 방 (아래 '관전')
+let watchView = 'side'; // 관전 카메라 (다른 경기로 넘어가도 유지)
 const HOWTO_KEY = 'smash-howto-seen'; // 치는 방법 창을 본 적 있는지 (처음 온 사람에게 한 번 자동으로 띄움)
 function show(screen) {
   if (screen === 'lobby') {
@@ -931,6 +932,7 @@ function startWatch(r) {
   show('hud');
   const n = watchNames(w);
   game = new Game(world, { mySide: 0, mode: r.mode, hud, spectator: true, names: n.names, playerNames: n.per, playerTitles: n.tl, looks: [[{}, {}], [{}, {}]], send: { toss() {}, swing() {} } });
+  game.view = watchView; // 넘나들어도 고른 카메라 그대로
   hud.score([0, 0]);
   hud.stats(game.stats);
   hud.hint('다음 서브부터 중계해요…');
@@ -940,7 +942,8 @@ function startWatch(r) {
   setTimeout(() => { if (watch === w && !w.sawHost) endWatch('경기를 찾을 수 없어요'); }, 6000);
 }
 
-function endWatch(msg) {
+// toLobby = false: 다른 경기로 넘어가는 중 (로비로 안 돌아감)
+function endWatch(msg, toLobby = true) {
   if (!watch) return;
   const w = watch;
   watch = null;
@@ -948,9 +951,33 @@ function endWatch(msg) {
   w.seats.leave();
   document.body.classList.remove('watching');
   $('watch-bar').classList.add('hidden');
+  if (game) watchView = game.view;
   stopGame();
+  if (!toLobby) return;
   show('lobby');
   if (msg) hud.toast(msg, 2600);
+}
+
+// 지금 관전할 수 있는 방들 (코드 순, 넘나들 때 순서가 흔들리지 않게)
+const watchable = () => lobbyRooms.filter((r) => r.play && r.w !== false && r.pl).sort((a, b) => (a.code < b.code ? -1 : 1));
+// 관전 중 ◀ ▶: 다른 경기로 바로 넘어가기
+function hopWatch(dir) {
+  if (!watch) return;
+  const list = watchable();
+  const others = list.filter((r) => r.code !== watch.code);
+  if (!others.length) { hud.toast('지금은 다른 경기가 없어요', 1800); return; }
+  const i = list.findIndex((r) => r.code === watch.code);
+  const next = i < 0 ? others[0] : list[(i + dir + list.length) % list.length];
+  endWatch(null, false);
+  startWatch(next);
+}
+// 🎲 아무 경기나 보기
+function randomWatch() {
+  const list = watchable().filter((r) => r.code !== watch?.code);
+  if (!list.length) { hud.toast('지금 경기 중인 방이 없어요', 1800); return; }
+  const r = list[(Math.random() * list.length) | 0];
+  if (watch) endWatch(null, false);
+  startWatch(r);
 }
 
 // 선수 이름 (쪽별, 2v2는 'A1·A2'), 이름표용 [side][slot]
@@ -1011,10 +1038,15 @@ function onWatchMsg(w, m) {
 function renderWatchBar() {
   if (!watch || !game) return;
   $('watch-bar').classList.remove('hidden');
-  $('watch-who').textContent = `👀 ${watch.nick}의 방 관전 중 · 관중 ${watch.count || 1}명`;
+  const list = watchable(), i = list.findIndex((r) => r.code === watch.code);
+  const pos = list.length > 1 && i >= 0 ? ` (${i + 1}/${list.length})` : '';
+  $('watch-who').textContent = `👀 ${watch.nick}의 방${pos} · 관중 ${watch.count || 1}명`;
+  for (const b of $('watch-bar').querySelectorAll('[data-hop]')) b.disabled = !list.some((r) => r.code !== watch.code);
   for (const b of $('watch-bar').querySelectorAll('[data-view]')) b.classList.toggle('on', String(game.view) === b.dataset.view);
 }
 $('watch-bar').addEventListener('click', (e) => {
+  const hop = e.target.closest('[data-hop]');
+  if (hop && watch) { playUI('click'); hopWatch(+hop.dataset.hop); return; }
   const b = e.target.closest('[data-view]');
   if (!b || !game || !game.spectator) return;
   playUI('click');
@@ -1026,10 +1058,11 @@ $('watch-bar').addEventListener('click', (e) => {
    로비 채널(pingpong-lobby)은 로비 화면에 있을 때 + 내가 방장일 때만 붙어 있다.
    방장은 '내 방' 정보를 상태가 바뀔 때만 올린다(사람 수·경기 시작/끝·점수). */
 function syncLobby() {
-  const need = curScreen === 'lobby' || !!(room && room.host);
+  // 관전 중에도 붙는다(듣기만): 다른 경기로 넘어갈 목록이 필요해서. 선수 PC와는 상관없음
+  const need = curScreen === 'lobby' || !!(room && room.host) || !!watch;
   if (need && !lobbyLink) {
     lobbySent = '';
-    lobbyLink = joinLobby((list) => { lobbyRooms = list; renderRoomList(); });
+    lobbyLink = joinLobby((list) => { lobbyRooms = list; renderRoomList(); renderWatchBar(); });
   } else if (!need && lobbyLink) {
     lobbyLink.leave();
     lobbyLink = null;
@@ -1074,8 +1107,10 @@ function renderRoomList() {
   // 로비 안 목록은 화면 높이에 맞춰 줄 수를 줄인다 (아래 버튼과 겹치지 않게)
   const lbMax = innerHeight >= 860 ? 3 : innerHeight >= 740 ? 2 : 1;
   $('lb-rooms').innerHTML = roomListHTML(lbMax);
+  $('btn-random-watch').classList.toggle('hidden', !watchable().some((r) => r.code !== room?.code));
 }
 addEventListener('resize', renderRoomList);
+$('btn-random-watch').addEventListener('click', () => { if (!game) randomWatch(); });
 $('lb-rooms').addEventListener('click', (e) => {
   const b = e.target.closest('.rl-row');
   if (!b) return;

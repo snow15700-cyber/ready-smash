@@ -35,7 +35,9 @@
     <button id="exit" class="small">← 나가기</button>
     <!-- 관전 중: 어느 방인지·관중 수·카메라 바꾸기 -->
     <div id="watch-bar" class="watch-bar hidden">
+      <button class="small watch-hop" data-hop="-1" title="이전 경기">◀</button>
       <span id="watch-who" class="watch-who"></span>
+      <button class="small watch-hop" data-hop="1" title="다음 경기">▶</button>
       <div class="watch-views"><button class="small" data-view="side">📺 옆에서</button><button class="small" data-view="0">A쪽</button><button class="small" data-view="1">B쪽</button></div>
     </div>
   </div>
@@ -180,7 +182,7 @@
         </div>
         <button id="btn-join">🔑 코드로 입장</button>
         <div class="rl-wrap lb-rooms-wrap">
-          <div class="lb-label">🏟️ 지금 열린 방</div>
+          <div class="lb-label rl-head">🏟️ 지금 열린 방<button id="btn-random-watch" class="small rl-random hidden" title="경기 중인 방 하나를 골라 바로 관전">🎲 아무 경기나 보기</button></div>
           <div id="lb-rooms" class="rl-list"></div>
         </div>
       </div>

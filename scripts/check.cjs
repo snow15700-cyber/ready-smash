@@ -300,10 +300,13 @@ async function browserChecks() {
       await viewer.fill('#login-nick', '점검관중');
       await viewer.click('#btn-guest');
       await waitFor(viewer, (c) => document.querySelector(`#lb-rooms .rl-row[data-code="${c}"] .rl-act.watch`), code, 15000, "로비 목록에 '👀 관전' 버튼");
-      await viewer.evaluate((c) => document.querySelector(`#lb-rooms .rl-row[data-code="${c}"]`).click(), code);
+      // 3단계: 🎲 아무 경기나 보기로 들어가고, 다른 경기가 없으면 ◀ ▶는 꺼져 있다
+      await waitFor(viewer, () => !document.querySelector('#btn-random-watch').classList.contains('hidden'), null, 10000, "'🎲 아무 경기나 보기' 버튼");
+      await viewer.evaluate(() => document.querySelector('#btn-random-watch').click());
       await waitFor(viewer, () => window.__smash.game?.spectator && !document.querySelector('#watch-bar').classList.contains('hidden'), null, 10000, '관전 화면');
       await waitFor(viewer, () => document.querySelector('#scoreboard').textContent.includes('점검참가'), null, 10000, '관전 점수판에 선수 이름');
       await viewer.evaluate(() => document.querySelector('[data-view="1"]').click());
+      await waitFor(viewer, () => document.querySelector('[data-hop="1"]').disabled, null, 5000, '다른 경기가 없으면 ◀ ▶ 꺼짐');
       await page.waitForTimeout(1500);
       flush();
       await page.click('#exit').catch(() => {});

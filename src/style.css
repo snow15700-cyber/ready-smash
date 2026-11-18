@@ -616,3 +616,10 @@ button.watch-ok.off { background: #eee5d6; color: var(--muted); }
 .watch-views button.on { background: #fff; color: var(--ink); }
 body.watching #hint { bottom: 78px; }
 @media (max-width: 600px) { .watch-who { display: none; } }
+
+/* ───────── 관전 3단계: 넘나들기 · 아무 경기나 ───────── */
+.rl-head { display: flex; align-items: center; gap: 8px; }
+button.rl-random { margin-left: auto; font-size: 13px; padding: 5px 10px; border-radius: 999px; background: var(--blue); color: #fff; box-shadow: 0 3px 0 var(--blue-d); }
+.watch-hop { padding: 6px 10px; border-radius: 999px; font-size: 14px; box-shadow: none; background: rgba(255,255,255,.2); color: #fff; }
+.watch-hop:disabled { opacity: .35; }
+.watch-bar { padding-left: 8px; }
