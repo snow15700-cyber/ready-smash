@@ -117,8 +117,13 @@ function base(mode = 'spin') {
       spin.rotation.set(0, st.yaw, 0);
     }
     // 찌그러짐: sq > 0 이면 위아래로 납작
-    st.sqv += (-st.sq * 520 - st.sqv * 22) * dt;
-    st.sq += st.sqv * dt;
+    // 느린 PC(초당 15장 이하)에서 한 번에 크게 계산하면 용수철이 폭주해 공이 납작하게 굳는다 → 작은 걸음(1/240초)으로 나눠 계산
+    for (let left = Math.min(dt, 0.1); left > 1e-6; left -= 1 / 240) {
+      const h = Math.min(left, 1 / 240);
+      st.sqv += (-st.sq * 520 - st.sqv * 22) * h;
+      st.sq += st.sqv * h;
+    }
+    if (!Number.isFinite(st.sq) || !Number.isFinite(st.sqv)) { st.sq = 0; st.sqv = 0; }
     const k = Math.max(-0.4, Math.min(0.6, st.sq)) * soft / 0.25;
     squash.scale.set(BALL_R * (1 + k * 0.5), BALL_R * (1 - k), BALL_R * (1 + k * 0.5));
     void sqDir;
