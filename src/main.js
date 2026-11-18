@@ -875,7 +875,7 @@ async function showRank(kind = rankKind) {
   if (!rows) { list.innerHTML = '<li class="msg-row">랭킹을 불러오지 못했어요 (인터넷 연결 확인)</li>'; return; }
   const myNick = account.loggedIn ? account.nick : null;
   const unit = RANK[kind].unit;
-  const MEDAL = ['', '🥇', '🥈', '🥉'];
+  const MEDAL = ['', '<i class="mdl m1">1</i>', '<i class="mdl m2">2</i>', '<i class="mdl m3">3</i>']; // 금·은·동 동그라미 (새 디자인: 이모지 대신)
   const av = (nick) => `<em class="av">${esc([...nick][0] || '?')}</em>`;
   const sub = (r) => (kind === 'wins' ? `<small>1v1 ${r.w1}승 · 2v2 ${r.w2}승</small>` : '');
 
@@ -903,7 +903,7 @@ async function showRank(kind = rankKind) {
 
   // 맨 아래: 내 순위
   const mine = myNick && rows.find((r) => r.nick === myNick);
-  if (!account.loggedIn) meBar.innerHTML = '🙋 로그인하면 랭킹에 이름을 올릴 수 있어요';
+  if (!account.loggedIn) meBar.innerHTML = `${ic('user')} 로그인하면 랭킹에 이름을 올릴 수 있어요`;
   else if (mine) meBar.innerHTML = `<span>내 순위</span><b>${mine.rank}위</b><span class="val">${mine.value}${unit}</span>`;
   else meBar.innerHTML = `<span>아직 순위에 없어요</span><span class="hint">${RANK[kind].join}</span>`;
 }

@@ -223,7 +223,7 @@ button.big small { display: block; font-size: 14px; opacity: .92; }
    색은 탁구용품에서: 빨강(러버) = 가장 중요한 버튼, 파랑(탁구대) = 두 번째, 흰 반투명 유리 = 패널, 공 주황 = 코인.
    배경 3D는 로비에서만 색을 빼고 어둡게 + 남색으로 덮어서 유리가 또렷하게 보이게 한다. */
 #c { transition: filter .4s; }
-body:has(#lobby:not(.hidden), #login:not(.hidden), #pin-change:not(.hidden), #join:not(.hidden)) #c { filter: saturate(.55) brightness(.78) contrast(1.05); }
+body:has(#lobby:not(.hidden), #rank:not(.hidden), #login:not(.hidden), #pin-change:not(.hidden), #join:not(.hidden)) #c { filter: saturate(.55) brightness(.78) contrast(1.05); }
 .screen.lobby { display: block; padding: 0; overflow: auto; backdrop-filter: none; color: #fff; font-family: var(--font-ui);
   background: linear-gradient(90deg, var(--night-62) 0%, var(--night-30) 38%, var(--night-08) 60%), linear-gradient(0deg, rgba(14,26,58,.4), rgba(14,26,58,0) 35%), linear-gradient(180deg, rgba(14,26,58,.35), rgba(14,26,58,0) 30%); }
 .lobby button, .lobby a { font-family: var(--font-ui); letter-spacing: -0.01em; transition: transform .15s, background .15s, box-shadow .15s; }
@@ -536,6 +536,58 @@ button.leave-pill:hover:not(:disabled) { border-color: #ffbf8f; }
 .gx.screen.left { background: linear-gradient(90deg, var(--night-62) 0%, var(--night-30) 38%, var(--night-08) 60%), linear-gradient(0deg, rgba(14,26,58,.4), rgba(14,26,58,0) 35%); }
 @media (max-width: 760px) { .gx.screen.left { background: rgba(14,26,58,.5); } }
 .gx.screen:not(.left):not(.stage) { background: rgba(14,26,58,.45); backdrop-filter: blur(4px); }
+/* 랭킹 (밝은 유리 패널 + 금·은·동) */
+.gx .rank-panel { width: min(540px, 100%); padding: 18px 22px; border-radius: 26px; }
+.gx .rank-top h2 { display: flex; align-items: center; gap: 8px; color: #fff; font-weight: 800; font-size: 26px; }
+.gx .rank-top h2 .ic { color: #ffd04d; }
+.gx button.ghost { color: rgba(255,255,255,.8); background: transparent; box-shadow: none; font-size: 15px; gap: 2px; }
+.gx button.ghost:hover:not(:disabled) { color: #fff; background: rgba(255,255,255,.12); }
+.gx .rank-top .ghost:hover:not(:disabled), .gx .rank-top .ghost:active:not(:disabled) { transform: translateY(-50%); }
+.gx .seg { background: rgba(0,0,0,.22); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.gx .seg button { color: rgba(255,255,255,.7); background: transparent; box-shadow: none; font-size: 15px; }
+.gx .seg button:hover:not(:disabled) { color: #fff; background: rgba(255,255,255,.08); transform: none; }
+.gx .seg button:active:not(:disabled) { transform: none; }
+.gx .seg button.on { color: var(--tt-ink); background: rgba(255,255,255,.92); box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.gx .seg button.on .ic { color: var(--tt-red); }
+.gx .rank-desc { color: rgba(255,255,255,.6); }
+.mdl { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font-style: normal; font-weight: 800; font-size: 14px; color: #fff; box-shadow: inset 0 -2px 0 rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.25); }
+.mdl.m1 { background: linear-gradient(160deg, #ffe07a, #e9a10c); color: #6b4300; }
+.mdl.m2 { background: linear-gradient(160deg, #eef2f6, #a3b1bf); color: #3f4b57; }
+.mdl.m3 { background: linear-gradient(160deg, #f2bb8c, #c27a42); color: #5a2f0c; }
+.gx .pod .medal { font-size: 0; }
+.gx .pod.p1 .medal .mdl { width: 32px; height: 32px; font-size: 17px; }
+.gx .pod .av { color: #fff; font-weight: 800; font-size: 22px; box-shadow: 0 0 0 3px rgba(255,255,255,.85), 0 8px 18px rgba(0,0,0,.3); }
+.gx .pod.p1 .av { background: linear-gradient(160deg, #ffd04d, #e39a0b); font-size: 28px; }
+.gx .pod.p2 .av { background: linear-gradient(160deg, #c9d3dd, #8798a9); }
+.gx .pod.p3 .av { background: linear-gradient(160deg, #e6a874, #b56c35); }
+.gx .pod b { color: #fff; font-weight: 700; font-size: 16px; }
+.gx .pod .val { color: #fff; font-weight: 800; font-size: 22px; }
+.gx .pod .val small, .gx .rank-list .val small { font-weight: 600; opacity: .7; }
+.gx .pod > small { color: rgba(255,255,255,.55); }
+.gx .pod .block { font-weight: 800; color: rgba(255,255,255,.95); text-shadow: 0 1px 4px rgba(0,0,0,.2); border: 1px solid rgba(255,255,255,.35); border-bottom: 0; box-shadow: inset 0 1px 0 rgba(255,255,255,.5); }
+.gx .pod.p1 .block { background: linear-gradient(rgba(255,208,77,.85), rgba(233,161,12,.55)); }
+.gx .pod.p2 .block { background: linear-gradient(rgba(214,223,232,.75), rgba(135,152,169,.45)); }
+.gx .pod.p3 .block { background: linear-gradient(rgba(230,168,116,.8), rgba(181,108,53,.5)); }
+.gx .pod.me b { color: #ff8a8f; }
+.gx .pod.me .av { box-shadow: 0 0 0 3px var(--tt-red-glow), 0 8px 18px rgba(0,0,0,.3); }
+.gx .pod.empty { opacity: .4; }
+.gx .pod.empty .av { background: rgba(255,255,255,.2); }
+.gx .pod.empty b { color: rgba(255,255,255,.7); font-weight: 500; }
+.gx .rank-list li { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1); }
+.gx .rank-list li.me { background: rgba(215,38,46,.28); border-color: rgba(255,255,255,.55); box-shadow: none; }
+.gx .rank-list .no { color: rgba(255,255,255,.6); font-weight: 700; font-size: 16px; }
+.gx .rank-list .av { background: rgba(255,255,255,.18); font-weight: 700; }
+.gx .rank-list li.me .av { background: var(--tt-red); }
+.gx .rank-list .who { color: #fff; font-weight: 600; font-size: 16px; }
+.gx .rank-list .who small { color: rgba(255,255,255,.55); font-weight: 500; }
+.gx .rank-list .val { color: #fff; font-weight: 800; font-size: 19px; }
+.gx .rank-list li.msg-row { color: rgba(255,255,255,.7); background: none; border: 0; }
+.gx .rank-me { background: rgba(0,0,0,.32); border: 1px solid rgba(255,255,255,.14); font-weight: 500; }
+.gx .rank-me b { color: var(--tt-ball); font-weight: 800; }
+.gx .rank-me .val { font-weight: 800; }
+.gx .rank-list::-webkit-scrollbar { width: 6px; } .gx .rank-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.25); border-radius: 3px; }
+.gx .rank-panel .tpill { color: #fff; background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); font-weight: 600; }
+
 /* 느린 PC: 흐림 끄기 */
 html.lite-glass .gx .panel, html.lite-glass .gx .howto { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(28,38,66,.86); }
 html.lite-glass .gx .room-panel, html.lite-glass .gx .room-news, html.lite-glass .gx .room-hint { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(18,24,44,.82); }
