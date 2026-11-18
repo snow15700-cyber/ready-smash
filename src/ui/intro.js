@@ -1,14 +1,15 @@
-import { playCrowd, playHit, playUI, setEcho } from '../audio.js';
+import { playCrowd, playHit, playTable, playUI, setEcho } from '../audio.js';
 import { equipped } from '../items.js';
-import { sideSign } from '../physics.js';
-import { CHAR_Z } from '../scene.js';
+import { G, HALF_L, R, TY, sideSign } from '../physics.js';
+import { CHAR_Z, PADDLE_OFFSET } from '../scene.js';
+import { crowd } from './cheer.js';
 import { hud } from './hud.js';
 import { account } from '../account.js';
 import { breakAt } from '../breaks.js';
 import { ic } from '../icons.js';
 import { TEAM_NAME, looks, myId, playerNames, room, roomTpill, streakOf } from './room.js';
 import { holdPose, lookPills, stage, stageFrame, stageOff } from './stage.js';
-import { $, ease, esc, game, match, world } from './state.js';
+import { $, ease, esc, game, lerp3, match, world } from './state.js';
 
 /* ───────── 경기 시작 전 연출 (약 10초, 1v1·2v2) ─────────
    ① 대기실이 스르륵 어두워지고 심장 소리 (1초) → ② VS 소개 5초: 상대 팀 → 우리 팀을 차례로 비추며
@@ -19,6 +20,9 @@ import { $, ease, esc, game, match, world } from './state.js';
 export const INTRO = {
   vs: 1.0, p2: 2.7, p3: 4.4, cd: 6.0, hush: 9.0, smash: 9.6, len: 10.2, // 시간표 (초)
   beat: 0.85, beatFast: 0.5, // 심장 소리 간격 (카운트다운 중엔 빠르게)
+  bounceH: 0.3, bounceZ: HALF_L - 0.12, // 첫 서브할 사람이 3·2·1마다 공을 탁구대에 '통' (손 높이 TY+bounceH, 탁구대 끝에서 조금 안쪽)
+  // 카운트다운 카메라: 첫 서브하는 사람의 등 뒤·탁구채 쪽 어깨 너머 (1초 동안 옮겨 감)
+  serveCam: { side: 0.9, back: 1.45, y: 1.65, lookY: TY + 0.05, lookZ: -0.7, move: 1.0 },
   swing: 0.2, gap: 0.22, far: 2.3, near: 1.85, y: 1.35, lookY: 1.0, fov: 45, wide: 5.2, wideY: 2.7, wideLook: 0.15,
 };
 export let intro = null;
@@ -43,7 +47,9 @@ export function startIntro(players, mySide, mode) {
   $('vi-opp').innerHTML = team(1 - mySide);
   $('vi-us').innerHTML = team(mySide);
   $('vi-num').innerHTML = '';
-  $('vi-stake').innerHTML = stakes(seats, mySide, mode).map((x, i) => `<div class="vs-chip" style="animation-delay:${0.15 + i * 0.18}s">${x}</div>`).join('');
+  $('vi-stake').innerHTML = stakes(seats, mySide, mode).map((x, i) => `<div class="vs-chip" style="animation-delay:${0.15 + i * 0.18}s">${x}</div>`).join('')
+    + '<div id="vi-eyes" class="vs-chip hidden"></div>'; // 관전자 수 (관중 목록이 늦게 올 수 있어 매 프레임 확인)
+  intro.eyes = 0;
   $('vs-intro').className = 'vs-intro';
   renderSkip();
 }
@@ -65,7 +71,7 @@ function stakes(seats, mySide, mode) {
   const oppSt = Math.max(0, ...opps.map((s) => streakOf(s.id)));
   if (oppSt >= 2) out.push(`${ic('flame')}<b>연승 저지 찬스!</b> ${mode === '2v2' ? '상대 팀' : '상대'} ${oppSt}연승 중`);
   const mine = streakOf(myId);
-  if (mine >= 2) out.push(`${ic('flame')}이기면 <b>${mine + 1}연승</b>${(mine + 1) % 3 === 0 ? ' · 연승 보너스 코인' : ''}`);
+  if (mine >= 2) out.push(`${ic('flame')}이기면 <b>${mine + 1}연승</b>`);
   if (account.loggedIn && breakAt()) out.push('☕ 쉬는 시간 · <b>코인 +50%</b>');
   return out.slice(0, 3);
 }
@@ -122,7 +128,15 @@ export function introFrame(now) {
     const flash = seg === 'p2' || seg === 'p3' || seg.endsWith('go');
     el.className = `vs-intro ${seg}${flash ? ' flash' : ''}`;
     if (seg === 'p3') playUI('rare');
-    if (seg.endsWith('go')) { playUI('smash'); playCrowd('roar', 1, null, 8); }
+    if (seg === 'p3 cd') world.crowd.roar(now); // 관중석이 있으면 다 같이 들썩
+    if (seg.endsWith('go')) { playUI('smash'); playCrowd('roar', 1, null, 8); world.crowd.roar(now); }
+  }
+  const eyes = crowd?.list.length || 0;
+  if (eyes !== intro.eyes) {
+    intro.eyes = eyes;
+    const el = $('vi-eyes');
+    el.classList.toggle('hidden', !eyes);
+    el.innerHTML = `${ic('eye')}<span><b>${eyes}명</b>이 지켜보는 중</span>`;
   }
   // 카운트다운 숫자 (바뀔 때마다 새로 만들어 쾅 하고 커지는 움직임을 다시)
   const num = seg === 'p3 cd' ? 3 - Math.floor(t - I.cd) : 0;
@@ -178,6 +192,7 @@ export function introFrame(now) {
     holdPose(c, now, i);
   });
   for (const side of world.team) for (const c of side) if (!used.has(c)) c.group.visible = false;
+  serveRoutine(t, now);
 
   // 카메라: 1) 상대 팀 앞에서 천천히 다가가기 2) 우리 팀 3) 옆에서 크게 (우리 팀이 왼쪽)
   let pos, look;
@@ -193,12 +208,39 @@ export function introFrame(now) {
     const sx = intro.mySide === 0 ? 1 : -1;
     pos = [sx * (I.wide - 0.5 * k), I.wideY - 0.2 * k, 0];
     look = [0, I.wideLook, 0];
+    // 카운트다운: 첫 서브하는 사람(A팀 1번) 어깨 너머로 옮겨 가서 공 튀기기를 가까이
+    const kc = ease(Math.min(1, Math.max(0, (t - I.cd) / I.serveCam.move)));
+    if (kc > 0) {
+      const C = I.serveCam, m = sideSign(0), x0 = world.team[0][0].group.position.x;
+      pos = lerp3(pos, [x0 + C.side * m, C.y, m * (CHAR_Z + C.back)], kc);
+      look = lerp3(look, [x0 * 0.5, C.lookY, m * C.lookZ], kc);
+    }
   }
   world.camera.fov = I.fov;
   world.camera.updateProjectionMatrix();
   world.camera.position.set(...pos);
   world.camera.lookAt(...look);
   return true;
+}
+
+// 첫 서브할 사람(항상 A팀 1번, match.js의 server 0·turn 0)이 3·2·1 숫자마다 공을 탁구대에 한 번씩 튀긴다.
+// 숫자가 바뀌는 순간에 '통'이 나도록: 손에서 떨어지기 시작 → 숫자 순간 탁구대 → 다시 손. 보기만 (판정과 무관)
+function serveRoutine(t, now) {
+  const I = INTRO;
+  const s = intro.seats.find((x) => x.side === 0 && x.slot === 0);
+  const fall = Math.sqrt((2 * (I.bounceH - R)) / G); // 손 → 탁구대 걸리는 시간
+  if (!s || t < I.cd - fall || t >= I.hush) return;
+  const c = world.team[0][0];
+  const m = sideSign(0);
+  const x = c.group.position.x + PADDLE_OFFSET.right * m * 0.5;
+  const hit = Math.min(2, Math.max(0, Math.round(t - I.cd))); // 가장 가까운 '통' (0=3, 1=2, 2=1)
+  const d = t - (I.cd + hit); // 그 '통'에서 몇 초 지났나 (-fall ~ +fall 사이면 공중)
+  const y = Math.abs(d) < fall ? TY + I.bounceH - 0.5 * G * (fall - Math.abs(d)) ** 2 : TY + I.bounceH; // 손에서 놓은 공처럼 (멈춤 → 낙하 → 튀어 올라 다시 멈춤)
+  world.setBall([x, y, m * I.bounceZ], true);
+  if (d >= 0 && intro.bounced !== hit) {
+    intro.bounced = hit;
+    if (d < 0.2) playTable(G * fall, [x, TY, m * I.bounceZ]);
+  }
 }
 
 // 소개를 끝내고 경기로 (start=false: 경기가 중간에 취소됨)
