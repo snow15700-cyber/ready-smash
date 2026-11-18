@@ -87,7 +87,8 @@ const ease = (k) => 1 - Math.pow(1 - Math.min(1, Math.max(0, k)), 3);
 
 // 공 뼈대: root(위치) → squash(크기 R·찌그러짐, 월드 방향) → spin(회전) → 모양
 // mode: 'spin' = 날아가는 방향으로 굴러감, 'face' = 앞(+z)이 날아가는 쪽을 봄, 'upright' = 위가 늘 위(제자리 빙글)
-function base(mode = 'spin') {
+// squishy: 튈 때 말랑 찌그러짐을 쓰는 공만 true (지금은 찹쌀떡뿐 — 사용자 결정. 나머지 공은 squish()가 아무것도 안 함)
+function base(mode = 'spin', { squishy = false } = {}) {
   const root = new THREE.Group();
   const squash = new THREE.Group();
   squash.scale.setScalar(BALL_R);
@@ -128,7 +129,7 @@ function base(mode = 'spin') {
     squash.scale.set(BALL_R * (1 + k * 0.5), BALL_R * (1 - k), BALL_R * (1 + k * 0.5));
     void sqDir;
   }
-  function squish(amt = 1) { st.sqv += 9 * amt; }
+  function squish(amt = 1) { if (squishy) st.sqv += 9 * amt; }
   return { root, squash, spin, st, move, squish };
 }
 // 전설 후광 + 반짝이 (공 크기에 맞춘 작은 것)
@@ -388,7 +389,7 @@ const RARE = {
     return b;
   },
   mochi() {
-    const b = base();
+    const b = base('spin', { squishy: true });
     const tex = sphereTex((c, w, h) => {
       c.fillStyle = '#fbf5ee'; c.fillRect(0, 0, w, h);
       const r = rng(9);
