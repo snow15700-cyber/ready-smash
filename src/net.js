@@ -29,11 +29,12 @@ export const normalizeCode = (s) => s.toUpperCase().replace(/[^A-Z0-9]/g, '').sl
 
 // 방 입장. me = { id, nick, host, at }
 // handlers.onMsg(payload), handlers.onMembers([{id,nick,host,at}]), handlers.onStatus('ok'|'error', text)
-export function joinRoom(code, me, handlers) {
-  return ONLINE ? joinSupabase(code, me, handlers) : joinLocal(code, me, handlers);
+// listen: 관전 — 듣기만 한다. 명단(presence)에 안 들어가고 말도 안 한다 → 선수 PC는 관중이 있는지조차 모름 (부담 0)
+export function joinRoom(code, me, handlers, { listen = false } = {}) {
+  return ONLINE ? joinSupabase(code, me, handlers, listen) : joinLocal(code, me, handlers, listen);
 }
 
-function joinSupabase(code, me, h) {
+function joinSupabase(code, me, h, listen) {
   const ch = getClient().channel(`${ROOM_PREFIX}${code}`, {
     config: { broadcast: { self: false, ack: false }, presence: { key: me.id } },
   });
@@ -45,27 +46,27 @@ function joinSupabase(code, me, h) {
   });
   ch.subscribe(async (status) => {
     if (status === 'SUBSCRIBED') {
-      await ch.track(me);
+      if (!listen) await ch.track(me);
       h.onStatus('ok');
     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
       h.onStatus('error', '서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.');
     }
   });
   return {
-    send(payload) { ch.send({ type: 'broadcast', event: 'm', payload }); },
+    send(payload) { if (!listen) ch.send({ type: 'broadcast', event: 'm', payload }); },
     leave() { ch.unsubscribe(); getClient().removeChannel(ch); },
   };
 }
 
 // 로컬 테스트: BroadcastChannel + 1초마다 '나 여기 있어요' 신호로 접속자 목록을 만든다
-function joinLocal(code, me, h) {
+function joinLocal(code, me, h, listen) {
   const bc = new BroadcastChannel(`${ROOM_PREFIX}${code}`);
   const lag = Number(new URLSearchParams(location.search).get('lag') || 0) / 1000; // 지연 흉내 (ms)
   const members = new Map();
   const seen = new Map();
   let closed = false;
-  const post = (d) => { if (!closed) bc.postMessage(d); };
-  members.set(me.id, me);
+  const post = (d) => { if (!closed && !(listen && (d.k === '_hb' || d.k === '_bye'))) bc.postMessage(d); };
+  if (!listen) members.set(me.id, me);
   let lastKey = '';
   const emitMembers = () => {
     const list = [...members.values()];
@@ -76,7 +77,7 @@ function joinLocal(code, me, h) {
     const d = e.data;
     if (d.k === '_hb') {
       seen.set(d.me.id, performance.now());
-      if (!members.has(d.me.id)) { members.set(d.me.id, d.me); emitMembers(); post({ k: '_hb', me }); }
+      if (!members.has(d.me.id)) { members.set(d.me.id, d.me); emitMembers(); if (!listen) post({ k: '_hb', me }); }
     } else if (d.k === '_bye') {
       members.delete(d.id); seen.delete(d.id); emitMembers();
     } else h.onMsg(d);
@@ -94,9 +95,77 @@ function joinLocal(code, me, h) {
   window.addEventListener('beforeunload', bye);
   return {
     send(payload) {
+      if (listen) return;
       if (lag) setTimeout(() => post(payload), lag * 1000);
       else post(payload);
     },
     leave() { bye(); closed = true; clearInterval(hb); bc.close(); window.removeEventListener('beforeunload', bye); },
+  };
+}
+
+// ───────── 로비 방 목록 (presence만 쓰는 채널 하나) ─────────
+// 방장 PC가 '내 방' 정보를 올려 두고(track), 로비에 있는 사람은 듣기만 한다.
+// 정보는 상태가 바뀔 때만(사람 들어옴·경기 시작/끝·점수) 고치므로 선수 PC에 부담이 거의 없다.
+// onList([{code, mode, nick, n, cap, play, score}])
+const LOBBY_CH = IS_TEST ? 'pingpong-test-lobby' : 'pingpong-lobby';
+export function joinLobby(onList) {
+  return ONLINE ? lobbySupabase(LOBBY_CH, onList) : lobbyLocal(LOBBY_CH, onList);
+}
+// 관중석 채널 (방마다 하나, 선수 채널과 따로): 관중 명단(presence). 선수 PC는 붙지 않는다
+// onList([{id, nick, at}])
+export function joinWatch(code, onList) {
+  const name = (IS_TEST ? 'pingpong-test-watch-' : 'pingpong-watch-') + code;
+  return ONLINE ? lobbySupabase(name, onList) : lobbyLocal(name, onList);
+}
+
+function lobbySupabase(chName, onList) {
+  const key = Math.random().toString(36).slice(2, 10);
+  const ch = getClient().channel(chName, { config: { broadcast: { self: false }, presence: { key } } });
+  let ready = false, want = null, closed = false;
+  ch.on('presence', { event: 'sync' }, () => {
+    onList(Object.values(ch.presenceState()).map((arr) => arr[0]).filter(Boolean));
+  });
+  ch.subscribe((status) => {
+    if (status !== 'SUBSCRIBED' || closed) return;
+    ready = true;
+    if (want) ch.track(want);
+  });
+  return {
+    track(info) { want = info; if (ready) ch.track(info); },
+    untrack() { if (!want) return; want = null; if (ready) ch.untrack(); },
+    leave() { closed = true; ch.unsubscribe(); getClient().removeChannel(ch); },
+  };
+}
+
+// 로컬 테스트: 방장 탭이 1초마다 '내 방' 신호, 새로 온 탭은 'q'로 바로 물어본다
+function lobbyLocal(chName, onList) {
+  const bc = new BroadcastChannel(chName);
+  const key = Math.random().toString(36).slice(2, 10);
+  const others = new Map(); // key → { info, t }
+  let mine = null, closed = false;
+  const post = (d) => { if (!closed) bc.postMessage(d); };
+  const emit = () => { if (!closed) onList([...others.values()].map((o) => o.info).concat(mine ? [mine] : [])); };
+  const hb = () => { if (mine) post({ k: 'hb', key, info: mine }); };
+  bc.onmessage = (e) => {
+    const d = e.data;
+    if (d.k === 'hb') { others.set(d.key, { info: d.info, t: performance.now() }); emit(); }
+    else if (d.k === 'bye') { if (others.delete(d.key)) emit(); }
+    else if (d.k === 'q') hb();
+  };
+  const timer = setInterval(() => {
+    hb();
+    const now = performance.now();
+    let changed = false;
+    for (const [k, o] of others) if (now - o.t > 3500) { others.delete(k); changed = true; }
+    if (changed) emit();
+  }, 1000);
+  const bye = () => { if (mine) post({ k: 'bye', key }); };
+  window.addEventListener('beforeunload', bye);
+  post({ k: 'q' });
+  setTimeout(emit, 0);
+  return {
+    track(info) { mine = info; hb(); emit(); },
+    untrack() { if (!mine) return; bye(); mine = null; emit(); },
+    leave() { bye(); mine = null; closed = true; clearInterval(timer); bc.close(); window.removeEventListener('beforeunload', bye); },
   };
 }

@@ -587,3 +587,32 @@ body.intro #hud { visibility: hidden; }
 #ach-pop .ap-many { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; max-width: 460px; }
 #ach-pop .ap-many .tpill { font-size: 13px; padding: 1px 10px; }
 .t-now .ghost { white-space: nowrap; flex: none; }
+
+/* ───────── 로비 방 목록 (관전 1단계) ───────── */
+.rl-wrap { display: flex; flex-direction: column; gap: 6px; }
+.lb-rooms-wrap { border-top: 2px dashed #eadcc4; padding-top: 10px; margin-top: 2px; }
+.rl-list { display: flex; flex-direction: column; gap: 6px; }
+button.rl-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; font-size: 15px; padding: 8px 10px; border-radius: 12px; box-shadow: 0 3px 0 #e3d3b6; }
+button.rl-row.off { cursor: default; background: #f6efe3; box-shadow: none; transform: none; }
+.rl-mode { flex: none; font-size: 12px; color: #fff; background: var(--blue); border-radius: 8px; padding: 2px 6px; }
+.rl-nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rl-st { flex: none; font-size: 13px; }
+.rl-st.wait { color: #2e9b4f; }
+.rl-st.play { color: #d6453a; }
+.rl-st.full { color: var(--muted); }
+.rl-act { flex: none; font-size: 13px; color: #fff; background: var(--orange, #ff8a3d); border-radius: 999px; padding: 3px 10px; }
+.rl-act.soon { background: #cfc3ae; }
+.rl-empty { margin: 2px 0; text-align: center; font-size: 14px; color: var(--muted); line-height: 1.4; }
+.rl-more { margin: 0; text-align: center; font-size: 13px; color: var(--muted); }
+
+/* ───────── 관전 (2단계) ───────── */
+.rl-act.watch { background: var(--blue); }
+button.watch-ok { margin-left: auto; font-size: 14px; padding: 6px 12px; border-radius: 999px; }
+button.watch-ok.off { background: #eee5d6; color: var(--muted); }
+.watch-bar { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 16px; border-radius: 999px; background: rgba(43,42,51,.62); color: #fff; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.watch-who { font-size: 15px; }
+.watch-views { display: flex; gap: 4px; }
+.watch-views button { padding: 6px 12px; border-radius: 999px; font-size: 14px; box-shadow: none; background: rgba(255,255,255,.2); color: #fff; }
+.watch-views button.on { background: #fff; color: var(--ink); }
+body.watching #hint { bottom: 78px; }
+@media (max-width: 600px) { .watch-who { display: none; } }

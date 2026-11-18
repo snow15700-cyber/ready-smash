@@ -4,7 +4,7 @@ import { createLobbyDemo, LOBBY_CAM } from './lobbyDemo.js';
 import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
 import { initAudio, playUI, playHit, playTable, setEcho, setQuiet, setListener } from './audio.js';
-import { ONLINE, IS_TEST, joinRoom, makeCode, normalizeCode } from './net.js';
+import { ONLINE, IS_TEST, joinRoom, joinLobby, joinWatch, makeCode, normalizeCode } from './net.js';
 import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, newMatchId, matchJoin, matchFinish, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, getH2H, getRanking, checkAch, setTitle, myTitle, matchAch, matchPeople, aiAch } from './account.js';
 import { ACHS, ACH, ACH_CATS, REWARD, titleText } from './achievements.js';
 import { UPDATES, LATEST_UPDATE } from './updates.js';
@@ -60,7 +60,8 @@ const hud = {
     if (!game) return;
     const me = game.mySide, op = 1 - me;
     const bump = (side) => (lastScore && lastScore[side] !== s[side] ? ' bump' : '');
-    $('scoreboard').innerHTML = `<div class="sb t${me}"><span>${game.mode === '2v2' ? '우리 팀' : '나'}</span><b class="${bump(me)}">${s[me]}</b></div>`
+    const myLabel = game.spectator ? esc(game.names[me]) : game.mode === '2v2' ? '우리 팀' : '나';
+    $('scoreboard').innerHTML = `<div class="sb t${me}"><span>${myLabel}</span><b class="${bump(me)}">${s[me]}</b></div>`
       + '<i class="sb-colon">:</i>'
       + `<div class="sb t${op}"><b class="${bump(op)}">${s[op]}</b><span>${esc(game.names[op])}</span></div>`
       + (deuce ? '<em class="sb-deuce">듀스!</em>' : '');
@@ -97,6 +98,16 @@ const hud = {
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove('show'), ms);
   },
+  // 관전: 이긴 쪽 이름으로 결과 띠, 잠시 뒤 로비로
+  watchOver(winner, score) {
+    const el = $('result');
+    el.className = 'win';
+    $('result-title').textContent = `🏆 ${game.names[winner]} 승리!`;
+    $('result-score').textContent = `${score[0]} : ${score[1]}`;
+    clearTimeout(resultTimer);
+    resultTimer = setTimeout(() => el.classList.add('hidden'), 2700);
+    setTimeout(() => { if (watch) endWatch('경기가 끝났어요. 다른 경기도 구경해 보세요!'); }, 3200);
+  },
   gameOver(win, score) {
     const me = game.mySide;
     // 가운데 큰 결과 띠 (약 2.6초 뒤 대기실로)
@@ -121,6 +132,9 @@ let preview = null; // 상점·옷장에서 미리보기 중인 꾸미기 { look
 
 const myNick = () => account.nick || '플레이어';
 
+let curScreen = '';
+let lobbyLink = null, lobbyRooms = [], lobbySent = '';
+let watch = null; // 관전 중인 방 (아래 '관전') // 로비 방 목록 (아래 '로비 방 목록')
 const HOWTO_KEY = 'smash-howto-seen'; // 치는 방법 창을 본 적 있는지 (처음 온 사람에게 한 번 자동으로 띄움)
 function show(screen) {
   if (screen === 'lobby') {
@@ -131,6 +145,8 @@ function show(screen) {
     $('upd-dot').classList.toggle('hidden', updSeen());
   }
   if (screen !== 'dress') preview = null;
+  curScreen = screen;
+  syncLobby();
   for (const id of ['login', 'pin-change', 'rank', 'lobby', 'join', 'room', 'dress']) $(id).classList.toggle('hidden', id !== screen);
   $('hud').classList.toggle('hidden', screen !== 'hud');
 }
@@ -215,6 +231,7 @@ function enterRoom(code, host, mode = null) {
     inGame: false, players: null, result: '',
     h2h: {}, // 상대 pid → { wins, losses } (1v1 상대 전적)
     pings: [], pingN: 0, offset: 0, sawHost: host, timer: 0,
+    watchOk: true, // 방장: 관전 허용 (대기실에서 끌 수 있음)
   };
   room.link = joinRoom(code, me, {
     onMsg: onRoomMsg,
@@ -240,6 +257,7 @@ function enterRoom(code, host, mode = null) {
   }
   renderRoom();
   show('room');
+  announceRoom();
 }
 
 function leaveRoom() {
@@ -248,6 +266,7 @@ function leaveRoom() {
   room.link.leave();
   room = null;
   stopGame();
+  syncLobby();
 }
 
 function onMembers(list) {
@@ -298,6 +317,7 @@ function onMembers(list) {
     sendState(); // 새로 온 사람에게 내 팀을 알려 준다
   }
   renderRoom();
+  announceRoom();
 }
 
 // 내 팀 선택을 모두에게 알린다
@@ -440,7 +460,9 @@ function beginRoomGame(players, mode, mine, mid) {
   if (mid) matchJoin(mid, mode, mine.side);
   room.result = '';
   room.coins = null;
+  room.score = [0, 0];
   stopGame();
+  announceRoom();
 }
 
 // 방장: 경기 시작 (1v1 / 2v2)
@@ -463,6 +485,7 @@ function startOnline(mode, players) {
     emit: (ev) => {
       if (game) game.onEvent(ev);
       if (room) room.link.send({ k: 'ev', ev });
+      if (room && ev.type === 'point') { room.score = ev.score; announceRoom(); } // 로비 방 목록의 점수
     },
   });
   hud.stats(game.stats);
@@ -494,6 +517,7 @@ function backToRoom() {
   stopGame();
   renderRoom();
   show('room');
+  announceRoom();
   if (room.coins) playUI('coin');
 }
 
@@ -611,6 +635,9 @@ function renderRoom() {
 
   const full = room.mode && isFull();
   $('btn-start').classList.toggle('hidden', !room.host);
+  $('btn-watch-ok').classList.toggle('hidden', !room.host);
+  $('btn-watch-ok').textContent = room.watchOk ? '👀 관전 허용' : '🙈 관전 막음';
+  $('btn-watch-ok').classList.toggle('off', !room.watchOk);
   $('btn-start').disabled = !full;
   let tip;
   if (!room.mode) tip = '방장을 찾는 중…';
@@ -873,6 +900,197 @@ $('rank-tab-wins').addEventListener('click', () => { playUI('click'); showRank('
 $('rank-tab-rally').addEventListener('click', () => { playUI('click'); showRank('rally'); });
 $('btn-rank-back').addEventListener('click', () => { playUI('click'); show('lobby'); });
 
+/* ───────── 관전 ─────────
+   선수 채널은 듣기만(명단에도 안 들어감, 말도 안 함) → 선수 PC에 부담 0.
+   시계: 방장이 보내는 시각(pong의 th, 이벤트의 t)과 받은 순간의 차이 중 가장 큰 값 = 방장 시계 - 내 시계 - (가장 짧은 전달 시간).
+   그래서 화면은 방장보다 전달 시간만큼 늦게, 끊김 없이 흘러간다. 중간에 들어오면 다음 서브부터 보여 준다.
+   관중 명단은 따로 관중석 채널(pingpong-watch-XXXX)에서, 16명까지. */
+const WATCH_MAX = 16;
+function startWatch(r) {
+  initAudio();
+  playUI('click');
+  leaveRoom();
+  stopGame();
+  const me = { id: myId, nick: myNick(), at: Date.now() };
+  watch = { code: r.code, mode: r.mode, pl: r.pl, nick: r.nick, members: [], hostM: null, sawHost: false, seen: new Set(), offs: [], live: false, count: 0 };
+  const w = watch;
+  w.link = joinRoom(r.code, me, {
+    onMsg: (m) => onWatchMsg(w, m),
+    onMembers: (list) => onWatchMembers(w, list),
+    onStatus: (st, text) => { if (st === 'error' && watch === w) endWatch(text); },
+  }, { listen: true });
+  w.seats = joinWatch(r.code, (list) => {
+    if (watch !== w) return;
+    list = [...list].sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));
+    w.count = list.length;
+    const i = list.findIndex((x) => x.id === myId);
+    if (i >= WATCH_MAX) { endWatch(`관중석이 꽉 찼어요 (${WATCH_MAX}명까지)`); return; }
+    renderWatchBar();
+  });
+  w.seats.track(me);
+  show('hud');
+  const n = watchNames(w);
+  game = new Game(world, { mySide: 0, mode: r.mode, hud, spectator: true, names: n.names, playerNames: n.per, playerTitles: n.tl, looks: [[{}, {}], [{}, {}]], send: { toss() {}, swing() {} } });
+  hud.score([0, 0]);
+  hud.stats(game.stats);
+  hud.hint('다음 서브부터 중계해요…');
+  document.body.classList.add('watching');
+  renderWatchBar();
+  // 방장 신호가 안 오면(방이 막 끝났거나 사라짐) 로비로
+  setTimeout(() => { if (watch === w && !w.sawHost) endWatch('경기를 찾을 수 없어요'); }, 6000);
+}
+
+function endWatch(msg) {
+  if (!watch) return;
+  const w = watch;
+  watch = null;
+  w.link.leave();
+  w.seats.leave();
+  document.body.classList.remove('watching');
+  $('watch-bar').classList.add('hidden');
+  stopGame();
+  show('lobby');
+  if (msg) hud.toast(msg, 2600);
+}
+
+// 선수 이름 (쪽별, 2v2는 'A1·A2'), 이름표용 [side][slot]
+function watchNames(w) {
+  const nick = (id) => w.members.find((m) => m.id === id)?.nick || '선수';
+  const names = [0, 1].map((s) => w.pl.filter((p) => p.side === s).sort((a, b) => a.slot - b.slot).map((p) => nick(p.id)).join('·'));
+  const per = [[], []], tl = [[], []];
+  for (const p of w.pl) {
+    per[p.side][p.slot] = nick(p.id);
+    const m = w.members.find((x) => x.id === p.id);
+    tl[p.side][p.slot] = m ? titleText(m.title, m.titleX) : '';
+  }
+  return { names, per, tl };
+}
+
+function onWatchMembers(w, list) {
+  if (watch !== w) return;
+  w.members = list;
+  const host = list.find((m) => m.host);
+  if (host) { w.sawHost = true; w.hostM = host; }
+  if (w.sawHost && !host) { endWatch('방장이 나가서 중계가 끝났어요'); return; }
+  // 선수가 나감: 한 번이라도 명단에서 본 선수가 사라졌을 때만 (처음엔 명단이 한 명씩 들어올 수 있음)
+  for (const m of list) w.seen.add(m.id);
+  if (w.pl.some((p) => w.seen.has(p.id) && !list.some((m) => m.id === p.id))) { endWatch('선수가 나가서 경기가 끝났어요'); return; }
+  if (!game) return;
+  // 선수 이름·꾸미기 (presence에서)
+  const n = watchNames(w);
+  game.names = n.names;
+  game.playerNames = n.per;
+  game.playerTitles = n.tl;
+  for (const p of w.pl) applyLook(world.team[p.side][p.slot], list.find((m) => m.id === p.id)?.look);
+  hud.score(game.score);
+}
+
+function watchClock(w, hostT) {
+  const off = hostT - performance.now() / 1000;
+  w.offs.push(off);
+  if (w.offs.length > 30) w.offs.shift();
+  const best = Math.max(...w.offs);
+  if (game) game.offset = best;
+}
+
+function onWatchMsg(w, m) {
+  if (watch !== w || !game) return;
+  if (m.k === 'pong' && typeof m.th === 'number') { watchClock(w, m.th); return; }
+  if (m.k !== 'ev' || !m.ev) return;
+  const ev = m.ev;
+  if (typeof ev.t === 'number' && (ev.type === 'shot' || ev.type === 'toss')) watchClock(w, ev.t);
+  if (!w.live) {
+    // 시계를 한 번이라도 맞춘 뒤의 서브부터 중계
+    if (ev.type !== 'serveReady' || !w.offs.length) return;
+    w.live = true;
+    hud.hint('');
+  }
+  game.onEvent(ev);
+}
+
+function renderWatchBar() {
+  if (!watch || !game) return;
+  $('watch-bar').classList.remove('hidden');
+  $('watch-who').textContent = `👀 ${watch.nick}의 방 관전 중 · 관중 ${watch.count || 1}명`;
+  for (const b of $('watch-bar').querySelectorAll('[data-view]')) b.classList.toggle('on', String(game.view) === b.dataset.view);
+}
+$('watch-bar').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-view]');
+  if (!b || !game || !game.spectator) return;
+  playUI('click');
+  game.view = b.dataset.view === 'side' ? 'side' : +b.dataset.view;
+  renderWatchBar();
+});
+
+/* ───────── 로비 방 목록 ─────────
+   로비 채널(pingpong-lobby)은 로비 화면에 있을 때 + 내가 방장일 때만 붙어 있다.
+   방장은 '내 방' 정보를 상태가 바뀔 때만 올린다(사람 수·경기 시작/끝·점수). */
+function syncLobby() {
+  const need = curScreen === 'lobby' || !!(room && room.host);
+  if (need && !lobbyLink) {
+    lobbySent = '';
+    lobbyLink = joinLobby((list) => { lobbyRooms = list; renderRoomList(); });
+  } else if (!need && lobbyLink) {
+    lobbyLink.leave();
+    lobbyLink = null;
+    lobbyRooms = [];
+  }
+  announceRoom();
+}
+function announceRoom() {
+  if (!lobbyLink) return;
+  if (!room || !room.host || !room.mode) {
+    if (lobbySent) { lobbyLink.untrack(); lobbySent = ''; }
+    return;
+  }
+  const info = {
+    code: room.code, mode: room.mode, nick: myNick(), n: room.members.length || 1, cap: capacity(), play: !!room.inGame, score: room.inGame ? room.score || [0, 0] : null,
+    w: room.watchOk, // 관전 허용
+    pl: room.inGame && room.players ? room.players.map((p) => ({ id: p.id, side: p.side, slot: p.slot || 0 })) : null, // 중간에 들어온 관중이 선수 자리를 알게
+  };
+  const key = JSON.stringify(info);
+  if (key === lobbySent) return;
+  lobbySent = key;
+  lobbyLink.track(info);
+}
+// 목록 순서: 들어갈 수 있는 방 → 경기 중 → 꽉 찬 방 (같으면 코드 순, 깜빡이지 않게)
+function roomListHTML(max) {
+  const mine = room?.code;
+  const rank = (r) => (r.play ? 1 : r.n >= r.cap ? 2 : 0);
+  const list = lobbyRooms.filter((r) => r.code !== mine).sort((a, b) => rank(a) - rank(b) || (a.code < b.code ? -1 : 1));
+  if (!list.length) return '<p class="rl-empty">아직 열린 방이 없어요<br /><small>방을 만들고 친구를 불러 보세요!</small></p>';
+  const row = (r) => {
+    const full = !r.play && r.n >= r.cap;
+    const state = r.play ? `<span class="rl-st play">● 경기 중 <b>${(r.score || [0, 0]).join(' : ')}</b></span>` : full ? '<span class="rl-st full">꽉 참</span>' : `<span class="rl-st wait">● 대기 중 ${r.n}/${r.cap}</span>`;
+    const canWatch = r.play && r.w !== false && r.pl;
+    const act = r.play ? (canWatch ? '<span class="rl-act watch">👀 관전</span>' : '<span class="rl-act soon">관전 막힘</span>') : full ? '' : IS_MOBILE ? '<span class="rl-act soon">🔒 PC</span>' : '<span class="rl-act">참가</span>';
+    const can = (!r.play && !full && !IS_MOBILE) || canWatch;
+    return `<button class="rl-row${can ? '' : ' off'}" data-code="${esc(r.code)}"${can ? '' : ' tabindex="-1"'}><span class="rl-mode">${r.mode === '2v2' ? '2:2' : '1:1'}</span><span class="rl-nm"><b>${esc(r.nick)}</b>의 방</span>${state}${act}</button>`;
+  };
+  const more = list.length > max ? `<p class="rl-more">외 ${list.length - max}개 방</p>` : '';
+  return list.slice(0, max).map(row).join('') + more;
+}
+function renderRoomList() {
+  // 로비 안 목록은 화면 높이에 맞춰 줄 수를 줄인다 (아래 버튼과 겹치지 않게)
+  const lbMax = innerHeight >= 860 ? 3 : innerHeight >= 740 ? 2 : 1;
+  $('lb-rooms').innerHTML = roomListHTML(lbMax);
+}
+addEventListener('resize', renderRoomList);
+$('lb-rooms').addEventListener('click', (e) => {
+  const b = e.target.closest('.rl-row');
+  if (!b) return;
+  const r = lobbyRooms.find((x) => x.code === b.dataset.code);
+  if (!r) return;
+  if (IS_MOBILE && !r.play) { hud.toast(MOBILE_MSG, 2600); return; } // 휴대폰: 참가는 PC에서만, 관전은 OK
+  if (r.play) {
+    if (r.w === false || !r.pl) { hud.toast('이 방은 관전을 막아 두었어요', 2200); return; }
+    startWatch(r);
+    return;
+  }
+  if (r.n >= r.cap) { hud.toast('방이 꽉 찼어요', 2000); return; }
+  enterRoom(r.code, false);
+});
+
 /* ───────── 버튼 ───────── */
 $('btn-ai').addEventListener('click', () => startAI());
 $('btn-create-1v1').addEventListener('click', () => enterRoom(makeCode(), true, '1v1'));
@@ -907,6 +1125,15 @@ $('btn-join-go').addEventListener('click', doJoin);
 $('join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
 $('btn-join-cancel').addEventListener('click', () => { playUI('click'); show('lobby'); });
 $('btn-start').addEventListener('click', () => { initAudio(); playUI('click'); pressStart(); });
+// 방장: 관전 허용 켜기/끄기 (로비 방 목록에 바로 반영)
+$('btn-watch-ok').addEventListener('click', () => {
+  if (!room || !room.host) return;
+  playUI('click');
+  room.watchOk = !room.watchOk;
+  renderRoom();
+  announceRoom();
+  hud.toast(room.watchOk ? '이제 다른 사람이 경기를 구경할 수 있어요' : '이제 아무도 경기를 구경할 수 없어요', 2200);
+});
 // 자리 칸 누르기: 빈자리 = 그 팀으로 (바꾸기), 내 칸 = 팀에서 빠지기
 for (const team of [0, 1]) {
   $(`team-${team}`).addEventListener('click', (e) => {
@@ -924,7 +1151,8 @@ $('btn-copy').addEventListener('click', async () => {
 
 function exitGame() {
   playUI('click');
-  if (room) { leaveRoom(); show('lobby'); }
+  if (watch) endWatch();
+  else if (room) { leaveRoom(); show('lobby'); }
   else {
     stopGame();
     show('lobby');
@@ -933,7 +1161,7 @@ function exitGame() {
 }
 $('exit').addEventListener('click', exitGame);
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && game && !room) exitGame();
+  if (e.key === 'Escape' && game && (!room || watch)) exitGame();
 });
 
 /* ───────── 꾸미기 (옷장 · 뽑기 · 칭호를 한 화면에) ─────────
@@ -1684,7 +1912,7 @@ function loop() {
   loop.last = now;
   for (const side of world.team) for (const c of side) if (c.group.visible) c.tickOutfit(now, odt);
   // 배경: 방(대기실·경기)에서는 방장이 장착한 배경을 모두에게, 그 밖(로비·꾸미기·혼자 하기)은 내 것(입어 보는 중이면 그것)
-  const arenaLook = room ? room.hostM?.look : preview && !game ? preview.look : myEquip();
+  const arenaLook = room ? room.hostM?.look : watch ? watch.hostM?.look : preview && !game ? preview.look : myEquip();
   world.setArena(arenaOf(arenaLook));
   world.setBallSkin(ballOf(arenaLook)); // 탁구공도 배경처럼: 방에서는 방장 것
 

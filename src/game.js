@@ -20,7 +20,11 @@ const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 export class Game {
   // authority: 이 PC가 경기를 계산하는지 (혼자 모드, 방장). 아니면 방장 이벤트를 받아 그리고 내 타격은 예측해서 먼저 보여준다
   // playerNames[side][slot]: 2v2 이름표용
-  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, playerTitles = null, best = 0, onBest = null, onRally = null, looks = null }) {
+  constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, playerTitles = null, best = 0, onBest = null, onRally = null, looks = null, spectator = false }) {
+    // spectator: 관전 — 입력 없음, 모든 선수가 '남'(불투명·이름표), 카메라는 중계 시점(view: 'side' | 0 | 1)
+    this.spectator = spectator;
+    this.view = 'side';
+    if (spectator) { authority = false; mySlot = -1; }
     this.authority = authority;
     this.names = names;
     this.playerNames = playerNames;
@@ -78,6 +82,7 @@ export class Game {
       c.group.visible = slot === 0 || mode === '2v2';
       c.setOpacity(isMe ? 0.38 : 1, isMe ? 0.9 : 1);
       c.fade = isMe ? null : 1; // 카메라 바로 옆에 오면 흐리게 (2v2에서 뒤로 물러난 팀원)
+      c.watchNear = undefined; // 관전 시점용 (update에서 정함)
       // 꾸미기: looks[side][slot] = 그 선수의 장착 정보 (없으면 기본)
       applyLook(c, looks?.[side]?.[slot]);
       c.group.position.z = sideSign(side) * CHAR_Z;
@@ -93,7 +98,7 @@ export class Game {
       while (this.mouse.hist.length && this.mouse.hist[0].t < t - 0.4) this.mouse.hist.shift();
     };
     this.onDown = (e) => {
-      if (e.button !== 0 || this.paused) return; // paused: 경기 시작 전 VS 소개 중
+      if (e.button !== 0 || this.paused || this.spectator) return; // paused: 경기 시작 전 VS 소개 중
       if (e.target.closest && e.target.closest('button, input, .panel')) return;
       this.click(e.timeStamp / 1000 + this.offset, e.clientX, e.clientY);
     };
@@ -343,7 +348,7 @@ export class Game {
         {
           const who = this.order[this.turn];
           const mine = this.isMe(who.side, who.slot);
-          this.hud.hint(mine ? '클릭해서 서브 토스!' : who.side === me ? '팀원 서브를 기다리는 중…' : '상대 서브를 기다리는 중…');
+          if (!this.spectator) this.hud.hint(mine ? '클릭해서 서브 토스!' : who.side === me ? '팀원 서브를 기다리는 중…' : '상대 서브를 기다리는 중…');
           if (mine) this.announceTurn(true);
         }
         break;
@@ -432,11 +437,12 @@ export class Game {
         this.focusRally = 0;
         this.score = ev.score;
         this.hud.score(this.score, ev.deuce);
-        A.playUI(ev.winner === me ? 'point' : 'lose');
+        A.playUI(this.spectator || ev.winner === me ? 'point' : 'lose');
         break;
       case 'gameOver':
         this.focusRally = 0;
         this.phase = 'over';
+        if (this.spectator) { A.playUI('win'); this.hud.watchOver(ev.winner, ev.score); break; }
         A.playUI(ev.winner === me ? 'win' : 'lose');
         this.hud.gameOver(ev.winner === me, ev.score);
         break;
@@ -507,8 +513,14 @@ export class Game {
           const q = Math.round(c.fade * 20) / 20; // 너무 자주 재질을 바꾸지 않게
           c.setOpacity(q, Math.max(q, 0.9));
         }
+        // 관전 중 A쪽/B쪽 시점: 그 쪽 선수는 '나'처럼 반투명 + 이름표 숨김 (화면을 가리지 않게)
+        if (this.spectator) {
+          const near = this.view !== 'side' && s === this.view;
+          if (c.watchNear !== near) { c.watchNear = near; c.setOpacity(near ? 0.38 : 1, near ? 0.9 : 1); c.fade = near ? null : 1; }
+          if (near) { c.setTag(null); continue; }
+        }
         // 이름표: 상대 팀만 (팀원은 가까워서 이름표가 엉뚱한 곳에 뜸). 다음에 칠 사람은 노랗게
-        if (two && this.playerNames && s !== me) {
+        if ((two || this.spectator) && this.playerNames && (this.spectator || s !== me)) {
           const nx = this.order[this.turn];
           const next = this.phase !== 'point' && this.phase !== 'over' && nx.side === s && nx.slot === sl;
           c.setTag(this.playerNames[s][sl], next, this.playerTitles?.[s]?.[sl] || '');
@@ -517,9 +529,21 @@ export class Game {
     }
 
     // 카메라 / 소리 위치
-    w.updateCamera(me, this.charX[me][this.mySlot], dt, this.segs ? w.ball.position.x : 0, this.charZ[me][this.mySlot]);
     const cam = w.camera;
-    A.setListener([cam.position.x, cam.position.y, cam.position.z], me === 0 ? [1, 0, 0] : [-1, 0, 0]);
+    if (this.spectator) {
+      // 관전: 옆 중계 화면, 또는 A쪽/B쪽 선수 어깨 뒤 (그 쪽에서 다음에 칠 사람)
+      if (this.view === 'side') {
+        w.updateSideCamera(dt, this.segs ? w.ball.position.z : 0);
+        A.setListener([cam.position.x, cam.position.y, cam.position.z], [0, 0, -1]);
+      } else {
+        const v = this.view, sl = this.activeSlot(v);
+        w.updateCamera(v, this.charX[v][sl], dt, this.segs ? w.ball.position.x : 0, this.charZ[v][sl]);
+        A.setListener([cam.position.x, cam.position.y, cam.position.z], v === 0 ? [1, 0, 0] : [-1, 0, 0]);
+      }
+    } else {
+      w.updateCamera(me, this.charX[me][this.mySlot], dt, this.segs ? w.ball.position.x : 0, this.charZ[me][this.mySlot]);
+      A.setListener([cam.position.x, cam.position.y, cam.position.z], me === 0 ? [1, 0, 0] : [-1, 0, 0]);
+    }
 
     // 타이밍 링
     const showRing = ex && this.isMe(ex.side, ex.slot) && !ex.whiffed && (this.phase === 'toss' || this.phase === 'rally');
