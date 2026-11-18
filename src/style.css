@@ -315,9 +315,10 @@ a.lb-ext .ext { font-size: 15px; opacity: .7; }
 
 /* 코드 입장: 4칸 글자 상자 */
 .code-boxes { position: relative; display: flex; justify-content: center; gap: 10px; margin: 6px 0 0; cursor: text; }
-.code-boxes span { width: 70px; height: 84px; display: grid; place-items: center; font-size: 46px; color: var(--orange-ink); background: #fff; border: 3px solid var(--line); border-radius: 18px; box-shadow: 0 4px 0 var(--line); transition: border-color .15s, transform .1s; }
-.code-boxes span:not(:empty) { border-color: #ffc28a; }
-.code-boxes span.now { border-color: var(--orange); box-shadow: 0 4px 0 var(--orange-d), 0 0 0 5px rgba(255,138,26,.15); transform: translateY(-2px); }
+/* 코드 입력 칸 = 숫자 넘김 카드 */
+.code-boxes span { width: 70px; height: 84px; display: grid; place-items: center; font-size: 46px; color: #fff; background: linear-gradient(#2c2c33 0 50%, #202026 50%); border: 3px solid #2c2c33; border-radius: 18px; box-shadow: 0 4px 0 rgba(0,0,0,.2); transition: border-color .15s, transform .1s; }
+.code-boxes span:not(:empty) { border-color: #2c2c33; }
+.code-boxes span.now { border-color: var(--orange); box-shadow: 0 4px 0 rgba(0,0,0,.2), 0 0 0 5px rgba(255,138,26,.25); transform: translateY(-2px); }
 .code-boxes span.now:empty::after { content: ''; width: 3px; height: 40px; background: var(--orange); border-radius: 2px; animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 .code-boxes input { position: absolute; inset: 0; width: 100%; opacity: 0; font-size: 16px; text-transform: uppercase; cursor: text; }
@@ -331,9 +332,12 @@ button.ghost { background: transparent; box-shadow: none; color: var(--muted); p
 button.ghost:hover:not(:disabled) { color: var(--ink); background: var(--cream); transform: none; }
 .room-mode { font-size: 17px; color: var(--blue-ink); background: #e5eefc; border-radius: 999px; padding: 5px 14px; white-space: nowrap; }
 .room-mode b { font-weight: normal; color: var(--ink); margin-left: 6px; }
-.ticket { position: relative; display: flex; align-items: center; justify-content: center; gap: 12px; background: #fff4ea; border: 2px dashed #ffc28a; border-radius: 16px; padding: 4px 8px 4px 12px; }
-.ticket-lbl { font-size: 13px; color: var(--orange-d); }
-.code { font-size: 34px; letter-spacing: 7px; color: var(--orange-ink); line-height: 1.1; padding-left: 7px; }
+.ticket { position: relative; display: flex; align-items: center; justify-content: center; gap: 12px; background: var(--cream); border-radius: 16px; padding: 6px 8px 6px 14px; }
+.ticket-lbl { font-size: 13px; color: var(--muted); }
+/* 방 코드 = 글자마다 작은 숫자 넘김 카드(경기 점수판과 같은 모양) */
+.code { display: flex; gap: 4px; }
+.code i { position: relative; z-index: 0; font-style: normal; width: 34px; height: 42px; display: grid; place-items: center; font-size: 30px; line-height: 1; color: #fff; padding-top: 3px; border-radius: 6px; background: linear-gradient(#2c2c33 0 50%, #202026 50%); box-shadow: 0 3px 0 rgba(0,0,0,.18); }
+.code i::after { content: ''; position: absolute; z-index: -1; left: 0; right: 0; top: 50%; height: 1px; background: #0a0a0c; }
 .result { margin: 0; text-align: center; font-size: 24px; background: #fff1e2; border-radius: 14px; padding: 8px 18px; animation: popIn .3s ease-out; }
 .room-tip { flex: 1; margin: 0; text-align: center; font-size: 15px; color: #4a4b55; background: var(--cream); border-radius: 12px; padding: 9px 10px; }
 .room-foot { display: flex; align-items: center; gap: 10px; }
@@ -344,27 +348,34 @@ button.ghost:hover:not(:disabled) { color: var(--ink); background: var(--cream);
 .room-news { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; width: min(520px, calc(100% - 32px)); background: rgba(255,255,255,.92); border-radius: 18px; padding: 10px 14px; box-shadow: 0 8px 24px rgba(20,22,40,.15); }
 /* 대기실 '로비로 나가기': 회색 글씨만 있으면 버튼인 줄 몰라서 흰 알약으로 */
 button.leave-pill { border-radius: 999px; padding: 7px 14px; font-size: 16px; background: #fff; color: var(--ink); border: 2px solid var(--line); box-shadow: 0 3px 0 rgba(20,22,40,.12); white-space: nowrap; }
-button.leave-pill:hover:not(:disabled) { border-color: #ffc28a; }
+button.leave-pill:hover:not(:disabled) { border-color: var(--muted); }
 #btn-room-lobby { margin-top: 4px; }
 .room-news:not(:has(.result:not(.hidden), .coins-got:not(:empty), .h2h:not(:empty))) { display: none; }
 
 .slots { display: flex; align-items: stretch; gap: 10px; }
 .slot-team { flex: 2; display: flex; gap: 10px; min-width: 0; }
-.vs { align-self: center; font-size: 18px; color: #fff; background: var(--ink); border-radius: 50%; width: 44px; height: 44px; flex: none; display: grid; place-items: center; box-shadow: 0 4px 0 rgba(0,0,0,.2); }
+/* 가운데 = 탁구 네트(그물 + 위 흰 줄 + 기둥) 위에 작은 VS 알약 */
+.vs { position: relative; align-self: stretch; flex: none; width: 14px; margin: -4px 12px; border-radius: 3px;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,.55) 0 1px, transparent 1px 5px), repeating-linear-gradient(90deg, rgba(255,255,255,.55) 0 1px, #2a2a30 1px 5px);
+  border-left: 3px solid #fff; border-right: 3px solid #fff; box-shadow: 0 0 0 1px rgba(29,29,34,.25); }
+.vs::before, .vs::after { content: ''; position: absolute; left: -6px; right: -6px; height: 6px; border-radius: 3px; background: var(--ink); }
+.vs::before { top: -5px; } .vs::after { bottom: -5px; }
+.vs i { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-style: normal; font-size: 15px; color: #fff; background: var(--ink); border: 2px solid #fff; border-radius: 999px; padding: 2px 7px; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
 .slot { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 16px; padding: 8px 10px; min-height: 64px; animation: popIn .2s ease-out; position: relative; }
-.t0 .slot { background: #fde3e4; } .t1 .slot { background: #dde9ff; }
+.t0 .slot { background: #fde3e4; box-shadow: inset 0 4px 0 var(--red); } .t1 .slot { background: #dde9ff; box-shadow: inset 0 4px 0 var(--blue); } /* 위 띠 = 팀 색(점수판 카드와 같게) */
 .slot b { font-weight: normal; font-size: 19px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slot span { font-size: 12px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slot i { font-style: normal; color: #3fbf6a; }
-.slot.me { box-shadow: inset 0 0 0 2px var(--orange); cursor: pointer; }
+.t0 .slot.me { box-shadow: inset 0 4px 0 var(--red), inset 0 0 0 2px var(--orange); cursor: pointer; } .t1 .slot.me { box-shadow: inset 0 4px 0 var(--blue), inset 0 0 0 2px var(--orange); cursor: pointer; }
 .slot.me:hover span.out { color: var(--ink); }
-.slot.empty { background: transparent; box-shadow: inset 0 0 0 2px rgba(29,29,34,.35); animation: none; cursor: pointer; }
+.t0 .slot.empty, .t1 .slot.empty { background: transparent; box-shadow: inset 0 0 0 2px rgba(29,29,34,.25); animation: none; cursor: pointer; }
+.t0 .slot.empty { box-shadow: inset 0 4px 0 rgba(214,36,46,.45), inset 0 0 0 2px rgba(29,29,34,.2); } .t1 .slot.empty { box-shadow: inset 0 4px 0 rgba(37,96,176,.45), inset 0 0 0 2px rgba(29,29,34,.2); }
 .slot.empty b { color: #a3a5ae; font-size: 16px; }
 .slot.empty:hover { background: rgba(255,255,255,.55); }
 .t0 .slot.empty span.go { color: var(--red); } .t1 .slot.empty span.go { color: var(--blue-ink); }
 .slot.empty.locked { cursor: default; } .slot.empty.locked:hover { background: transparent; }
 
-.room-hint { position: absolute; left: 16px; top: 14px; margin: 0; font-size: 15px; color: #fff; background: rgba(43,42,51,.6); border-radius: 999px; padding: 6px 14px; pointer-events: none !important; }
+.room-hint { position: absolute; left: 16px; top: 14px; margin: 0; font-size: 15px; color: #fff; background: rgba(20,20,24,.62); border-radius: 999px; padding: 6px 14px; pointer-events: none !important; }
 .room-hint.room-bg { left: auto; right: 16px; }
 /* 3D 캐릭터 머리 위: 닉네임 알약 + 장착 아이템 (등급은 색·빛으로만) */
 .room-labels { position: absolute; inset: 0; pointer-events: none !important; overflow: hidden; }
@@ -381,7 +392,7 @@ button.leave-pill:hover:not(:disabled) { border-color: #ffc28a; }
 @keyframes shine { to { background-position: -200% 0; } }
 @media (max-width: 760px) {
   .room-top { flex-wrap: wrap; justify-content: center; }
-  .code { font-size: 28px; }
+  .code i { width: 28px; height: 36px; font-size: 25px; }
   .slots, .slot-team { gap: 6px; }
   .vs { width: 34px; height: 34px; font-size: 14px; }
   .slot b { font-size: 16px; }
@@ -573,11 +584,11 @@ body.intro #hud { visibility: hidden; }
 .vi-card .it.g-default { color: var(--muted); }
 .vi-card .it.g-rare { color: #7a3fc4; box-shadow: inset 0 0 0 3px #b98cf0, 0 3px 0 rgba(0,0,0,.18), 0 0 18px rgba(176,124,255,.6); }
 .vi-card .it.g-legend { color: #9a5b00; background: linear-gradient(90deg, #fff3c4, #ffe08a, #fff3c4); background-size: 200% 100%; box-shadow: inset 0 0 0 3px #f2a20c, 0 0 22px #ffc23d; animation: shine 1.6s linear infinite; }
-.vi-vs { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(3); opacity: 0; font-size: 96px; color: #fff; -webkit-text-stroke: 4px var(--ink); text-shadow: 0 6px 0 var(--ink), 0 0 40px rgba(255,180,60,.8); }
+.vi-vs { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(3); opacity: 0; font-size: 96px; color: #fff; -webkit-text-stroke: 4px var(--ink); text-shadow: 0 6px 0 var(--ink), 0 0 40px rgba(255,138,26,.8); }
 .vs-intro.p3 .vi-vs { animation: vsStamp .35s cubic-bezier(.3,1.6,.5,1) forwards; }
 @keyframes vsStamp { from { opacity: 0; transform: translate(-50%, -50%) scale(3) rotate(-12deg); } to { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-6deg); } }
 .vi-go { position: absolute; left: 50%; top: 62%; transform: translate(-50%, -50%); opacity: 0; font-size: clamp(26px, 4vw, 44px); color: #fff; white-space: nowrap; text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 20px rgba(0,0,0,.35); }
-.vi-go b { font-weight: normal; color: #ffd23d; font-size: 1.35em; }
+.vi-go b { font-weight: normal; color: var(--orange); font-size: 1.35em; }
 .vs-intro.go .vi-go { animation: goIn .3s cubic-bezier(.3,1.5,.5,1) forwards; }
 @keyframes goIn { from { opacity: 0; transform: translate(-50%, -50%) scale(.7); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 .vs-intro.go .vi-vs { animation: none; opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-6deg); }

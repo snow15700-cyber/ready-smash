@@ -614,7 +614,7 @@ function renderH2H() {
 function renderRoom() {
   if (!room) return;
   renderH2H();
-  $('room-code').textContent = room.code;
+  $('room-code').innerHTML = [...String(room.code)].map((c) => `<i>${esc(c)}</i>`).join(''); // 글자마다 작은 넘김 카드
   $('room-mode').innerHTML = room.mode
     ? `${room.mode === '2v2' ? '2 대 2' : '1 대 1'} 방 <b>${room.members.length}/${capacity()}명</b>`
     : '방 정보를 불러오는 중…';
