@@ -11,6 +11,7 @@ import { CROWD_MAX } from './crowd.js';
 import { account, autoLogin, login, signup, playAsGuest, logout, changePin, lastNick, cleanNick, validPin, newMatchId, matchJoin, matchFinish, claimDaily, aiStart, aiRally, loadShop, gacha, buyItem, equipItem, myEquip, testCoins, getH2H, getRanking, checkAch, setTitle, myTitle, matchAch, matchPeople, aiAch } from './account.js';
 import { ACHS, ACH, ACH_CATS, REWARD, titleText } from './achievements.js';
 import { UPDATES, LATEST_UPDATE } from './updates.js';
+import { ic } from './icons.js';
 
 import { ITEMS, ITEM, POOLS, GRADES, CATS, GACHA_PRICE, PITY, DEFAULTS, applyLook, swatch, equipped, arenaOf, ballOf, poolOpen } from './items.js';
 
@@ -574,7 +575,7 @@ function renderCoins() {
   if (!room.result) el.innerHTML = '';
   else if (!account.loggedIn) el.innerHTML = '<small>로그인하면 경기마다 코인을 모을 수 있어요</small>';
   else if (!c) el.innerHTML = '<small>코인 정산 중…</small>';
-  else el.innerHTML = `<b>🪙 +${c.total} 코인</b><small>${c.items.map((i) => `${esc(i.label)}${i.coins ? ` +${i.coins}` : ""}`).join(' · ')}</small>`;
+  else el.innerHTML = `<b><i class="coin-dot"></i> +${c.total} 코인</b><small>${c.items.map((i) => `${esc(i.label)}${i.coins ? ` +${i.coins}` : ""}`).join(' · ')}</small>`;
 }
 
 // 1v1 방의 상대 (나 말고 다른 한 사람)
@@ -586,7 +587,7 @@ function renderH2H() {
   if (!opp) { el.innerHTML = ''; return; }
   const name = `<b>${esc(opp.nick)}</b>님`;
   if (!account.loggedIn || !opp.pid) {
-    el.innerHTML = `⚔️ ${name}과의 상대 전적은 남지 않아요 (손님)`;
+    el.innerHTML = `${ic('swords')} ${name}과의 상대 전적은 남지 않아요 (손님)`;
     return;
   }
   const h = room.h2h[opp.pid];
@@ -595,9 +596,9 @@ function renderH2H() {
     getH2H(opp.pid).then((v) => { if (room) { room.h2h[opp.pid] = v || false; renderRoom(); } });
   }
   if (h === false) el.innerHTML = ''; // 불러오기 실패
-  else if (!h) el.innerHTML = `⚔️ ${name}과의 상대 전적 불러오는 중…`;
-  else if (h.wins + h.losses === 0) el.innerHTML = `⚔️ ${name}과는 첫 대결이에요!`;
-  else el.innerHTML = `⚔️ ${name}과의 상대 전적 <em>${h.wins}승 ${h.losses}패</em>`;
+  else if (!h) el.innerHTML = `${ic('swords')} ${name}과의 상대 전적 불러오는 중…`;
+  else if (h.wins + h.losses === 0) el.innerHTML = `${ic('swords')} ${name}과는 첫 대결이에요!`;
+  else el.innerHTML = `${ic('swords')} ${name}과의 상대 전적 <em>${h.wins}승 ${h.losses}패</em>`;
 }
 
 function renderRoom() {
@@ -630,7 +631,7 @@ function renderRoom() {
         continue;
       }
       const me = m.id === myId;
-      const tags = [num, m.host ? '👑 방장' : '', m.guest ? '손님' : '', me ? '나' : ''].filter(Boolean);
+      const tags = [num, m.host ? `${ic('crown')} 방장` : '', m.guest ? '손님' : '', me ? '나' : ''].filter(Boolean);
       html += `<div class="slot${me ? ' me' : ''}" data-team="${team}"${me ? ' title="누르면 팀에서 빠져요"' : ''}><b>${esc(m.nick)}</b><span>${tags.join(' · ')} <i>✓</i></span>${me ? '<span class="out">누르면 빠지기</span>' : ''}</div>`;
     }
     $(`team-${team}`).innerHTML = html;
@@ -638,16 +639,16 @@ function renderRoom() {
   const none = room.members.filter((m) => !room.teams[m.id]);
   $('room-members').innerHTML = none.length ? `팀 고르는 중${none.map((m) => `<b>${esc(m.nick)}${m.id === myId ? '(나)' : ''}</b>`).join('')}` : '';
   renderStageLabels();
-  $('room-hint').textContent = room.teams[myId] ? '🏓 화면을 누른 채 위로 밀면 연습 스윙!' : '👇 아래 빈 칸을 눌러 팀을 골라 주세요';
+  $('room-hint').innerHTML = room.teams[myId] ? `${ic('swipe')} 화면을 누른 채 위로 밀면 연습 스윙!` : `${ic('down')} 아래 빈 칸을 눌러 팀을 골라 주세요`;
   // 배경은 방장 것이 모두에게 보인다 (방장이 바꾸면 다음 입장부터)
   const bgIt = equipped(room.hostM?.look, 'bg'), ballIt = equipped(room.hostM?.look, 'ball');
-  const ballTxt = ballIt.grade === 'default' ? '' : ` · ⚪ ${ballIt.name}`; // 탁구공도 방장 것
-  $('room-bg').textContent = `🏟️ ${bgIt.name}${ballTxt} · ${room.host ? '내 꾸미기' : '방장 꾸미기'}`;
+  const ballTxt = ballIt.grade === 'default' ? '' : ` · ${ic('ball')} ${esc(ballIt.name)}`; // 탁구공도 방장 것
+  $('room-bg').innerHTML = `${ic('image')} ${esc(bgIt.name)}${ballTxt} · ${room.host ? '내 꾸미기' : '방장 꾸미기'}`;
 
   const full = room.mode && isFull();
   $('btn-start').classList.toggle('hidden', !room.host);
   $('btn-watch-ok').classList.toggle('hidden', !room.host);
-  $('btn-watch-ok').textContent = room.watchOk ? '👀 관전 허용' : '🙈 관전 막음';
+  $('btn-watch-ok').innerHTML = room.watchOk ? `${ic('eye')} 관전 허용` : `${ic('eyeOff')} 관전 막음`;
   $('btn-watch-ok').classList.toggle('off', !room.watchOk);
   $('btn-start').disabled = !full;
   let tip;
@@ -1825,7 +1826,7 @@ function renderStageLabels() {
   const box = $('room-labels');
   box.innerHTML = stage.seats.map(({ team, m }) => {
     if (!m) return '<div class="rl ghost"><div class="nm">빈자리 · 기다리는 중</div></div>';
-    const tags = (m.id === myId ? '<small>나</small>' : '') + (m.host ? '<small>👑</small>' : '');
+    const tags = (m.id === myId ? '<small>나</small>' : '') + (m.host ? `<small>${ic('crown')}</small>` : '');
     return `<div class="rl">${tpill(m.title, m.titleX)}<div class="nm t${team}">${esc(m.nick)}${tags}</div>${lookPills(m.look)}</div>`;
   }).join('');
   stage.els = [...box.children];
@@ -2142,7 +2143,38 @@ function loop() {
   world.crowd.update(now); // 관중석 (관중이 없으면 바로 끝남)
   world.render();
   if (perf) perf.frame(now);
+  glassGuard(now);
   requestAnimationFrame(loop);
+}
+
+// 유리(흐림) 효과 지킴이: 로비가 떠 있는 동안 2초씩 프레임을 재서, 두 번 연달아 40fps 아래면
+// 흐림을 끄고 진한 반투명 패널로 바꾼다(html.lite-glass, 이 브라우저에 기억). 내장 그래픽 노트북 렉 방지.
+// ?glass=0 이면 항상 끔, ?glass=1 이면 항상 켬(시험용).
+const GLASS = (() => {
+  const q = new URLSearchParams(location.search).get('glass');
+  let saved = null; try { saved = localStorage.getItem('smash-lite-glass'); } catch {}
+  const lite = q === '0' || (q !== '1' && saved === '1');
+  document.documentElement.classList.toggle('lite-glass', lite);
+  return { lite, watch: !lite && q !== '1', t0: 0, n: 0, last: 0, shownAt: 0, slow: 0 };
+})();
+function glassGuard(now) {
+  const g = GLASS;
+  if (!g.watch) return;
+  if ($('lobby').classList.contains('hidden') || now - g.last > 0.5) { g.t0 = 0; g.n = 0; g.shownAt = 0; g.last = now; return; } // 로비가 아니거나 탭을 다녀옴 → 다시
+  g.last = now;
+  if (!g.shownAt) g.shownAt = now;
+  if (now - g.shownAt < 3) return; // 막 뜬 직후(로딩·셰이더 준비)는 빼고
+  if (!g.t0) { g.t0 = now; g.n = 0; return; }
+  g.n++;
+  if (now - g.t0 < 2) return;
+  const fps = g.n / (now - g.t0);
+  g.t0 = now; g.n = 0;
+  g.slow = fps < 40 ? g.slow + 1 : 0;
+  if (g.slow >= 2) {
+    g.watch = false; g.lite = true;
+    document.documentElement.classList.add('lite-glass');
+    try { localStorage.setItem('smash-lite-glass', '1'); } catch {}
+  }
 }
 
 // 프레임 측정 (최적화 ④): 주소에 ?fps=1을 붙이면 왼쪽 아래에 초당 프레임·가장 느린 프레임·그리기 호출 수가 뜬다

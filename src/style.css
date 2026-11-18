@@ -223,7 +223,7 @@ button.big small { display: block; font-size: 14px; opacity: .92; }
    색은 탁구용품에서: 빨강(러버) = 가장 중요한 버튼, 파랑(탁구대) = 두 번째, 흰 반투명 유리 = 패널, 공 주황 = 코인.
    배경 3D는 로비에서만 색을 빼고 어둡게 + 남색으로 덮어서 유리가 또렷하게 보이게 한다. */
 #c { transition: filter .4s; }
-body:has(#lobby:not(.hidden)) #c { filter: saturate(.55) brightness(.78) contrast(1.05); }
+body:has(#lobby:not(.hidden), #login:not(.hidden), #pin-change:not(.hidden), #join:not(.hidden)) #c { filter: saturate(.55) brightness(.78) contrast(1.05); }
 .screen.lobby { display: block; padding: 0; overflow: auto; backdrop-filter: none; color: #fff; font-family: var(--font-ui);
   background: linear-gradient(90deg, var(--night-62) 0%, var(--night-30) 38%, var(--night-08) 60%), linear-gradient(0deg, rgba(14,26,58,.4), rgba(14,26,58,0) 35%), linear-gradient(180deg, rgba(14,26,58,.35), rgba(14,26,58,0) 30%); }
 .lobby button, .lobby a { font-family: var(--font-ui); letter-spacing: -0.01em; transition: transform .15s, background .15s, box-shadow .15s; }
@@ -234,6 +234,9 @@ body:has(#lobby:not(.hidden)) #c { filter: saturate(.55) brightness(.78) contras
 .lb-friends, .me-chip, .me-stats span, .lb-help, button.icon-btn i, .lobby .mobile-note {
   background: var(--glass); backdrop-filter: blur(22px) saturate(170%); -webkit-backdrop-filter: blur(22px) saturate(170%);
   border: 1px solid var(--glass-line); box-shadow: 0 16px 40px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.35); }
+/* 느린 PC(glassGuard가 켬)·흐림이 안 되는 브라우저: 흐림 없이 진한 반투명 남색 */
+html.lite-glass .lb-friends, html.lite-glass .me-chip, html.lite-glass .me-stats span, html.lite-glass .lb-help, html.lite-glass button.icon-btn i, html.lite-glass .lobby .mobile-note,
+html.lite-glass .glass { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(28,38,66,.72); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .lb-friends, .me-chip, .me-stats span, .lb-help, button.icon-btn i, .lobby .mobile-note { background: rgba(28,38,66,.72); }
 }
@@ -245,9 +248,6 @@ body:has(#lobby:not(.hidden)) #c { filter: saturate(.55) brightness(.78) contras
 .lobby .logo { color: #fff; -webkit-text-stroke: 0; filter: drop-shadow(0 6px 18px rgba(0,0,0,.35)); }
 .lobby .logo span { color: var(--tt-red-glow); -webkit-text-stroke: 0; }
 .lobby .logo { font-family: 'Jua', system-ui, sans-serif; }
-/* 로비 안의 '치는 방법'·'업데이트' 창은 아직 예전 모양 (나중 단계에서 바꿈) */
-.lobby .howto-pop { color: var(--ink); font-family: 'Jua', system-ui, sans-serif; }
-.lobby .howto-pop button { font-family: 'Jua', system-ui, sans-serif; letter-spacing: 0; }
 .lobby .lb-sub { font-size: 16px; font-weight: 500; color: rgba(255,255,255,.85); text-shadow: none; }
 
 button.lb-play { display: flex; align-items: center; gap: 12px; text-align: left; font-size: 28px; font-weight: 700; padding: 18px 22px; border-radius: 20px; color: #fff;
@@ -436,6 +436,110 @@ button.leave-pill:hover:not(:disabled) { border-color: #ffbf8f; }
   .slot b { font-size: 16px; }
   .room-foot { flex-wrap: wrap; }
 }
+
+/* ───────── 새 디자인 '탁구 색 + 유리' 공통 (.gx 화면: 로그인·PIN·코드 입장·대기실·치는 방법·업데이트) ─────────
+   로비(.lobby)와 같은 규칙. 밝은 유리 = 어두운 배경 위(로그인 등), 어두운 유리 = 밝은 경기장 위(대기실). */
+.gx { font-family: var(--font-ui); color: #fff; }
+.gx button, .gx input, .gx a { font-family: var(--font-ui); letter-spacing: -0.01em; }
+.gx button { transition: transform .15s, background .15s, box-shadow .15s; }
+.gx button:hover:not(:disabled) { transform: translateY(-1px); }
+.gx button:active:not(:disabled) { transform: scale(.97); }
+.gx .ic { width: 1em; height: 1em; flex: none; vertical-align: -0.14em; }
+.gx .panel, .gx .howto { background: var(--glass); backdrop-filter: blur(22px) saturate(170%); -webkit-backdrop-filter: blur(22px) saturate(170%);
+  border: 1px solid var(--glass-line); box-shadow: 0 16px 40px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.35); }
+.gx .logo { font-family: 'Jua', system-ui, sans-serif; color: #fff; -webkit-text-stroke: 0; filter: drop-shadow(0 6px 18px rgba(0,0,0,.35)); }
+.gx .logo span { color: var(--tt-red-glow); -webkit-text-stroke: 0; }
+.gx .lb-sub { font-size: 16px; font-weight: 500; color: rgba(255,255,255,.85); text-shadow: none; }
+.gx .panel-title, .gx .howto-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 22px; color: #fff; }
+.gx .panel-title.center, .gx .howto-title { justify-content: center; }
+.gx .sub, .gx .note { color: rgba(255,255,255,.7); }
+.gx .field { color: rgba(255,255,255,.8); font-size: 14px; font-weight: 600; }
+.gx .field small { color: rgba(255,255,255,.55); font-weight: 500; }
+.gx .field input { color: #fff; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.28); border-radius: 12px; font-weight: 600; }
+.gx .field input::placeholder { color: rgba(255,255,255,.4); }
+.gx .field input:focus { border-color: rgba(255,255,255,.75); box-shadow: 0 0 0 4px rgba(255,255,255,.12); }
+/* 버튼: 큰 버튼 = 빨강, 나머지 = 유리 */
+.gx button { color: #fff; background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.gx button:hover:not(:disabled) { background: rgba(255,255,255,.24); }
+.gx button.big { display: flex; font-weight: 700; border-radius: 16px; background: linear-gradient(180deg, var(--tt-red-hi), var(--tt-red-lo)); box-shadow: 0 10px 26px rgba(215,38,46,.4), inset 0 1px 0 rgba(255,255,255,.35); }
+.gx button.big:hover:not(:disabled) { background: linear-gradient(180deg, #ec3f46, var(--tt-red-lo)); }
+.gx button.big:active:not(:disabled) { box-shadow: 0 5px 14px rgba(215,38,46,.35), inset 0 1px 0 rgba(255,255,255,.3); }
+.gx button:disabled { opacity: .4; }
+.gx .msg { color: #ff8a8f; } .gx .msg.ok { color: #5be38a; }
+.gx .or { color: rgba(255,255,255,.5); } .gx .or::before, .gx .or::after { height: 1px; background: rgba(255,255,255,.22); }
+.gx .signup-q { color: #fff; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); font-weight: 500; font-size: 17px; }
+.gx .signup-q b { font-weight: 700; color: var(--tt-ball); }
+.gx .offline { color: #fff; background: rgba(255,138,31,.16); border: 1px dashed rgba(255,138,31,.75); font-weight: 500; }
+.gx .offline b { font-weight: 700; color: var(--tt-ball); }
+.coin-dot { display: inline-block; width: .7em; height: .7em; border-radius: 50%; background: var(--tt-ball); box-shadow: inset 0 -2px 0 rgba(0,0,0,.15); vertical-align: 0; }
+.me-coins .coin-dot { background: #fff; }
+/* 코드 입장 4칸 */
+.gx .code-boxes span { color: #fff; font-weight: 800; font-size: 44px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.3); box-shadow: none; }
+.gx .code-boxes span:not(:empty) { border-color: rgba(255,255,255,.55); }
+.gx .code-boxes span.now { border-color: #fff; box-shadow: 0 0 0 4px rgba(255,255,255,.18); }
+.gx .code-boxes span.now:empty::after { background: #fff; }
+/* 치는 방법·업데이트 창 */
+.gx.howto-pop { background: rgba(10,16,34,.45); backdrop-filter: blur(6px); }
+.gx .howto { color: #fff; }
+.gx .howto ul { color: rgba(255,255,255,.85); }
+.gx .howto b { font-weight: 700; }
+.gx .swing-demo p { color: #fff; font-weight: 700; font-size: 18px; }
+.gx .mouse { font-size: 44px; color: #fff; }
+.gx .mouse .drag { color: var(--tt-red-glow); }
+.gx .dirs span { color: #fff; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2); font-weight: 700; }
+.gx .dirs small { color: rgba(255,255,255,.7); font-weight: 500; }
+.gx .upd-day h3 { color: #fff; font-weight: 700; }
+.gx .upd-new { background: var(--tt-red-glow); }
+.gx .upd-tag { color: #fff; background: rgba(255,255,255,.16); }
+.gx .upd-big li { background: rgba(255,255,255,.1); }
+.gx .upd-big b { color: #fff; font-weight: 700; }
+.gx .upd-big p, .gx .upd-day details { color: rgba(255,255,255,.75); }
+.gx .upd-day summary { color: rgba(255,255,255,.6); }
+
+/* 대기실: 밝은 경기장 위라 '어두운 유리'. 팀 색 A = 빨강, B = 파랑 */
+.gx .room-panel, .gx .room-news, .gx .room-hint { background: rgba(18,24,44,.68); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%);
+  border: 1px solid rgba(255,255,255,.18); box-shadow: 0 16px 40px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.14); }
+.gx .room-hint { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
+.gx button.leave-pill { border: 0; font-size: 15px; }
+.gx .ticket { background: rgba(255,255,255,.08); border: 1px dashed rgba(255,255,255,.4); }
+.gx .ticket-lbl { color: rgba(255,255,255,.7); font-weight: 600; }
+.gx .code { color: #fff; font-weight: 800; letter-spacing: 8px; }
+.gx .room-mode { color: #fff; font-weight: 600; font-size: 15px; background: rgba(42,93,176,.55); }
+.gx .room-mode b { color: #fff; font-weight: 700; }
+.gx button.watch-ok.off { background: rgba(255,255,255,.06); color: rgba(255,255,255,.55); }
+.gx .slot { color: #fff; }
+.gx .t0 .slot { background: rgba(215,38,46,.32); } .gx .t1 .slot { background: rgba(42,93,176,.4); }
+.gx .slot b { font-weight: 700; }
+.gx .slot span { color: rgba(255,255,255,.72); display: inline-flex; align-items: center; gap: 4px; }
+.gx .slot i { color: #5be38a; }
+.gx .slot.me { box-shadow: inset 0 0 0 2px rgba(255,255,255,.85); }
+.gx .slot.me:hover span.out { color: #fff; }
+.gx .slot.empty { background: transparent; box-shadow: none; border: 1px dashed rgba(255,255,255,.35); }
+.gx .slot.empty b { color: rgba(255,255,255,.6); font-weight: 600; }
+.gx .slot.empty:hover { background: rgba(255,255,255,.08); }
+.gx .t0 .slot.empty span.go { color: #ff8a8f; } .gx .t1 .slot.empty span.go { color: #9bbcff; }
+.gx .slot.empty.locked:hover { background: transparent; }
+.gx .vs { color: var(--tt-ink); background: #fff; font-weight: 800; box-shadow: 0 6px 16px rgba(0,0,0,.3); }
+.gx .room-tip { color: rgba(255,255,255,.8); background: rgba(255,255,255,.08); font-weight: 500; }
+.gx .waiting-list { color: rgba(255,255,255,.65); }
+.gx .waiting-list b { color: #fff; background: rgba(255,255,255,.14); font-weight: 600; }
+.gx .room-panel .note.tiny { color: rgba(255,255,255,.5); }
+.gx .result { color: #fff; background: rgba(255,255,255,.1); font-weight: 700; }
+.gx .coins-got b { color: var(--tt-ball); font-weight: 800; }
+.gx .coins-got small, .gx .h2h { color: rgba(255,255,255,.7); }
+.gx .h2h b { color: #fff; } .gx .h2h em { color: var(--tt-ball); font-weight: 700; }
+.gx .rl .nm { font-weight: 700; font-size: 17px; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+.gx .rl .nm.t0 { background: var(--tt-red); } .gx .rl .nm.t1 { background: var(--tt-blue-hi); }
+.gx .rl .it { font-weight: 600; }
+.gx .rl .nm small .ic { vertical-align: -0.1em; }
+.gx .rl.ghost .nm { color: rgba(255,255,255,.8); background: rgba(18,24,44,.5); border: 1px dashed rgba(255,255,255,.45); font-weight: 600; }
+.gx.screen.left { background: linear-gradient(90deg, var(--night-62) 0%, var(--night-30) 38%, var(--night-08) 60%), linear-gradient(0deg, rgba(14,26,58,.4), rgba(14,26,58,0) 35%); }
+@media (max-width: 760px) { .gx.screen.left { background: rgba(14,26,58,.5); } }
+.gx.screen:not(.left):not(.stage) { background: rgba(14,26,58,.45); backdrop-filter: blur(4px); }
+/* 느린 PC: 흐림 끄기 */
+html.lite-glass .gx .panel, html.lite-glass .gx .howto { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(28,38,66,.86); }
+html.lite-glass .gx .room-panel, html.lite-glass .gx .room-news, html.lite-glass .gx .room-hint { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(18,24,44,.82); }
+html.lite-glass .gx.howto-pop, html.lite-glass .gx.screen { backdrop-filter: none; }
 
 /* ───────── 3단계: 랭킹 (시상대 + 목록 + 내 순위) ───────── */
 .rank-panel { width: min(520px, 100%); gap: 10px; padding: 16px 20px 16px; }
