@@ -146,7 +146,23 @@ export function createWorld(canvas) {
     scene.add(m);
     trail.push(m);
   }
-  const trailHist = [];
+  const trailHist = []; // [x, y, z, 초]
+  const TRAIL_GAP = 2 / 60; // 잔상 하나당 간격(초) — 예전 60fps에서 2장 간격과 같음
+  const tv1 = new THREE.Vector3(), tv2 = new THREE.Vector3();
+  // 잔상 중 카메라와 공 사이에 있으면서 화면에서 공과 겹치는 것은 숨긴다 (공 반지름 0.028, 겹침 여유 1.15배)
+  function hideTrailOverBall() {
+    if (!ball.visible) return;
+    tv1.copy(ball.position).sub(camera.position);
+    const dB = tv1.length(); tv1.divideScalar(dB);
+    for (const m of trail) {
+      if (!m.visible) continue;
+      tv2.copy(m.position).sub(camera.position);
+      const dT = tv2.length();
+      if (dT >= dB) continue; // 공 뒤쪽이면 공이 가려 줌
+      const ang = Math.acos(Math.min(1, tv1.dot(tv2) / dT));
+      if (ang < (0.028 / dB + m.geometry.parameters.radius / dT) * 1.15) m.visible = false;
+    }
+  }
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.03, 16), new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0.35, depthWrite: false }));
   shadow.rotation.x = -Math.PI / 2;
   scene.add(shadow);
@@ -286,12 +302,21 @@ export function createWorld(canvas) {
       ballSmash = smash;
       ball.visible = visible;
       ball.position.set(p[0], p[1], p[2]);
-      trailHist.unshift([p[0], p[1], p[2]]);
-      if (trailHist.length > 14) trailHist.pop();
+      // 잔상: '몇 장 전 화면'이 아니라 '몇 초 전 위치'로 (모니터 화면 수가 달라도 꼬리 길이가 같게).
+      // 잔상은 빛을 안 받는 납작한 하얀 원이라, 공을 덮을 만큼 가까운 것은 숨긴다
+      // (공이 상대 쪽으로 날아갈 때 잔상이 카메라와 공 사이에 와서 공이 2D 원처럼 보이던 문제)
+      const now = performance.now() / 1000;
+      trailHist.unshift([p[0], p[1], p[2], now]);
+      while (trailHist.length > 2 && now - trailHist[trailHist.length - 1][3] > TRAIL_GAP * (trail.length + 2)) trailHist.pop();
+      if (trailHist.length > 120) trailHist.length = 120;
+      let j = 0;
       trail.forEach((m, i) => {
-        const h = trailHist[(i + 1) * 2];
-        m.visible = visible && !!h;
-        if (h) m.position.set(h[0], h[1], h[2]);
+        const age = TRAIL_GAP * (i + 1);
+        while (j < trailHist.length - 1 && now - trailHist[j][3] < age) j++;
+        const h = trailHist[j];
+        const ok = !!h && now - h[3] >= age * 0.8;
+        m.visible = visible && ok;
+        if (ok) m.position.set(h[0], h[1], h[2]);
       });
       const onTable = Math.abs(p[0]) <= HALF_W && Math.abs(p[2]) <= HALF_L && p[1] >= TY - 0.01;
       const gy = onTable ? TY + 0.003 : 0.003;
@@ -315,6 +340,7 @@ export function createWorld(canvas) {
     },
     clearHatch() { ballBfx.clearKid(); },
     render() {
+      hideTrailOverBall();
       const t = performance.now() / 1000;
       const dt = Math.min(0.1, t - fxLast || 0.016);
       fxLast = t;

@@ -15,3 +15,7 @@
   - `scene.js`: `world.ball`은 자리만 잡는 그룹, 모양은 `setBallSkin(id)`로 교체. `setBall(p, visible, smash)`, `ballSound`, `ballBounce(delay, p, smash, floor)`(game.js·lobbyDemo.js가 소리와 같은 세그먼트로 예약), `hatch(pos, dir)`·`clearHatch()`. `render()`가 매 프레임 공 `tick`(속도는 위치 차이) + 튈 때 효과 + 스매시 꼬리 + 알에서 나온 아이.
   - 어떤 공을 보이나(`main.js` 루프 끝, 배경과 같음): 방 = 방장 presence `look.ball`, 로비·꾸미기 = 내 장착(입어 보는 중이면 그것), 혼자 하기 = 내 장착. 대기실 알약 `#room-bg`에 '⚪ 공 이름'(기본 공이면 생략).
   - 알 깨짐(`game.js`의 `smashWatch`·`checkHatch`): 'shot' 이벤트가 스매시이고 받을 사람이 있으면 지켜보다가, 받을 수 있는 마지막 순간(`ideal + WIN_LATE.bad + HOLD + 0.03`)이 지나도 그 공이 그대로면(내 예측 타격·대기 중인 타격 없음) 깨짐 → 공 숨김(`hatched`). 방장 결과보다 먼저 보여 주므로, 뒤늦게 받아친 'shot'이 오면 `clearHatch`로 되돌린다. serveReady에서 초기화. 보기만이라 판정·메시지는 그대로.
+
+## 공이 2D 원처럼 보이던 문제 (2026-11-18 고침, test)
+- 원인: `scene.js`의 잔상(빛을 안 받는 반투명 하얀 구 7개)이 공이 카메라에서 멀어질 때(상대 쪽으로 날아갈 때) 카메라와 공 사이에 와서 공을 덮음 → 납작한 하얀 원처럼 보임. 느린 공·고주사율 모니터(120~144Hz)에서 더 심함.
+- 고침: 잔상 간격을 프레임 수 대신 시간(`TRAIL_GAP` 2/60초)으로, 카메라와 공 사이에 있으면서 화면에서 공과 겹치는 잔상은 숨김(`hideTrailOverBall`, `render()` 처음에). 보기만 바뀜.
