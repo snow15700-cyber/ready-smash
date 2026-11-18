@@ -715,7 +715,8 @@ export function playUI(kind = 'click') {
 
 // 관중 소리 (관전 4단계). kind: clap(박수) | fire(함성) | go(화이팅) | roar(점수 났을 때 다 같이)
 // vol: 0~1 (랠리 중에는 main.js가 아주 작게 — 찬스볼 신호음·타구음을 가리지 않게). n: 관중 수(roar 크기)
-export function playCrowd(kind, vol = 1, pos = null, n = 1) {
+// clap: false면 roar에서 박수를 뺀다 (경기 전 연출의 '스매시!' 함성)
+export function playCrowd(kind, vol = 1, pos = null, n = 1, clap = true) {
   if (!ctx || vol <= 0) return;
   const t = at();
   const out = chain(t, pos, 0.9);
@@ -756,6 +757,6 @@ export function playCrowd(kind, vol = 1, pos = null, n = 1) {
     const k = Math.min(1, 0.35 + n * 0.06);
     for (let i = 0; i < Math.min(5, 1 + n); i++) voice(t + Math.random() * 0.12, 0.9 + Math.random() * 0.4, 180 + Math.random() * 160, 0.05 * k);
     hiss(t, 1.1, 0.16 * k);
-    claps(t + 0.35, 6 + Math.min(10, n * 2), 0.07, 0.22 * k);
+    if (clap) claps(t + 0.35, 6 + Math.min(10, n * 2), 0.07, 0.22 * k);
   }
 }

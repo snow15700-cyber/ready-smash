@@ -129,7 +129,7 @@ export function introFrame(now) {
     el.className = `vs-intro ${seg}${flash ? ' flash' : ''}`;
     if (seg === 'p3') playUI('rare');
     if (seg === 'p3 cd') world.crowd.roar(now); // 관중석이 있으면 다 같이 들썩
-    if (seg.endsWith('go')) { playUI('smash'); playCrowd('roar', 1, null, 8); world.crowd.roar(now); }
+    if (seg.endsWith('go')) { playUI('smash'); playCrowd('roar', 1, null, 8, false); world.crowd.roar(now); }
   }
   const eyes = crowd?.list.length || 0;
   if (eyes !== intro.eyes) {
