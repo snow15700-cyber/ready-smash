@@ -1063,8 +1063,8 @@ function roomListHTML(max) {
     const full = !r.play && r.n >= r.cap;
     const state = r.play ? `<span class="rl-st play">● 경기 중 <b>${(r.score || [0, 0]).join(' : ')}</b></span>` : full ? '<span class="rl-st full">꽉 참</span>' : `<span class="rl-st wait">● 대기 중 ${r.n}/${r.cap}</span>`;
     const canWatch = r.play && r.w !== false && r.pl;
-    const act = r.play ? (canWatch ? '<span class="rl-act watch">👀 관전</span>' : '<span class="rl-act soon">관전 막힘</span>') : full ? '' : '<span class="rl-act">참가</span>';
-    const can = (!r.play && !full) || canWatch;
+    const act = r.play ? (canWatch ? '<span class="rl-act watch">👀 관전</span>' : '<span class="rl-act soon">관전 막힘</span>') : full ? '' : IS_MOBILE ? '<span class="rl-act soon">🔒 PC</span>' : '<span class="rl-act">참가</span>';
+    const can = (!r.play && !full && !IS_MOBILE) || canWatch;
     return `<button class="rl-row${can ? '' : ' off'}" data-code="${esc(r.code)}"${can ? '' : ' tabindex="-1"'}><span class="rl-mode">${r.mode === '2v2' ? '2:2' : '1:1'}</span><span class="rl-nm"><b>${esc(r.nick)}</b>의 방</span>${state}${act}</button>`;
   };
   const more = list.length > max ? `<p class="rl-more">외 ${list.length - max}개 방</p>` : '';
@@ -1079,9 +1079,9 @@ addEventListener('resize', renderRoomList);
 $('lb-rooms').addEventListener('click', (e) => {
   const b = e.target.closest('.rl-row');
   if (!b) return;
-  if (IS_MOBILE) { hud.toast(MOBILE_MSG, 2600); return; }
   const r = lobbyRooms.find((x) => x.code === b.dataset.code);
   if (!r) return;
+  if (IS_MOBILE && !r.play) { hud.toast(MOBILE_MSG, 2600); return; } // 휴대폰: 참가는 PC에서만, 관전은 OK
   if (r.play) {
     if (r.w === false || !r.pl) { hud.toast('이 방은 관전을 막아 두었어요', 2200); return; }
     startWatch(r);
