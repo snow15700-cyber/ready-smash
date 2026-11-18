@@ -212,6 +212,7 @@ export function createWorld(canvas) {
       focusK = k;
       const f = Math.pow(1 - FOCUS_DARK * k, 2.2); // 눈으로 보는 밝기 기준으로 줄이기
       for (const e of envMats) e.m.color.copy(e.c).multiplyScalar(f);
+      crowd.setDim(f); // 관중석도 같이 (경기 도중에 들어온 관중 포함)
       scene.background.copy(bg0).lerp(FOCUS_BG, k);
       scene.fog.color.copy(scene.background);
     },
