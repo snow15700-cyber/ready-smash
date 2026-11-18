@@ -1003,7 +1003,7 @@ function onWatchMembers(w, list) {
   // 경기 중이면 경기가 끝난 것 → '다음 판' 창 (빈자리가 생겼으니 들어갈 수도 있다). 경기 뒤(over)엔 그냥 자리가 나는 것
   for (const m of list) w.seen.add(m.id);
   if (!w.over && w.pl.some((p) => w.seen.has(p.id) && !list.some((m) => m.id === p.id))) { hud.toast('선수가 나가서 경기가 끝났어요', 2400); watchDone(w); return; }
-  if (w.over && game) { for (const p of w.pl) world.team[p.side][p.slot].group.visible = list.some((m) => m.id === p.id); } // 경기 뒤 나간 선수는 안 보이게
+  if (w.over) hideGonePlayers(w);
   if (!game || w.over) return;
   // 선수 이름·꾸미기 (presence에서)
   const n = watchNames(w);
@@ -1023,10 +1023,16 @@ function watchDone(w) {
   if (watch !== w || w.over) return;
   w.over = true;
   w.idle = false; // 방이 대기실로 돌아간 걸 봤는지 (그다음 play가 되면 새 경기 — 같은 선수끼리 다시 해도)
+  hideGonePlayers(w);
   $('result').classList.add('hidden');
   hud.hint('');
   renderCheerBar();
   renderWatchNext();
+}
+// 경기 뒤 나간 선수는 안 보이게
+function hideGonePlayers(w) {
+  if (!game) return;
+  for (const p of w.pl) world.team[p.side][p.slot].group.visible = w.members.some((m) => m.id === p.id);
 }
 const watchRoomInfo = () => (watch ? lobbyRooms.find((r) => r.code === watch.code) : null);
 function renderWatchNext() {
@@ -1099,8 +1105,8 @@ function onWatchMsg(w, m) {
   if (typeof ev.t === 'number' && (ev.type === 'shot' || ev.type === 'toss')) watchClock(w, ev.t);
   if (!w.live && ev.type === 'gameOver') { watchDone(w); return; } // 중계 시작 전에 경기가 끝남
   if (!w.live) {
-    // 시계를 한 번이라도 맞춘 뒤의 서브부터 중계
-    if (ev.type !== 'serveReady' || !w.offs.length) return;
+    // 다음 서브부터 중계
+    if (ev.type !== 'serveReady') return; // 시계는 바로 뒤 토스·샷의 방장 시각으로 맞춘다 (watchClock이 적용 전에 먼저)
     w.live = true;
     hud.hint('');
   }
