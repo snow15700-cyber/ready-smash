@@ -15,7 +15,6 @@ const RING = { minDist: 1.1, safe: 3, pad: 0.03 };
 const CUE_GAP = 0.3;
 // 몰입 연출(에코·어두워짐): 랠리 FOCUS.from회부터 서서히, FOCUS.to회에 최대. 점수가 나면 약 1초에 걸쳐 원래대로 
 const FOCUS = { from: 6, to: 15, up: 0.6, down: 1 };
-const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
 // 랠리 단계(physics.js TIER_RALLY)가 오를 때 알림
 const TIER_TOAST = ['', '🔥 랠리 20! 판정이 빡빡해져요', '🔥🔥 랠리 40! 이제 블록도 찬스볼', '🔥🔥🔥 랠리 60! 최고 난이도'];
 
@@ -201,7 +200,7 @@ export class Game {
     const grade = judge(h.t - ex.t, up, this.tier());
     if (!up) this.charOf(me, this.mySlot).swingBlock = true;
     const smash = this.net.incoming === 'chance' && grade === 'perfect';
-    this.hud.judge(grade, (smash ? 'SMASH!' : ({ perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK' })[grade]) + ARROW[dir]);
+    this.hud.judge(grade, smash ? 'SMASH!' : ({ perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK' })[grade], dir);
     if (grade === 'perfect') {
       this.stats.perfectStreak++;
       this.stats.perfects++;

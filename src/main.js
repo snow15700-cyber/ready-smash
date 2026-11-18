@@ -52,6 +52,14 @@ if (IS_MOBILE) {
 }
 
 const GRADE_TEXT = { perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK', miss: 'MISS' };
+// 판정 옆 방향 화살표(오른쪽 모양, CSS로 돌림)와 PERFECT 불꽃 10개
+const ARROW_SVG = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 16h16V7l14 13-14 13v-9H6z"/></svg>';
+const SPARKS = Array.from({ length: 10 }, (_, i) => {
+  const a = (i / 10) * Math.PI * 2, r = i % 2 ? 150 : 200;
+  return `<i class="sp" style="--x:${Math.round(Math.cos(a) * r * 1.4)}px;--y:${Math.round(Math.sin(a) * r * 0.6)}px"></i>`;
+}).join('');
+// 결과 띠 점수: 작은 넘김 카드 두 장
+const scoreCards = (a, b) => `<i>${a}</i>:<i>${b}</i>`;
 let toastTimer = 0;
 
 let lastScore = null; // 점수가 바뀐 쪽 숫자만 통통 튀게
@@ -63,9 +71,11 @@ const hud = {
     const bump = (side) => (lastScore && lastScore[side] !== s[side] ? ' bump' : '');
     if (lastScore && (lastScore[0] !== s[0] || lastScore[1] !== s[1])) crowdRoar();
     const myLabel = game.spectator ? esc(game.names[me]) : game.mode === '2v2' ? '우리 팀' : '나';
-    $('scoreboard').innerHTML = `<div class="sb t${me}"><span>${myLabel}</span><b class="${bump(me)}">${s[me]}</b></div>`
-      + '<i class="sb-colon">:</i>'
-      + `<div class="sb t${op}"><b class="${bump(op)}">${s[op]}</b><span>${esc(game.names[op])}</span></div>`
+    // 탁구장 숫자 넘김판: 이름표 | [내 카드][상대 카드] | 이름표 (점수가 바뀐 카드만 '착' 넘어감)
+    const card = (side) => `<div class="fb-card t${side}${bump(side)}"><b>${s[side]}</b></div>`;
+    $('scoreboard').innerHTML = `<span class="fb-name t${me}">${myLabel}</span>`
+      + `<div class="fb-stand">${card(me)}${card(op)}</div>`
+      + `<span class="fb-name t${op}">${esc(game.names[op])}</span>`
       + (deuce ? '<em class="sb-deuce">듀스!</em>' : '');
     lastScore = [...s];
   },
@@ -73,8 +83,8 @@ const hud = {
     if (!game) return;
     const hot = st.rally >= 6 ? ' hot' : ''; // 랠리 6회부터 몰입 연출과 함께 🔥
     const lv = game.mode === 'ai' ? 0 : tierOf(st.rally); // 랠리 단계 20·40·60회 (판정이 빡빡해짐, 혼자 하기는 없음)
-    const fire = hot ? '🔥'.repeat(Math.max(1, lv)) + ' ' : '';
-    let html = `<div class="st-rally${hot}${lv ? ` lv${lv}` : ''}"><span>${fire}랠리</span><b>${st.rally}</b></div>`;
+    const fire = hot ? `<i>${'🔥'.repeat(Math.max(1, lv))}</i>` : '';
+    let html = `<div class="st-rally${hot}${lv ? ` lv${lv}` : ''}">${fire}<span>랠리</span><b>${st.rally}</b></div>`;
     if (game.mode === 'ai') {
       html += `<div class="st-sub"><span>🏅 최고 ${st.best}</span><span>✨ Perfect ${st.perfects}</span>${account.loggedIn ? `<span class="coin">🪙 +${aiCoins}</span>` : ''}</div>`;
     }
@@ -88,11 +98,14 @@ const hud = {
     el.textContent = text;
     el.className = 'show';
   },
-  judge(grade, text) {
+  // dir: 친 방향 -1(왼쪽)·0(가운데)·1(오른쪽), 없으면 화살표 없음
+  judge(grade, text, dir) {
     const el = $('judge');
     el.className = '';
     void el.offsetWidth; // 애니메이션 다시 시작
-    el.textContent = text || GRADE_TEXT[grade];
+    el.innerHTML = (grade === 'perfect' ? SPARKS : '')
+      + `<span class="jt">${esc(text || GRADE_TEXT[grade])}</span>`
+      + (dir === -1 || dir === 0 || dir === 1 ? `<i class="ja d${dir}">${ARROW_SVG}</i>` : '');
     el.className = `show ${grade}`;
   },
   toast(text, ms = 1800) {
@@ -107,7 +120,7 @@ const hud = {
     const el = $('result');
     el.className = 'win';
     $('result-title').textContent = `🏆 ${game.names[winner]} 승리!`;
-    $('result-score').textContent = `${score[0]} : ${score[1]}`;
+    $('result-score').innerHTML = scoreCards(score[0], score[1]);
     clearTimeout(resultTimer);
     resultTimer = setTimeout(() => el.classList.add('hidden'), 2700);
     const w = watch;
@@ -119,7 +132,7 @@ const hud = {
     const el = $('result');
     el.className = win ? 'win' : 'lose';
     $('result-title').textContent = win ? '🏆 승리!' : '😢 아쉬워요';
-    $('result-score').textContent = `${score[me]} : ${score[1 - me]}`;
+    $('result-score').innerHTML = scoreCards(score[me], score[1 - me]);
     clearTimeout(resultTimer);
     resultTimer = setTimeout(() => el.classList.add('hidden'), 2700);
     if (room) {

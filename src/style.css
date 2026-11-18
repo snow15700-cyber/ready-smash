@@ -436,67 +436,101 @@ button.leave-pill:hover:not(:disabled) { border-color: #ffbf8f; }
 .rank-me .hint { opacity: .8; font-size: 14px; }
 
 /* ───────── 5단계: 경기 중 화면 ───────── */
-#exit { position: absolute; top: 14px; left: 14px; border-radius: 999px; padding: 8px 14px; font-size: 15px; background: rgba(255,255,255,.85); box-shadow: 0 3px 0 rgba(0,0,0,.12); opacity: .85; }
-#exit:hover { opacity: 1; }
+/* 탁구 다섯 색(사용자 확정): 파랑(탁구대)·하양(선)·빨강/검정(라켓)·주황(공). 주황은 공처럼 '꼭 볼 것'에만. */
+#hud { --tt-red: #d6242e; --tt-blue: #3a7bd5; --tt-black: #18181c; --tt-orange: #ff8a1a; --tt-quiet: rgba(20,20,24,.62); }
+#exit { position: absolute; top: 14px; left: 14px; border-radius: 999px; padding: 8px 14px; font-size: 15px; background: var(--tt-quiet); color: #fff; box-shadow: none; }
+#exit:hover { background: rgba(20,20,24,.8); }
 
-/* 점수판: 내 팀 색(A팀 주황 · B팀 파랑) 두 칸 */
-#scoreboard { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; white-space: nowrap; filter: drop-shadow(0 6px 14px rgba(0,0,0,.2)); }
+/* 점수판 = 탁구장 숫자 넘김판(시안 D). 이름표·카드 위 띠 = 팀 색(A팀 빨강 t0 · B팀 파랑 t1). 점수가 바뀐 카드는 '착' 넘어감 */
+#scoreboard { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 #scoreboard:empty { display: none; }
-.sb { display: flex; align-items: center; gap: 10px; color: #fff; padding: 4px 8px 4px 16px; border-radius: 18px; min-width: 120px; }
-.sb + .sb-colon + .sb { padding: 4px 16px 4px 8px; justify-content: flex-start; }
-.sb:first-child { justify-content: flex-end; }
-.sb.t0 { background: linear-gradient(135deg, #ff9a52, #f06a1f); }
-.sb.t1 { background: linear-gradient(135deg, #3f80dd, #2457a8); }
-.sb span { font-size: 16px; opacity: .95; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
-.sb b { font-weight: normal; font-size: 44px; line-height: 1; min-width: 40px; text-align: center; background: rgba(255,255,255,.2); border-radius: 12px; padding: 2px 6px 0; }
-.sb b.bump { animation: bump .5s ease-out; }
-@keyframes bump { 0% { transform: scale(1); } 30% { transform: scale(1.35); background: rgba(255,255,255,.55); } 100% { transform: scale(1); } }
-.sb-colon { font-style: normal; font-size: 36px; line-height: 1; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.4); padding-bottom: 6px; }
-.sb-deuce { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); font-style: normal; font-size: 18px; color: #3a2a00; background: #ffd23d; border-radius: 999px; padding: 3px 14px; box-shadow: 0 3px 0 #c99a00; animation: deucePulse 1.2s ease-in-out infinite; }
+.fb-name { font-size: 17px; color: #fff; padding: 5px 14px; border-radius: 999px; box-shadow: 0 3px 0 rgba(0,0,0,.25); max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.fb-name.t0 { background: var(--tt-red); } .fb-name.t1 { background: var(--tt-blue); }
+.fb-stand { display: flex; gap: 10px; background: #3b3b42; padding: 12px 10px 10px; border-radius: 12px; box-shadow: 0 6px 0 #222227, 0 10px 18px rgba(0,0,0,.3); }
+.fb-card { position: relative; width: 74px; height: 84px; box-sizing: border-box; border-radius: 7px; background: linear-gradient(#26262c 0 50%, #1b1b20 50% 100%); display: flex; align-items: center; justify-content: center; }
+.fb-card.t0 { border-top: 6px solid var(--tt-red); } .fb-card.t1 { border-top: 6px solid var(--tt-blue); }
+.fb-card b { font-weight: normal; font-size: 62px; line-height: 1; color: #fff; padding-top: 4px; }
+.fb-card::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; background: #0a0a0c; }
+.fb-card::before { content: ''; position: absolute; top: -17px; left: 16px; width: 7px; height: 14px; border-radius: 4px; background: #cfd2d8; box-shadow: 35px 0 0 #cfd2d8; }
+.fb-card.bump { transform-origin: 50% 0; animation: flipCard .45s ease-out; }
+@keyframes flipCard { 0% { transform: perspective(300px) rotateX(-95deg); } 60% { transform: perspective(300px) rotateX(12deg); } 80% { transform: perspective(300px) rotateX(-4deg); } 100% { transform: none; } }
+.sb-deuce { position: absolute; top: calc(100% + 4px); left: 50%; transform: translateX(-50%); font-style: normal; font-size: 18px; color: var(--tt-orange); background: var(--tt-black); border: 2px solid var(--tt-orange); border-radius: 999px; padding: 2px 14px; animation: deucePulse 1.2s ease-in-out infinite; }
 @keyframes deucePulse { 50% { transform: translateX(-50%) scale(1.08); } }
 
-/* 오른쪽 위: 랠리 (6회부터 🔥 불꽃 색) */
+/* 오른쪽 위: 랠리 = 주황 탁구공. 6회부터 흰 테두리 + 빛, 20·40·60회 단계마다 빛이 세짐 */
 #stats { position: absolute; top: 14px; right: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-.st-rally { display: flex; flex-direction: column; align-items: center; min-width: 84px; background: rgba(43,42,51,.55); color: #fff; border-radius: 18px; padding: 6px 14px 8px; backdrop-filter: blur(2px); transition: background .4s; }
-.st-rally span { font-size: 14px; opacity: .9; }
-.st-rally b { font-weight: normal; font-size: 40px; line-height: 1; }
-.st-rally.hot { background: linear-gradient(160deg, #ff8a3d, #e0453a); box-shadow: 0 0 18px rgba(255,120,40,.55); }
-.st-rally.lv1 { background: linear-gradient(160deg, #ff6a2a, #d42a3a); box-shadow: 0 0 24px rgba(255,90,30,.7); }
-.st-rally.lv2 { background: linear-gradient(160deg, #ff3d6e, #a81f8c); box-shadow: 0 0 28px rgba(255,60,120,.75); }
-.st-rally.lv3 { background: linear-gradient(160deg, #b44dff, #4a2ad4); box-shadow: 0 0 32px rgba(170,80,255,.85); animation: rallyPulse 0.8s ease-in-out infinite alternate; }
-@keyframes rallyPulse { from { transform: scale(1); } to { transform: scale(1.06); } }
+.st-rally { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 92px; height: 92px; border-radius: 50%; color: #fff;
+  background: radial-gradient(circle at 34% 28%, #ffe0b8 0, #ffa040 22%, #ff8a1a 55%, #d4600a 100%); box-shadow: 0 6px 14px rgba(0,0,0,.25), inset -6px -8px 14px rgba(150,60,0,.35); transition: box-shadow .4s; }
+.st-rally span { font-size: 14px; -webkit-text-stroke: 3px #c9560a; paint-order: stroke fill; }
+.st-rally b { font-weight: normal; font-size: 42px; line-height: 1; -webkit-text-stroke: 5px #c9560a; paint-order: stroke fill; }
+.st-rally i { position: absolute; top: -8px; left: -10px; font-style: normal; font-size: 18px; white-space: nowrap; }
+.st-rally.hot { box-shadow: 0 0 0 4px #fff, 0 0 26px 6px rgba(255,138,26,.8), inset -6px -8px 14px rgba(150,60,0,.35); }
+.st-rally.lv1 { box-shadow: 0 0 0 4px #fff, 0 0 0 8px var(--tt-red), 0 0 30px 10px rgba(255,90,30,.8), inset -6px -8px 14px rgba(150,60,0,.35); }
+.st-rally.lv2 { box-shadow: 0 0 0 4px #fff, 0 0 0 8px var(--tt-red), 0 0 40px 16px rgba(255,60,30,.9), inset -6px -8px 14px rgba(150,60,0,.35); }
+.st-rally.lv3 { box-shadow: 0 0 0 4px #fff, 0 0 0 8px var(--tt-red), 0 0 48px 20px rgba(255,60,30,1), inset -6px -8px 14px rgba(150,60,0,.35); animation: rallyPulse 0.8s ease-in-out infinite alternate; }
+@keyframes rallyPulse { from { transform: scale(1); } to { transform: scale(1.08); } }
 .st-sub { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.st-sub span { font-size: 14px; color: #fff; background: rgba(43,42,51,.45); border-radius: 999px; padding: 3px 10px; }
+.st-sub span { font-size: 14px; color: #fff; background: var(--tt-quiet); border-radius: 999px; padding: 3px 10px; }
 .st-sub span.coin { color: #3a2a00; background: rgba(255,210,61,.92); }
 
 /* 아래 가운데 안내 */
-#hint { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); font-size: 20px; color: #fff; background: rgba(43,42,51,.6); padding: 9px 20px; border-radius: 999px; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+#hint { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); font-size: 20px; color: #fff; background: var(--tt-quiet); padding: 9px 20px; border-radius: 999px; white-space: nowrap; }
 #hint:empty { display: none; }
 
-/* 판정 글자: 흰 테두리 + 등급 색 */
-#judge { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); font-size: 60px; opacity: 0; white-space: nowrap; -webkit-text-stroke: 9px #fff; paint-order: stroke fill; filter: drop-shadow(0 5px 0 rgba(0,0,0,.15)); }
-#judge.show { animation: pop .7s ease-out forwards; }
-#judge.perfect { color: #22c55e; font-size: 68px; filter: drop-shadow(0 5px 0 rgba(0,0,0,.15)) drop-shadow(0 0 16px rgba(80,255,140,.7)); }
-#judge.good { color: #f5b400; }
-#judge.bad { color: #ff7a2a; }
-#judge.block { color: #3d8fe0; }
-#judge.miss { color: #ef4444; }
+/* 판정 글자(시안 ① 글자형): 검정 테두리 + 바깥 흰 테두리. 좋을수록 크고 위로, 나쁠수록 작고 아래로.
+   PERFECT 주황+불꽃 · GOOD 흰색 · BLOCK 파랑(옆에서 툭) · BAD 회색(처짐) · MISS 빨강(흔들림). 옆 동그라미 = 친 방향 화살표 */
+#judge { position: absolute; top: 33%; left: 50%; transform: translate(-50%, -50%); opacity: 0; white-space: nowrap; display: flex; align-items: center; gap: 12px; font-size: 58px; line-height: 1; }
+#judge .jt { -webkit-text-stroke: 8px var(--tt-black); paint-order: stroke fill;
+  text-shadow: 4px 0 #fff, -4px 0 #fff, 0 4px #fff, 0 -4px #fff, 3px 3px #fff, -3px 3px #fff, 3px -3px #fff, -3px -3px #fff, 0 8px 0 rgba(0,0,0,.25); }
+#judge .ja { flex: none; width: .85em; height: .85em; border-radius: 50%; background: var(--tt-black); box-shadow: 0 0 0 4px #fff, 0 6px 0 rgba(0,0,0,.25); display: flex; align-items: center; justify-content: center; }
+#judge .ja svg { width: 70%; height: 70%; fill: currentColor; }
+#judge .ja.d-1 svg { transform: rotate(180deg); } #judge .ja.d0 svg { transform: rotate(-90deg); }
+#judge.perfect { font-size: 80px; color: var(--tt-orange); }
+#judge.perfect .jt { filter: drop-shadow(0 0 18px rgba(255,138,26,.85)); }
+#judge.good { color: #fff; }
+#judge.good .jt { -webkit-text-stroke-width: 10px; text-shadow: 0 6px 0 rgba(0,0,0,.25); }
+#judge.block { color: var(--tt-blue); }
+#judge.bad { font-size: 44px; color: #a3a3ab; }
+#judge.miss { color: #e0262f; }
+#judge.show.perfect { animation: jPerf 1s ease-out forwards; }
+#judge.show.good { animation: jGood 1s ease-out forwards; }
+#judge.show.block { animation: jBlock 1s ease-out forwards; }
+#judge.show.bad { animation: jBad 1s ease-in forwards; }
+#judge.show.miss { animation: jMiss 1s ease-out forwards; }
+@keyframes jPerf { 0% { opacity: 0; transform: translate(-50%, -30%) scale(.3); } 12% { opacity: 1; transform: translate(-50%, -60%) scale(1.3); } 24% { transform: translate(-50%, -50%) scale(.95); } 34% { transform: translate(-50%, -50%) scale(1.05); } 42%, 75% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -75%); } }
+@keyframes jGood { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); } 28%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -65%); } }
+@keyframes jBlock { 0% { opacity: 0; transform: translate(-90%, -50%); } 14% { opacity: 1; transform: translate(-40%, -50%); } 26% { transform: translate(-53%, -50%); } 36%, 70% { opacity: 1; transform: translate(-50%, -50%); } 100% { opacity: 0; transform: translate(-50%, -50%); } }
+@keyframes jBad { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.8); } 12%, 45% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); } 100% { opacity: 0; transform: translate(-50%, 10%) rotate(8deg); } }
+@keyframes jMiss { 0% { opacity: 0; transform: translate(-50%, -50%) scale(1.3); } 10% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 16% { transform: translate(-58%, -50%); } 24% { transform: translate(-42%, -50%); } 32% { transform: translate(-55%, -50%); } 40% { transform: translate(-46%, -50%); } 48%, 72% { opacity: 1; transform: translate(-50%, -50%); } 100% { opacity: 0; transform: translate(-50%, -50%); } }
+/* PERFECT 불꽃 */
+#judge .sp { position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; margin: -6px; border-radius: 50%; background: var(--tt-orange); box-shadow: 0 0 0 2px #fff; animation: jSpark 1s ease-out both; }
+#judge .sp:nth-child(even) { background: #fff; box-shadow: 0 0 0 2px var(--tt-orange); width: 9px; height: 9px; }
+@keyframes jSpark { 0%, 8% { opacity: 0; transform: translate(0, 0) scale(.3); } 14% { opacity: 1; } 50% { opacity: 1; transform: translate(var(--x), var(--y)) scale(1); } 70% { opacity: 0; transform: translate(calc(var(--x) * 1.2), calc(var(--y) * 1.2 + 20px)) scale(.4); } 100% { opacity: 0; } }
 
-/* 2v2 '내 차례!' */
-#turn { position: absolute; top: 58%; left: 50%; transform: translate(-50%, -50%); font-size: 46px; color: #ffc21a; opacity: 0; white-space: nowrap; pointer-events: none; -webkit-text-stroke: 8px #fff; paint-order: stroke fill; filter: drop-shadow(0 4px 0 rgba(0,0,0,.15)) drop-shadow(0 0 14px rgba(255,190,40,.6)); }
+/* 2v2 '내 차례!' (주황 = 꼭 볼 것) */
+#turn { position: absolute; top: 58%; left: 50%; transform: translate(-50%, -50%); font-size: 46px; color: var(--tt-orange); opacity: 0; white-space: nowrap; pointer-events: none; -webkit-text-stroke: 8px #fff; paint-order: stroke fill; filter: drop-shadow(0 4px 0 rgba(0,0,0,.15)) drop-shadow(0 0 14px rgba(255,138,26,.6)); }
 
-/* 알림 (찬스볼·최고 기록 등) */
-#toast { position: fixed; z-index: 20; pointer-events: none; top: 20%; left: 50%; transform: translate(-50%, -6px); font-size: 22px; color: #fff; background: linear-gradient(135deg, #ff9a52, #f06a1f); padding: 9px 20px; border-radius: 999px; opacity: 0; transition: opacity .25s, transform .25s; white-space: nowrap; box-shadow: 0 6px 18px rgba(200,90,20,.35); }
+/* 알림 (찬스볼·최고 기록 등): 검정 알약 + 주황 공 점 */
+#toast { position: fixed; z-index: 20; pointer-events: none; top: 22%; left: 50%; transform: translate(-50%, -6px); font-size: 22px; color: #fff; background: #18181c; padding: 9px 20px 9px 42px; border-radius: 999px; opacity: 0; transition: opacity .25s, transform .25s; white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.3); }
+#toast::before { content: ''; position: absolute; left: 15px; top: 50%; width: 16px; height: 16px; margin-top: -8px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffd09a, #ff8a1a 60%, #d4600a); }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 
-/* 경기 끝: 가운데 큰 결과 띠 */
-#result { position: absolute; left: 0; right: 0; top: 38%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px 0 20px; color: #fff; animation: resultIn .45s cubic-bezier(.2,1.4,.4,1); pointer-events: none; }
-#result.win { background: linear-gradient(90deg, transparent, rgba(255,150,40,.92) 20%, rgba(255,120,30,.95) 50%, rgba(255,150,40,.92) 80%, transparent); }
-#result.lose { background: linear-gradient(90deg, transparent, rgba(60,70,95,.88) 20%, rgba(50,58,82,.92) 50%, rgba(60,70,95,.88) 80%, transparent); }
-#result b { font-weight: normal; font-size: 56px; line-height: 1; text-shadow: 0 4px 0 rgba(0,0,0,.18); }
-#result span { font-size: 30px; opacity: .95; }
+/* 경기 끝: 가운데 검정 결과 띠 + 점수 넘김 카드 (승리 = 주황 줄·주황 글자) */
+#result { position: absolute; left: 0; right: 0; top: 38%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 0 18px; color: #fff; animation: resultIn .45s cubic-bezier(.2,1.4,.4,1); pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(24,24,28,.94) 18%, rgba(24,24,28,.96) 82%, transparent); border-top: 4px solid rgba(255,255,255,.5); border-bottom: 4px solid rgba(255,255,255,.5); }
+#result.win { border-color: var(--tt-orange); }
+#result.win b { color: var(--tt-orange); }
+#result b { font-weight: normal; font-size: 56px; line-height: 1; text-shadow: 0 4px 0 rgba(0,0,0,.3); }
+#result-score { display: flex; gap: 8px; align-items: center; font-size: 30px; margin-top: 6px; }
+#result-score i { position: relative; font-style: normal; min-width: 46px; height: 52px; padding: 0 4px; box-sizing: border-box; border-radius: 5px; background: linear-gradient(#2c2c33 0 50%, #202026 50%); display: flex; align-items: center; justify-content: center; font-size: 36px; }
+#result-score i::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: #0a0a0c; }
 @keyframes resultIn { 0% { opacity: 0; transform: translateY(-50%) scaleY(.3); } 100% { opacity: 1; transform: translateY(-50%); } }
-@media (max-width: 600px) { #scoreboard { top: 64px; } .st-rally { min-width: 64px; padding: 4px 10px 6px; } .st-rally b { font-size: 30px; } .sb { min-width: 0; padding: 4px 6px 4px 10px; } .sb span { font-size: 13px; max-width: 70px; } .sb b { font-size: 32px; } #judge { font-size: 44px; } #judge.perfect { font-size: 50px; } #hint { font-size: 16px; } }
+@media (max-width: 600px) {
+  #scoreboard { top: 64px; gap: 5px; } .fb-name { display: none; } /* 좁은 화면: 이름표 대신 카드 위 팀 색 띠로 */ .fb-stand { gap: 6px; padding: 9px 6px 6px; }
+  .fb-card { width: 50px; height: 58px; border-top-width: 4px !important; } .fb-card b { font-size: 40px; } .fb-card::before { top: -13px; left: 10px; width: 5px; height: 10px; box-shadow: 25px 0 0 #cfd2d8; }
+  .st-rally { width: 66px; height: 66px; } .st-rally b { font-size: 30px; } .st-rally span { font-size: 12px; }
+  #judge { font-size: 42px; } #judge.perfect { font-size: 54px; } #judge.bad { font-size: 34px; } #hint { font-size: 16px; }
+}
 
 /* 휴대폰: PC 안내, 온라인 버튼 잠금, 화면에서 밀어도 스크롤·확대 안 되게 */
 .mobile-note { margin: 0; padding: 10px 12px; border-radius: 12px; background: #fff3c4; color: #6b4d00; text-align: center; font-size: 15px; line-height: 1.45; }
