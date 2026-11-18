@@ -56,6 +56,28 @@ export function createCrowd(scene, makeCharacter) {
   scene.add(root);
   const figs = new Map(); // id → { c, bub, slot, team, jumpT, bubT, phase }  (set에 오는 명단은 먼저 온 순서)
   let last = 0;
+  // 몰입 연출(랠리가 길어지면 배경이 어두워짐)에 관중도 같이 어두워지게: 몸·탁구채·이름표·말풍선·빛 고리 전부.
+  // 재질 색을 dim배로 바꿔 두고(원래 색은 f.saved에), 색을 새로 쓰는 일(꾸미기·이름표·움직이는 옷) 전에 되돌렸다가 다시 어둡게.
+  // 그래서 경기 도중에 들어온 관중도 처음부터 어둡다
+  let dim = 1;
+  const undim = (f) => {
+    for (const e of f.saved) { e.m.color.copy(e.c); if (e.e) e.m.emissive.copy(e.e); }
+    f.saved = [];
+  };
+  const darken = (f) => {
+    if (dim >= 1) return;
+    const seen = new Set();
+    f.c.group.traverse((o) => {
+      if (!o.material) return;
+      for (const m of [].concat(o.material)) {
+        if (!m.color || seen.has(m)) continue;
+        seen.add(m);
+        f.saved.push({ m, c: m.color.clone(), e: m.emissive ? m.emissive.clone() : null });
+        m.color.multiplyScalar(dim);
+        if (m.emissive) m.emissive.multiplyScalar(dim);
+      }
+    });
+  };
 
   function make() {
     const c = makeCharacter('#e0333c');
@@ -64,7 +86,7 @@ export function createCrowd(scene, makeCharacter) {
     const bub = bubble();
     c.group.add(bub);
     root.add(c.group);
-    return { c, bub, jumpT: -9, bubT: -9, phase: Math.random() * 6 };
+    return { c, bub, jumpT: -9, bubT: -9, phase: Math.random() * 6, saved: [] };
   }
   const drop = (id, f) => { root.remove(f.c.group); figs.delete(id); };
 
@@ -80,6 +102,7 @@ export function createCrowd(scene, makeCharacter) {
       for (const m of show) {
         let f = figs.get(m.id);
         if (!f) { f = make(); figs.set(m.id, f); }
+        undim(f);
         f.team = m.team;
         f.slot = prefer(m.team).find((i) => !used.has(i));
         used.add(f.slot);
@@ -91,10 +114,16 @@ export function createCrowd(scene, makeCharacter) {
         // 관중 이름표는 선수보다 조금 작게 (여럿이 붙어 서도 덜 겹치게)
         for (const o of f.c.group.children) if (o.isSprite && o !== f.bub && !o.userData.small) { o.userData.small = true; o.scale.multiplyScalar(0.8); }
         f.c.setGlow(m.team === 0 || m.team === 1 ? TEAM_COLOR[m.team] : null);
+        darken(f);
       }
       root.visible = figs.size > 0;
     },
     // 응원: 폴짝 뛰며 탁구채를 흔들고, 이름표 위에 말풍선
+    // 몰입 연출 밝기 (scene.js의 setFocus가 배경과 같은 값으로 부른다. 1 = 원래 밝기)
+    setDim(k) {
+      dim = k;
+      for (const f of figs.values()) { undim(f); darken(f); }
+    },
     cheer(id, text, now = performance.now() / 1000) {
       const f = figs.get(id);
       if (!f) return;
@@ -118,7 +147,8 @@ export function createCrowd(scene, makeCharacter) {
         f.c.body.position.y = jump + Math.sin(now * 2.2 + f.phase) * 0.008;
         f.c.body.rotation.z = Math.sin(now * 1.3 + f.phase) * 0.04;
         f.c.arm.rotation.z = on ? Math.sin(jt * 22) * 0.35 : 0; // 탁구채 흔들기
-        f.c.tickOutfit(now, dt); // 움직이는 옷 (전설 효과 등)
+        // 움직이는 옷 (전설 효과 등): 색을 바꾸는 옷이 있어서, 어두운 동안엔 원래 색으로 돌린 뒤 움직이고 다시 어둡게
+        if (f.saved.length) { undim(f); f.c.tickOutfit(now, dt); darken(f); } else f.c.tickOutfit(now, dt);
         if (f.bub.visible && now - f.bubT > 2.2) f.bub.visible = false;
       }
     },
