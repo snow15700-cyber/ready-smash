@@ -52,7 +52,7 @@
 
 ## 환경 변수 / 배포
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`(publishable, 공개용). 로컬은 `.env.local`(git 제외), 배포는 Vercel 프로젝트 설정.
-- GitHub `main`에 올리면 Vercel이 자동 배포한다. 다른 브랜치는 미리보기(Preview) 주소가 생긴다.
+- GitHub `main`에 올리면 Vercel이 자동 배포한다. 미리보기(Preview) 주소는 **`test` 브랜치만** 생긴다(`vercel.json`의 `git.deploymentEnabled` — 무료 요금제 하루 배포 100번 한도 때문에 작업 브랜치는 배포 안 함).
 - Supabase 프로젝트는 다른 게임과 공유한다. DB 테이블을 만들 때는 `pingpong_` 접두어를 붙인다.
 
 ## 테스트 요령
