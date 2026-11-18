@@ -6,6 +6,14 @@ import { seeded, canvasTex, std, addBox, textTex, glowSprite } from './arena-kit
 
 const RX = 7.5, RZ = 9, RH = 3.2;
 const BREAK = 600; // 쉬는 시간 10분 (초)
+const NAVY = '#062a4d'; // HINT 로고 색
+// HINT 로고·포스터 그림 (public/arenas/, 사용자가 준 그림)
+const IMG = (import.meta.env?.BASE_URL || '/') + 'arenas/';
+function imgMat(file, transparent = false) {
+  const t = new THREE.TextureLoader().load(IMG + file);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return new THREE.MeshBasicMaterial({ map: t, transparent, alphaTest: transparent ? 0.05 : 0 });
+}
 
 function chair(col) {
   const g = new THREE.Group(), k = std(0x30343b, { metalness: 0.5, roughness: 0.4 }), c = std(col);
@@ -53,7 +61,7 @@ export function buildTraining() {
   let shown = -1;
   const drawTimer = (left) => {
     const m = Math.floor(left / 60), s = left % 60;
-    const gr = cg.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#1d3f73'); gr.addColorStop(1, '#2f6fb0');
+    const gr = cg.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, NAVY); gr.addColorStop(1, '#0f4a85');
     cg.fillStyle = gr; cg.fillRect(0, 0, W, H);
     cg.fillStyle = 'rgba(255,255,255,0.08)'; cg.beginPath(); cg.arc(W - 90, 80, 220, 0, 7); cg.fill();
     cg.textAlign = 'center'; cg.textBaseline = 'middle';
@@ -78,7 +86,7 @@ export function buildTraining() {
   // 강사 탁자 + 노트북 + 마이크
   const podium = new THREE.Group();
   addBox(podium, 1.6, 0.05, 0.7, std(0xdedede), 0, 0.75, 0);
-  addBox(podium, 1.56, 0.6, 0.04, std(0x2f6fb0), 0, 0.45, 0.32);
+  addBox(podium, 1.56, 0.6, 0.04, std(0x062a4d), 0, 0.45, 0.32);
   for (const x of [-0.75, 0.75]) addBox(podium, 0.04, 0.74, 0.66, std(0x8a929b, { metalness: 0.5 }), x, 0.37, 0);
   addBox(podium, 0.34, 0.02, 0.24, std(0x9aa0a6, { metalness: 0.6 }), -0.2, 0.785, 0);
   const lap = addBox(podium, 0.34, 0.22, 0.01, std(0x9aa0a6, { metalness: 0.6 }), -0.2, 0.89, -0.12); lap.rotation.x = -0.25;
@@ -95,8 +103,11 @@ export function buildTraining() {
   wb.position.set(4.6, 1.6, -RZ + 0.12); root.add(wb);
   addBox(root, 1.86, 1.16, 0.03, std(0xb8bec4, { metalness: 0.5 }), 4.6, 1.6, -RZ + 0.1);
   addBox(root, 1.8, 0.04, 0.1, std(0xb8bec4), 4.6, 1.02, -RZ + 0.16);
-  const banner = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 0.36), new THREE.MeshBasicMaterial({ map: textTex('2026 하반기 신입 교육 과정', { w: 1024, h: 92, bg: '#1d3f73', color: '#ffffff', font: 'bold 52px sans-serif' }) }));
-  banner.position.set(0, 3.0, -RZ + 0.12); banner.scale.setScalar(0.9); root.add(banner);
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 0.34), new THREE.MeshBasicMaterial({ map: textTex('2026년 현대자동차그룹 K-뉴딜 아카데미 HINT 교육생 2기', { w: 1600, h: 98, bg: NAVY, color: '#ffffff', font: 'bold 52px sans-serif' }) }));
+  banner.position.set(0, 2.99, -RZ + 0.12); root.add(banner);
+  // HINT 로고 (강사 탁자 위 벽)
+  const logo = new THREE.Mesh(new THREE.PlaneGeometry(1.75, 1.09), imgMat('hint-logo.png', true));
+  logo.position.set(-4.5, 1.95, -RZ + 0.12); root.add(logo);
 
   // ---------- 양옆: 앞(-z)을 보고 줄지어 놓인 긴 책상 + 의자 ----------
   const deskTop = std(0xeae6df), deskLeg = std(0x8a929b, { metalness: 0.5 });
@@ -147,8 +158,12 @@ export function buildTraining() {
   door.position.set(4.6, 0, RZ - 0.1); root.add(door);
   const exitS = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.18), new THREE.MeshBasicMaterial({ map: textTex('🚪 비상구', { w: 256, h: 92, bg: '#14a44d', color: '#ffffff', font: 'bold 46px sans-serif' }) }));
   exitS.rotation.y = Math.PI; exitS.position.set(4.6, 2.5, RZ - 0.12); exitS.userData.noFocus = true; root.add(exitS);
-  const poster = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.9), new THREE.MeshLambertMaterial({ map: textTex(['함께 성장하는', '우리 🌱'], { w: 512, h: 330, bg: '#fff6dc', color: '#2b3a4a', border: '#f2c230', font: 'bold 58px sans-serif' }) }));
-  poster.rotation.y = Math.PI; poster.position.set(2.0, 1.8, RZ - 0.12); root.add(poster);
+  // HINT 포스터 (액자)
+  const poster = new THREE.Mesh(new THREE.PlaneGeometry(1.68, 1.2), imgMat('hint-poster.jpg'));
+  poster.rotation.y = Math.PI; poster.position.set(2.0, 1.75, RZ - 0.14); root.add(poster);
+  addBox(root, 1.78, 1.3, 0.04, std(0xd0d4d8, { metalness: 0.5 }), 2.0, 1.75, RZ - 0.11);
+  const plogo = new THREE.Mesh(new THREE.PlaneGeometry(0.97, 0.6), imgMat('hint-logo.png', true));
+  plogo.rotation.y = Math.PI; plogo.position.set(-4.6, 1.6, RZ - 0.12); root.add(plogo);
   const clock = new THREE.Mesh(new THREE.CircleGeometry(0.22, 32), new THREE.MeshBasicMaterial({ color: 0xffffff }));
   clock.rotation.y = Math.PI; clock.position.set(-4.6, 2.5, RZ - 0.12); root.add(clock);
 
