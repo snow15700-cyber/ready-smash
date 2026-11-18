@@ -85,6 +85,9 @@ export const ITEMS = [
   ...OUTFITS.map((o) => ({ id: 'body_' + o.id, cat: 'body', name: o.name, grade: o.grade, outfit: o.id })),
   // 배경 (경기장 뽑기). arena = scene.js의 setArena / arenas.js의 ARENAS 이름. 방에서는 방장 것이 모두에게 보인다
   { id: 'bg_gym', cat: 'bg', name: '체육관·강당', grade: 'default', arena: 'gym' },
+  { id: 'bg_classroom', cat: 'bg', name: '교실', grade: 'common', arena: 'classroom' },
+  { id: 'bg_training', cat: 'bg', name: '교육장', grade: 'common', arena: 'training' },
+  { id: 'bg_parking', cat: 'bg', name: '지하 주차장', grade: 'common', arena: 'parking' },
   { id: 'bg_commute', cat: 'bg', name: '출근길', grade: 'rare', arena: 'commute' },
   { id: 'bg_evening', cat: 'bg', name: '퇴근길', grade: 'rare', arena: 'evening' },
   { id: 'bg_picnic', cat: 'bg', name: '소풍길', grade: 'rare', arena: 'picnic' },

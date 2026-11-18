@@ -214,6 +214,7 @@ export function createWorld(canvas) {
       for (const e of envMats) e.m.color.copy(e.c).multiplyScalar(f);
       scene.background.copy(bg0).lerp(FOCUS_BG, k);
       scene.fog.color.copy(scene.background);
+      arena?.setFocus?.(k); // 배경 스스로 하는 몰입 연출 (지하 주차장: 형광등이 하나둘 꺼짐)
     },
     // 대기실 구도: 화면 위쪽 h픽셀(카드 위 공간)을 기준으로 장면을 맞춘다. h가 없으면 원래대로
     setStageView(h) {

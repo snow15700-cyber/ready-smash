@@ -317,8 +317,12 @@ import { buildPicnic } from './arena-picnic.js';
 import { buildBeach } from './arena-beach.js';
 import { buildSnow } from './arena-snow.js';
 import { buildBakery } from './arena-bakery.js';
+import { buildClassroom } from './arena-classroom.js';
+import { buildTraining } from './arena-training.js';
+import { buildParking } from './arena-parking.js';
 
-const ARENAS = { commute: buildCommute, evening: buildEvening, picnic: buildPicnic, beach: buildBeach, snow: buildSnow, bakery: buildBakery };
+const ARENAS = { commute: buildCommute, evening: buildEvening, picnic: buildPicnic, beach: buildBeach, snow: buildSnow, bakery: buildBakery,
+  classroom: buildClassroom, training: buildTraining, parking: buildParking };
 
 export function buildArena(id) {
   const f = ARENAS[id];

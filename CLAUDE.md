@@ -19,7 +19,7 @@
 | PIN 계정·전적·랭킹·코인·경기 확인·**보안(18)**·업적·칭호·**쉬는 시간 보너스(19)** | `docs/dev/accounts.md` | main (SQL 01~18 실행 완료) / 쉬는 시간 보너스 test(19 실행 필요) |
 | 상점·꾸미기 공통, 탁구채(전설 포함)·몸·목록 그림 | `docs/dev/shop.md` | main |
 | 탁구공 | `docs/dev/balls.md` | main |
-| 배경(경기장)·배경 합치기(성능) | `docs/dev/arenas.md` | main |
+| 배경(경기장)·배경 합치기(성능) | `docs/dev/arenas.md` | main / 일반 배경 3종 test(20 실행 필요) |
 | 화면 디자인(**새 디자인 '탁구 색 + 유리'**: ①~⑤ 모든 화면)·대기실 무대·VS 소개·**업데이트 내역**(`src/updates.js`, main에 합칠 때마다 추가) | `docs/dev/design.md` | 새 디자인 test |
 
 아직 안 한 것(기획서 8장): 머리·궤적·탁구대 아이템, 출석·미션, 사운드 스킨, 승리 세리머니. 최적화 ①~⑤ 모두 끝(남은 보안 — 계정 두 개로 승수 쌓기, 가입 제한 — 은 사용자가 이번엔 안 하기로).
@@ -60,7 +60,7 @@
 - Supabase 프로젝트는 다른 게임과 공유한다. DB 테이블을 만들 때는 `pingpong_` 접두어를 붙인다.
 
 ## 테스트 요령
-- **`npm run check`** = 자동 점검(`scripts/check.cjs`, 약 2분): 빌드, 서버 SQL을 빈 DB에 01부터 두 번 실행 + anon 권한으로 가입·상점·뽑기 등, `items.js`·`achievements.js` ↔ SQL 목록·목록 그림, 브라우저로 손님·로그인·혼자 하기·꾸미기·랭킹·1대1 방(탭 두 개)·배경 6종·시안 페이지. test에 올리기 전에 돌리고, 새 화면·SQL을 만들면 점검도 추가한다. 화면 점검은 진짜 Supabase를 안 쓴다(VITE_SUPABASE_URL을 비움). GitHub에서도 `.github/workflows/check.yml`이 test·main push마다 돌린다(Actions 탭).
+- **`npm run check`** = 자동 점검(`scripts/check.cjs`, 약 2분): 빌드, 서버 SQL을 빈 DB에 01부터 두 번 실행 + anon 권한으로 가입·상점·뽑기 등, `items.js`·`achievements.js` ↔ SQL 목록·목록 그림, 브라우저로 손님·로그인·혼자 하기·꾸미기·랭킹·1대1 방(탭 두 개)·배경 9종·시안 페이지. test에 올리기 전에 돌리고, 새 화면·SQL을 만들면 점검도 추가한다. 화면 점검은 진짜 Supabase를 안 쓴다(VITE_SUPABASE_URL을 비움). GitHub에서도 `.github/workflows/check.yml`이 test·main push마다 돌린다(Actions 탭).
 - `npm run dev` 후 Playwright(사전 설치됨)로 확인. 헤드리스 swiftshader는 매우 느려서(초당 수 프레임) 타이밍 결과가 흔들린다. 판정 테스트는 페이지 안에서 `PointerEvent`를 직접 쏘는 방식이 안정적이다.
 - 1v1은 같은 브라우저 컨텍스트의 탭 두 개(로컬 모드) 또는 컨텍스트 두 개 + Supabase로 확인한다. 디버그 훅: `window.__smash.{world, game, match, room}`.
 - 사용자에게 줄 단일 HTML이 필요하면 `npm run build` 후 `dist/assets/*.js`와 css를 `index.html`에 인라인한다(함수형 replace로 `$` 패턴 주의).
