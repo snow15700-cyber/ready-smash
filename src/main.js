@@ -1,3 +1,5 @@
+// 글꼴 Pretendard(화면 글자용, 쓰는 글자 묶음만 받음). 로고는 Jua 그대로
+import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 import { createWorld, CHAR_Z } from './scene.js';
 import { sideSign, tierOf } from './physics.js';
 import { createLobbyDemo, LOBBY_CAM } from './lobbyDemo.js';
@@ -674,7 +676,7 @@ function renderMe() {
     : `${esc(account.nick)}<small>님</small>`;
   $('btn-pin').classList.toggle('hidden', account.guest);
   $('me-coins').classList.toggle('hidden', account.guest);
-  $('me-coins').textContent = `🪙 ${account.player?.coins ?? 0}`;
+  $('me-coins').innerHTML = `<i class="coin-dot"></i>${account.player?.coins ?? 0}`;
   $('btn-logout').textContent = account.guest ? '로그인' : '로그아웃';
   const p = account.player;
   $('me-stats').innerHTML = p
