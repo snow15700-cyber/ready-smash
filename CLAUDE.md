@@ -15,7 +15,7 @@
 | 주제 | 파일 | 상태 |
 |---|---|---|
 | 경기 규칙·조작·판정·찬스볼·몰입 연출·**동기화 규칙** | `docs/dev/gameplay.md` | main |
-| 2v2·혼자 하기(AI)·모바일·링크 미리보기 | `docs/dev/modes.md` | 2v2·AI main / 모바일·미리보기 test |
+| 2v2·혼자 하기(AI)·모바일·링크 미리보기·**관전 모드(기획·단계)** | `docs/dev/modes.md` | 2v2·AI main / 모바일·미리보기 test / 관전 ①~⑤ 모두(방 목록·관전·넘나들기·관중석 응원·다음 판 참가) **`test-spectate` 브랜치**(test 말고) |
 | PIN 계정·전적·랭킹·코인·경기 확인·**보안(18)**·업적·칭호 | `docs/dev/accounts.md` | 보안 18 test(SQL 실행 전) |
 | 상점·꾸미기 공통, 탁구채(전설 포함)·몸·목록 그림 | `docs/dev/shop.md` | test |
 | 탁구공 | `docs/dev/balls.md` | test |
@@ -41,6 +41,7 @@
 - `src/main.js` 로비·방·대기실 흐름, 시계 맞추기(ping/pong), 매 프레임 루프.
 - `src/account.js` 서버 함수 부르기 + 로컬 가짜 서버. `src/achievements.js` 업적 목록.
 - `src/items.js` 아이템 목록·탁구채 모델·`applyLook`·목록 그림(`src/thumbs/`). `src/outfits.js` 몸. `src/balls.js` 탁구공. `src/fx.js` 효과 파티클.
+- `src/crowd.js` 관중석 캐릭터(관전).
 - `src/arenas.js` + `src/arena-*.js` 배경. `src/lobbyDemo.js` 로비 배경 랠리. 시안 페이지 `outfits.html`·`balls.html`.
 - `supabase/NN_*.sql` 서버(번호 순서대로 실행). `scripts/make-thumbs.cjs` 목록 그림 찍기.
 

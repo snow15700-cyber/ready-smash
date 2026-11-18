@@ -591,3 +591,59 @@ body.intro #hud { visibility: hidden; }
 #ach-pop .ap-many { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; max-width: 460px; }
 #ach-pop .ap-many .tpill { font-size: 13px; padding: 1px 10px; }
 .t-now .ghost { white-space: nowrap; flex: none; }
+
+/* ───────── 로비 방 목록 (관전 1단계) ───────── */
+.rl-wrap { display: flex; flex-direction: column; gap: 6px; }
+.lb-rooms-wrap { border-top: 2px dashed #eadcc4; padding-top: 10px; margin-top: 2px; }
+.rl-list { display: flex; flex-direction: column; gap: 6px; }
+button.rl-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; font-size: 15px; padding: 8px 10px; border-radius: 12px; box-shadow: 0 3px 0 #e3d3b6; }
+button.rl-row.off { cursor: default; background: #f6efe3; box-shadow: none; transform: none; }
+.rl-mode { flex: none; font-size: 12px; color: #fff; background: var(--blue); border-radius: 8px; padding: 2px 6px; }
+.rl-nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rl-st { flex: none; font-size: 13px; }
+.rl-st.wait { color: #2e9b4f; }
+.rl-st.play { color: #d6453a; }
+.rl-st.full { color: var(--muted); }
+.rl-act { flex: none; font-size: 13px; color: #fff; background: var(--orange, #ff8a3d); border-radius: 999px; padding: 3px 10px; }
+.rl-act.soon { background: #cfc3ae; }
+.rl-empty { margin: 2px 0; text-align: center; font-size: 14px; color: var(--muted); line-height: 1.4; }
+.rl-more { margin: 0; text-align: center; font-size: 13px; color: var(--muted); }
+
+/* ───────── 관전 (2단계) ───────── */
+.rl-act.watch { background: var(--blue); }
+button.watch-ok { margin-left: auto; font-size: 14px; padding: 6px 12px; border-radius: 999px; }
+button.watch-ok.off { background: #eee5d6; color: var(--muted); }
+.watch-bar { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 16px; border-radius: 999px; background: rgba(43,42,51,.62); color: #fff; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.watch-who { font-size: 15px; }
+.watch-views { display: flex; gap: 4px; }
+.watch-views button { padding: 6px 12px; border-radius: 999px; font-size: 14px; box-shadow: none; background: rgba(255,255,255,.2); color: #fff; }
+.watch-views button.on { background: #fff; color: var(--ink); }
+body.watching #hint { bottom: 78px; }
+@media (max-width: 600px) { .watch-who { display: none; } }
+
+/* ───────── 관전 3단계: 넘나들기 · 아무 경기나 ───────── */
+.rl-head { display: flex; align-items: center; gap: 8px; }
+button.rl-random { margin-left: auto; font-size: 13px; padding: 5px 10px; border-radius: 999px; background: var(--blue); color: #fff; box-shadow: 0 3px 0 var(--blue-d); }
+.watch-hop { padding: 6px 10px; border-radius: 999px; font-size: 14px; box-shadow: none; background: rgba(255,255,255,.2); color: #fff; }
+.watch-hop:disabled { opacity: .35; }
+.watch-bar { padding-left: 8px; }
+
+/* ───────── 관전 4단계: 관중 수 · 응원 ───────── */
+.crowd-pill { position: absolute; top: 78px; left: 50%; transform: translateX(-50%); margin: 0; font-size: 14px; color: #fff; background: rgba(43,42,51,.5); padding: 4px 12px; border-radius: 999px; white-space: nowrap; }
+.cheer-bar { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 5px 6px; border-radius: 999px; background: rgba(255,250,240,.92); white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.16); }
+.cheer-bar button { padding: 6px 12px; border-radius: 999px; font-size: 15px; box-shadow: none; background: #f2e9da; }
+.cheer-bar button:disabled { opacity: .4; }
+.cheer-bar .cb-team span { display: inline-block; max-width: 90px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.cheer-bar .cb-team[data-team="0"].on { background: var(--orange); color: #fff; }
+.cheer-bar .cb-team[data-team="1"].on { background: var(--blue); color: #fff; }
+.cheer-bar .cb-sep { width: 1px; height: 22px; background: #d9c9ad; margin: 0 4px; }
+body.watching #hint { bottom: 128px; }
+@media (max-width: 600px) { .cheer-bar [data-cheer] span, .cheer-bar .cb-team span { display: none; } .cheer-bar button { padding: 6px 9px; } .crowd-pill { top: 118px; } }
+
+/* ───────── 관전 5단계: 경기 끝난 뒤 다음 판 ───────── */
+.watch-next { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(380px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 10px; padding: 18px 18px 16px; border-radius: 24px; background: var(--paper); box-shadow: 0 16px 40px rgba(60,40,20,.3); text-align: center; animation: popIn .22s ease-out; }
+.watch-next b { font-size: 19px; color: var(--blue-ink); }
+.watch-next p { margin: -4px 0 2px; font-size: 14px; color: var(--muted); word-break: keep-all; }
+.watch-next button.big.wait { background: #8a7a66; box-shadow: 0 5px 0 #5f5243; }
+.watch-next .wn-row { display: flex; gap: 8px; }
+.watch-next .wn-row button { flex: 1; }
