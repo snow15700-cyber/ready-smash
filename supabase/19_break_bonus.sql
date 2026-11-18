@@ -2,9 +2,10 @@
 -- Supabase 대시보드 → SQL Editor → 이 파일 내용을 통째로 붙여 넣고 Run. 여러 번 실행해도 괜찮다.
 --
 -- 1대1·2대2 경기의 시작이나 끝이 쉬는 시간이면 그 판 코인 +50% (사용자 확정 11/18).
+-- 혼자 하기도: 랠리가 끝난 시각이 쉬는 시간이면 그 랠리 코인 +50% (사용자 확정 11/18).
 --  · 평일(월~금)만, 한국 시간. 수업 전(09시 전)·수업 후(18시 뒤)는 안 줌.
 --  · 쉬는 시간 = 09:50~10:00, 10:50~11:00, 11:30~13:00(점심), 13:50~14:00, 14:50~15:00, 15:50~16:00, 16:50~17:00, 17:50~18:00
---  · 그 판 코인 전부(참여·승리·퍼펙트·랠리·연승)의 50%, 올림. 혼자 하기·업적·출석 코인에는 없음.
+--  · 그 판 코인 전부(참여·승리·퍼펙트·랠리·연승)의 50%, 올림. 업적·출석 코인에는 없음.
 --  · 브라우저 시계가 아니라 서버 시계로 정한다. 화면 쪽 같은 규칙: src/breaks.js
 
 -- 그 시각이 쉬는 시간인지 (매시 50분~정각은 9시~17시대, 점심 11:30~13:00)
@@ -140,5 +141,32 @@ begin
     'coins', json_build_object('total', total, 'items', array_to_json(items)));
 end $$;
 
+-- ───────── 혼자 하기 코인 (18의 pingpong_ai_rally에 쉬는 시간 보너스만 더함) ─────────
+create or replace function public.pingpong_ai_rally(p_token text, p_hits int) returns json
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  pl pingpong_players := pingpong__session_player(p_token);
+  allowed int;
+  hits int;
+  total int;
+  got int;
+  brk int := 0;
+begin
+  if pl.id is null then return json_build_object('status', 'no_session'); end if;
+  allowed := case when pl.ai_at is null then 0
+                  else floor(extract(epoch from now() - pl.ai_at))::int + 1 end;
+  hits := least(greatest(coalesce(p_hits, 0), 0), allowed, 1000);
+  total := pl.ai_rem + hits;
+  got := total / 4;
+  -- 19: 쉬는 시간 보너스 (랠리가 끝난 시각이 평일 쉬는 시간이면 이번 코인 +50%, 올림)
+  if got > 0 and pingpong__is_break(now()) then brk := (got + 1) / 2; end if;
+  update pingpong_players set coins = coins + got + brk, ai_rem = total % 4, ai_at = now(),
+    best_rally = greatest(best_rally, hits)
+    where id = pl.id returning * into pl;
+  return json_build_object('status', 'ok', 'coins', got + brk, 'bonus', brk, 'player', pingpong__player_json(pl));
+end $$;
+
 revoke all on function public.pingpong_match_finish(text, uuid, boolean, int, int) from public;
 grant execute on function public.pingpong_match_finish(text, uuid, boolean, int, int) to anon, authenticated;
+revoke all on function public.pingpong_ai_rally(text, int) from public;
+grant execute on function public.pingpong_ai_rally(text, int) to anon, authenticated;

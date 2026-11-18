@@ -182,6 +182,8 @@
   </div>
 
   <div id="lobby" class="screen lobby hidden">
+    <!-- 쉬는 시간 보너스 알림 (src/ui/breakPill.js) -->
+    <div id="break-banner" class="break-banner hidden"></div>
     <!-- 왼쪽: 제목 + 놀이 메뉴 -->
     <div class="lb-left">
       <h1 class="logo">준비하시고,<span>스매시!</span></h1>
@@ -189,7 +191,7 @@
       <p id="mobile-note" class="mobile-note hidden">💻 이 게임은 <b>PC에서 즐겨 주세요!</b><br />휴대폰에서는 <b>혼자 하기</b>와 <b>경기 관전</b>만 할 수 있어요</p>
       <button id="btn-ai" class="big lb-play"><span class="lb-ico">🏓</span>혼자 하기<small>AI 탁구왕 김제빵과 연습</small></button>
       <div class="lb-friends">
-        <div class="lb-label lb-friends-head"><span>👥 친구랑 하기</span><span id="break-pill" class="break-pill hidden"></span></div>
+        <div class="lb-label">👥 친구랑 하기</div>
         <div class="row">
           <button id="btn-create-1v1" class="blue">1 대 1<small>방 만들기</small></button>
           <button id="btn-create-2v2" class="blue">2 대 2<small>방 만들기</small></button>

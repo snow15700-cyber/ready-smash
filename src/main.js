@@ -30,6 +30,7 @@ const unlockAudio = () => { initAudio(); removeEventListener('pointerdown', unlo
 addEventListener('pointerdown', unlockAudio);
 addEventListener('keydown', unlockAudio);
 if (IS_TEST) {
+  document.body.classList.add('is-test');
   const tag = document.createElement('div');
   tag.textContent = '🧪 테스트 버전';
   tag.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:9999;padding:4px 12px;border-radius:999px;background:#ffcc00;color:#222;font:bold 13px sans-serif;pointer-events:none;';

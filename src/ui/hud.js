@@ -1,5 +1,6 @@
 import { account } from '../account.js';
 import { tierOf } from '../physics.js';
+import { breakAt } from '../breaks.js';
 import { aiCoins } from './ai.js';
 import { crowdRoar } from './cheer.js';
 import { backToRoom, room, saveResult } from './room.js';
@@ -32,7 +33,7 @@ export const hud = {
     const fire = hot ? '🔥'.repeat(Math.max(1, lv)) + ' ' : '';
     let html = `<div class="st-rally${hot}${lv ? ` lv${lv}` : ''}"><span>${fire}랠리</span><b>${st.rally}</b></div>`;
     if (game.mode === 'ai') {
-      html += `<div class="st-sub"><span>🏅 최고 ${st.best}</span><span>✨ Perfect ${st.perfects}</span>${account.loggedIn ? `<span class="coin">🪙 +${aiCoins}</span>` : ''}</div>`;
+      html += `<div class="st-sub"><span>🏅 최고 ${st.best}</span><span>✨ Perfect ${st.perfects}</span>${account.loggedIn ? `<span class="coin">🪙 +${aiCoins}</span>` : ''}${account.loggedIn && breakAt() ? '<span class="brk">☕ 쉬는 시간 +50%</span>' : ''}</div>`;
     }
     $('stats').innerHTML = html;
   },

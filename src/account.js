@@ -470,8 +470,9 @@ function localServer(fn, a) {
       const got = Math.floor(total / AI_HITS_PER_COIN);
       p.aiRem = total % AI_HITS_PER_COIN;
       p.aiAt = now;
-      p.coins = (p.coins || 0) + got;
-      out = { status: 'ok', coins: got, player: pj(p) };
+      const brk = got > 0 && breakAt(nowMs()) ? breakBonus(got) : 0; // 19: 쉬는 시간 +50%
+      p.coins = (p.coins || 0) + got + brk;
+      out = { status: 'ok', coins: got + brk, bonus: brk, player: pj(p) };
     }
   } else if (fn === 'local_test_coins') {
     const p = me();
