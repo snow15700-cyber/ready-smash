@@ -7,7 +7,7 @@ import { HALF_W } from './physics.js';
 import { applyLook } from './items.js';
 
 export const CROWD_MAX = 12;
-const TEAM_COLOR = ['#ff8a3d', '#2f6bc2']; // 응원 팀: 발밑 빛 고리 (A팀 주황, B팀 파랑, 안 고르면 없음)
+const TEAM_COLOR = ['#d6242e', '#2560b0']; // 응원 팀: 발밑 빛 고리 (A팀 빨강, B팀 파랑, 안 고르면 없음)
 
 // 자리: 두 줄 (앞줄 5자리, 뒷줄 8자리 = 13), 칭호 이름표가 서로 덜 겹치게 1.1m 간격. z>0 = A팀(side 0) 쪽, z<0 = B팀 쪽
 // 뒷줄은 앞줄 사이사이에 서서 머리가 보이게. 선수 바로 옆(|z| 큰 곳)은 피한다: 선수 화면 가장자리를 가리지 않게
