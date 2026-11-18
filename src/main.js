@@ -78,8 +78,7 @@ function loop() {
   // 위치가 있는 소리 크기: 경기·대기실(연습 스윙)은 그대로, 로비·꾸미기 배경 랠리는 작게
   if (game) {
     setQuiet(1);
-    stageOff();
-    if (!(intro && introFrame(now))) game.update(now + game.offset);
+    if (!(intro && introFrame(now))) { stageOff(); game.update(now + game.offset); } // 연출 중엔 introFrame이 대기실 무대를 직접 켜고 끈다
   }
   else if (room && !room.inGame && !$('room').classList.contains('hidden')) { setQuiet(1); stageFrame(now); }
   else {

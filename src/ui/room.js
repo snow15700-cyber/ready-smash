@@ -8,7 +8,7 @@ import { Match } from '../match.js';
 import { joinRoom, normalizeCode } from '../net.js';
 import { crowdJoin } from './cheer.js';
 import { hud } from './hud.js';
-import { startIntro } from './intro.js';
+import { addSkip, startIntro } from './intro.js';
 import { announceRoom, syncLobby } from './lobbyList.js';
 import { show, stopGame } from './screen.js';
 import { practiceSwing, renderStageLabels, stage } from './stage.js';
@@ -203,6 +203,9 @@ function onRoomMsg(m) {
       startGuestGame(m.mode, m.players, p, m.mid);
       break;
     }
+    case 'skip': // 경기 전 연출 건너뛰기 (선수 모두가 누르면 넘어감)
+      addSkip(m.from);
+      break;
     case 'ping':
       if (room.host) room.link.send({ k: 'pong', n: m.n, t1: m.t1, th: performance.now() / 1000, to: m.from });
       break;
@@ -297,7 +300,7 @@ function startOnline(mode, players) {
     },
   }));
   hud.stats(game.stats);
-  startIntro(players, mine.side, mode); // 3초 소개가 끝나면 match.start (endIntro)
+  startIntro(players, mine.side, mode); // 약 10초 연출이 끝나면 match.start (endIntro)
 }
 
 // 참가자 PC: 방장의 시작 신호를 받으면 경기 화면으로

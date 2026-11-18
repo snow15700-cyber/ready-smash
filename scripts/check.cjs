@@ -384,7 +384,12 @@ async function browserChecks() {
       await guest.evaluate(() => document.querySelector('#team-1 .slot.empty').click());
       await waitFor(page, () => !document.querySelector('#btn-start').disabled, null, 10000, "방장 '경기 시작' 버튼 켜짐");
       await page.click('#btn-start');
-      // VS 소개 3초 뒤 경기 시작 → 둘 다 경기 화면
+      // 경기 전 연출(약 10초): 둘 다 '건너뛰기'를 누르면 초록 불 2개 → 정적으로 넘어가 곧 경기 시작
+      for (const p of [page, guest]) await waitFor(p, () => window.__smash.intro && window.__smash.intro.seg && window.__smash.intro.seg !== 'dim', null, 30000, '연출: VS 소개');
+      await page.evaluate(() => document.querySelector('#vi-skip-btn').click());
+      await waitFor(guest, () => document.querySelectorAll('#vi-skip-dots i.on').length === 1, null, 10000, '참가자 화면에 건너뛰기 초록 불 1개');
+      await guest.evaluate(() => document.querySelector('#vi-skip-btn').click());
+      for (const p of [page, guest]) await waitFor(p, () => !window.__smash.intro || window.__smash.intro.seg.includes('hush'), null, 10000, '모두 건너뛰기 → 정적');
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.game && !window.__smash.intro, null, 30000, '경기 시작');
       // 관전 (2단계): 세 번째 탭이 로비 목록의 '👀 관전'으로 들어가 중계 화면이 뜨는지, 방장이 나가면 로비로 돌아오는지
       const viewer = await ctx.newPage();

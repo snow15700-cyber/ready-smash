@@ -820,7 +820,7 @@ body.mobile canvas { touch-action: none; }
 
 /* 경기 시작 전 VS 소개 (3초): p1 상대 팀 → p2 우리 팀 → p3 VS + '준비하시고, 스매시!' */
 body.intro #hud { visibility: hidden; }
-.vs-intro { position: fixed; inset: 0; z-index: 8; pointer-events: none; overflow: hidden; }
+.vs-intro { position: fixed; inset: 0; z-index: 11; pointer-events: none; overflow: hidden; }
 .vs-intro::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,16,30,.55) 0%, rgba(20,16,30,0) 22%, rgba(20,16,30,0) 70%, rgba(20,16,30,.6) 100%); }
 .vi-side { position: absolute; bottom: 9%; display: flex; flex-direction: column; gap: 14px; opacity: 0; transition: transform .45s cubic-bezier(.2,1.4,.4,1), opacity .25s; }
 .vi-opp { right: 5vw; align-items: flex-end; transform: translateX(60px); }
@@ -843,11 +843,46 @@ body.intro #hud { visibility: hidden; }
 @keyframes vsStamp { from { opacity: 0; transform: translate(-50%, -50%) scale(3) rotate(-12deg); } to { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-6deg); } }
 .vi-go { position: absolute; left: 50%; top: 62%; transform: translate(-50%, -50%); opacity: 0; font-size: clamp(26px, 4vw, 44px); color: #fff; white-space: nowrap; text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 20px rgba(0,0,0,.35); }
 .vi-go b { font-weight: normal; color: #ffd23d; font-size: 1.35em; }
-.vs-intro.go .vi-go { animation: goIn .3s cubic-bezier(.3,1.5,.5,1) forwards; }
+.vs-intro.hush .vi-go { animation: goIn .3s cubic-bezier(.3,1.5,.5,1) forwards; }
 @keyframes goIn { from { opacity: 0; transform: translate(-50%, -50%) scale(.7); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
-.vs-intro.go .vi-vs { animation: none; opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-6deg); }
 .vs-intro.flash::after { content: ''; position: absolute; inset: 0; background: #fff; animation: flash .35s ease-out forwards; }
 @keyframes flash { from { opacity: .85; } to { opacity: 0; } }
+/* 경기 전 연출: 어두운 막 · 3·2·1 · 건너뛰기 */
+#room.leaving, #room.leaving * { pointer-events: none !important; }
+.vi-dim { position: absolute; inset: 0; opacity: 0; transition: opacity .8s ease-in-out;
+  background: radial-gradient(ellipse at 50% 45%, rgba(6,8,22,.1) 25%, rgba(6,8,22,.9) 100%), rgba(6,8,22,.3); }
+.vs-intro.dim .vi-dim { opacity: .9; }
+.vs-intro.p1 .vi-dim { opacity: .3; transition-duration: .3s; }
+.vs-intro.cd .vi-dim { opacity: .65; }
+.vs-intro.hush .vi-dim { opacity: 1; transition-duration: .3s; }
+.vs-intro.go .vi-dim { opacity: 0; transition-duration: .15s; }
+.vs-intro.cd .vi-vs { animation: vsOut .25s ease-in forwards; }
+@keyframes vsOut { from { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-6deg); } to { opacity: 0; transform: translate(-50%, -50%) scale(.6) rotate(-6deg); } }
+.vs-intro.cd .vi-side { opacity: .45; }
+.vs-intro.hush .vi-side { opacity: 0; }
+.vi-num { position: absolute; left: 50%; top: 44%; }
+.vi-num span { position: absolute; left: 0; top: 0; display: block; font-size: clamp(130px, 20vw, 230px); line-height: 1; color: #fff;
+  -webkit-text-stroke: 5px var(--tt-ink, #1b1f3a); text-shadow: 0 8px 0 var(--tt-ink, #1b1f3a), 0 0 60px rgba(255,59,66,.8); animation: numPop 1s ease-out forwards; }
+@keyframes numPop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.4); } 14% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  75% { opacity: 1; transform: translate(-50%, -50%) scale(.92); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(.7); } }
+.vi-go { top: 47%; font-size: clamp(30px, 4.4vw, 50px); display: flex; flex-direction: column; align-items: center; line-height: 1.05; }
+.vi-go b { display: block; opacity: 0; font-size: 1.9em; }
+.vs-intro.go .vi-go b { animation: smashIn .3s cubic-bezier(.3,1.7,.5,1) forwards; }
+@keyframes smashIn { from { opacity: 0; transform: scale(2.2) rotate(-8deg); } to { opacity: 1; transform: scale(1) rotate(-3deg); } }
+.vs-intro .vi-opp, .vs-intro.p3 .vi-opp { bottom: calc(6% + 96px); }
+.vi-skip { position: absolute; right: max(16px, 3vw); bottom: max(16px, 3vh); display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  pointer-events: auto; opacity: 0; visibility: hidden; transition: opacity .3s, visibility .3s; }
+.vs-intro.p1 .vi-skip, .vs-intro.p2 .vi-skip, .vs-intro.p3 .vi-skip { opacity: 1; visibility: visible; }
+.vs-intro.hush .vi-skip { opacity: 0; visibility: hidden; }
+.vi-skip button { font: 700 16px var(--font-ui, system-ui), sans-serif; color: #fff; background: rgba(16,22,40,.75); border: 1px solid rgba(255,255,255,.25);
+  border-radius: 999px; padding: 10px 20px; cursor: pointer; box-shadow: 0 6px 16px rgba(0,0,0,.3); transition: background .15s, transform .1s; }
+.vi-skip button:hover:not(:disabled) { background: rgba(30,40,70,.9); }
+.vi-skip button:active:not(:disabled) { transform: scale(.96); }
+.vi-skip button:disabled { cursor: default; color: rgba(255,255,255,.7); }
+.vi-skip .ar { font-size: .75em; letter-spacing: -2px; margin-left: 4px; }
+.vi-skip .dots { display: flex; gap: 7px; padding: 6px 10px; border-radius: 999px; background: rgba(16,22,40,.55); }
+.vi-skip .dots i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.7); transition: background .2s, border-color .2s, box-shadow .2s; }
+.vi-skip .dots i.on { background: #3ee07a; border-color: #3ee07a; box-shadow: 0 0 10px #3ee07a; }
 @media (max-width: 760px) { .vi-side { bottom: 4%; } .vi-vs { font-size: 64px; } }
 
 /* ───────── 업적·칭호 ───────── */
@@ -961,7 +996,7 @@ body.watching #hint { bottom: 128px; }
 #hud, #toast, #ach-pop, .vs-intro { font-family: var(--font-ui); letter-spacing: -0.01em; }
 #hud button { font-family: var(--font-ui); font-weight: 600; }
 #hud .ic, #toast .ic, #ach-pop .ic { width: 1em; height: 1em; flex: none; vertical-align: -0.14em; }
-#judge, #turn, #result b, .vi-vs, .vi-go { font-family: 'Jua', system-ui, sans-serif; letter-spacing: 0; }
+#judge, #turn, #result b, .vi-vs, .vi-go, .vi-num { font-family: 'Jua', system-ui, sans-serif; letter-spacing: 0; }
 #exit { display: inline-flex; align-items: center; gap: 4px; color: #fff; background: var(--hud-bg); border: 1px solid var(--hud-line); box-shadow: 0 4px 14px rgba(0,0,0,.2); opacity: .9; }
 #exit:active:not(:disabled) { box-shadow: 0 2px 8px rgba(0,0,0,.2); transform: scale(.97); }
 /* 점수판 */
