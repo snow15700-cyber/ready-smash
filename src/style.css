@@ -267,6 +267,25 @@ button.lb-play small { display: block; margin-left: auto; font-size: 14px; font-
 .lobby .soon { text-align: left; padding-left: 4px; color: rgba(255,255,255,.7); }
 .lobby .mobile-note { color: #fff; border-radius: 14px; }
 .lobby .mobile-note b { font-weight: 700; color: var(--tt-ball); }
+/* 쉬는 시간 보너스 알림 (src/ui/breakPill.js) */
+.break-banner { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); z-index: 2; display: flex; align-items: center; gap: 14px; padding: 10px 22px 10px 14px; border-radius: 20px; background: linear-gradient(135deg, #fff6d6, #ffe08a); box-shadow: 0 0 0 3px #ffc93c, 0 10px 26px rgba(170,110,0,.28); color: #6b4300; white-space: nowrap; animation: bannerPulse 2.2s ease-in-out infinite; }
+.break-banner .bb-ico { font-size: 34px; line-height: 1; }
+.break-banner .bb-main { font-size: 22px; font-weight: 800; }
+.break-banner .bb-main b { color: var(--orange-ink); font-size: 28px; }
+.break-banner .bb-sub { font-size: 13px; margin-top: 2px; }
+.break-banner .bb-sub em { display: inline-block; white-space: nowrap; font-style: normal; background: #6b4300; color: #fff3c4; padding: 1px 7px; border-radius: 999px; margin-left: 4px; }
+.break-banner.hidden { display: none; }
+body.is-test .break-banner { top: 44px; } /* 🧪 테스트 버전 표시 아래 */
+@keyframes bannerPulse { 50% { box-shadow: 0 0 0 3px #ffc93c, 0 0 0 9px rgba(255,201,60,.25), 0 10px 26px rgba(170,110,0,.28); } }
+.break-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; background: var(--gold-bg); color: #7a5200; font-size: 13px; white-space: nowrap; box-shadow: inset 0 0 0 1.5px #f1cf6b; animation: breakGlow 2.4s ease-in-out infinite; }
+.break-pill b { color: var(--orange-ink); }
+.break-pill.hidden { display: none; }
+.st-sub .brk { color: #ffd34d; }
+.room-break { margin: 0; flex: none; }
+@keyframes breakGlow { 50% { box-shadow: inset 0 0 0 1.5px #f1cf6b, 0 0 10px rgba(255,190,60,.55); } }
+button.blue { background: var(--blue); color: #fff; box-shadow: 0 5px 0 var(--blue-d); font-size: 22px; padding: 12px 8px 10px; line-height: 1.15; }
+button.blue:active:not(:disabled) { box-shadow: 0 2px 0 var(--blue-d); }
+button.blue small { display: block; font-size: 13px; opacity: .85; }
 
 .lb-me { position: absolute; top: 32px; right: clamp(16px, 2.5vw, 32px); display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .me-chip { position: relative; z-index: 3; display: flex; align-items: center; gap: 10px; border-radius: 999px; padding: 6px 6px 6px 18px; max-width: calc(100vw - 32px); }
@@ -337,8 +356,10 @@ a.lb-ext .ext { display: inline-flex; font-size: 15px; opacity: .8; }
 
 /* 좁은 화면(휴대폰·작은 창): 위에서 아래로 차례로 쌓는다 */
 @media (max-width: 760px), (max-height: 560px) {
-  .screen.lobby { display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: 16px; padding: 16px 16px 24px; background: rgba(14,26,58,.5); }
+  .screen.lobby { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 16px; padding: 16px 16px 24px; background: rgba(14,26,58,.5); } /* 위에서부터 (가운데 정렬이면 내용이 길 때 위가 잘려서 못 올림) */
   .lb-me, .lb-left, .lb-icons, .lb-bottom { position: static; transform: none; }
+  .break-banner { position: static; transform: none; order: -1; white-space: normal; max-width: 100%; }
+  body.is-test .break-banner { margin-top: 28px; }
   .lb-me { order: 0; align-items: center; }
   .lb-left { order: 1; }
   .lb-icons { order: 2; }
@@ -999,3 +1020,15 @@ body.watching #hint { bottom: 128px; }
 #hud button.big { font-weight: 700; border-radius: 16px; background: linear-gradient(180deg, var(--tt-red-hi), var(--tt-red-lo)); box-shadow: 0 10px 26px rgba(215,38,46,.4), inset 0 1px 0 rgba(255,255,255,.35); }
 #hud .watch-next button.big.wait { background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
 .watch-next .wn-row button { color: #fff; background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); }
+
+/* 쉬는 시간 보너스 — 새 디자인(어두운 로비·대기실 위): 공 주황 유리 + 은은한 주황 빛 */
+.break-banner { font-family: var(--font-ui); color: #fff; background: rgba(255,138,31,.2); backdrop-filter: blur(22px) saturate(170%); -webkit-backdrop-filter: blur(22px) saturate(170%);
+  box-shadow: inset 0 0 0 1px rgba(255,190,110,.65), 0 10px 30px rgba(0,0,0,.25); animation: bannerPulseTT 2.2s ease-in-out infinite; }
+.break-banner .bb-main b { color: #ffb066; }
+.break-banner .bb-sub { color: rgba(255,255,255,.8); font-weight: 500; }
+.break-banner .bb-sub b { color: #fff; }
+.break-banner .bb-sub em { color: #fff; background: rgba(255,255,255,.16); font-weight: 600; }
+@keyframes bannerPulseTT { 50% { box-shadow: inset 0 0 0 1px rgba(255,190,110,.9), 0 0 24px rgba(255,138,31,.45), 0 10px 30px rgba(0,0,0,.25); } }
+html.lite-glass .break-banner { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(90,50,20,.85); }
+.gx .break-pill { color: #ffd9b0; background: rgba(255,138,31,.2); box-shadow: inset 0 0 0 1px rgba(255,190,110,.5); font-weight: 600; }
+.gx .break-pill b { color: #ffb066; }
