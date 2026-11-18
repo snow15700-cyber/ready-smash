@@ -4,6 +4,7 @@
 import { ONLINE, getClient } from './net.js';
 import { ITEMS, ITEM, GRADES, GACHA_PRICE, PITY, poolOpen } from './items.js';
 import { ACH, REWARD, GAG_PADDLES } from './achievements.js';
+import { breakAt, breakBonus, BREAK_LABEL, nowMs } from './breaks.js';
 
 // ?acct=2 처럼 주소에 붙이면 열쇠를 따로 보관한다 (한 브라우저에서 탭마다 다른 계정으로 테스트할 때)
 const ACCT = new URLSearchParams(location.search).get('acct');
@@ -425,6 +426,10 @@ function localServer(fn, a) {
       } else if (join) items.push({ label: '같은 상대 오늘 6판째부터는 참여 코인만', coins: 0 });
       else items.push({ label: hasOpp ? '같은 상대와는 하루 10판까지만 코인' : '손님 상대는 하루 5판까지만 코인', coins: 0 });
       if (!hasOpp) items.push({ label: '손님 상대 경기는 승수에 안 들어가요', coins: 0 });
+      // 19: 쉬는 시간 보너스 (경기 시작이나 끝이 평일 쉬는 시간이면 +50%, 올림). 가짜 서버는 ?clock= 시각을 따른다
+      const base = items.reduce((s, i) => s + i.coins, 0);
+      const clk = nowMs() - Date.now();
+      if (base > 0 && (breakAt(m.at + clk) || breakAt(now + clk))) items.push({ label: BREAK_LABEL, coins: breakBonus(base) });
       const total = items.reduce((s, i) => s + i.coins, 0);
       p.coins = (p.coins || 0) + total;
       Object.assign(mp, { at: now, won: a.p_won, okey });
@@ -465,8 +470,9 @@ function localServer(fn, a) {
       const got = Math.floor(total / AI_HITS_PER_COIN);
       p.aiRem = total % AI_HITS_PER_COIN;
       p.aiAt = now;
-      p.coins = (p.coins || 0) + got;
-      out = { status: 'ok', coins: got, player: pj(p) };
+      const brk = got > 0 && breakAt(nowMs()) ? breakBonus(got) : 0; // 19: 쉬는 시간 +50%
+      p.coins = (p.coins || 0) + got + brk;
+      out = { status: 'ok', coins: got + brk, bonus: brk, player: pj(p) };
     }
   } else if (fn === 'local_test_coins') {
     const p = me();

@@ -32,7 +32,7 @@
     <div id="judge"></div>
     <div id="turn"></div>
     <div id="result" class="hidden"><b id="result-title"></b><span id="result-score"></span></div>
-    <button id="exit" class="small">← 나가기</button>
+    <button id="exit" class="small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg> 나가기</button>
     <p id="crowd-pill" class="crowd-pill hidden"></p>
     <!-- 관전 중 응원: 응원할 쪽 고르기 + 박수·함성·화이팅 (2초에 한 번) -->
     <div id="cheer-bar" class="cheer-bar hidden">
@@ -56,24 +56,28 @@
     </div>
   </div>
 
-  <!-- 경기 시작 전 3초 VS 소개: 상대 팀 → 우리 팀 → VS · 준비하시고, 스매시! -->
+  <!-- 경기 시작 전 연출 (약 10초): 어두워짐 → VS 소개 → 3·2·1 → 준비하시고, 스매시! (src/ui/intro.js) -->
   <div id="vs-intro" class="vs-intro hidden">
+    <div class="vi-dim"></div>
     <div id="vi-opp" class="vi-side vi-opp"></div>
     <div id="vi-us" class="vi-side vi-us"></div>
     <div class="vi-vs">VS</div>
-    <div class="vi-go">준비하시고, <b>스매시!</b></div>
+    <div id="vi-stake" class="vi-stake"></div>
+    <div id="vi-num" class="vi-num"></div>
+    <div class="vi-go"><span class="r">준비하시고,</span> <b>스매시!</b></div>
+    <div id="vi-skip" class="vi-skip"><button id="vi-skip-btn" type="button"></button><div id="vi-skip-dots" class="dots"></div></div>
   </div>
 
   <div id="ach-pop"></div>
   <div id="toast"></div>
 
-  <div id="login" class="screen left hidden">
+  <div id="login" class="screen left gx hidden">
     <div class="left-col">
       <h1 class="logo">준비하시고,<span>스매시!</span></h1>
       <p class="lb-sub">마우스 하나로 즐기는 ASMR 탁구</p>
       <div class="panel">
-        <p class="panel-title">👋 반가워요! 로그인해 주세요</p>
-        <p id="login-offline" class="offline hidden">⚠️ 서버에 연결되지 않은 <b>테스트 모드</b>예요.<br />지금 만드는 계정은 이 브라우저에만 저장돼요.</p>
+        <p class="panel-title">반가워요! 로그인해 주세요</p>
+        <p id="login-offline" class="offline hidden"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> 서버에 연결되지 않은 <b>테스트 모드</b>예요.<br />지금 만드는 계정은 이 브라우저에만 저장돼요.</p>
         <div id="login-form" class="stack">
           <label class="field">닉네임
             <input id="login-nick" maxlength="10" placeholder="예: 탁구왕" autocomplete="off" />
@@ -86,7 +90,7 @@
           <p class="note tiny-note">처음이면 원하는 닉네임·PIN으로 로그인하면 바로 가입돼요</p>
         </div>
         <div id="signup-form" class="stack hidden">
-          <p class="signup-q">✨ <b id="signup-nick"></b>은(는) 처음 보는 닉네임이에요.<br />이 닉네임으로 새로 가입할까요?</p>
+          <p class="signup-q"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/></svg> <b id="signup-nick"></b>은(는) 처음 보는 닉네임이에요.<br />이 닉네임으로 새로 가입할까요?</p>
           <label class="field">확인을 위해 PIN을 한 번 더 입력하세요
             <input id="signup-pin" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
           </label>
@@ -95,17 +99,17 @@
           <button id="btn-signup-cancel">다시 입력</button>
         </div>
         <div class="or"><span>또는</span></div>
-        <button id="btn-guest">🙋 손님으로 하기</button>
+        <button id="btn-guest"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg> 손님으로 하기</button>
         <p class="note tiny-note">손님은 전적·기록이 저장되지 않아요 (닉네임만 입력하면 돼요)</p>
       </div>
     </div>
   </div>
 
-  <div id="pin-change" class="screen left hidden">
+  <div id="pin-change" class="screen left gx hidden">
     <div class="left-col">
       <h1 class="logo">준비하시고,<span>스매시!</span></h1>
       <div class="panel">
-        <p class="panel-title">🔒 PIN 바꾸기</p>
+        <p class="panel-title"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> PIN 바꾸기</p>
         <p class="sub">새로 쓸 PIN(숫자 4자리)을 두 번 입력하세요</p>
         <label class="field">새 PIN
           <input id="pin-new" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off" />
@@ -120,15 +124,15 @@
     </div>
   </div>
 
-  <div id="rank" class="screen hidden">
+  <div id="rank" class="screen gx hidden">
     <div class="panel rank-panel">
       <div class="rank-top">
-        <button id="btn-rank-back" class="small ghost">← 로비로</button>
-        <h2>🏆 랭킹</h2>
+        <button id="btn-rank-back" class="small ghost"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg> 로비로</button>
+        <h2><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> 랭킹</h2>
       </div>
       <div class="seg">
-        <button id="rank-tab-wins" class="on">🏓 승수</button>
-        <button id="rank-tab-rally">🔥 최장 랠리</button>
+        <button id="rank-tab-wins" class="on"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(-35 12 12)"><rect x="10.1" y="12" width="3.8" height="10.5" rx="1.9" fill="currentColor"/><ellipse cx="12" cy="7.6" rx="6.4" ry="6.6" fill="currentColor"/></g><circle cx="20" cy="4.5" r="2.2" fill="currentColor"/></svg> 승수</button>
+        <button id="rank-tab-rally"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> 최장 랠리</button>
       </div>
       <p id="rank-desc" class="rank-desc"></p>
       <div id="rank-podium" class="podium"></div>
@@ -138,29 +142,29 @@
   </div>
 
   <!-- 꾸미기 (옷장·뽑기·칭호를 한 화면에). 패널은 오른쪽, 왼쪽에 내 캐릭터 + 고른 아이템 크게 보기 -->
-  <div id="dress" class="screen side hidden">
+  <div id="dress" class="screen side gx hidden">
     <div class="panel dress-panel">
       <div class="dress-head">
-        <button id="btn-dress-back" class="small ghost">← 로비로</button>
+        <button id="btn-dress-back" class="small ghost"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg> 로비로</button>
         <h2>꾸미기</h2>
         <span class="wallet"><span id="shop-coins"></span><span id="shop-pieces"></span></span>
       </div>
       <div class="seg">
-        <button id="tab-closet">👕 옷장</button>
-        <button id="tab-gacha">🎁 뽑기</button>
-        <button id="tab-title">🏅 칭호</button>
+        <button id="tab-closet"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg> 옷장</button>
+        <button id="tab-gacha"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg> 뽑기</button>
+        <button id="tab-title"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg> 칭호</button>
       </div>
       <div id="cat-chips" class="chips"></div>
 
       <div id="pane-gacha" class="pane">
         <div class="seg sub">
-          <button id="shop-tab-char">🎽 캐릭터</button>
-          <button id="shop-tab-arena">🏟️ 경기장</button>
+          <button id="shop-tab-char"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg> 캐릭터</button>
+          <button id="shop-tab-arena"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></svg> 경기장</button>
         </div>
         <div id="gacha-desc" class="gacha-desc"></div>
         <div class="gbtns">
-          <button id="btn-gacha-1" class="big">1회 뽑기<small>🪙 100</small></button>
-          <button id="btn-gacha-10" class="big ten">10회 뽑기<small>🪙 900</small></button>
+          <button id="btn-gacha-1" class="big">1회 뽑기<small><i class="coin-dot"></i> 100</small></button>
+          <button id="btn-gacha-10" class="big ten">10회 뽑기<small><i class="coin-dot"></i> 900</small></button>
         </div>
         <ul id="gacha-result" class="gacha-result"></ul>
         <button id="btn-test-coins" class="small hidden">🧪 테스트 코인 +1000 (이 브라우저에서만)</button>
@@ -182,21 +186,23 @@
   </div>
 
   <div id="lobby" class="screen lobby hidden">
+    <!-- 쉬는 시간 보너스 알림 (src/ui/breakPill.js) -->
+    <div id="break-banner" class="break-banner hidden"></div>
     <!-- 왼쪽: 제목 + 놀이 메뉴 -->
     <div class="lb-left">
       <h1 class="logo">준비하시고,<span>스매시!</span></h1>
       <p class="lb-sub">마우스 하나로 즐기는 ASMR 탁구</p>
       <p id="mobile-note" class="mobile-note hidden">💻 이 게임은 <b>PC에서 즐겨 주세요!</b><br />휴대폰에서는 <b>혼자 하기</b>와 <b>경기 관전</b>만 할 수 있어요</p>
-      <button id="btn-ai" class="big lb-play"><span class="lb-ico">🏓</span>혼자 하기<small>AI 탁구왕 김제빵과 연습</small></button>
+      <button id="btn-ai" class="big lb-play"><span class="lb-ico"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(-35 12 12)"><rect x="10.1" y="12" width="3.8" height="10.5" rx="1.9" fill="currentColor"/><ellipse cx="12" cy="7.6" rx="6.4" ry="6.6" fill="currentColor"/></g><circle cx="20" cy="4.5" r="2.2" fill="currentColor"/></svg></span>혼자 하기<small>AI 탁구왕 김제빵과 연습</small></button>
       <div class="lb-friends">
-        <div class="lb-label">👥 친구랑 하기</div>
+        <div class="lb-label"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> 친구랑 하기</div>
         <div class="row">
           <button id="btn-create-1v1" class="blue">1 대 1<small>방 만들기</small></button>
           <button id="btn-create-2v2" class="blue">2 대 2<small>방 만들기</small></button>
         </div>
-        <button id="btn-join">🔑 코드로 입장</button>
+        <button id="btn-join"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg> 코드로 입장</button>
         <div class="rl-wrap lb-rooms-wrap">
-          <div class="lb-label rl-head">🏟️ 지금 열린 방<button id="btn-random-watch" class="small rl-random hidden" title="경기 중인 방 하나를 골라 바로 관전">🎲 아무 경기나 보기</button></div>
+          <div class="lb-label rl-head"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg> 지금 열린 방<button id="btn-random-watch" class="small rl-random hidden" title="경기 중인 방 하나를 골라 바로 관전">🎲 아무 경기나 보기</button></div>
           <div id="lb-rooms" class="rl-list"></div>
         </div>
       </div>
@@ -208,7 +214,7 @@
       <div class="me-chip">
         <span id="me-name" class="me-name"></span>
         <span id="me-coins" class="me-coins hidden"></span>
-        <button id="btn-me-menu" class="gear" title="내 계정">⚙️</button>
+        <button id="btn-me-menu" class="gear" title="내 계정"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
         <div id="me-menu" class="me-menu hidden">
           <button id="btn-pin" class="small">🔒 PIN 바꾸기</button>
           <button id="btn-logout" class="small">로그아웃</button>
@@ -219,21 +225,21 @@
 
     <!-- 오른쪽 아래: 랭킹·꾸미기·업데이트 -->
     <div class="lb-icons">
-      <button id="btn-rank" class="icon-btn"><i>🏆</i>랭킹</button>
-      <button id="btn-closet" class="icon-btn"><i>👕</i>꾸미기</button>
-      <button id="btn-updates" class="icon-btn"><i>📢<b id="upd-dot" class="new-dot hidden">N</b></i>업데이트</button>
+      <button id="btn-rank" class="icon-btn"><i><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></i>랭킹</button>
+      <button id="btn-closet" class="icon-btn"><i><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg></i>꾸미기</button>
+      <button id="btn-updates" class="icon-btn"><i><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><b id="upd-dot" class="new-dot hidden">N</b></i>업데이트</button>
     </div>
 
     <!-- 왼쪽 아래: 치는 방법 -->
     <div class="lb-bottom">
-      <button id="btn-howto" class="lb-help">❓ 치는 방법</button>
-      <a id="lnk-until09" class="lb-help lb-ext" href="https://until09-5zhx.vercel.app/" target="_blank" rel="noopener">"09시까지 출근하세요" 플레이 <span class="ext">↗</span></a>
+      <button id="btn-howto" class="lb-help"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg> 치는 방법</button>
+      <a id="lnk-until09" class="lb-help lb-ext" href="https://until09-5zhx.vercel.app/" target="_blank" rel="noopener">"09시까지 출근하세요" 플레이 <span class="ext"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg></span></a>
     </div>
-    <div id="howto" class="howto-pop hidden">
+    <div id="howto" class="howto-pop gx hidden">
       <div class="howto">
         <b class="howto-title">치는 방법은 딱 하나!</b>
         <div class="swing-demo">
-          <div class="mouse">🖱️<span class="drag">⬆</span></div>
+          <div class="mouse"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="6"/><path d="M12 7v4"/></svg><span class="drag">⬆</span></div>
           <p><b>마우스를 누른 채로<br />위로 쓱 밀어 올리기</b></p>
         </div>
         <div class="dirs">
@@ -244,22 +250,22 @@
           <li>서브: 한 번 클릭하면 공이 떠요 → 떨어질 때 똑같이 밀기</li>
           <li>캐릭터는 자동으로 움직여요. 밀지 않고 누르기만 하면 약한 블록</li>
         </ul>
-        <p class="note">🎧 이어폰을 끼고 즐겨 보세요</p>
+        <p class="note"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg> 이어폰을 끼고 즐겨 보세요</p>
         <button id="btn-howto-close" class="big">알겠어요!</button>
       </div>
     </div>
-    <div id="updates" class="howto-pop hidden">
+    <div id="updates" class="howto-pop gx hidden">
       <div class="howto upd">
-        <b class="howto-title">📢 업데이트 내역</b>
+        <b class="howto-title"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg> 업데이트 내역</b>
         <div id="upd-list" class="upd-list"></div>
         <button id="btn-updates-close" class="big">닫기</button>
       </div>
     </div>
   </div>
 
-  <div id="join" class="screen hidden">
+  <div id="join" class="screen gx hidden">
     <div class="panel">
-      <p class="panel-title center">🔑 코드로 입장</p>
+      <p class="panel-title center"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg> 코드로 입장</p>
       <p class="sub center">친구에게 받은 4자리 방 코드를 입력하세요</p>
       <label class="code-boxes" id="code-boxes">
         <span></span><span></span><span></span><span></span>
@@ -271,7 +277,7 @@
     </div>
   </div>
 
-  <div id="room" class="screen stage hidden">
+  <div id="room" class="screen stage gx hidden">
     <!-- 3D 캐릭터 머리 위 이름표·아이템 (매 프레임 자리를 옮긴다) -->
     <div id="room-labels" class="room-labels"></div>
     <p id="room-hint" class="room-hint"></p>
@@ -281,15 +287,15 @@
       <p id="room-result" class="result hidden"></p>
       <p id="room-coins" class="coins-got"></p>
       <p id="room-h2h" class="h2h"></p>
-      <button id="btn-room-lobby" class="small leave-pill hidden">🏠 메인 메뉴로 나가기</button>
+      <button id="btn-room-lobby" class="small leave-pill hidden"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg> 메인 메뉴로 나가기</button>
     </div>
     <div id="room-card" class="panel room-panel">
       <div class="room-top">
-        <button id="btn-room-leave" class="small leave-pill">🏠 로비로 나가기</button>
+        <button id="btn-room-leave" class="small leave-pill"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg> 로비로 나가기</button>
         <div class="ticket">
           <span class="ticket-lbl">방 코드</span>
           <div id="room-code" class="code">----</div>
-          <button id="btn-copy" class="small">📋 복사</button>
+          <button id="btn-copy" class="small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 복사</button>
         </div>
         <span id="room-mode" class="room-mode"></span>
         <button id="btn-watch-ok" class="small watch-ok hidden" title="다른 사람이 이 방 경기를 구경할 수 있는지">👀 관전 허용</button>
@@ -301,8 +307,9 @@
       </div>
       <div class="room-foot">
         <p id="room-members" class="waiting-list"></p>
+        <p id="room-break" class="break-pill room-break hidden"></p>
         <p id="room-tip" class="room-tip"></p>
-        <button id="btn-start" class="big hidden">🏓 경기 시작!</button>
+        <button id="btn-start" class="big hidden"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(-35 12 12)"><rect x="10.1" y="12" width="3.8" height="10.5" rx="1.9" fill="currentColor"/><ellipse cx="12" cy="7.6" rx="6.4" ry="6.6" fill="currentColor"/></g><circle cx="20" cy="4.5" r="2.2" fill="currentColor"/></svg> 경기 시작!</button>
       </div>
       <p id="room-ping" class="note tiny"></p>
     </div>

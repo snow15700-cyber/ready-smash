@@ -693,6 +693,21 @@ export function playUI(kind = 'click') {
   } else if (kind === 'legend') {
     // 전설: 반짝이는 아르페지오
     [784, 988, 1175, 1568, 1976, 2349].forEach((f, i) => mode(out, t + i * 0.07, f, 0.05, 0.3));
+  } else if (kind === 'heart') {
+    // 경기 전 심장 소리: 낮은 '쿵-쿵' (노트북 스피커에서도 들리게 조금 높은 음도 섞음)
+    for (const [d, k] of [[0, 1], [0.17, 0.6]]) {
+      mode(out, t + d, 62, 0.5 * k, 0.07);
+      mode(out, t + d, 124, 0.16 * k, 0.04);
+      tick(out, t + d, 260, 0.8, 0.12 * k, 0.012, 'lowpass');
+    }
+  } else if (kind === 'count') {
+    // 3·2·1: 또렷한 '삑'
+    mode(out, t, 784, 0.09, 0.1);
+    mode(out, t, 1568, 0.025, 0.06);
+  } else if (kind === 'smash') {
+    // '스매시!': 빠르게 올라가는 밝은 음 + 쾅
+    [784, 1175, 1568, 2349].forEach((f, i) => mode(out, t + i * 0.035, f, 0.07, 0.22));
+    burst(out, t, { type: 'lowpass', f: 900, q: 0.7, amp: 0.35, a: 0.002, d: 0.12 });
   } else if (kind === 'win') {
     [660, 830, 990, 1320].forEach((f, i) => mode(out, t + i * 0.1, f, 0.06, 0.18));
   }
@@ -700,7 +715,8 @@ export function playUI(kind = 'click') {
 
 // 관중 소리 (관전 4단계). kind: clap(박수) | fire(함성) | go(화이팅) | roar(점수 났을 때 다 같이)
 // vol: 0~1 (랠리 중에는 main.js가 아주 작게 — 찬스볼 신호음·타구음을 가리지 않게). n: 관중 수(roar 크기)
-export function playCrowd(kind, vol = 1, pos = null, n = 1) {
+// clap: false면 roar에서 박수를 뺀다 (경기 전 연출의 '스매시!' 함성)
+export function playCrowd(kind, vol = 1, pos = null, n = 1, clap = true) {
   if (!ctx || vol <= 0) return;
   const t = at();
   const out = chain(t, pos, 0.9);
@@ -741,6 +757,6 @@ export function playCrowd(kind, vol = 1, pos = null, n = 1) {
     const k = Math.min(1, 0.35 + n * 0.06);
     for (let i = 0; i < Math.min(5, 1 + n); i++) voice(t + Math.random() * 0.12, 0.9 + Math.random() * 0.4, 180 + Math.random() * 160, 0.05 * k);
     hiss(t, 1.1, 0.16 * k);
-    claps(t + 0.35, 6 + Math.min(10, n * 2), 0.07, 0.22 * k);
+    if (clap) claps(t + 0.35, 6 + Math.min(10, n * 2), 0.07, 0.22 * k);
   }
 }
