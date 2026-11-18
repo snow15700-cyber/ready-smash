@@ -20,8 +20,18 @@ export const HOLD = 0.09;
 export const WIN = { perfect: 0.045, good: 0.1, bad: 0.17, whiff: 0.5 };
 // 늦게 친 쪽은 더 좁게 (공이 몸을 지나간 뒤에 넘어가지 않게). bad를 넘기면 블록도 놓침
 export const WIN_LATE = { perfect: 0.045, good: 0.08, bad: 0.14 };
+// 랠리 단계 (사용자 확정): 화면에 보이는 랠리가 20·40·60회를 넘으면 한 단계씩 올라간다.
+// 단계가 오를수록 GOOD 범위가 PERFECT 쪽으로 좁아져(PERFECT·BAD 범위는 그대로) BAD → 찬스볼이 늘어난다.
+// 블록: 1단계부터 GOOD 범위 밖 블록 = 찬스볼, 2단계부터 모든 블록 = 찬스볼 (match.js computeShot)
+export const TIER_RALLY = [20, 40, 60];
+const GOOD_BY_TIER = [[0.1, 0.08], [0.085, 0.07], [0.07, 0.06], [0.055, 0.05]]; // [일찍, 늦게]
+const WINS = GOOD_BY_TIER.map(([e, l]) => [{ ...WIN, good: e }, { ...WIN_LATE, good: l }]);
+// 보이는 랠리 수 → 단계 (0~3)
+export const tierOf = (shown) => TIER_RALLY.filter((r) => shown >= r).length;
+// 지금까지 친 횟수(rally, 양쪽 합계) → 다음 타격의 단계. AI 모드는 화면처럼 내가 친 횟수로 센다
+export const rallyTier = (mode, rally) => tierOf(mode === 'ai' ? Math.ceil(rally / 2) : rally);
 // dt(클릭 - 이상적인 시각)가 늦었으면 늦은 쪽 범위
-export const winFor = (dt) => (dt > 0 ? WIN_LATE : WIN);
+export const winFor = (dt, tier = 0) => WINS[tier][dt > 0 ? 1 : 0];
 
 const E_TABLE = 0.8;
 // 스매시는 상대 탁구대에 처음 맞을 때 덜 튀어서 낮고 빠르게 깔려 온다 (높이 뜨지 않게)
@@ -221,9 +231,9 @@ export function planShot(from, hitter, grade, dir, seed, serve = false, speed = 
   return v;
 }
 
-export function judge(dt, isSwing) {
+export function judge(dt, isSwing, tier = 0) {
   const a = Math.abs(dt);
-  const w = winFor(dt);
+  const w = winFor(dt, tier);
   if (dt < -WIN.whiff) return 'early'; // 너무 이름: 무시
   if (a > w.bad) return 'miss';
   if (!isSwing) return 'block';

@@ -461,6 +461,10 @@ button.leave-pill:hover:not(:disabled) { border-color: #ffbf8f; }
 .st-rally span { font-size: 14px; opacity: .9; }
 .st-rally b { font-weight: normal; font-size: 40px; line-height: 1; }
 .st-rally.hot { background: linear-gradient(160deg, #ff8a3d, #e0453a); box-shadow: 0 0 18px rgba(255,120,40,.55); }
+.st-rally.lv1 { background: linear-gradient(160deg, #ff6a2a, #d42a3a); box-shadow: 0 0 24px rgba(255,90,30,.7); }
+.st-rally.lv2 { background: linear-gradient(160deg, #ff3d6e, #a81f8c); box-shadow: 0 0 28px rgba(255,60,120,.75); }
+.st-rally.lv3 { background: linear-gradient(160deg, #b44dff, #4a2ad4); box-shadow: 0 0 32px rgba(170,80,255,.85); animation: rallyPulse 0.8s ease-in-out infinite alternate; }
+@keyframes rallyPulse { from { transform: scale(1); } to { transform: scale(1.06); } }
 .st-sub { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .st-sub span { font-size: 14px; color: #fff; background: rgba(43,42,51,.45); border-radius: 999px; padding: 3px 10px; }
 .st-sub span.coin { color: #3a2a00; background: rgba(255,210,61,.92); }

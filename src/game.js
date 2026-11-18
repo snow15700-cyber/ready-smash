@@ -1,5 +1,5 @@
 // 화면 쪽 게임: 이벤트를 받아 공·캐릭터·소리·링을 그리고, 내 입력을 판정해 보낸다
-import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, WIN, WIN_LATE, winFor, HOLD } from './physics.js';
+import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, WIN, WIN_LATE, winFor, rallyTier, HOLD } from './physics.js';
 import { PADDLE_OFFSET, CHAR_Z } from './scene.js';
 import { applyLook } from './items.js';
 import { computeShot, hitOrder } from './match.js';
@@ -16,6 +16,8 @@ const CUE_GAP = 0.3;
 // 몰입 연출(에코·어두워짐): 랠리 FOCUS.from회부터 서서히, FOCUS.to회에 최대. 점수가 나면 약 1초에 걸쳐 원래대로 
 const FOCUS = { from: 6, to: 15, up: 0.6, down: 1 };
 const ARROW = { '-1': ' ←', '0': ' ↑', '1': ' →' };
+// 랠리 단계(physics.js TIER_RALLY)가 오를 때 알림
+const TIER_TOAST = ['', '🔥 랠리 20! 판정이 빡빡해져요', '🔥🔥 랠리 40! 이제 블록도 찬스볼', '🔥🔥🔥 랠리 60! 최고 난이도'];
 
 export class Game {
   // authority: 이 PC가 경기를 계산하는지 (혼자 모드, 방장). 아니면 방장 이벤트를 받아 그리고 내 타격은 예측해서 먼저 보여준다
@@ -27,6 +29,7 @@ export class Game {
     this.playerTitles = playerTitles; // 칭호 글자 (이름표 위 알약)
     this.offset = 0; // 방장 시계 - 내 시계 (초)
     this.net = { seed: 0, nextIdx: 0, rally: 0, incoming: null };
+    this.rallyTierShown = 0; // 이번 랠리에서 알린 단계
     this.focus = 0; // 몰입 정도 (0~1)
     this.focusRally = 0; // 몰입 연출 기준 랠리 수 (점수 나면 0)
     this.predicted = null;
@@ -159,7 +162,7 @@ export class Game {
       this.startSwing(char, t);
       return;
     }
-    const grade = judge(t - ex.t, true);
+    const grade = judge(t - ex.t, true, this.tier());
     this.startSwing(char, t);
     if (grade === 'early') return;
     if (grade === 'miss') {
@@ -190,7 +193,7 @@ export class Game {
     const ex = this.expect;
     if (!ex) return;
     const { dir, up } = this.readStroke(h.t, h.x, h.y);
-    const grade = judge(h.t - ex.t, up);
+    const grade = judge(h.t - ex.t, up, this.tier());
     if (!up) this.charOf(me, this.mySlot).swingBlock = true;
     const smash = this.net.incoming === 'chance' && grade === 'perfect';
     this.hud.judge(grade, (smash ? 'SMASH!' : ({ perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK' })[grade]) + ARROW[dir]);
@@ -204,6 +207,9 @@ export class Game {
     if (!this.authority) this.predictHit(h.t, grade, dir, h.t - ex.t);
     this.send.swing(me, h.t, dir, up, this.mySlot);
   }
+
+  // 다음 타격의 랠리 단계 (방장의 match.rally와 같은 값인 net.rally로 계산)
+  tier() { return rallyTier(this.mode, this.net.rally); }
 
   // 상대 PC(방장 아님): 방장 응답을 기다리지 않고 내 타격 결과를 똑같은 공식으로 먼저 계산해 보여준다
   predictHit(t, grade, dir, dt = 0) {
@@ -336,6 +342,7 @@ export class Game {
         this.stats.rally = 0;
         this.speedLv = 0;
         this.net.rally = 0;
+        this.rallyTierShown = 0;
         this.net.incoming = null;
         this.focusRally = 0;
         this.predicted = null;
@@ -379,10 +386,15 @@ export class Game {
         this.expect = next ? { ...next, slot: this.order[this.turn].slot, whiffed: false } : null;
         const toMe = this.expect && this.isMe(this.expect.side, this.expect.slot);
         if (!mine && toMe) this.announceTurn(false);
+        // 랠리 단계가 오르면 알림 (찬스볼 알림과 겹치면 한 줄로)
+        const tier = rallyTier(this.mode, ev.rally);
+        const tierMsg = tier > this.rallyTierShown ? TIER_TOAST[tier] : '';
+        this.rallyTierShown = Math.max(this.rallyTierShown, tier);
         if (ev.kind === 'chance' && toMe) {
-          this.hud.toast('찬스볼! 소리에 맞춰 쳐 보세요');
+          this.hud.toast((tierMsg ? tierMsg + ' · ' : '') + '찬스볼! 소리에 맞춰 쳐 보세요', tierMsg ? 2600 : undefined);
           this.playCue(this.expect.t);
-        } else if (ev.kind === 'smash' && !mine) this.hud.toast('스매시!');
+        } else if (ev.kind === 'smash' && !mine) this.hud.toast((tierMsg ? tierMsg + ' · ' : '') + '스매시!');
+        else if (tierMsg) this.hud.toast(tierMsg, 2600);
         if (mine) {
           this.stats.rally = ev.rally;
           this.hud.hint('');
@@ -542,7 +554,7 @@ export class Game {
       w.ring.quaternion.copy(cam.quaternion); // 화면을 정면으로 보게 (가장자리에서도 동그랗게)
       const k = 1 + Math.max(0, remain) * 3.4;
       w.ringMove.scale.setScalar(k);
-      const rw = winFor(-remain);
+      const rw = winFor(-remain, this.tier());
       const col = Math.abs(remain) <= rw.perfect ? '#5dff8a' : Math.abs(remain) <= rw.good ? '#ffe24d' : '#ffb347';
       w.ringMove.material.color.set(col);
     } else w.ring.visible = false;

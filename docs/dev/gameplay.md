@@ -13,6 +13,7 @@
 - 서브 토스 위속도 3.6 (약 0.8m 위로). 서브 헛스윙은 실점 없이 다시 토스.
 - 랠리 속도 증가: 구조는 있지만 **현재 0** (`src/match.js`의 `SPEED_STEP`). 인터넷 지연 때문에 계속 빨라지는 방식은 쓰지 않는다.
 - 찬스볼·스매시 (1v1·2v2·AI, `match.js`의 `CHANCE_RALLY`/`SMASH_SPEED`/`SMASH_OUT`): 랠리 6회 넘은 뒤 BAD로 친 공 = 찬스볼 → 받는 사람 화면에만 '똑 똑 똑 띵' 신호음(마지막 높은 음 = perfect 타이밍, `audio.playCue`). 찬스볼을 PERFECT로 치면 스매시(그 공만 1.2~1.4배 랜덤, seed로 정해 모든 PC 같음). 스매시를 BAD(또는 GOOD 범위 밖 블록)로 받으면 아웃. **스매시는 높이 튀지 않고 낮고 빠르게 깔려 온다**(사용자 확정: 상대 탁구대 첫 바운드만 `physics.js`의 `E_SMASH` 0.4, 세그먼트 `smash` 표시). 이벤트 `shot`의 `kind`('chance'|'smash'|'out'), `computeShot`의 `incoming`/`dt`.
+- **랠리 단계**(사용자 확정, test, 사용자 테스트 전. 1v1·2v2·AI 모두): 화면에 보이는 랠리(AI 모드는 내가 친 횟수)가 **20·40·60회**에 닿으면 한 단계씩(`physics.js`의 `TIER_RALLY`, `rallyTier`). 단계마다 GOOD 범위만 PERFECT 쪽으로 좁아짐(일찍/늦게: 0.1/0.08 → 0.085/0.07 → 0.07/0.06 → 0.055/0.05, `GOOD_BY_TIER`). PERFECT·BAD 범위는 그대로. 블록: 1단계부터 GOOD 범위 밖 블록 = 찬스볼, 2단계부터 모든 블록 = 찬스볼(`computeShot`). GOOD이 좁아지니 스매시를 받을 때도 그만큼 BAD(아웃)가 쉬워짐. 따로 마무리 장치는 안 넣기로(사용자). AI는 단계마다 GOOD 확률 5%p씩 BAD로(`AI_TIER_BAD`). 단계가 오르면 토스트 알림(`game.js`의 `TIER_TOAST`) + 랠리 표시 색이 진해짐(`.st-rally.lv1~3`). `judge`·`winFor`에 tier를 넘긴다(방장 `match.rally`와 참가자 `net.rally`가 같은 값이라 예측도 같음).
 - 몰입 연출(1v1·2v2·AI): 랠리 6회부터 서서히 15회에 최대로 타구음·바운드음 에코(`audio.setEcho`) + 체육관 어두워짐(`world.setFocus`, 선수·탁구대·공은 그대로), 점수 나면 약 1초에 원래대로. 설정은 `game.js`의 `FOCUS`, `scene.js`의 `FOCUS_DARK`.
 - 타이밍 링은 칠 자리가 화면 밖이어도 화면 가장자리 안쪽에 보인다(`game.js`의 `RING`).
 

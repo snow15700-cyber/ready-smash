@@ -1,5 +1,5 @@
 import { createWorld, CHAR_Z } from './scene.js';
-import { sideSign } from './physics.js';
+import { sideSign, tierOf } from './physics.js';
 import { createLobbyDemo, LOBBY_CAM } from './lobbyDemo.js';
 import { Game } from './game.js';
 import { Match, AI_NAME } from './match.js';
@@ -69,7 +69,9 @@ const hud = {
   stats(st) {
     if (!game) return;
     const hot = st.rally >= 6 ? ' hot' : ''; // 랠리 6회부터 몰입 연출과 함께 🔥
-    let html = `<div class="st-rally${hot}"><span>${hot ? '🔥 ' : ''}랠리</span><b>${st.rally}</b></div>`;
+    const lv = tierOf(st.rally); // 랠리 단계 20·40·60회 (판정이 빡빡해짐)
+    const fire = hot ? '🔥'.repeat(Math.max(1, lv)) + ' ' : '';
+    let html = `<div class="st-rally${hot}${lv ? ` lv${lv}` : ''}"><span>${fire}랠리</span><b>${st.rally}</b></div>`;
     if (game.mode === 'ai') {
       html += `<div class="st-sub"><span>🏅 최고 ${st.best}</span><span>✨ Perfect ${st.perfects}</span>${account.loggedIn ? `<span class="coin">🪙 +${aiCoins}</span>` : ''}</div>`;
     }
