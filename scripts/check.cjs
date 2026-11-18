@@ -263,6 +263,55 @@ async function browserChecks() {
       return `옷장 아이템 ${n}칸`;
     });
 
+    // 화면 파일(src/ui/)마다 버튼이 제대로 연결됐는지: 뽑기·장착·칭호, 업데이트·치는 방법 창, PIN 바꾸기, 랭킹 탭
+    await step('화면: 뽑기·장착·칭호·알림 창·PIN 화면', async () => {
+      const vis = (sel) => page.evaluate((s) => !document.querySelector(s).classList.contains('hidden'), sel);
+      const click = (sel) => page.evaluate((s) => document.querySelector(s).click(), sel);
+      await click('#btn-updates');
+      must(await vis('#updates'), '업데이트 창이 안 열려요');
+      await click('#btn-updates-close');
+      await click('#btn-howto');
+      must(await vis('#howto'), '치는 방법 창이 안 열려요');
+      await click('#btn-howto-close');
+      await click('#btn-me-menu');
+      await click('#btn-pin');
+      must(await vis('#pin-change'), 'PIN 바꾸기 화면이 안 열려요');
+      await click('#btn-pin-cancel');
+      must(await vis('#lobby'), 'PIN 화면에서 로비로 못 돌아와요');
+      await click('#btn-rank');
+      await waitFor(page, () => !document.querySelector('#rank').classList.contains('hidden'), null, 10000, '랭킹 화면');
+      await click('#rank-tab-rally');
+      await waitFor(page, () => document.querySelector('#rank-tab-rally').classList.contains('on') && !/불러오는/.test(document.querySelector('#rank-list').textContent), null, 10000, '최장 랠리 탭');
+      await click('#btn-rank-back');
+      // 꾸미기: 시험 코인 → 뽑기 10번 → 뽑은 것 장착 → 칭호 탭
+      await click('#btn-closet');
+      await waitFor(page, () => !document.querySelector('#dress').classList.contains('hidden') && document.querySelectorAll('#item-grid > *').length > 0, null, 15000, '옷장');
+      await click('#tab-gacha');
+      await click('#btn-test-coins');
+      await waitFor(page, () => !document.querySelector('#btn-gacha-10').disabled, null, 10000, '뽑기 버튼 (시험 코인)');
+      await click('#btn-gacha-10');
+      await waitFor(page, () => document.querySelectorAll('#gacha-result > li').length === 10, null, 15000, '뽑기 10장');
+      await waitFor(page, () => !document.querySelector('#btn-gacha-1').disabled, null, 15000, '뽑기 끝');
+      await click('#tab-closet');
+      const before = await page.evaluate(() => JSON.stringify(window.__smash.shop.myEquip()));
+      // 가진 것 중 장착 안 한 카드 하나 누르기 (카테고리를 돌며 찾음)
+      let equippedOne = false;
+      for (const cat of ['paddle', 'body', 'ball', 'bg']) {
+        await page.evaluate((c) => document.querySelector(`#cat-chips [data-cat="${c}"]`)?.click(), cat);
+        await page.waitForTimeout(150);
+        const ok = await page.evaluate(() => { const li = document.querySelector('#item-grid li.card:not(.locked):not(.on)'); if (li) li.click(); return !!li; });
+        if (ok) { equippedOne = true; break; }
+      }
+      if (equippedOne) await waitFor(page, (b) => JSON.stringify(window.__smash.shop.myEquip()) !== b, before, 10000, '장착');
+      await click('#tab-title');
+      await waitFor(page, () => document.querySelectorAll('#pane-title li.ach').length > 0, null, 10000, '칭호 탭 업적 목록');
+      const nAch = await page.evaluate(() => document.querySelectorAll('#pane-title li.ach').length);
+      await click('#btn-dress-back');
+      must(await vis('#lobby'), '꾸미기에서 로비로 못 돌아와요');
+      flush();
+      return `뽑기 10장, ${equippedOne ? '장착 확인' : '장착할 새 아이템 없음'}, 업적 ${nAch}개`;
+    });
+
     await step('화면: 1대1 방 (탭 두 개) 만들기 → 입장 → 팀 고르기 → 경기 시작', async () => {
       const guest = await ctx.newPage();
       watch(guest, '참가자', errs);

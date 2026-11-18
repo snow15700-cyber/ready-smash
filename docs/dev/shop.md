@@ -2,7 +2,7 @@
 
 > CLAUDE.md에서 옮겨 온 상세 기록. 작업할 때 필요한 부분만 읽는다. 새로 정해진 것도 여기에 적는다.
 
-## 상점·꾸미기 (① 코인, ② 상점·옷장 완료 — test에서 사용자 테스트 중)
+## 상점·꾸미기 (① 코인, ② 상점·옷장 완료 — main 배포됨)
 - 설계는 기획서 4장. 순서: ① 코인 벌기 → ② 상점·옷장 화면 → ③ 카테고리 하나씩(탁구채부터). 단계마다 사용자 테스트.
 - 카테고리: 탁구채(개그 탁구채 많이), 머리, 몸(흰 몸 위 장식), 탁구대, 배경, 탁구공, 궤적.
 - 배경·탁구대·공은 **방장 것**으로 통일, 궤적은 **친 사람 것**, 탁구채·머리·몸은 각자.
@@ -12,16 +12,16 @@
 - **② 상점·옷장**: `supabase/06_shop.sql`(05 다음). 표 `pingpong_items`(서버 쪽 아이템 목록: id·pool·cat·grade·on_sale)·`pingpong_inventory`, 선수에 `pieces`·`pity_char`·`pity_arena`·`equip`(jsonb). 함수 `pingpong_shop`·`gacha(pool, 1|10)`·`buy(item, 'coins'|'pieces')`·`equip(cat, item|null)`. 뽑기는 서버 `random()`, 그 등급에 아이템이 없으면 있는 등급에서. 기본 아이템(`DEFAULTS`)은 표에 없고 장착 해제 = 기본.
   - **아이템 목록은 두 곳**: `src/items.js`(이름·색·모양, `GRADES`·`CATS`·`POOLS`)와 06_shop.sql의 insert. 추가할 때 둘 다 고친다(SQL은 새 파일로 insert만 해도 됨).
   - 지금 아이템: 탁구채 색 일반 5종(파랑·초록·노랑·검정·분홍) + 고급 2종(황금·네온, 빛남). 경기장 뽑기는 비어 있어 '곧 열려요'.
-- **③ 탁구채 1차 (test에서 사용자 테스트 중)**: 사용자 확정 = 옷장에 바로 넣기, 탁구채를 두 번에 나눔(1차 무늬+개그 15종, 2차 전설 7종 + 전용 타구음). 몸은 한 칸(한 벌씩, 몸통에 색·무늬 칠하기).
+- **③ 탁구채 1차 (main 배포됨)**: 사용자 확정 = 옷장에 바로 넣기, 탁구채를 두 번에 나눔(1차 무늬+개그 15종, 2차 전설 7종 + 전용 타구음). 몸은 한 칸(한 벌씩, 몸통에 색·무늬 칠하기).
   - 무늬 4종(줄무늬·물방울·하트·번개) **일반**, 개그 15종(식빵·바게트·도넛·피자·수박·와플·고등어·밥주걱·삼선 슬리퍼·파리채·태극 부채·수세미·탁구 교재·칠판지우개·도마) **고급** — 등급은 Claude가 정한 초안. `supabase/07_paddles.sql`(06 다음).
   - 구현: 아이템의 `model` → `items.js`의 `PADDLE_MODELS`(판 가운데 = 원점, 면 ±z, +z가 내 쪽, 손잡이 -y). `applyLook`은 바뀐 게 없으면 아무것도 안 함(미리보기에서 매 프레임 불림) → `char.setPaddleModel(group|null)`(scene.js, 불투명도 다시 적용). 탁구채 부품은 반투명이어도 depthWrite.
-  - **목록 그림은 미리 찍은 파일**(옷장 렉 해결, test에서 사용자 테스트 전): `npm run thumbs`(`scripts/make-thumbs.cjs`, Playwright)가 탁구채·몸·탁구공 전부를 `src/thumbs/<id>.webp`로 저장 → `items.js`의 `swatch`가 있으면 그 파일(`import.meta.glob`, `?no-inline`으로 따로 된 파일), 없으면 예전처럼 그 자리에서 찍음(느림). **아이템을 추가하거나 모양을 바꾸면 `npm run thumbs`를 꼭 다시 실행**(id만 주면 그것만: `npm run thumbs -- paddle_duck`).
+  - **목록 그림은 미리 찍은 파일**(옷장 렉 해결, main 배포됨): `npm run thumbs`(`scripts/make-thumbs.cjs`, Playwright)가 탁구채·몸·탁구공 전부를 `src/thumbs/<id>.webp`로 저장 → `items.js`의 `swatch`가 있으면 그 파일(`import.meta.glob`, `?no-inline`으로 따로 된 파일), 없으면 예전처럼 그 자리에서 찍음(느림). **아이템을 추가하거나 모양을 바꾸면 `npm run thumbs`를 꼭 다시 실행**(id만 주면 그것만: `npm run thumbs -- paddle_duck`).
   - 목록 그림: `paddleImage(it, px)`가 작은 WebGL로 3D 탁구채를 찍어 data URL로 캐시 → `swatch`.
-- **탁구채 2차 + 탁구채별 타구음 (test에서 사용자 테스트 중)**: 전설 7종(프라이팬(달걀 프라이)·통기타·키보드(파스텔 키캡)·마우스·스마트폰·고무 오리·뿅망치) `supabase/08_legend_paddles.sql`.
+- **탁구채 2차 + 탁구채별 타구음 (main 배포됨)**: 전설 7종(프라이팬(달걀 프라이)·통기타·키보드(파스텔 키캡)·마우스·스마트폰·고무 오리·뿅망치) `supabase/08_legend_paddles.sql`.
   - 사용자 확정 소리(ASMR, 전부 듣기 좋게): 식빵·바게트·도넛·와플·피자 = 빵 '푸석'(`bread`), 수박 = 과육 누르는 소리(`melon`), 고등어 = '철썩'(`fish`), 밥주걱·슬리퍼·파리채·부채 = 약간 탁한 플라스틱(`plastic`), 수세미·칠판지우개 = 약한 푸석(`sponge`), 교재·도마·색·무늬 = 기본 타구음. 전설은 각자 전용(프라이팬 '댕~', 기타 G→Em→C→D 화음을 차례로, 키보드 '타닥'(퍼펙트 3번), 마우스 '딸깍'(퍼펙트 더블클릭), 스마트폰 '톡'+알림음, 오리 '꽥', 뿅망치 '뿅').
   - **친 사람의 탁구채 소리**가 난다(사용자 확정). 아이템의 `sound` → `applyLook`이 `char.sound`에 → `game.js`의 로컬 타구음과 `shot` 세그먼트(`sound`) → `audio.playHit(grade, pos, when, skin)`의 `HIT_SKINS`. 등급(퍼펙트/굿/배드/블록)마다 크기·밝기가 다르다. 음량은 `SKIN_GAIN`으로 맞춤.
   - 소리 확인: 페이지에서 `AudioContext`를 `OfflineAudioContext`로 바꿔 `playHit`을 렌더링하면 음량을 재고 WAV로 저장할 수 있다.
-- **전설 탁구채 비주얼 업데이트 (test에서 사용자 테스트 중)**: 사용자 확정 = 물건 특징에 맞춰 ① 모양 더 정교하게 ② 전설 느낌 ③ 칠 때 효과. 보기만 다름(판정·동기화와 무관, 메시지 변화 없음).
+- **전설 탁구채 비주얼 업데이트 (main 배포됨)**: 사용자 확정 = 물건 특징에 맞춰 ① 모양 더 정교하게 ② 전설 느낌 ③ 칠 때 효과. 보기만 다름(판정·동기화와 무관, 메시지 변화 없음).
   - 모양: `items.js`의 전설 7종을 다시 만듦(윤기 `phong`, 뒷면도 꾸밈 — 상대는 내 탁구채 뒷면을 본다). 프라이팬(달걀·베이컨), 통기타(로제트·프렛·줄감개), 키보드(한글 자판·돌돌 케이블), 마우스(휠·센서 불빛), 스마트폰(잠금 화면·카메라 섬), 오리(삐죽 털·깃), 뿅망치(아코디언 주름·별 스티커).
   - 전설 느낌: `legendAura`(은은한 후광 + 깜빡이는 반짝이) + 물건마다 스스로 움직임(김, 줄에 흐르는 빛·음표, 무지개 키 불빛, 화면 빛, 비눗방울 등). 모델의 `userData.tick(t, dt)`를 `world.render()`가 매 프레임 부른다.
   - 칠 때: `src/fx.js`의 `HITS`(기름·불꽃 / 음표 / 키캡·ㅋㅋㅋ / 클릭 물결·화살표 / 하트·좋아요 / 물방울·비눗방울 / 별·'뿅!'), 등급이 높을수록 많이. 모델의 `userData.hit()`로 탁구채도 반응(달걀 탱글, 줄 떨림, 키 물결, 딸깍, 알림 배너, 오리·주름 찌그러짐). 흐름: `applyLook`이 `char.fx`(전설만) → `world.hitFx(char, pos, grade)` ← `game.js`(내 클릭 즉시 + `shot` 세그먼트의 `by`)·`lobbyDemo.js`·꾸미기 '🔊' 버튼.
@@ -31,11 +31,11 @@
   - 꾸미기 적용: `items.applyLook(char, equip)` → `char.setPaddle`. 방에서는 presence의 `look`(입장할 때의 장착)을 `looks()`로 모아 `Game`의 `looks[side][slot]`에. AI는 기본. 로비 배경 캐릭터도 내 장착.
   - 혼자 하기 코인(사용자 확정, 1v1·2v2 분당 코인의 약 50%): **내가 친 4번마다 1코인**. `supabase/05_ai_coins.sql`의 `pingpong_ai_start`(시작 시각)·`pingpong_ai_rally(hits)`(랠리 끝마다, 서버가 경과 초+1번까지만 인정, 나머지 `ai_rem` 이월). 화면은 `Game`의 `onRally` → `aiRally`, HUD에 `🪙 +N`, 나갈 때 토스트.
 
-- **몸 꾸미기 (test에서 사용자 테스트 중)**: 사용자 확정 = 한 벌씩 통째로, 품목 새로 정함(위트·귀여운 것), 곰 인형탈은 몸만(머리는 나중에 세트), 전설은 움직이는 효과 필수, 정성은 일반 < 고급 < 전설.
+- **몸 꾸미기 (main 배포됨)**: 사용자 확정 = 한 벌씩 통째로, 품목 새로 정함(위트·귀여운 것), 곰 인형탈은 몸만(머리는 나중에 세트), 전설은 움직이는 효과 필수, 정성은 일반 < 고급 < 전설.
   - 29종: 일반 10(칠하기) · 고급 14(몸이 음식·동물로 변신, 소품) · 전설 5(영웅 망토·오리 튜브·미러볼·기사 갑옷·곰 인형탈, 효과). `src/outfits.js`의 `OUTFITS`·`PAINT`·`BUILD`, `makeOutfit(id, char)`.
   - 캐릭터: `char.setOutfit(o|null)`(흰 몸통 숨김), 전설 효과는 매 프레임 `char.tickOutfit(t, dt)`. 효과 메시·스프라이트는 `userData.fx`(반투명 설정 안 받음), 원래 반투명 재질은 `material.userData.baseOp`.
   - 시안 보기 페이지 `outfits.html`(`src/outfits-page.js`, vite 빌드 입력에 포함). 주소 옵션 `?id=cape&yaw=3.6&t=2`(각도·시각 고정), `&op=0.38`(경기 중 내 캐릭터처럼 반투명).
-  - **전설 5종 다듬기 (사용자 확정 = A안: 디자인 그대로, 모양·효과만 정교하게, test에서 사용자 테스트 중)**: 반사 그림 `envCube('studio'|'steel'|'disco')`(CubeTexture, 공용이라 버리지 않음 — `setOutfit`은 map·normalMap·emissiveMap·alphaMap만 버림).
+  - **전설 5종 다듬기 (사용자 확정 = A안: 디자인 그대로, 모양·효과만 정교하게, main 배포됨)**: 반사 그림 `envCube('studio'|'steel'|'disco')`(CubeTexture, 공용이라 버리지 않음 — `setOutfit`은 map·normalMap·emissiveMap·alphaMap만 버림).
     - 영웅 망토: 어깨를 감싸고 아래로 퍼지는 주름 망토(바깥 빨강·안 금색), 작게 세운 깃, 보석 고정쇠 + 가슴 금 사슬, 입체 금 방패 문장·벨트 버클·부츠 테, 근육 음영.
     - 오리 튜브: 밝은 노랑, 이음매·바람 꼭지, 위아래 부리·눈 하이라이트·머리 깃털, 파닥이는 날개, 치켜든 꼬리.
     - 미러볼: 거울 조각마다 기울기(normalMap)가 달라 조명을 비춤(`disco` 반사), 반짝 조각 무지개, 뒤로 펼친 깃털 깃, 보석 목줄·보석 버클 벨트, 몸에서 바닥 조명 점으로 뻗는 은은한 빛줄기.

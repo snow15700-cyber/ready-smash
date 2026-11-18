@@ -19,12 +19,12 @@
 - **AI는 절대 실수하지 않는다**(헛스윙·아웃 없음, 내 스매시도 다 받음). 가끔(약 18%) BAD(약한 공)를 쳐서 랠리 6회 넘으면 찬스볼이 된다. 랠리는 내가 실수해야만 끝난다.
 - 구현: `match.js`의 `AI`(등급별 확률·`smash`·`dir`), `aiPlan`. AI 차례가 오면 `expect.ai`에 칠 방법을 미리 정하고 `update`에서 친다. 스매시가 오면 BAD 대신 GOOD(아웃 방지).
 
-## 모바일 (1단계, test에서 사용자 테스트 중)
+## 모바일 (1단계, main 배포됨)
 - 사용자 확정: 휴대폰은 **혼자 하기 + 경기 관전**(관전은 나중에 추가). 로비에 'PC에서 즐겨 주세요' 안내(`#mobile-note`), 1v1·2v2·코드 입장 버튼은 흐리게 잠그고 누르면 토스트. 상점·옷장·랭킹은 그대로.
 - 판별: `main.js`의 `IS_MOBILE`(UA의 Android·iPhone 등 + 아이패드 + 터치만 있고 hover 없음). 갤럭시는 S펜 때문에 `any-pointer: fine`이라 미디어 쿼리만으로는 안 잡힌다. 주소에 `?mobile=1`이면 PC에서도 흉내. `body.mobile canvas`에 `touch-action: none`(밀어도 스크롤·확대 안 됨).
 - 아직 안 한 것(2단계 후보): 터치용 스윙 판정(손가락은 닿기 전 움직임이 없어 HOLD 0.09초 안에 밀어야 함), 휴대폰 방장 문제, LTE 지연·앱 전환 끊김, 화면 안내 문구('클릭', '마우스')를 터치용으로.
 
-## 링크 미리보기 (카톡 등, test에서 사용자 테스트 중)
+## 링크 미리보기 (카톡 등, main 배포됨)
 - 사용자 확정: 안 A '게임 화면형'(왼쪽 큰 제목 + 흰 알약 문구, 오른쪽 체육관 2대2 장면). 설명 문구 **"친구들과 복식 한 판 어때요?"**.
 - `index.html`의 `og:*` 태그 + 그림 `public/og.jpg`(1200×630). 주소는 main 배포 `https://ready-smash.vercel.app/` 고정(카톡은 전체 주소가 필요).
 - 그림은 로비 장면을 Playwright로 찍고(팀원 한 명씩 더 세움) HTML로 제목을 얹어 캡처해서 만들었다.
@@ -37,9 +37,9 @@
 - 응원·관중 명단은 따로 `pingpong-watch-XXXX` 채널(presence + 응원, 한 사람 2초에 1번). 선수는 여기서 관중 수·응원만 받는다. 관중 캐릭터는 12명까지 그리고 나머지는 '+N명'.
 - 단계: ① 로비 방 목록 + 눌러서 참가 ✓(test) → ② 관전 기본 ✓(test)(듣기만, 0.5초 늦게, 옆 중계 카메라·A/B 시점, 다음 서브부터) → ③ 방 넘나들기 ◀▶ + 🎲 아무 경기나 보기 ✓(test-spectate) → ④ 관중석 캐릭터 + 응원 버튼(👏🔥📣) + 선수 화면에 관중 ✓(test-spectate) → ⑤ 관중 → 다음 판 참가 ✓(test-spectate).
 - 중간 입장 때 선수 정보: `go`를 놓치므로 ②에서 로비 목록 정보(또는 방장 presence)에 선수 `{id, side, slot}`을 경기 시작 때 한 번 넣는다. 점수는 `serveReady`에 들어 있음.
-- **① 로비 방 목록 구현**: `net.js`의 `joinLobby`(presence만 쓰는 채널 `pingpong-lobby`, 테스트 배포는 `pingpong-test-lobby`. 로컬은 BroadcastChannel + 1초 신호). 로비·코드 입장 화면에 있을 때 + 내가 방장일 때만 붙는다(`main.js`의 `syncLobby`). 방장은 `{code, mode, nick, n, cap, play, score}`를 **바뀔 때만** track(`announceRoom`: 사람 수, 경기 시작/끝, 점수 `point`). 목록 순서 = 참가 가능 → 경기 중(점수, '관전 · 곧') → 꽉 참. 로비 안 목록은 화면 높이에 따라 1~3줄 + '외 N개 방'. 서버 SQL 없음. 코드 입장은 그대로.
+- **① 로비 방 목록 구현**: `net.js`의 `joinLobby`(presence만 쓰는 채널 `pingpong-lobby`, 테스트 배포는 `pingpong-test-lobby`. 로컬은 BroadcastChannel + 1초 신호). 로비·코드 입장 화면에 있을 때 + 내가 방장일 때만 붙는다(`ui/lobbyList.js`의 `syncLobby`). 방장은 `{code, mode, nick, n, cap, play, score}`를 **바뀔 때만** track(`announceRoom`: 사람 수, 경기 시작/끝, 점수 `point`). 목록 순서 = 참가 가능 → 경기 중(점수, '관전 · 곧') → 꽉 참. 로비 안 목록은 화면 높이에 따라 1~3줄 + '외 N개 방'. 서버 SQL 없음. 코드 입장은 그대로.
   - 배치(사용자 확정 = A안): 로비 '친구랑 하기' 카드 아래 '🏟️ 지금 열린 방'(`#lb-rooms`). B안('방 찾기' 화면 안)은 지움.
-- **② 관전 기본 구현**: 로비 목록의 경기 중 방 '👀 관전'(방장이 막았으면 '관전 막힘') → `main.js`의 `startWatch`. 선수 채널은 `joinRoom(..., { listen: true })`(presence track·send 안 함, 로컬은 신호도 안 보냄). 관중석 채널 `joinWatch`(`pingpong-watch-XXXX`)에 track해서 관중 수·16명 제한(`WATCH_MAX`, 늦게 온 사람이 나감).
+- **② 관전 기본 구현**: 로비 목록의 경기 중 방 '👀 관전'(방장이 막았으면 '관전 막힘') → `ui/watch.js`의 `startWatch`. 선수 채널은 `joinRoom(..., { listen: true })`(presence track·send 안 함, 로컬은 신호도 안 보냄). 관중석 채널 `joinWatch`(`pingpong-watch-XXXX`)에 track해서 관중 수·16명 제한(`WATCH_MAX`, 늦게 온 사람이 나감).
   - 선수 자리 `{id, side, slot}`는 방장이 로비 정보 `pl`에 경기 시작 때 넣는다(`announceRoom`, `w` = 관전 허용). 이름·꾸미기·칭호는 선수 채널 presence에서(`onWatchMembers`). 배경·공은 방장 것.
   - 시계: 듣기만 하므로 ping을 안 보낸다. 다른 선수가 받는 `pong`의 `th`와 이벤트 `shot`/`toss`의 `t`로 `방장 시각 - 받은 순간`의 최댓값 = `game.offset`(`watchClock`). 결과적으로 방장보다 전달 시간만큼 늦게 부드럽게 흐른다(따로 0.5초를 더 늦추지는 않음 — 늦게 온 이벤트 처리는 원래 참가자 PC와 같은 방식).
   - 시계 표본이 생긴 뒤 첫 `serveReady`부터 중계(그 전엔 '다음 서브부터 중계해요…'). 방장이 나가거나, 명단에서 본 선수가 사라지면 로비로. 경기 끝(`gameOver`) → `hud.watchOver`(이긴 쪽 이름 결과 띠) 3초 뒤 로비로(⑤에서 '다음 판 참가'로 바꿀 예정).
