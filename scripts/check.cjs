@@ -6,7 +6,7 @@
 //                   anon(브라우저) 권한으로 가입·로그인·상점·뽑기·장착·업적·랭킹을 불러 보고, 표를 직접 못 읽는지
 //  3. 목록 맞추기 — items.js ↔ SQL 아이템(등급·뽑기 통·카테고리), achievements.js ↔ SQL 업적, 목록 그림 파일
 //  4. 화면        — 브라우저로 게임을 띄워 손님·로그인(로컬 가짜 서버), 혼자 하기, 꾸미기, 랭킹, 1대1 방·관전,
-//                   1대1 방 만들기→입장→팀 고르기→경기 시작(탭 두 개), 배경 6종, 시안 페이지 2개를 돌려 보고 오류가 없는지
+//                   1대1 방 만들기→입장→팀 고르기→경기 시작(탭 두 개), 배경 9종, 시안 페이지 2개를 돌려 보고 오류가 없는지
 //
 // 옵션: --no-sql (DB 점검 건너뛰기) --no-browser (화면 점검 건너뛰기)
 // DB: 환경 변수 CHECK_PG(예: postgres://postgres:postgres@localhost:5432)가 있으면 그것, 없으면 이 PC의 PostgreSQL(su postgres).
@@ -427,13 +427,13 @@ async function browserChecks() {
       return `방 코드 ${code}, 관전 확인`;
     });
 
-    await step('화면: 배경 6종 짓기·바꾸기', async () => {
+    await step('화면: 배경 9종 짓기·바꾸기', async () => {
       const r = await page.evaluate(async () => {
         const w = window.__smash.world, out = [];
         const orig = w.setArena; let want = 'gym';
         w.setArena = () => orig(want); // 루프가 내 장착으로 되돌리지 않게
         try {
-          for (const id of ['commute', 'evening', 'picnic', 'beach', 'snow', 'bakery', 'gym']) {
+          for (const id of ['commute', 'evening', 'picnic', 'beach', 'snow', 'bakery', 'classroom', 'training', 'parking', 'gym']) {
             want = id;
             const t = performance.now();
             while (w.arenaId !== id && performance.now() - t < 40000) await new Promise((r) => setTimeout(r, 50));
