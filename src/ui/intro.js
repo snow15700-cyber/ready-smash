@@ -3,7 +3,10 @@ import { equipped } from '../items.js';
 import { sideSign } from '../physics.js';
 import { CHAR_Z } from '../scene.js';
 import { hud } from './hud.js';
-import { TEAM_NAME, looks, myId, playerNames, room, roomTpill } from './room.js';
+import { account } from '../account.js';
+import { breakAt } from '../breaks.js';
+import { ic } from '../icons.js';
+import { TEAM_NAME, looks, myId, playerNames, room, roomTpill, streakOf } from './room.js';
 import { holdPose, lookPills, stage, stageFrame, stageOff } from './stage.js';
 import { $, ease, esc, game, match, world } from './state.js';
 
@@ -31,15 +34,40 @@ export function startIntro(players, mySide, mode) {
   $('room').classList.remove('hidden');
   $('room').classList.add('leaving');
   const card = (s) => {
-    return `<div class="vi-card">${roomTpill(s.id)}<div class="nm t${s.side}">${esc(s.name)}${s.id === myId ? '<small>나</small>' : ''}</div>${lookPills(s.look)}</div>`;
+    const st = streakOf(s.id);
+    const fire = st >= 2 ? `<div class="vi-streak">${ic('flame')}${st}연승 중</div>` : '';
+    return `<div class="vi-card">${roomTpill(s.id)}<div class="nm t${s.side}">${esc(s.name)}${s.id === myId ? '<small>나</small>' : ''}</div>${lookPills(s.look)}${fire}</div>`;
   };
   const team = (side) => `<div class="vi-team">${side === mySide ? (mode === '2v2' ? '우리 팀' : '나') : (mode === '2v2' ? '상대 팀' : '상대')} · ${TEAM_NAME[side]}</div>`
     + seats.filter((s) => s.side === side).map(card).join('');
   $('vi-opp').innerHTML = team(1 - mySide);
   $('vi-us').innerHTML = team(mySide);
   $('vi-num').innerHTML = '';
+  $('vi-stake').innerHTML = stakes(seats, mySide, mode).map((x, i) => `<div class="vs-chip" style="animation-delay:${0.15 + i * 0.18}s">${x}</div>`).join('');
   $('vs-intro').className = 'vs-intro';
   renderSkip();
+}
+
+// '이 판에 걸린 것' (내 쪽에서 본 것, PC마다 다름): 상대 전적 → 상대 연승 → 내 연승 → 쉬는 시간 코인. 최대 3개
+// 상대 전적은 대기실이 불러 둔 room.h2h (1v1, 둘 다 로그인), 연승은 streakOf (보여 주기만)
+function stakes(seats, mySide, mode) {
+  const out = [];
+  const opps = seats.filter((s) => s.side !== mySide);
+  const oppM = mode === '1v1' && room ? room.members.find((m) => m.id === opps[0]?.id) : null;
+  const h = account.loggedIn && oppM?.pid ? room.h2h[oppM.pid] : null;
+  if (h) {
+    const rec = `상대 전적 ${h.wins}승 ${h.losses}패`;
+    if (h.wins + h.losses === 0) out.push(`${ic('swords')}<b>첫 대결!</b>`);
+    else if (h.losses > h.wins) out.push(`${ic('swords')}<b>복수전!</b> ${rec}`);
+    else if (h.wins > h.losses) out.push(`${ic('trophy')}${rec} · <b>우세 지키기</b>`);
+    else out.push(`${ic('swords')}${rec} · <b>이번 판이 승부처</b>`);
+  }
+  const oppSt = Math.max(0, ...opps.map((s) => streakOf(s.id)));
+  if (oppSt >= 2) out.push(`${ic('flame')}<b>연승 저지 찬스!</b> ${mode === '2v2' ? '상대 팀' : '상대'} ${oppSt}연승 중`);
+  const mine = streakOf(myId);
+  if (mine >= 2) out.push(`${ic('flame')}이기면 <b>${mine + 1}연승</b>${(mine + 1) % 3 === 0 ? ' · 연승 보너스 코인' : ''}`);
+  if (account.loggedIn && breakAt()) out.push('☕ 쉬는 시간 · <b>코인 +50%</b>');
+  return out.slice(0, 3);
 }
 
 // 건너뛰기: 선수 모두가 누르면 모든 PC가 각자 정적(hush)으로 넘어간다

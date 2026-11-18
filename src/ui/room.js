@@ -15,6 +15,9 @@ import { practiceSwing, renderStageLabels, stage } from './stage.js';
 import { $, IS_MOBILE, MOBILE_MSG, esc, game, match, myNemesis, myNick, setGame, setMatch, tpill, world } from './state.js';
 import { gotAch, runAchCheck } from './titles.js';
 
+// 내 연승 (로그인했을 때만, 서버가 준 값). 다른 선수 것은 팀 고를 때 'st'에 실려 온다 (보여 주기만, 코인과 무관)
+export const myStreak = () => (account.loggedIn ? account.player.win_streak || 0 : 0);
+export const streakOf = (id) => (id === myId ? myStreak() : room?.teams[id]?.streak || 0);
 export const roomTpill = (id) => { const m = room?.members.find((x) => x.id === id); return tpill(m?.title, m?.titleX); };
 export let room = null;
 /* ───────── 온라인 방 (1v1 / 2v2) ─────────
@@ -131,7 +134,7 @@ function onMembers(list) {
 function sendState() {
   if (!room) return;
   const t = room.teams[myId];
-  room.link.send({ k: 'st', id: myId, team: t ? t.team : null, at: t ? t.at : 0 });
+  room.link.send({ k: 'st', id: myId, team: t ? t.team : null, at: t ? t.at : 0, streak: myStreak() });
 }
 
 // 팀에 들어온 순서대로 (먼저 고른 사람이 1번)
@@ -189,7 +192,7 @@ function onRoomMsg(m) {
     case 'st':
       if (room.inGame) break;
       if (m.team == null) delete room.teams[m.id];
-      else room.teams[m.id] = { team: m.team, at: m.at };
+      else room.teams[m.id] = { team: m.team, at: m.at, streak: Math.min(999, Math.max(0, m.streak | 0)) }; // 연승: 경기 전 연출에 보여 주기만
       resolveOverflow();
       renderRoom();
       break;
