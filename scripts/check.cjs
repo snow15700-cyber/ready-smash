@@ -67,7 +67,7 @@ function findPostgres() {
   return null;
 }
 const DB = 'smash_check';
-function sqlCheck() {
+async function sqlCheck() {
   if (args.has('--no-sql')) return 'skip';
   psql = findPostgres();
   if (!psql) { say('   (PostgreSQL이 없어 DB 점검은 건너뛰고, 목록 맞추기는 SQL 파일을 직접 읽어요)'); return 'skip'; }
@@ -106,13 +106,32 @@ function sqlCheck() {
   must(json(`public.pingpong_achievements(${tk})`).status === 'ok', '업적 목록 실패');
   json(`public.pingpong_ranking('wins')`);
   json(`public.pingpong_ranking('rally')`);
+  // 19 쉬는 시간 보너스: 서버 규칙(pingpong__is_break) == 화면 규칙(src/breaks.js)
+  const { breakAt } = await import(path.join(ROOT, 'src', 'breaks.js'));
+  const times = [];
+  for (const day of ['2026-11-16', '2026-11-20', '2026-11-21', '2026-11-22']) // 월·금·토·일
+    for (let m = 8 * 60; m <= 19 * 60; m += 5) times.push(`${day}T${String(m / 60 | 0).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}:00+09:00`);
+  times.push('2026-11-16T09:59:59+09:00', '2026-11-16T10:00:00+09:00', '2026-11-16T12:59:59+09:00', '2026-11-16T13:00:00+09:00', '2026-11-16T18:00:00+09:00');
+  const srv = psql(DB, `select string_agg(public.pingpong__is_break(t::timestamptz)::text, ',' order by n) from unnest(array['${times.join("','")}']) with ordinality as x(t, n);`).split(',');
+  times.forEach((t, i) => must((srv[i] === 'true') === !!breakAt(Date.parse(t)), `쉬는 시간 규칙이 서버와 화면이 달라요: ${t} 서버 ${srv[i]}`));
+  must(srv.filter((x) => x === 'true').length > 0, '쉬는 시간이 하나도 없어요');
+  // 보너스가 실제로 붙는지: 잠시 '언제나 쉬는 시간'으로 바꾸고 경기 하나 정산 → 19를 다시 실행해 되돌림
+  psql(DB, `create or replace function public.pingpong__is_break(t timestamptz) returns boolean language sql as $$ select true $$;`);
+  const mid = '00000000-0000-4000-8000-000000000019';
+  must(json(`public.pingpong_match_join(${tk}, '${mid}', '1v1', 0)`).status === 'ok', '경기 입장 실패');
+  psql(DB, `update public.pingpong_matches set started_at = now() - interval '2 minutes' where id = '${mid}';`);
+  const fin = json(`public.pingpong_match_finish(${tk}, '${mid}', true, 0, 0)`);
+  psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '19_break_bonus.sql'), 'utf8'));
+  must(fin.status === 'ok', '경기 정산 실패: ' + JSON.stringify(fin).slice(0, 200));
+  const brk = fin.coins.items.find((i) => /쉬는 시간/.test(i.label));
+  must(brk && brk.coins === 10 && fin.coins.total === 30, '쉬는 시간 보너스가 안 붙어요: ' + JSON.stringify(fin.coins));
   // 표는 브라우저가 직접 못 읽어야 한다 (RLS·권한)
   for (const t of ['pingpong_players', 'pingpong_sessions', 'pingpong_inventory', 'pingpong_matches']) {
     let leaked = true;
     try { q(`select count(*) from public.${t};`); } catch { leaked = false; }
     must(!leaked, `브라우저(anon)가 표 ${t}를 직접 읽을 수 있어요`);
   }
-  return `${SQL_FILES.length}개 파일 × 2번 실행, 가입·로그인·상점·뽑기·구매·장착·업적·랭킹, 표 잠금 확인`;
+  return `${SQL_FILES.length}개 파일 × 2번 실행, 가입·로그인·상점·뽑기·구매·장착·업적·랭킹·쉬는 시간 보너스, 표 잠금 확인`;
 }
 
 /* ───────── 3. 목록 맞추기 (서버 ↔ 화면) ───────── */
@@ -218,6 +237,28 @@ async function browserChecks() {
       for (const it of web.items.filter((i) => i.cat === 'bg')) if (!fs.existsSync(path.join(ROOT, 'public', 'arenas', `${it.arena}.jpg`))) probs.push(`${it.id}: public/arenas/${it.arena}.jpg 없음`);
       must(!probs.length, probs.join('\n'));
       return `아이템 ${web.items.length}개, 업적 ${web.achs.length}개 일치 (${from} 기준), 목록 그림 있음`;
+    });
+
+    // 휴대폰(?mobile=1)과 쉬는 시간 알림(?clock=시각): 쉬는 시간이면 로비·대기실에 '☕ … ×1.5 · n분 남음', 아니면 숨김
+    await step('화면: 휴대폰 로비 · 쉬는 시간 알림', async () => {
+      const p = await ctx.newPage();
+      watch(p, '휴대폰', errs);
+      const shown = async (q, sel) => {
+        await p.goto(`${URL}/?acct=9&${q}`);
+        await waitFor(p, () => window.__smash?.world && !document.querySelector('#login').classList.contains('hidden'), null, 60000, '로그인 화면 (' + q + ')');
+        await p.fill('#login-nick', '점검폰');
+        await p.click('#btn-guest');
+        await waitFor(p, () => !document.querySelector('#lobby').classList.contains('hidden'), null, 10000, '로비 (' + q + ')');
+        return p.evaluate((s) => { const el = document.querySelector(s); return el.classList.contains('hidden') ? '' : el.textContent; }, sel);
+      };
+      must(/7분 남음/.test(await shown('clock=09:53', '#break-pill')), '쉬는 시간(09:53)인데 알림이 이상해요');
+      await shown('mobile=1&clock=09:53', '#break-pill');
+      must(await p.evaluate(() => document.body.classList.contains('mobile') && /PC에서만/.test(document.querySelector('.lb-friends-head').textContent)
+        && getComputedStyle(document.querySelector('#break-pill')).display === 'none'), '휴대폰 로비 표시가 이상해요 (같이 하기 잠금, 쉬는 시간 알림 숨김)');
+      must(!(await shown('clock=10:20', '#break-pill')), '쉬는 시간이 아닌데 알림이 떠요');
+      await p.close();
+      flush();
+      return '09:53 알림 · 10:20 숨김 · 휴대폰 로비';
     });
 
     await step('화면: 손님으로 들어가서 혼자 하기', async () => {

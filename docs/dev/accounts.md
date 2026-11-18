@@ -34,3 +34,11 @@
   - 목록은 두 곳: `src/achievements.js`(`ACHS`, `live` = 지금 셀 수 있음)와 SQL insert. 로컬 가짜 서버는 `account.js`의 `localAchMatch`(같은 규칙).
 - ③ `supabase/12_ach_people.sql`(11 다음): `pingpong_ach_people(token, mode, won, opp, mate)` — `achMatch` 다음에 부름(같은 경기 한 번만, `ach_n.people_at`). 천적 = h2h `lose_run` 5 → 칭호 「(상대 닉네임) 공포증」(`ach_n.nemesis`, 처음 깬 상대로 고정, `titleText(id, x)`·presence `titleX`·랭킹 `title_x`·player json `nemesis`). 복수 = 그 상대에게 3패 이상인데 이김. 짝꿍 = `ach_n.duo{팀원 번호: 승수}`. 뽑기 횟수 = 트리거 `pingpong_count_gacha`(코인이 100·900 줄면 `ach_n.gacha`). 출석 = `pingpong_daily`가 `ach_n.days`·`days_run`(이 SQL 넣은 날부터).
 - 이제 58개 모두 깰 수 있음. 다음 후보 ④: 연출 다듬기(승리 세리머니 등, 기획서 11장).
+
+## 쉬는 시간 보너스 (사용자 확정 11/18, 작업 브랜치 — 배포 멈춤 중이라 test에 아직 안 올림)
+- 1대1·2대2 경기의 **시작이나 끝**이 쉬는 시간이면 그 판 코인 전부(참여·승리·퍼펙트·랠리·연승) **+50%(올림)**, 내역에 '☕ 쉬는 시간 +50%'. 혼자 하기·업적·출석 코인에는 없음.
+- **평일(월~금)만, 한국 시간.** 쉬는 시간 = 09:50~10:00, 10:50~11:00, **11:30~13:00(점심)**, 13:50~14:00, 14:50~15:00, 15:50~16:00, 16:50~17:00, 17:50~18:00. 수업 전·후는 안 줌. 공휴일은 따로 안 막음.
+- 서버: `supabase/19_break_bonus.sql`(18 다음, 사용자가 실행해야 함) — `pingpong__is_break(t)` + `pingpong_match_finish`를 18 그대로에 보너스만 더해 다시 정의. 시각은 서버 시계(`m.started_at`, `now()`).
+- 화면: `src/breaks.js`(같은 규칙, `breakAt`) → 로컬 가짜 서버도 같은 규칙. `src/ui/breakPill.js`가 로비 '친구랑 하기' 옆 `#break-pill`·대기실 `#room-break`에 '☕ 쉬는 시간 코인 ×1.5 · n분 남음'(5초마다, 휴대폰 로비는 숨김). 이 알림은 PC 시계 기준(보여 주기만).
+- 시험: 주소에 `?clock=09:55`(오늘 그 시각, 주말이면 월요일로) → 알림과 로컬 가짜 서버만 그 시각으로. 진짜 서버 코인은 영향 없음.
+- 점검: SQL 단계에서 서버 규칙 == `breaks.js` (평일·주말, 5분 간격 + 경계), 보너스가 실제로 붙는지(잠시 '언제나 쉬는 시간'으로 바꿔 정산 → 19 다시 실행). 화면 단계 '휴대폰 로비 · 쉬는 시간 알림'.

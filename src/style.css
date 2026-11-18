@@ -224,6 +224,13 @@ button.lb-play:active:not(:disabled) { box-shadow: 0 2px 0 var(--orange-d), 0 6p
 button.lb-play small { display: block; margin-left: auto; font-size: 14px; opacity: .92; text-align: right; }
 .lb-friends { background: rgba(255,250,240,.9); border-radius: 22px; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 10px 28px rgba(80,50,20,.14); }
 .lb-label { font-size: 16px; color: var(--muted); padding-left: 2px; }
+/* 쉬는 시간 보너스 알림 (src/ui/breakPill.js) */
+.lb-friends-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.break-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; background: var(--gold-bg); color: #7a5200; font-size: 13px; white-space: nowrap; box-shadow: inset 0 0 0 1.5px #f1cf6b; animation: breakGlow 2.4s ease-in-out infinite; }
+.break-pill b { color: var(--orange-ink); }
+.break-pill.hidden, .mobile .lb-friends-head .break-pill { display: none; } /* 휴대폰은 같이 하기를 못 하니 안 보임 */
+.room-break { margin: 0; flex: none; }
+@keyframes breakGlow { 50% { box-shadow: inset 0 0 0 1.5px #f1cf6b, 0 0 10px rgba(255,190,60,.55); } }
 button.blue { background: var(--blue); color: #fff; box-shadow: 0 5px 0 var(--blue-d); font-size: 22px; padding: 12px 8px 10px; line-height: 1.15; }
 button.blue:active:not(:disabled) { box-shadow: 0 2px 0 var(--blue-d); }
 button.blue small { display: block; font-size: 13px; opacity: .85; }

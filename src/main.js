@@ -5,6 +5,7 @@ import './ui/rank.js';
 import './ui/dress.js';
 import './ui/titles.js';
 import './ui/lobbyList.js';
+import './ui/breakPill.js';
 import { autoLogin, equipItem, gacha, myEquip, testCoins } from './account.js';
 import { initAudio, playUI, setEcho, setListener, setQuiet } from './audio.js';
 import { applyLook, arenaOf, ballOf } from './items.js';

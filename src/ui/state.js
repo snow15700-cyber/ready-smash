@@ -21,7 +21,7 @@ if (IS_MOBILE) {
   document.body.classList.add('mobile');
   $('mobile-note').classList.remove('hidden');
   for (const id of ['btn-create-1v1', 'btn-create-2v2', 'btn-join']) { $(id).classList.add('locked'); $(id).setAttribute('aria-disabled', 'true'); }
-  document.querySelector('.lb-friends .lb-label').textContent = '👥 친구랑 하기 · 🔒 PC에서만';
+  document.querySelector('.lb-friends-head > span').textContent = '👥 친구랑 하기 · 🔒 PC에서만';
 }
 export const myNick = () => account.nick || '플레이어';
 export const ease = (t) => t * t * (3 - 2 * t);
