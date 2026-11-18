@@ -604,3 +604,15 @@ button.rl-row.off { cursor: default; background: #f6efe3; box-shadow: none; tran
 .rl-act.soon { background: #cfc3ae; }
 .rl-empty { margin: 2px 0; text-align: center; font-size: 14px; color: var(--muted); line-height: 1.4; }
 .rl-more { margin: 0; text-align: center; font-size: 13px; color: var(--muted); }
+
+/* ───────── 관전 (2단계) ───────── */
+.rl-act.watch { background: var(--blue); }
+button.watch-ok { margin-left: auto; font-size: 14px; padding: 6px 12px; border-radius: 999px; }
+button.watch-ok.off { background: #eee5d6; color: var(--muted); }
+.watch-bar { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 16px; border-radius: 999px; background: rgba(43,42,51,.62); color: #fff; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.watch-who { font-size: 15px; }
+.watch-views { display: flex; gap: 4px; }
+.watch-views button { padding: 6px 12px; border-radius: 999px; font-size: 14px; box-shadow: none; background: rgba(255,255,255,.2); color: #fff; }
+.watch-views button.on { background: #fff; color: var(--ink); }
+body.watching #hint { bottom: 78px; }
+@media (max-width: 600px) { .watch-who { display: none; } }

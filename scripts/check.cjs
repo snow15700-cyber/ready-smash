@@ -5,7 +5,7 @@
 //  2. 서버 SQL    — supabase/*.sql을 빈 DB에 01부터 차례로 두 번 실행(여러 번 실행해도 되는지),
 //                   anon(브라우저) 권한으로 가입·로그인·상점·뽑기·장착·업적·랭킹을 불러 보고, 표를 직접 못 읽는지
 //  3. 목록 맞추기 — items.js ↔ SQL 아이템(등급·뽑기 통·카테고리), achievements.js ↔ SQL 업적, 목록 그림 파일
-//  4. 화면        — 브라우저로 게임을 띄워 손님·로그인(로컬 가짜 서버), 혼자 하기, 꾸미기, 랭킹,
+//  4. 화면        — 브라우저로 게임을 띄워 손님·로그인(로컬 가짜 서버), 혼자 하기, 꾸미기, 랭킹, 1대1 방·관전,
 //                   1대1 방 만들기→입장→팀 고르기→경기 시작(탭 두 개), 배경 6종, 시안 페이지 2개를 돌려 보고 오류가 없는지
 //
 // 옵션: --no-sql (DB 점검 건너뛰기) --no-browser (화면 점검 건너뛰기)
@@ -291,11 +291,26 @@ async function browserChecks() {
       await page.click('#btn-start');
       // VS 소개 3초 뒤 경기 시작 → 둘 다 경기 화면
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.game && !window.__smash.intro, null, 30000, '경기 시작');
+      // 관전 (2단계): 세 번째 탭이 로비 목록의 '👀 관전'으로 들어가 중계 화면이 뜨는지, 방장이 나가면 로비로 돌아오는지
+      const viewer = await ctx.newPage();
+      watch(viewer, '관중', errs);
+      await viewer.goto(URL + '/?acct=3');
+      await waitFor(viewer, () => window.__smash?.world, null, 60000, '관중 탭 준비');
+      await viewer.evaluate(() => document.querySelector('#howto')?.classList.add('hidden'));
+      await viewer.fill('#login-nick', '점검관중');
+      await viewer.click('#btn-guest');
+      await waitFor(viewer, (c) => document.querySelector(`#lb-rooms .rl-row[data-code="${c}"] .rl-act.watch`), code, 15000, "로비 목록에 '👀 관전' 버튼");
+      await viewer.evaluate((c) => document.querySelector(`#lb-rooms .rl-row[data-code="${c}"]`).click(), code);
+      await waitFor(viewer, () => window.__smash.game?.spectator && !document.querySelector('#watch-bar').classList.contains('hidden'), null, 10000, '관전 화면');
+      await waitFor(viewer, () => document.querySelector('#scoreboard').textContent.includes('점검참가'), null, 10000, '관전 점수판에 선수 이름');
+      await viewer.evaluate(() => document.querySelector('[data-view="1"]').click());
       await page.waitForTimeout(1500);
       flush();
       await page.click('#exit').catch(() => {});
+      await waitFor(viewer, () => !window.__smash.game && !document.querySelector('#lobby').classList.contains('hidden'), null, 15000, '방장이 나가면 관중도 로비로');
+      await viewer.close();
       await guest.close();
-      return `방 코드 ${code}`;
+      return `방 코드 ${code}, 관전 확인`;
     });
 
     await step('화면: 배경 6종 짓기·바꾸기', async () => {

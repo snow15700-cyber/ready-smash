@@ -8,6 +8,8 @@ import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H, HIT_Z, sideSign } from './
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts });
 
 // 카메라: 어깨 뒤 낮게 + 공 따라가기 + 타격 흔들림
+// 관전 중계 카메라 (탁구대 옆, +x 쪽). follow: 공을 따라가는 정도
+const SIDE_CAM = { x: 4.3, y: 2.4, lookY: 0.7, fov: 50, follow: 0.12, lerp: 3 };
 const CAM = { y: 1.5, back: 1.2, x: 0.3, lookY: 0.86, lookZ: 1.0, fov: 60, followChar: 0.75, followBall: 0.35, lerp: 7, shake: 0.05 };
 
 // 몰입 연출: 최대일 때 체육관 밝기를 이만큼 줄인다 (0.9 = 원래의 10%)
@@ -250,6 +252,22 @@ export function createWorld(canvas) {
         camera.position.x += (Math.random() - 0.5) * this.shake * P.shake;
         camera.position.y += (Math.random() - 0.5) * this.shake * P.shake;
       }
+      this.shake *= Math.exp(-dt * 12);
+      if (camera.fov !== P.fov) { camera.fov = P.fov; camera.updateProjectionMatrix(); }
+      camera.lookAt(camLook);
+    },
+    // 관전 중계 카메라: 탁구대 옆(관중석 쪽)에서 두 선수를 함께 본다. 공을 따라 살짝만 움직인다
+    // ballZ: 공의 앞뒤 위치 (탁구대 길이 방향)
+    updateSideCamera(dt, ballZ = 0) {
+      const P = SIDE_CAM;
+      const tp = new THREE.Vector3(P.x, P.y, ballZ * P.follow);
+      const tl = new THREE.Vector3(0, P.lookY, ballZ * P.follow * 1.6);
+      if (!camInit) { camPos.copy(tp); camLook.copy(tl); camInit = true; }
+      const k = 1 - Math.exp(-dt * P.lerp);
+      camPos.lerp(tp, k);
+      camLook.lerp(tl, k);
+      camera.position.copy(camPos);
+      if (this.shake > 0.001) camera.position.y += (Math.random() - 0.5) * this.shake * CAM.shake * 0.5;
       this.shake *= Math.exp(-dt * 12);
       if (camera.fov !== P.fov) { camera.fov = P.fov; camera.updateProjectionMatrix(); }
       camera.lookAt(camLook);
