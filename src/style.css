@@ -604,8 +604,3 @@ button.rl-row.off { cursor: default; background: #f6efe3; box-shadow: none; tran
 .rl-act.soon { background: #cfc3ae; }
 .rl-empty { margin: 2px 0; text-align: center; font-size: 14px; color: var(--muted); line-height: 1.4; }
 .rl-more { margin: 0; text-align: center; font-size: 13px; color: var(--muted); }
-.join-rooms-wrap { margin-bottom: 10px; padding-bottom: 14px; border-bottom: 2px dashed #eadcc4; }
-.join-rooms-wrap .rl-list { max-height: 300px; overflow: auto; }
-/* 시안 비교용: ?rl=b 면 로비 대신 '방 찾기' 화면에 목록 */
-body:not(.rl-b) .join-rooms-wrap { display: none; }
-body.rl-b .lb-rooms-wrap { display: none; }

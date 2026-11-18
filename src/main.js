@@ -32,7 +32,6 @@ if (IS_TEST) {
   document.body.appendChild(tag);
 }
 if (!ONLINE) $('mode-note').textContent = '⚠️ 서버 설정이 없어 로컬 테스트 모드예요 (같은 브라우저의 탭끼리만 연결)';
-if (new URLSearchParams(location.search).get('rl') === 'b') { document.body.classList.add('rl-b'); $('btn-join').textContent = '🏟️ 방 찾기 · 코드로 입장'; }
 if (!ONLINE) $('login-offline').classList.remove('hidden');
 
 // 휴대폰·태블릿(마우스 없음): 혼자 하기만 열고 온라인 방은 막는다. 주소에 ?mobile=1 이면 PC에서도 흉내.
@@ -889,7 +888,7 @@ $('btn-rank-back').addEventListener('click', () => { playUI('click'); show('lobb
    로비 채널(pingpong-lobby)은 로비 화면에 있을 때 + 내가 방장일 때만 붙어 있다.
    방장은 '내 방' 정보를 상태가 바뀔 때만 올린다(사람 수·경기 시작/끝·점수). */
 function syncLobby() {
-  const need = curScreen === 'lobby' || curScreen === 'join' || !!(room && room.host);
+  const need = curScreen === 'lobby' || !!(room && room.host);
   if (need && !lobbyLink) {
     lobbySent = '';
     lobbyLink = joinLobby((list) => { lobbyRooms = list; renderRoomList(); });
@@ -931,24 +930,19 @@ function roomListHTML(max) {
 function renderRoomList() {
   // 로비 안 목록은 화면 높이에 맞춰 줄 수를 줄인다 (아래 버튼과 겹치지 않게)
   const lbMax = innerHeight >= 860 ? 3 : innerHeight >= 740 ? 2 : 1;
-  for (const [id, max] of [['lb-rooms', lbMax], ['join-rooms', 8]]) {
-    const el = $(id);
-    if (el) el.innerHTML = roomListHTML(max);
-  }
+  $('lb-rooms').innerHTML = roomListHTML(lbMax);
 }
 addEventListener('resize', renderRoomList);
-for (const id of ['lb-rooms', 'join-rooms']) {
-  $(id)?.addEventListener('click', (e) => {
-    const b = e.target.closest('.rl-row');
-    if (!b) return;
-    if (IS_MOBILE) { hud.toast(MOBILE_MSG, 2600); return; }
-    const r = lobbyRooms.find((x) => x.code === b.dataset.code);
-    if (!r) return;
-    if (r.play) { hud.toast('관전은 다음 업데이트에서 열려요', 2200); return; }
-    if (r.n >= r.cap) { hud.toast('방이 꽉 찼어요', 2000); return; }
-    enterRoom(r.code, false);
-  });
-}
+$('lb-rooms').addEventListener('click', (e) => {
+  const b = e.target.closest('.rl-row');
+  if (!b) return;
+  if (IS_MOBILE) { hud.toast(MOBILE_MSG, 2600); return; }
+  const r = lobbyRooms.find((x) => x.code === b.dataset.code);
+  if (!r) return;
+  if (r.play) { hud.toast('관전은 다음 업데이트에서 열려요', 2200); return; }
+  if (r.n >= r.cap) { hud.toast('방이 꽉 찼어요', 2000); return; }
+  enterRoom(r.code, false);
+});
 
 /* ───────── 버튼 ───────── */
 $('btn-ai').addEventListener('click', () => startAI());
