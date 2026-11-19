@@ -126,6 +126,7 @@ $('c').addEventListener('pointermove', (e) => {
 });
 $('c').addEventListener('pointerdown', (e) => {
   if (!stageActive() || e.button !== 0) return;
+  if (room.spectate) return; // 관중은 연습 스윙 없음 (보기만)
   if (!mySeat()) { hud.toast('팀을 고르면 연습 스윙을 할 수 있어요'); return; }
   const t = e.timeStamp / 1000;
   if (t - swDown < SWING.gap) return;

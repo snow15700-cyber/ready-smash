@@ -2,7 +2,7 @@ import { titleText } from '../achievements.js';
 import { playCrowd, playUI } from '../audio.js';
 import { CROWD_MAX } from '../crowd.js';
 import { joinWatch } from '../net.js';
-import { myId } from './room.js';
+import { myId, roomCrowd } from './room.js';
 import { $, esc, game, world } from './state.js';
 import { WATCH_MAX, endWatch, renderWatchBar, watch } from './watch.js';
 
@@ -50,6 +50,7 @@ function onCrowdList(c, list) {
   world.crowd.set(shown.map((m) => ({ id: m.id, nick: m.nick, title: titleText(m.title, m.titleX), look: m.look, team: m.team ?? null, me: m.id === myId })));
   renderCrowdPill();
   renderWatchBar();
+  roomCrowd(list); // 대기실: '👀 관중 N명' (관중이면 16명 제한도)
 }
 function onCrowdMsg(c, m) {
   if (crowd !== c || !m || m.k !== 'cheer' || !Object.hasOwn(CHEERS, m.c)) return;

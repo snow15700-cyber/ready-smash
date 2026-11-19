@@ -30,11 +30,24 @@ export const normalizeCode = (s) => s.toUpperCase().replace(/[^A-Z0-9]/g, '').sl
 // 방 입장. me = { id, nick, host, at }
 // handlers.onMsg(payload), handlers.onMembers([{id,nick,host,at}]), handlers.onStatus('ok'|'error', text)
 // listen: 관전 — 듣기만 한다. 명단(presence)에 안 들어가고 말도 안 한다 → 선수 PC는 관중이 있는지조차 모름 (부담 0)
+// 돌려주는 link: send · leave · setHandlers(새 handlers: 관전 ↔ 대기실 관전 사이에 채널을 넘겨줄 때) · members(마지막 명단)
+//   · ask(payload): 듣기만 하는 관중이 딱 한 번 '지금 팀 알려 줘요'를 보낼 때 · join(me): 관중 → 참가자 (채널을 나가지 않고 명단에 들어감)
+// 채널을 나갔다가 같은 이름으로 바로 다시 들어가면 서버 명단에서 빠지는 일이 있어서, 넘겨주기·바꾸기로 다시 들어가지 않는다
 export function joinRoom(code, me, handlers, { listen = false } = {}) {
-  return ONLINE ? joinSupabase(code, me, handlers, listen) : joinLocal(code, me, handlers, listen);
+  let h = handlers, last = [];
+  const route = {
+    onMsg: (m) => h.onMsg(m),
+    onMembers: (list) => { last = list; h.onMembers(list); },
+    onStatus: (st, text) => h.onStatus(st, text),
+  };
+  const link = ONLINE ? joinSupabase(code, me, route, listen) : joinLocal(code, me, route, listen);
+  link.setHandlers = (nh) => { h = nh; };
+  link.members = () => last;
+  return link;
 }
 
 function joinSupabase(code, me, h, listen) {
+  let subscribed = false;
   const ch = getClient().channel(`${ROOM_PREFIX}${code}`, {
     config: { broadcast: { self: false, ack: false }, presence: { key: me.id } },
   });
@@ -46,6 +59,7 @@ function joinSupabase(code, me, h, listen) {
   });
   ch.subscribe(async (status) => {
     if (status === 'SUBSCRIBED') {
+      subscribed = true;
       if (!listen) await ch.track(me);
       h.onStatus('ok');
     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -54,6 +68,8 @@ function joinSupabase(code, me, h, listen) {
   });
   return {
     send(payload) { if (!listen) ch.send({ type: 'broadcast', event: 'm', payload }); },
+    ask(payload) { if (subscribed) ch.send({ type: 'broadcast', event: 'm', payload }); },
+    join(m) { me = m; listen = false; if (subscribed) ch.track(me); },
     leave() { getClient().removeChannel(ch); }, // removeChannel이 나가기(unsubscribe)까지 한다 (두 번 부르면 나가기 신호가 두 번 감)
   };
 }
@@ -99,6 +115,8 @@ function joinLocal(code, me, h, listen) {
       if (lag) setTimeout(() => post(payload), lag * 1000);
       else post(payload);
     },
+    ask(payload) { post(payload); },
+    join(m) { me = m; listen = false; members.set(me.id, me); post({ k: '_hb', me }); emitMembers(); },
     leave() { bye(); closed = true; clearInterval(hb); bc.close(); window.removeEventListener('beforeunload', bye); },
   };
 }
