@@ -22,9 +22,10 @@ export function show(screen) {
   $('hud').classList.toggle('hidden', screen !== 'hud');
 }
 
-export function stopGame() {
+// keepCrowd: 관전하던 방에서 다음 경기로 이어 볼 때 — 관중석 채널은 그대로 (나갔다 바로 다시 들어가면 선수 화면에서 내가 빠질 수 있음)
+export function stopGame(keepCrowd = false) {
   endIntro(false);
-  crowdLeave();
+  if (!keepCrowd) crowdLeave();
   if (game) game.destroy();
   setGame(null);
   setMatch(null);

@@ -4,7 +4,7 @@ import { initAudio, playUI } from '../audio.js';
 import { Game } from '../game.js';
 import { applyLook } from '../items.js';
 import { joinRoom } from '../net.js';
-import { crowdJoin, renderCheerBar } from './cheer.js';
+import { crowdJoin, crowdKeep, renderCheerBar } from './cheer.js';
 import { hud } from './hud.js';
 import { lobbyRooms } from './lobbyList.js';
 import { enterRoom, leaveRoom, myId } from './room.js';
@@ -19,11 +19,12 @@ let watchView = 'side'; // 관전 카메라 (다른 경기로 넘어가도 유�
    그래서 화면은 방장보다 전달 시간만큼 늦게, 끊김 없이 흘러간다. 중간에 들어오면 다음 서브부터 보여 준다.
    관중 명단은 따로 관중석 채널(pingpong-watch-XXXX)에서, 16명까지. */
 export const WATCH_MAX = 16;
-export function startWatch(r) {
+// keep: 같은 방의 다음 경기로 이어 보기 (관중석 채널은 나가지 않고 그대로)
+export function startWatch(r, keep = false) {
   initAudio();
   playUI('click');
   leaveRoom();
-  stopGame();
+  stopGame(keep);
   const me = { id: myId, nick: myNick(), at: Date.now() };
   watch = { code: r.code, mode: r.mode, pl: r.pl, nick: r.nick, members: [], hostM: null, sawHost: false, seen: new Set(), offs: [], live: false, count: 0 };
   const w = watch;
@@ -33,7 +34,7 @@ export function startWatch(r) {
     onStatus: (st, text) => { if (st === 'error' && watch === w) endWatch(text); },
   }, { listen: true });
   // 관중석 명단에 들어가기 (16명 제한은 onCrowdList). 내 꾸미기·칭호도 같이 → 관중석에 내 캐릭터로 선다
-  crowdJoin(r.code, { ...me, team: null, look: myEquip(), title: myTitle(), titleX: myNemesis() });
+  if (!(keep && crowdKeep(r.code))) crowdJoin(r.code, { ...me, team: null, look: myEquip(), title: myTitle(), titleX: myNemesis() });
   show('hud');
   const n = watchNames(w);
   setGame(new Game(world, { mySide: 0, mode: r.mode, hud, spectator: true, names: n.names, playerNames: n.per, playerTitles: n.tl, looks: [[{}, {}], [{}, {}]], send: { toss() {}, swing() {} } }));
@@ -48,8 +49,8 @@ export function startWatch(r) {
   setTimeout(() => { if (watch === w && !w.sawHost) endWatch('경기를 찾을 수 없어요'); }, 6000);
 }
 
-// toLobby = false: 다른 경기로 넘어가는 중 (로비로 안 돌아감)
-export function endWatch(msg, toLobby = true) {
+// toLobby = false: 다른 경기로 넘어가는 중 (로비로 안 돌아감). keepCrowd: 같은 방 다음 경기로 이어 보기
+export function endWatch(msg, toLobby = true, keepCrowd = false) {
   if (!watch) return;
   const w = watch;
   watch = null;
@@ -58,7 +59,7 @@ export function endWatch(msg, toLobby = true) {
   $('watch-bar').classList.add('hidden');
   $('watch-next').classList.add('hidden');
   if (game) watchView = game.view;
-  stopGame();
+  stopGame(keepCrowd);
   if (!toLobby) return;
   show('lobby');
   if (msg) hud.toast(msg, 2600);
@@ -151,8 +152,8 @@ export function renderWatchNext() {
   if (r && !r.play) w.idle = true;
   // 다음 경기가 시작됨 → 이어서 관전 (새 선수 명단으로 다시 들어가기)
   if (r && r.play && r.pl && w.idle) {
-    endWatch(null, false);
-    startWatch(r);
+    endWatch(null, false, true);
+    startWatch(r, true);
     hud.toast('다음 경기가 시작됐어요! 이어서 관전해요', 2200);
     return;
   }

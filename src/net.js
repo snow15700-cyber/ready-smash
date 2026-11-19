@@ -54,7 +54,7 @@ function joinSupabase(code, me, h, listen) {
   });
   return {
     send(payload) { if (!listen) ch.send({ type: 'broadcast', event: 'm', payload }); },
-    leave() { ch.unsubscribe(); getClient().removeChannel(ch); },
+    leave() { getClient().removeChannel(ch); }, // removeChannel이 나가기(unsubscribe)까지 한다 (두 번 부르면 나가기 신호가 두 번 감)
   };
 }
 
@@ -122,21 +122,33 @@ export function joinWatch(code, onList, onMsg) {
 function lobbySupabase(chName, onList, onMsg = null) {
   const key = Math.random().toString(36).slice(2, 10);
   const ch = getClient().channel(chName, { config: { broadcast: { self: false }, presence: { key } } });
-  let ready = false, want = null, closed = false;
+  let ready = false, want = null, closed = false, healT = 0;
+  // 스스로 고치기: 올려 둔 내 정보(track)가 서버 명단에 없으면 3초 뒤 다시 올린다
+  // (관중이 나갔다 바로 다시 들어올 때 서버 명단에서 빠지는 일이 있었음 → 선수 화면에 관중이 안 보임)
+  const heal = () => {
+    if (healT || closed) return;
+    healT = setTimeout(() => {
+      healT = 0;
+      if (closed || !ready || !want || ch.presenceState()[key]) return;
+      ch.track(want);
+      heal();
+    }, 3000);
+  };
   ch.on('presence', { event: 'sync' }, () => {
     onList(Object.values(ch.presenceState()).map((arr) => arr[0]).filter(Boolean));
+    if (want) heal();
   });
   if (onMsg) ch.on('broadcast', { event: 'm' }, ({ payload }) => onMsg(payload));
   ch.subscribe((status) => {
     if (status !== 'SUBSCRIBED' || closed) return;
     ready = true;
-    if (want) ch.track(want);
+    if (want) { ch.track(want); heal(); }
   });
   return {
-    track(info) { want = info; if (ready) ch.track(info); },
+    track(info) { want = info; if (ready) { ch.track(info); heal(); } },
     untrack() { if (!want) return; want = null; if (ready) ch.untrack(); },
     send(payload) { if (ready) ch.send({ type: 'broadcast', event: 'm', payload }); },
-    leave() { closed = true; ch.unsubscribe(); getClient().removeChannel(ch); },
+    leave() { closed = true; clearTimeout(healT); getClient().removeChannel(ch); },
   };
 }
 

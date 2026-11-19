@@ -20,6 +20,14 @@ export function crowdJoin(code, me = null) {
   c.link = joinWatch(code, (list) => onCrowdList(c, list), (m) => onCrowdMsg(c, m));
   if (me) c.link.track(me);
 }
+// 관전하던 방에서 다음 경기로 이어 볼 때: 관중석 채널을 나가지 않고 그대로 쓴다 (응원 팀만 다시 고르게 비움)
+// 나갔다가 바로 다시 들어가면 서버 명단에서 내가 빠져 선수 화면에 안 보이는 일이 있었다
+export function crowdKeep(code) {
+  if (!crowd || !crowd.me || crowd.code !== code) return false;
+  crowd.me = { ...crowd.me, team: null };
+  crowd.link.track(crowd.me);
+  return true;
+}
 export function crowdLeave() {
   if (!crowd) return;
   crowd.link.leave();
