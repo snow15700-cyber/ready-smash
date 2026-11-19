@@ -5,6 +5,7 @@ import { joinWatch } from '../net.js';
 import { myId, roomCrowd } from './room.js';
 import { $, esc, game, world } from './state.js';
 import { WATCH_MAX, endWatch, renderWatchBar, watch } from './watch.js';
+import { cheerMission } from './missions.js';
 
 export let crowd = null; // 관중석 채널 (아래 '관중석·응원')
 /* ───────── 관중석·응원 (관전 4단계) ─────────
@@ -88,6 +89,7 @@ function sendCheer(kind) {
   showCheer({ ...me, team: crowd.me.team }, kind);
   renderCheerBar();
   setTimeout(renderCheerBar, CHEER_GAP * 1000 + 30);
+  cheerMission(); // 오늘 응원 미션이 있으면 서버에 한 번 알림
 }
 // 관중: 응원할 팀 고르기 (다시 누르면 취소). 관중석 자리도 그 팀 쪽으로
 function pickCheerTeam(t) {

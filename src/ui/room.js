@@ -1,4 +1,5 @@
 import { ic } from '../icons.js';
+import { checkMatchMissions, missionItems } from './missions.js';
 import { account, getH2H, matchAch, matchFinish, matchJoin, matchPeople, myEquip, myTitle, newMatchId } from '../account.js';
 import { titleText } from '../achievements.js';
 import { initAudio, playUI } from '../audio.js';
@@ -492,6 +493,13 @@ export async function saveResult(mode, win, stats, achStats) {
       renderRoom();
       if (r.coins && !room.inGame) playUI('coin');
     }
+    // 오늘의 미션 (supabase/21) → 코인 내역에 '🎯 미션' 줄 + 알림
+    const rm = await checkMatchMissions(mid, bonus);
+    const mi = missionItems(rm);
+    if (mi.length) {
+      if (r0?.coins) r0.coins = { total: r0.coins.total + rm.coins, items: [...r0.coins.items, ...mi] };
+      if (room === r0) { renderRoom(); playUI('coin'); }
+    }
     // 경기 기록으로 깬 업적 (결과 띠가 사라진 뒤 '🏅 업적 달성!'), 그다음 사람 관계 업적 (상대·팀원은 서버가 찾음)
     const ra = await matchAch(mid, achStats || {});
     if (ra.status === 'ok') {
@@ -512,7 +520,13 @@ function renderCoins() {
   if (!room.result) el.innerHTML = '';
   else if (!account.loggedIn) el.innerHTML = '<small>로그인하면 경기마다 코인을 모을 수 있어요</small>';
   else if (!c) el.innerHTML = '<small>코인 정산 중…</small>';
-  else el.innerHTML = `<b><i class="coin-dot"></i> +${c.total} 코인</b><small>${c.items.map((i) => `${esc(i.label)}${i.coins ? ` +${i.coins}` : ""}`).join(' · ')}</small>`;
+  else {
+    // 오늘의 미션 줄(🎯)은 따로 눈에 띄게 한 줄로
+    const line = (list) => list.map((i) => `${esc(i.label)}${i.coins ? ` +${i.coins}` : ''}`).join(' · ');
+    const mis = c.items.filter((i) => i.label.startsWith('🎯'));
+    el.innerHTML = `<b><i class="coin-dot"></i> +${c.total} 코인</b><small>${line(c.items.filter((i) => !i.label.startsWith('🎯')))}</small>`
+      + (mis.length ? `<span class="rc-mission">${line(mis.map((i) => ({ ...i, label: i.label.replace('🎯 미션: ', '') })))}</span>` : '');
+  }
 }
 
 // 1v1 방의 상대 (나 말고 다른 한 사람)

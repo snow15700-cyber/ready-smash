@@ -130,13 +130,44 @@ async function sqlCheck() {
   const brk = fin.coins.items.find((i) => /쉬는 시간/.test(i.label));
   must(brk && brk.coins === 10 && fin.coins.total === 30, '쉬는 시간 보너스가 안 붙어요: ' + JSON.stringify(fin.coins));
   must(air.status === 'ok' && air.coins === 3 && air.bonus === 1, '혼자 하기 쉬는 시간 보너스가 이상해요: ' + JSON.stringify(air).slice(0, 200));
+  // 21 오늘의 미션: 날짜로 고르는 규칙 서버 == 화면(src/missions.js), 미션 달성·코인
+  const { missionsOf } = await import(path.join(ROOT, 'src', 'missions.js'));
+  const days = Array.from({ length: 40 }, (_, i) => new Date(Date.UTC(2026, 10, 10 + i)).toISOString().slice(0, 10));
+  const srvM = psql(DB, `select string_agg(array_to_string(public.pingpong__missions_of(d::date), ','), ';' order by n) from unnest(array['${days.join("','")}']) with ordinality as x(d, n);`).split(';');
+  days.forEach((d, i) => must(srvM[i] === missionsOf(d).join(','), `오늘의 미션 고르기가 서버와 화면이 달라요: ${d} 서버 ${srvM[i]} 화면 ${missionsOf(d)}`));
+  must(new Set(srvM.slice(0, 15)).size === 15, '15일 동안 미션 짝이 다 한 번씩 안 나와요');
+  // 잠시 오늘의 미션을 '새 상대·2대2·응원'으로 고정 → 정산 → 21을 다시 실행해 되돌림
+  psql(DB, `create or replace function public.pingpong__missions_of(d date) returns text[] language sql immutable as $$ select array['new_opp', 'duo', 'cheer3'] $$;`);
+  const su2 = json(`public.pingpong_signup('점검봇2', '1234')`);
+  const tk2 = `'${su2.token}'`;
+  const playMatch = (id, mode) => {
+    must(json(`public.pingpong_match_join(${tk}, '${id}', '${mode}', 0)`).status === 'ok', '미션 경기 입장 실패');
+    must(json(`public.pingpong_match_join(${tk2}, '${id}', '${mode}', 1)`).status === 'ok', '미션 경기 입장 실패(상대)');
+    psql(DB, `update public.pingpong_matches set started_at = now() - interval '2 minutes' where id = '${id}';`);
+    must(json(`public.pingpong_match_finish(${tk}, '${id}', true, 0, 0)`).status === 'ok', '미션 경기 정산 실패');
+    return json(`public.pingpong_mission_match(${tk}, '${id}', 0, 0)`);
+  };
+  must(json(`public.pingpong_missions(${tk})`).missions.list.length === 3, '오늘의 미션이 3개가 아니에요');
+  const mm1 = playMatch('00000000-0000-4000-8000-000000000211', '1v1');
+  must(mm1.status === 'ok' && mm1.new.join() === 'new_opp' && mm1.coins === 30, '새 상대 미션이 이상해요: ' + JSON.stringify(mm1).slice(0, 300));
+  must(json(`public.pingpong_mission_match(${tk}, '00000000-0000-4000-8000-000000000211', 0, 0)`).status === 'done', '같은 경기로 미션을 두 번 확인했어요');
+  const mm2 = playMatch('00000000-0000-4000-8000-000000000212', '2v2');
+  must(mm2.new.join() === 'duo' && mm2.coins === 30, '2대2 미션이 이상해요(같은 상대는 새 상대 아님): ' + JSON.stringify(mm2).slice(0, 300));
+  const cheer = () => json(`public.pingpong_mission_cheer(${tk})`);
+  const c1 = cheer(), c2 = cheer(); // 1.5초 안 두 번째는 안 셈
+  must(c1.missions.cheer === 1 && c2.missions.cheer === 1, '응원 미션: 1.5초 안 연속 응원을 셌어요');
+  psql(DB, `update public.pingpong_players set mission = jsonb_set(mission, '{cheer_at}', '0') where nick = '점검봇';`); cheer();
+  psql(DB, `update public.pingpong_players set mission = jsonb_set(mission, '{cheer_at}', '0') where nick = '점검봇';`);
+  const c3 = cheer();
+  must(c3.new.join() === 'cheer3' && c3.all === true && c3.coins === 80, '응원 3번 → 미션 + 모두 달성 +50이 이상해요: ' + JSON.stringify(c3).slice(0, 300));
+  psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '21_missions.sql'), 'utf8'));
   // 표는 브라우저가 직접 못 읽어야 한다 (RLS·권한)
   for (const t of ['pingpong_players', 'pingpong_sessions', 'pingpong_inventory', 'pingpong_matches']) {
     let leaked = true;
     try { q(`select count(*) from public.${t};`); } catch { leaked = false; }
     must(!leaked, `브라우저(anon)가 표 ${t}를 직접 읽을 수 있어요`);
   }
-  return `${SQL_FILES.length}개 파일 × 2번 실행, 가입·로그인·상점·뽑기·구매·장착·업적·랭킹·쉬는 시간 보너스, 표 잠금 확인`;
+  return `${SQL_FILES.length}개 파일 × 2번 실행, 가입·로그인·상점·뽑기·구매·장착·업적·랭킹·쉬는 시간 보너스·오늘의 미션, 표 잠금 확인`;
 }
 
 /* ───────── 3. 목록 맞추기 (서버 ↔ 화면) ───────── */
@@ -295,6 +326,7 @@ async function browserChecks() {
       await waitFor(page, () => !document.querySelector('#signup-form').classList.contains('hidden') || !document.querySelector('#lobby').classList.contains('hidden'), null, 10000, '가입 확인');
       if (await page.isVisible('#signup-form')) { await page.fill('#signup-pin', '1234'); await page.click('#btn-signup'); }
       await waitFor(page, () => !document.querySelector('#lobby').classList.contains('hidden'), null, 10000, '로그인 뒤 로비');
+      await waitFor(page, () => document.querySelectorAll('#lb-missions:not(.hidden) .lm-list li').length === 3, null, 10000, "로비 '오늘의 미션' 카드 3줄");
       await page.evaluate(() => document.querySelector('#btn-closet').click());
       await waitFor(page, () => !document.querySelector('#dress').classList.contains('hidden') && document.querySelectorAll('#item-grid > *').length > 0, null, 15000, '옷장 아이템 목록');
       const n = await page.evaluate(() => document.querySelectorAll('#item-grid > *').length);

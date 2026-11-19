@@ -5,6 +5,7 @@ import { hud } from './hud.js';
 import { HOWTO_KEY, show } from './screen.js';
 import { $, esc } from './state.js';
 import { runAchCheck } from './titles.js';
+import { renderMissions } from './missions.js';
 
 /* ───────── 로그인 (PIN 계정 / 손님) ───────── */
 const LOGIN_MSG = {
@@ -29,6 +30,7 @@ export function renderMe() {
     ? `<span>1v1 <b>${p.wins_1v1}승</b></span><span>2v2 <b>${p.wins_2v2}승</b></span><span>최장 랠리 <b>${p.best_rally}</b></span>` // 패 수는 보여 주지 않는다 (사용자 결정, 상대 전적만 승패 둘 다)
     : '<span class="guest">손님은 전적·코인이 저장되지 않아요</span>';
   $('me-menu').classList.add('hidden');
+  renderMissions();
 }
 
 // 로비: ⚙️ 내 계정 메뉴 (PIN 바꾸기·로그아웃), ❓ 치는 방법 창

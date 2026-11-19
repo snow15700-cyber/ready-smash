@@ -5,6 +5,7 @@ import { ONLINE, getClient } from './net.js';
 import { ITEMS, ITEM, GRADES, GACHA_PRICE, PITY, poolOpen } from './items.js';
 import { ACH, REWARD, GAG_PADDLES } from './achievements.js';
 import { breakAt, breakBonus, BREAK_LABEL, nowMs } from './breaks.js';
+import { koreaDay, missionsOf, MISSION_ALL, MISSION_COIN } from './missions.js';
 
 // ?acct=2 처럼 주소에 붙이면 열쇠를 따로 보관한다 (한 브라우저에서 탭마다 다른 계정으로 테스트할 때)
 const ACCT = new URLSearchParams(location.search).get('acct');
@@ -88,6 +89,7 @@ export async function logout() {
   account.player = null;
   account.shop = null;
   account.ach = null;
+  account.missions = null;
   if (token) await call('pingpong_logout', { p_token: token });
 }
 
@@ -134,6 +136,37 @@ export async function claimDaily() {
   if (r.status !== 'ok') return 0;
   account.player = { ...EMPTY_STATS, ...r.player };
   return r.coins || 0;
+}
+
+/* ───────── 오늘의 미션 (supabase/21_missions.sql, src/missions.js) ───────── */
+// account.missions = { day, list: [{ id, done }], cheer } (로비에서 불러온다. 서버에 21이 없으면 null)
+account.missions = null;
+function takeMissions(r) {
+  if (r.status !== 'ok') return r;
+  if (r.player) account.player = { ...EMPTY_STATS, ...r.player };
+  if (r.missions) account.missions = r.missions;
+  return r;
+}
+export async function loadMissions() {
+  if (!account.loggedIn) { account.missions = null; return null; }
+  const r = takeMissions(await call('pingpong_missions', { p_token: token() }));
+  return r.status === 'ok' ? account.missions : null;
+}
+// 경기 미션 확인 (matchFinish 다음에, 같은 경기 한 번만). 결과 { status, new: [id], all, coins }
+export async function missionMatch(matchId, bonus) {
+  if (!account.loggedIn || !matchId) return { status: 'guest' };
+  return takeMissions(await call('pingpong_mission_match', {
+    p_token: token(), p_match: matchId, p_perfect3: bonus.perfect3 | 0, p_rally10: bonus.rally10 | 0,
+  }));
+}
+// 관전 응원 한 번 (오늘 응원 미션이 있고 아직 안 깼을 때만 부른다)
+export function cheerMissionOpen() {
+  const m = account.loggedIn && account.missions;
+  return !!m && m.day === koreaDay() && m.list.some((x) => x.id === 'cheer3' && !x.done);
+}
+export async function missionCheer() {
+  if (!cheerMissionOpen()) return { status: 'skip' };
+  return takeMissions(await call('pingpong_mission_cheer', { p_token: token() }));
 }
 
 // 혼자 하기 코인 (supabase/05_ai_coins.sql): 시작할 때 aiStart, 랠리가 끝날 때마다 aiRally(내가 친 횟수)
@@ -454,6 +487,61 @@ function localServer(fn, a) {
         p.daily = today; p.coins = (p.coins || 0) + 20; got = 20;
       }
       out = { status: 'ok', coins: got, player: pj(p) };
+    }
+  } else if (fn === 'pingpong_missions' || fn === 'pingpong_mission_match' || fn === 'pingpong_mission_cheer') {
+    // 21: 오늘의 미션 (서버와 같은 규칙)
+    const p = me();
+    const day = koreaDay(now);
+    const dayStart = Date.parse(day + 'T00:00:00+09:00');
+    const today = missionsOf(day);
+    if (!p) out = { status: 'no_session' };
+    else {
+      if (p.mission?.d !== day) p.mission = { d: day, done: [], cheer: 0 };
+      const ms = p.mission;
+      const mj = () => ({ day, list: today.map((id) => ({ id, done: ms.done.includes(id) })), cheer: ms.cheer || 0 });
+      const grant = (ids) => {
+        const fresh = [...new Set(ids)].filter((id) => today.includes(id) && !ms.done.includes(id));
+        ms.done.push(...fresh);
+        const all = fresh.length > 0 && ms.done.length >= today.length;
+        const coins = fresh.length * MISSION_COIN + (all ? MISSION_ALL : 0);
+        p.coins = (p.coins || 0) + coins;
+        return { new: fresh, all, coins };
+      };
+      if (fn === 'pingpong_missions') out = { status: 'ok', missions: mj() };
+      else if (fn === 'pingpong_mission_cheer') {
+        let g = { new: [], all: false, coins: 0 };
+        if (today.includes('cheer3') && !ms.done.includes('cheer3') && now - (ms.cheerAt || 0) >= 1500) {
+          ms.cheer = (ms.cheer || 0) + 1; ms.cheerAt = now;
+          if (ms.cheer >= 3) g = grant(['cheer3']);
+        }
+        out = { status: 'ok', ...g, missions: mj(), player: pj(p) };
+      } else {
+        const m = db.matches?.[a.p_match];
+        const mp = m && m.players[p.id];
+        if (!mp || !mp.at || mp.at < dayStart) out = { status: 'no_match' };
+        else if (mp.mission) out = { status: 'done' };
+        else {
+          mp.mission = true;
+          const oppsOf = (x, y) => Object.entries(x.players).filter(([, z]) => z.side !== y.side).map(([id]) => id);
+          const opps = oppsOf(m, mp);
+          const ok = [];
+          if (opps.length) {
+            const before = new Set(), all = new Set();
+            for (const [id, x] of Object.entries(db.matches)) {
+              const y = x.players[p.id];
+              if (!y || !y.at || y.at < dayStart) continue;
+              for (const o of oppsOf(x, y)) { all.add(o); if (id !== a.p_match) before.add(o); }
+            }
+            if (opps.some((o) => !before.has(o))) ok.push('new_opp');
+            if (all.size >= 3) ok.push('opp3');
+            if (m.mode === '2v2') ok.push('duo');
+            if (mp.won) ok.push('win1');
+            if ((a.p_rally10 | 0) > 0) ok.push('rally10');
+            if ((a.p_perfect3 | 0) > 0) ok.push('perf3');
+          }
+          out = { status: 'ok', ...grant(ok), missions: mj(), player: pj(p) };
+        }
+      }
     }
   } else if (fn === 'pingpong_ai_start') {
     const p = me();
