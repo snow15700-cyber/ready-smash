@@ -11,10 +11,16 @@ const TEAM_COLOR = ['#ff8a3d', '#2f6bc2']; // 응원 팀: 발밑 빛 고리 (A�
 
 // 자리: 두 줄 (앞줄 5자리, 뒷줄 8자리 = 13), 칭호 이름표가 서로 덜 겹치게 1.1m 간격. z>0 = A팀(side 0) 쪽, z<0 = B팀 쪽
 // 뒷줄은 앞줄 사이사이에 서서 머리가 보이게. 선수 바로 옆(|z| 큰 곳)은 피한다: 선수 화면 가장자리를 가리지 않게
-const SLOTS = [];
-for (const [row, dx, zs] of [[0, 2.7, [0, 1.1, 2.2]], [1, 3.6, [0.55, 1.65, 2.75, 3.6]]]) {
-  for (const z of zs) for (const sg of z ? [1, -1] : [1]) SLOTS.push({ x: -(HALF_W + dx), z: z * sg, row });
-}
+// 탁구대 옆 가장자리에서 앞줄·뒷줄까지 거리(m)는 배경마다 다를 수 있다(배경의 crowd: [앞줄, 뒷줄]) — 물건과 안 겹치게.
+// 자리 번호·순서는 어느 배경이든 같아서, 배경이 달라도 같은 사람은 같은 번호 자리에 선다
+export const CROWD_ROWS = [2.7, 3.6];
+const ZS = [[0, 1.1, 2.2], [0.55, 1.65, 2.75, 3.6]];
+const makeSlots = (rows) => {
+  const out = [];
+  ZS.forEach((zs, row) => { for (const z of zs) for (const sg of z ? [1, -1] : [1]) out.push({ x: -(HALF_W + rows[row]), z: z * sg, row }); });
+  return out;
+};
+let SLOTS = makeSlots(CROWD_ROWS);
 // 팀별로 먼저 앉을 자리 순서: 내 팀 쪽 앞줄 가운데부터
 const prefer = (team) => SLOTS.map((s, i) => i).sort((a, b) => {
   const A = SLOTS[a], B = SLOTS[b];
@@ -92,6 +98,11 @@ export function createCrowd(scene, makeCharacter) {
 
   return {
     root,
+    // 배경이 바뀔 때: 그 배경의 관중 줄 위치로 (서 있던 관중도 옮긴다)
+    setRows(rows = CROWD_ROWS) {
+      SLOTS = makeSlots(rows);
+      for (const f of figs.values()) { const s = SLOTS[f.slot]; f.c.group.position.set(s.x, 0, s.z); }
+    },
     // 관중 명단이 바뀔 때. 먼저 온 사람부터 12명
     set(list) {
       const show = list.slice(0, CROWD_MAX);

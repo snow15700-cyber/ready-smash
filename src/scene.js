@@ -92,6 +92,7 @@ export function createWorld(canvas) {
     arena = next;
     arenaId = id;
     scene.add(arena.root);
+    crowd.setRows(arena.crowd); // 관중 줄 위치 (배경 물건과 안 겹치게, 없으면 기본)
     scene.background = new THREE.Color(arena.sky);
     scene.fog = new THREE.Fog(arena.sky, arena.fog[0], arena.fog[1]);
     camera.far = arena.far; camera.updateProjectionMatrix();

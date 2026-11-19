@@ -248,6 +248,7 @@ export function buildBeach() {
 
   return {
     root,
+    crowd: [4.4, 5.3], // 관중 앞줄·뒷줄 (탁구대 옆 가장자리에서 m): 파라솔·선베드·서핑보드 뒤에 서게 (crowd.js)
     sky: '#bfe7ff',
     fog: [80, 330],
     far: 360,

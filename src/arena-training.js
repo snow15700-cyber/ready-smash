@@ -188,6 +188,7 @@ export function buildTraining() {
   drawTimer(BREAK);
   return {
     root,
+    crowd: [1.9, 2.65], // 관중 앞줄·뒷줄 (탁구대 옆 가장자리에서 m): 양옆 책상 줄보다 앞에 서게 (crowd.js)
     sky: '#eef0f2',
     fog: [30, 80],
     far: 100,

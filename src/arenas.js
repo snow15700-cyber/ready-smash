@@ -214,27 +214,26 @@ function buildCommute(scene) {
     }
   }
 
-  // 탁구대와 도로 사이의 벤치 (등받이가 도로 쪽) — 치즈냥 자리
+  // 도로 반대편 인도의 벤치 (등받이가 빌딩 쪽) — 치즈냥 자리. 관중석(도로 쪽)과 겹치지 않게 탁구대 건너편에 둔다
   const bench = new THREE.Group();
   const wood = std(0x9a6a3e), metal = std(0x3b3f45, { metalness: 0.5, roughness: 0.5 });
   for (let i = 0; i < 4; i++) addBox(bench, 0.1, 0.04, 1.6, wood, -0.16 + i * 0.11, 0.44, 0);
   for (let i = 0; i < 2; i++) addBox(bench, 0.04, 0.1, 1.6, wood, -0.26, 0.62 + i * 0.13, 0);
   for (const z of [-0.65, 0.65]) { addBox(bench, 0.5, 0.05, 0.05, metal, -0.02, 0.4, z); addBox(bench, 0.05, 0.42, 0.05, metal, 0.18, 0.21, z); addBox(bench, 0.05, 0.8, 0.05, metal, -0.24, 0.4, z); }
   bench.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  bench.rotation.y = Math.PI;
-  bench.position.set(2.45, 0, 0.25);
+  bench.position.set(-2.45, 0, 0.25);
   root.add(bench);
 
   // 반려동물: 치즈냥은 벤치 위에서 식빵 굽기, 웰시코기는 벤치 앞에 앉아 공 구경
   const cat = buildCat();
   cat.group.scale.setScalar(0.5);
-  cat.group.position.set(2.42, 0.46, 0.45);
-  cat.group.rotation.y = -Math.PI / 2;
+  cat.group.position.set(-2.42, 0.46, 0.45);
+  cat.group.rotation.y = Math.PI / 2;
   root.add(cat.group);
   const corgi = buildCorgi();
   corgi.group.scale.setScalar(0.45);
-  corgi.group.position.set(1.95, 0, -0.35);
-  corgi.group.rotation.y = -Math.PI / 2;
+  corgi.group.position.set(-1.95, 0, -0.35);
+  corgi.group.rotation.y = Math.PI / 2;
   root.add(corgi.group);
   const pets = [cat, corgi];
 
