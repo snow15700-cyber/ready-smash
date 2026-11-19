@@ -50,9 +50,11 @@ function roomListHTML(max) {
     const full = !r.play && r.n >= r.cap;
     const state = r.play ? `<span class="rl-st play">● 경기 중 <b>${(r.score || [0, 0]).join(' : ')}</b></span>` : full ? '<span class="rl-st full">꽉 참</span>' : `<span class="rl-st wait">● 대기 중 ${r.n}/${r.cap}</span>`;
     // 관전 6단계: 대기 중인 방도 관전할 수 있다 (참가 + 관전 둘 다, 휴대폰은 관전만)
-    const canWatch = r.w !== false && (!r.play || r.pl);
-    const canJoin = !r.play && !full && !IS_MOBILE;
-    const watchBtn = canWatch ? '<span class="rl-act watch" data-act="watch">👀 관전</span>' : '<span class="rl-act soon">관전 막힘</span>';
+    // 방장이 관전을 막은 방 = 비공개 방: 로비에서 참가도 관전도 안 되고 방 코드로만 들어온다 (11/19 사용자 요청)
+    const locked = r.w === false;
+    const canWatch = !locked && (!r.play || r.pl);
+    const canJoin = !locked && !r.play && !full && !IS_MOBILE;
+    const watchBtn = canWatch ? '<span class="rl-act watch" data-act="watch">👀 관전</span>' : locked ? '<span class="rl-act soon">🔒 코드로만</span>' : '<span class="rl-act soon">관전 막힘</span>';
     const act = (canJoin ? '<span class="rl-act" data-act="join">참가</span>' : '') + watchBtn;
     const can = canJoin || canWatch;
     return `<button class="rl-row${can ? '' : ' off'}" data-code="${esc(r.code)}"${can ? '' : ' tabindex="-1"'}><span class="rl-mode">${r.mode === '2v2' ? '2:2' : '1:1'}</span><span class="rl-nm"><b>${esc(r.nick)}</b>의 방</span>${state}${act}</button>`;
@@ -73,6 +75,7 @@ $('lb-rooms').addEventListener('click', (e) => {
   if (!b) return;
   const r = lobbyRooms.find((x) => x.code === b.dataset.code);
   if (!r) return;
+  if (r.w === false) { hud.toast('비공개 방이에요. 방 코드로만 들어갈 수 있어요', 2400); return; }
   // 줄의 '참가'를 누르면 참가, 그 밖(줄·'👀 관전')은: 들어갈 수 있으면 참가, 아니면 관전
   const full = !r.play && r.n >= r.cap;
   const wantJoin = e.target.closest('[data-act="join"]') || (!e.target.closest('[data-act="watch"]') && !r.play && !full && !IS_MOBILE);

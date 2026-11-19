@@ -636,7 +636,7 @@ $('btn-watch-ok').addEventListener('click', () => {
   room.watchOk = !room.watchOk;
   renderRoom();
   announceRoom();
-  hud.toast(room.watchOk ? '이제 다른 사람이 경기를 구경할 수 있어요' : '이제 아무도 경기를 구경할 수 없어요', 2200);
+  hud.toast(room.watchOk ? '이제 다른 사람이 경기를 구경할 수 있어요' : '이제 아무도 구경할 수 없고, 로비 목록에서도 못 들어와요 (방 코드로만)', 2200);
 });
 // 자리 칸 누르기: 빈자리 = 그 팀으로 (바꾸기), 내 칸 = 팀에서 빠지기
 for (const team of [0, 1]) {
