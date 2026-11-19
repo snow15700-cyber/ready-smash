@@ -3,7 +3,7 @@ import { resetScore } from './hud.js';
 import { endIntro } from './intro.js';
 import { syncLobby } from './lobbyList.js';
 import { renderMe, updSeen } from './login.js';
-import { $, game, setGame, setMatch, setPreview } from './state.js';
+import { $, game, setGame, setMatch, setPreview, world } from './state.js';
 
 export let curScreen = '';
 export const HOWTO_KEY = 'smash-howto-seen'; // 치는 방법 창을 본 적 있는지 (처음 온 사람에게 한 번 자동으로 띄움)
@@ -27,6 +27,7 @@ export function stopGame(keepCrowd = false) {
   endIntro(false);
   if (!keepCrowd) crowdLeave();
   if (game) game.destroy();
+  world.crowd.setFirstPerson(false); // 관전 1인칭에서 숨긴 내 캐릭터 되돌리기
   setGame(null);
   setMatch(null);
   $('hint').textContent = '';

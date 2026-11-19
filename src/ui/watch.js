@@ -13,7 +13,7 @@ import { show, stopGame } from './screen.js';
 import { $, game, myNemesis, myNick, setGame, world } from './state.js';
 
 export let watch = null; // 관전 중인 방 (아래 '관전')
-let watchView = 'side'; // 관전 카메라 (다른 경기로 넘어가도 유지)
+let watchView = 'me'; // 관전 카메라 (기본 = 관중석 내 자리에서 1인칭, 사용자 요청 11/19) (다른 경기로 넘어가도 유지)
 /* ───────── 관전 ─────────
    선수 채널은 듣기만(명단에도 안 들어감, 말도 안 함) → 선수 PC에 부담 0.
    시계: 방장이 보내는 시각(pong의 th, 이벤트의 t)과 받은 순간의 차이 중 가장 큰 값 = 방장 시계 - 내 시계 - (가장 짧은 전달 시간).
@@ -183,6 +183,6 @@ $('watch-bar').addEventListener('click', (e) => {
   const b = e.target.closest('[data-view]');
   if (!b || !game || !game.spectator) return;
   playUI('click');
-  game.view = b.dataset.view === 'side' ? 'side' : +b.dataset.view;
+  game.view = b.dataset.view === 'side' || b.dataset.view === 'me' ? b.dataset.view : +b.dataset.view;
   renderWatchBar();
 });

@@ -55,7 +55,7 @@ export function createCrowd(scene, makeCharacter) {
   root.visible = false;
   scene.add(root);
   const figs = new Map(); // id → { c, bub, slot, team, jumpT, bubT, phase }  (set에 오는 명단은 먼저 온 순서)
-  let last = 0, shown = true; // shown: 경기 화면에서만 관중석을 보인다 (대기실 무대엔 안 세움 — 사용자 확정: 대기실은 관중 수만)
+  let last = 0, shown = true, firstPerson = false; // shown: 경기 화면에서만 관중석을 보인다 (대기실 무대엔 안 세움 — 사용자 확정: 대기실은 관중 수만)
   // 몰입 연출(랠리가 길어지면 배경이 어두워짐)에 관중도 같이 어두워지게: 몸·탁구채·이름표·말풍선·빛 고리 전부.
   // 재질 색을 dim배로 바꿔 두고(원래 색은 f.saved에), 색을 새로 쓰는 일(꾸미기·이름표·움직이는 옷) 전에 되돌렸다가 다시 어둡게.
   // 그래서 경기 도중에 들어온 관중도 처음부터 어둡다
@@ -128,6 +128,8 @@ export function createCrowd(scene, makeCharacter) {
         // 관중 이름표는 선수보다 조금 작게 (여럿이 붙어 서도 덜 겹치게)
         for (const o of f.c.group.children) if (o.isSprite && o !== f.bub && !o.userData.small) { o.userData.small = true; o.scale.multiplyScalar(0.8); }
         f.c.setGlow(m.team === 0 || m.team === 1 ? TEAM_COLOR[m.team] : null);
+        f.me = !!m.me;
+        f.c.group.visible = !(f.me && firstPerson); // 1인칭으로 볼 땐 내 캐릭터는 숨김 (카메라가 머리 안에 있으니까)
         darken(f);
       }
       root.visible = shown && figs.size > 0;
@@ -165,6 +167,17 @@ export function createCrowd(scene, makeCharacter) {
         if (f.saved.length) { undim(f); f.c.tickOutfit(now, dt); darken(f); } else f.c.tickOutfit(now, dt);
         if (f.bub.visible && now - f.bubT > 2.2) f.bub.visible = false;
       }
+    },
+    // 관전 '내 자리에서'(1인칭) 시점: 내 캐릭터가 선 자리 {x, z} (관중석에 자리가 없으면 null)
+    mySpot() {
+      for (const f of figs.values()) if (f.me) return SLOTS[f.slot];
+      return null;
+    },
+    // 1인칭 시점 켜기/끄기: 내 캐릭터를 숨긴다
+    setFirstPerson(on) {
+      if (firstPerson === on) return;
+      firstPerson = on;
+      for (const f of figs.values()) if (f.me) f.c.group.visible = !on;
     },
     setShown(on) { shown = on; root.visible = on && figs.size > 0; },
     clear() { for (const [id, f] of figs) drop(id, f); root.visible = false; },

@@ -405,6 +405,8 @@ async function browserChecks() {
       await viewer.evaluate(() => document.querySelector('#btn-random-watch').click());
       await waitFor(viewer, () => window.__smash.game?.spectator && !document.querySelector('#watch-bar').classList.contains('hidden'), null, 10000, '관전 화면');
       await waitFor(viewer, () => document.querySelector('#scoreboard').textContent.includes('점검참가'), null, 10000, '관전 점수판에 선수 이름');
+      // 관전 기본 시점 = 관중석 내 자리 1인칭 ('🙂 내 자리' 버튼 켜짐, 카메라가 관중석 쪽 -x 눈높이)
+      await waitFor(viewer, () => window.__smash.game.view === 'me' && document.querySelector('[data-view="me"]').classList.contains('on') && window.__smash.world.camera.position.x < -2, null, 8000, "관전 기본 시점 '내 자리'(1인칭)");
       await viewer.evaluate(() => document.querySelector('[data-view="1"]').click());
       await waitFor(viewer, () => document.querySelector('[data-hop="1"]').disabled, null, 5000, '다른 경기가 없으면 ◀ ▶ 꺼짐');
       // 4단계: 관중이 응원 팀을 고르고 박수 → 선수 화면에 '관중 1명', 응원 버튼은 2초 동안 잠김
