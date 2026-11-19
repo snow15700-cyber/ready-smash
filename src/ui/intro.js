@@ -77,7 +77,7 @@ function stakes(seats, mySide, mode) {
   if (oppSt >= 2) out.push(`${ic('flame')}<b>연승 저지 찬스!</b> ${mode === '2v2' ? '상대 팀' : '상대'} ${oppSt}연승 중`);
   const mine = streakOf(myId);
   if (mine >= 2) out.push(`${ic('flame')}이기면 <b>${mine + 1}연승</b>`);
-  if (account.loggedIn && breakAt()) out.push('☕ 쉬는 시간 · <b>코인 +50%</b>');
+  if (account.loggedIn && breakAt()) out.push(`${ic('coffee')}쉬는 시간 · <b>코인 +50%</b>`);
   return out.slice(0, 3);
 }
 

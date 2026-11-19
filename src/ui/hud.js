@@ -34,7 +34,7 @@ export const hud = {
     const fire = hot ? ic('flame').repeat(Math.max(1, lv)) + ' ' : '';
     let html = `<div class="st-rally${hot}${lv ? ` lv${lv}` : ''}"><span>${fire}랠리</span><b>${st.rally}</b></div>`;
     if (game.mode === 'ai') {
-      html += `<div class="st-sub"><span>${ic('trophy')} 최고 ${st.best}</span><span>${ic('sparkle')} Perfect ${st.perfects}</span>${account.loggedIn ? `<span class="coin"><i class="coin-dot"></i> +${aiCoins}</span>` : ''}${account.loggedIn && breakAt() ? '<span class="brk">☕ 쉬는 시간 +50%</span>' : ''}</div>`;
+      html += `<div class="st-sub"><span>${ic('trophy')} 최고 ${st.best}</span><span>${ic('sparkle')} Perfect ${st.perfects}</span>${account.loggedIn ? `<span class="coin"><i class="coin-dot"></i> +${aiCoins}</span>` : ''}${account.loggedIn && breakAt() ? `<span class="brk">${ic('coffee')} 쉬는 시간 +50%</span>` : ''}</div>`;
     }
     $('stats').innerHTML = html;
   },

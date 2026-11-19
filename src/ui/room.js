@@ -493,7 +493,7 @@ export async function saveResult(mode, win, stats, achStats) {
       renderRoom();
       if (r.coins && !room.inGame) playUI('coin');
     }
-    // 오늘의 미션 (supabase/21) → 코인 내역에 '🎯 미션' 줄 + 알림
+    // 오늘의 미션 (supabase/21) → 코인 내역에 '미션 달성!' 줄
     const rm = await checkMatchMissions(mid, bonus);
     const mi = missionItems(rm);
     if (mi.length) {
@@ -521,11 +521,12 @@ function renderCoins() {
   else if (!account.loggedIn) el.innerHTML = '<small>로그인하면 경기마다 코인을 모을 수 있어요</small>';
   else if (!c) el.innerHTML = '<small>코인 정산 중…</small>';
   else {
-    // 오늘의 미션 줄(🎯)은 따로 눈에 띄게 한 줄로
-    const line = (list) => list.map((i) => `${esc(i.label)}${i.coins ? ` +${i.coins}` : ''}`).join(' · ');
-    const mis = c.items.filter((i) => i.label.startsWith('🎯'));
-    el.innerHTML = `<b><i class="coin-dot"></i> +${c.total} 코인</b><small>${line(c.items.filter((i) => !i.label.startsWith('🎯')))}</small>`
-      + (mis.length ? `<span class="rc-mission">${line(mis.map((i) => ({ ...i, label: i.label.replace('🎯 미션: ', '') })))}</span>` : '');
+    // 오늘의 미션 줄은 따로 눈에 띄게 한 줄로
+    // 서버가 주는 '☕ 쉬는 시간 +50%'는 이모지 대신 선 아이콘으로 (supabase/19)
+    const line = (list) => list.map((i) => `${esc(i.label).replace(/^☕\s*/, ic('coffee') + ' ')}${i.coins ? ` +${i.coins}` : ''}`).join(' · ');
+    const mis = c.items.filter((i) => i.mission);
+    el.innerHTML = `<b><i class="coin-dot"></i> +${c.total} 코인</b><small>${line(c.items.filter((i) => !i.mission))}</small>`
+      + (mis.length ? `<span class="rc-mission">${ic('target')} 미션 달성! ${line(mis)}</span>` : '');
   }
 }
 

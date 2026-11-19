@@ -1,14 +1,15 @@
 // 오늘의 미션 (사용자 확정 11/19, docs/dev/accounts.md '출석·일일 미션')
 // 사람을 섞는 미션: 매일(한국 날짜) 3개, 모두 같은 미션 = 고정 '오늘 새 상대와 1판' + 후보 6개 중 날짜로 정한 2개.
 // 미션 달성은 서버가 정한다(supabase/21_missions.sql). 여기는 이름·고르는 규칙(SQL pingpong__missions_of와 같음)·로컬 가짜 서버용.
+// ico = src/icons.js의 선 아이콘 이름 (화려한 이모지 대신, 새 디자인)
 export const MISSIONS = {
-  new_opp: { ico: '🤝', name: '오늘 새 상대와 1판', desc: '오늘 아직 안 붙어 본 사람과 경기' },
-  duo: { ico: '👥', name: '2대2 한 판', desc: '2대2 경기 끝까지 하기' },
-  cheer3: { ico: '📣', name: '관전하며 응원 3번', desc: '다른 사람 경기를 보며 응원 버튼 3번' },
-  rally10: { ico: '🏓', name: '랠리 10번 넘기기', desc: '1대1·2대2 경기에서 랠리 10번' },
-  opp3: { ico: '🎉', name: '오늘 상대 3명과 경기', desc: '오늘 서로 다른 상대 3명과 경기' },
-  win1: { ico: '🏆', name: '1번 이기기', desc: '1대1이나 2대2에서 한 번 이기기' },
-  perf3: { ico: '✨', name: '퍼펙트 3연속', desc: '경기에서 PERFECT 3번 연속' },
+  new_opp: { ico: 'handshake', name: '오늘 새 상대와 1판', desc: '오늘 아직 안 붙어 본 사람과 경기' },
+  duo: { ico: 'users', name: '2대2 한 판', desc: '2대2 경기 끝까지 하기' },
+  cheer3: { ico: 'mega', name: '관전하며 응원 3번', desc: '다른 사람 경기를 보며 응원 버튼 3번' },
+  rally10: { ico: 'paddle', name: '랠리 10번 넘기기', desc: '1대1·2대2 경기에서 랠리 10번' },
+  opp3: { ico: 'userPlus', name: '오늘 상대 3명과 경기', desc: '오늘 서로 다른 상대 3명과 경기' },
+  win1: { ico: 'trophy', name: '1번 이기기', desc: '1대1이나 2대2에서 한 번 이기기' },
+  perf3: { ico: 'sparkle', name: '퍼펙트 3연속', desc: '경기에서 PERFECT 3번 연속' },
 };
 export const MISSION_POOL = ['duo', 'cheer3', 'rally10', 'opp3', 'win1', 'perf3'];
 export const MISSION_COIN = 30; // 미션 하나

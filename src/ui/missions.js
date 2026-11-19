@@ -1,6 +1,7 @@
 import { account, cheerMissionOpen, loadMissions, missionCheer, missionMatch } from '../account.js';
 import { playUI } from '../audio.js';
 import { koreaDay, missionsOf, MISSIONS, MISSION_ALL, MISSION_COIN } from '../missions.js';
+import { ic } from '../icons.js';
 import { hud } from './hud.js';
 import { $, esc } from './state.js';
 
@@ -26,17 +27,17 @@ export function renderMissions() {
   }
   if (m && m.day !== day) m = null;
   if (account.loggedIn && !m) {
-    paint((el) => { el.classList.toggle('hidden', !loading); if (loading) el.innerHTML = '<div class="lm-head"><span class="lm-title">📋 오늘의 미션</span><small>불러오는 중…</small></div>'; });
+    paint((el) => { el.classList.toggle('hidden', !loading); if (loading) el.innerHTML = `<div class="lm-head"><span class="lm-title">${ic('clipboard')} 오늘의 미션</span><small>불러오는 중…</small></div>`; });
     return;
   }
   const list = m ? m.list : missionsOf(day).map((id) => ({ id, done: false }));
   const n = list.filter((x) => x.done).length;
   const all = n === list.length;
-  const html = `<button class="lm-head" type="button"><span class="lm-title">📋 오늘의 미션</span><b class="lm-n">${all ? '🎉 ' : ''}${n}/${list.length}</b><span class="lm-fold">▾</span></button>`
+  const html = `<button class="lm-head" type="button"><span class="lm-title">${ic('clipboard')} 오늘의 미션</span><b class="lm-n">${all ? ic('check') + ' ' : ''}${n}/${list.length}</b><span class="lm-fold">▾</span></button>`
     + `<ul class="lm-list">${list.map((x) => {
-      const d = MISSIONS[x.id] || { ico: '❔', name: x.id, desc: '' };
+      const d = MISSIONS[x.id] || { ico: 'target', name: x.id, desc: '' };
       const cheer = x.id === 'cheer3' && !x.done && m?.cheer ? ` <em>${Math.min(m.cheer, 3)}/3</em>` : '';
-      return `<li class="${x.done ? 'done' : ''}" title="${esc(d.desc)}"><i>${x.done ? '✅' : d.ico}</i><span>${esc(d.name)}${cheer}</span><small>+${MISSION_COIN}</small></li>`;
+      return `<li class="${x.done ? 'done' : ''}" title="${esc(d.desc)}"><i>${ic(x.done ? 'circleCheck' : d.ico)}</i><span>${esc(d.name)}${cheer}</span><small>+${MISSION_COIN}</small></li>`;
     }).join('')}</ul>`
     + `<p class="lm-note">${account.loggedIn
       ? (all ? '오늘 미션 끝! 내일 새 미션이 와요' : `다 깨면 <b>+${MISSION_ALL}</b> 더 · 로그인한 사람과의 경기만 쳐요`)
@@ -60,8 +61,8 @@ for (const id of BOXES) $(id).addEventListener('click', (e) => {
 // 서버가 알려 준 새 미션 → 코인 내역 줄 + 알림
 export function missionItems(r) {
   if (r?.status !== 'ok' || !r.new?.length) return [];
-  const items = r.new.map((id) => ({ label: `🎯 미션: ${MISSIONS[id]?.name || id}`, coins: MISSION_COIN }));
-  if (r.all) items.push({ label: '🎯 오늘의 미션 모두 달성!', coins: MISSION_ALL });
+  const items = r.new.map((id) => ({ label: MISSIONS[id]?.name || id, coins: MISSION_COIN, mission: true }));
+  if (r.all) items.push({ label: '오늘의 미션 모두 달성!', coins: MISSION_ALL, mission: true });
   return items;
 }
 export function missionToast(r, delay = 0) {
@@ -72,7 +73,7 @@ export function missionToast(r, delay = 0) {
     // 경기 결과 띠가 떠 있으면 사라진 뒤에
     if (!$('result').classList.contains('hidden')) { setTimeout(go, 500); return; }
     playUI('coin');
-    hud.toast(r.all ? `🎉 오늘의 미션 모두 달성! +${r.coins} 코인` : `🎯 미션 달성! ${names} +${r.coins} 코인`, 3000);
+    hud.toast(r.all ? `오늘의 미션 모두 달성! +${r.coins} 코인` : `미션 달성! ${names} +${r.coins} 코인`, 3000);
   }, delay);
 }
 
