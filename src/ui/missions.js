@@ -13,24 +13,26 @@ let loading = false;
 
 const folded = () => { try { return localStorage.getItem(FOLD_KEY) === '1'; } catch { return false; } };
 
+const BOXES = ['lb-missions', 'room-missions'];
+const paint = (fn) => BOXES.forEach((id) => fn($(id)));
+
 export function renderMissions() {
-  const el = $('lb-missions');
   const day = koreaDay();
   let m = account.missions;
   // 로그인했으면 서버에서 불러온다 (날짜가 바뀌었거나 1분 지났으면 다시)
   if (account.loggedIn && !loading && (!m || m.day !== day || Date.now() - loadedAt > 60e3)) {
     loading = true;
-    loadMissions().then(() => { loadedAt = Date.now(); loading = false; if (!$('lobby').classList.contains('hidden')) renderMissions(); });
+    loadMissions().then(() => { loadedAt = Date.now(); loading = false; renderMissions(); });
   }
   if (m && m.day !== day) m = null;
-  if (account.loggedIn && !m) { el.classList.toggle('hidden', !loading); if (loading) el.innerHTML = '<div class="lm-head"><span class="lm-title">📋 오늘의 미션</span><small>불러오는 중…</small></div>'; return; }
+  if (account.loggedIn && !m) {
+    paint((el) => { el.classList.toggle('hidden', !loading); if (loading) el.innerHTML = '<div class="lm-head"><span class="lm-title">📋 오늘의 미션</span><small>불러오는 중…</small></div>'; });
+    return;
+  }
   const list = m ? m.list : missionsOf(day).map((id) => ({ id, done: false }));
   const n = list.filter((x) => x.done).length;
   const all = n === list.length;
-  el.classList.remove('hidden');
-  el.classList.toggle('folded', folded());
-  el.classList.toggle('all', all);
-  el.innerHTML = `<button class="lm-head" type="button"><span class="lm-title">📋 오늘의 미션</span><b class="lm-n">${all ? '🎉 ' : ''}${n}/${list.length}</b><span class="lm-fold">▾</span></button>`
+  const html = `<button class="lm-head" type="button"><span class="lm-title">📋 오늘의 미션</span><b class="lm-n">${all ? '🎉 ' : ''}${n}/${list.length}</b><span class="lm-fold">▾</span></button>`
     + `<ul class="lm-list">${list.map((x) => {
       const d = MISSIONS[x.id] || { ico: '❔', name: x.id, desc: '' };
       const cheer = x.id === 'cheer3' && !x.done && m?.cheer ? ` <em>${Math.min(m.cheer, 3)}/3</em>` : '';
@@ -39,14 +41,20 @@ export function renderMissions() {
     + `<p class="lm-note">${account.loggedIn
       ? (all ? '오늘 미션 끝! 내일 새 미션이 와요' : `다 깨면 <b>+${MISSION_ALL}</b> 더 · 로그인한 사람과의 경기만 쳐요`)
       : '로그인하면 미션 코인을 받을 수 있어요'}</p>`;
+  paint((el) => {
+    el.classList.remove('hidden');
+    el.classList.toggle('folded', folded());
+    el.classList.toggle('all', all);
+    if (el.innerHTML !== html) el.innerHTML = html;
+  });
 }
 
-$('lb-missions').addEventListener('click', (e) => {
+for (const id of BOXES) $(id).addEventListener('click', (e) => {
   if (!e.target.closest('.lm-head')) return;
   playUI('click');
   const f = !folded();
   try { localStorage.setItem(FOLD_KEY, f ? '1' : '0'); } catch { /* 무시 */ }
-  $('lb-missions').classList.toggle('folded', f);
+  paint((el) => el.classList.toggle('folded', f));
 });
 
 // 서버가 알려 준 새 미션 → 코인 내역 줄 + 알림

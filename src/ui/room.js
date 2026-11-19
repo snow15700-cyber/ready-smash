@@ -1,5 +1,5 @@
 import { ic } from '../icons.js';
-import { checkMatchMissions, missionItems } from './missions.js';
+import { checkMatchMissions, missionItems, renderMissions } from './missions.js';
 import { account, getH2H, matchAch, matchFinish, matchJoin, matchPeople, myEquip, myTitle, newMatchId } from '../account.js';
 import { titleText } from '../achievements.js';
 import { initAudio, playUI } from '../audio.js';
@@ -554,6 +554,7 @@ function renderH2H() {
 
 function renderRoom() {
   if (!room) return;
+  renderMissions();
   renderH2H();
   $('room-code').textContent = room.code;
   $('room-mode').innerHTML = room.mode

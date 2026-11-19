@@ -356,8 +356,17 @@ a.lb-ext .ext { display: inline-flex; font-size: 15px; opacity: .8; }
 
 /* 오늘의 미션 카드 (src/ui/missions.js) — 내 전적 아래, 유리 카드 */
 .lb-missions { width: 270px; max-width: calc(100vw - 32px); border-radius: 18px; padding: 4px 6px 8px; color: #fff; box-sizing: border-box; }
+/* 로비: 미션 카드 너비 = 위 전적 3칸(사이 공간 포함) 너비 */
+.me-box { display: flex; flex-direction: column; gap: 8px; width: max-content; max-width: calc(100vw - 32px); }
+.me-box .lb-missions { width: 0; min-width: 100%; }
+/* 대기실: 오른쪽 위 꾸미기 알약 아래 */
+.room-missions { position: absolute; right: 16px; top: 58px; z-index: 2; }
+@media (max-width: 1099px) { .room-missions { width: 210px; } .room-missions .lm-list, .room-missions .lm-note { display: none; } .room-missions .lm-fold { display: none; } }
+@media (max-width: 899px) { .room-missions { display: none; } }
 .lobby button.lm-head, .lm-head { width: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: none; box-shadow: none; color: #fff; border-radius: 12px; text-align: left; }
 .lobby button.lm-head:hover:not(:disabled) { transform: none; background: rgba(255,255,255,.08); }
+.lb-missions button.lm-head, .gx .lb-missions button.lm-head { background: none; border: 0; box-shadow: none; outline: none; color: #fff; font-family: var(--font-ui); transform: none; }
+.lb-missions button.lm-head:hover { background: rgba(255,255,255,.08); }
 .lm-title { font-size: 15px; font-weight: 700; flex: 1; }
 .lm-n { font-size: 14px; font-weight: 700; background: rgba(255,255,255,.18); border-radius: 999px; padding: 2px 10px; }
 .lb-missions.all .lm-n { background: var(--tt-ball); }

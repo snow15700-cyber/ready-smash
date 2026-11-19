@@ -215,9 +215,12 @@
           <button id="btn-logout" class="small">로그아웃</button>
         </div>
       </div>
-      <div id="me-stats" class="me-stats"></div>
-      <!-- 오늘의 미션 (src/ui/missions.js) -->
-      <div id="lb-missions" class="lb-missions hidden"></div>
+      <!-- 내 전적 3칸 + 오늘의 미션(같은 너비) -->
+      <div class="me-box">
+        <div id="me-stats" class="me-stats"></div>
+        <!-- 오늘의 미션 (src/ui/missions.js) -->
+        <div id="lb-missions" class="lb-missions hidden"></div>
+      </div>
     </div>
 
     <!-- 오른쪽 아래: 랭킹·꾸미기·업데이트 -->
@@ -279,6 +282,8 @@
     <div id="room-labels" class="room-labels"></div>
     <p id="room-hint" class="room-hint"></p>
     <p id="room-bg" class="room-hint room-bg"></p>
+    <!-- 오늘의 미션 (로비 카드와 같은 내용, src/ui/missions.js) -->
+    <div id="room-missions" class="lb-missions room-missions hidden"></div>
     <!-- 경기 결과·코인·상대 전적 (위 가운데) -->
     <div class="room-news">
       <p id="room-result" class="result hidden"></p>
