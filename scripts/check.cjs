@@ -419,6 +419,18 @@ async function browserChecks() {
       await waitFor(viewer, () => window.__smash.room?.spectate && !document.querySelector('#room').classList.contains('hidden') && document.querySelector('#btn-spec-join').textContent.includes('알려'), null, 20000, "경기 끝 → 관중은 대기실 관전 ('알려 줘요')");
       await waitFor(page, () => !document.querySelector('#room').classList.contains('hidden') && document.querySelector('#room-eyes').textContent.includes('관중 1명'), null, 20000, "선수 대기실에 '관중 1명'");
       await waitFor(viewer, () => document.querySelector('#team-0').textContent.includes('점검') || document.querySelectorAll('#team-0 .slot').length > 0, null, 5000, '대기실 관전 자리 칸');
+      // 6단계: 대기실 관전 중 다음 경기 시작 → 관중도 VS 소개 (건너뛰기 버튼 없음), 선수 모두 건너뛰면 같이 넘어가 중계
+      await waitFor(page, () => document.querySelector('#team-0 .slot.empty:not(.locked)'), null, 10000, '다음 판 자리 칸');
+      await page.evaluate(() => document.querySelector('#team-0 .slot.empty:not(.locked)').click());
+      await waitFor(guest, () => document.querySelector('#team-1 .slot.empty:not(.locked)'), null, 10000, '참가자 다음 판 자리');
+      await guest.evaluate(() => document.querySelector('#team-1 .slot.empty:not(.locked)').click());
+      await waitFor(viewer, () => document.querySelectorAll('#team-0 .slot:not(.empty), #team-1 .slot:not(.empty)').length === 2, null, 10000, '관중 화면에 두 선수 팀');
+      await waitFor(page, () => !document.querySelector('#btn-start').disabled, null, 10000, '다음 판 시작 버튼');
+      await page.click('#btn-start');
+      await waitFor(viewer, () => window.__smash.game?.spectator && window.__smash.intro && document.querySelector('#vi-skip-btn').classList.contains('hidden'), null, 20000, '관중도 VS 소개 (건너뛰기 버튼 없음)');
+      for (const p of [page, guest]) await waitFor(p, () => window.__smash.intro && window.__smash.intro.seg && window.__smash.intro.seg !== 'dim', null, 30000, '선수 VS 소개');
+      for (const p of [page, guest]) await p.evaluate(() => document.querySelector('#vi-skip-btn').click());
+      await waitFor(viewer, () => !window.__smash.intro && window.__smash.game?.spectator && !window.__smash.game.paused, null, 20000, '선수 모두 건너뛰기 → 관중도 중계');
       await page.waitForTimeout(1500);
       flush();
       // 방장 나가기 (경기 끝나 대기실로 돌아갔으면 대기실의 나가기 버튼)

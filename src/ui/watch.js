@@ -6,6 +6,7 @@ import { applyLook } from '../items.js';
 import { joinRoom } from '../net.js';
 import { crowdJoin, crowdKeep, renderCheerBar } from './cheer.js';
 import { hud } from './hud.js';
+import { addSkip } from './intro.js';
 import { lobbyRooms } from './lobbyList.js';
 import { enterRoom, leaveRoom, myId, room, takeRoomLink } from './room.js';
 import { show, stopGame } from './screen.js';
@@ -43,7 +44,7 @@ export function startWatch(r, { keep = false, link = null, members = null, live 
   game.view = watchView; // 넘나들어도 고른 카메라 그대로
   hud.score([0, 0]);
   hud.stats(game.stats);
-  hud.hint(live ? '곧 경기가 시작돼요!' : '다음 서브부터 중계해요…');
+  hud.hint(live ? '' : '다음 서브부터 중계해요…'); // live: 곧 VS 소개 연출 (room.js specToWatch)
   if (members?.length) onWatchMembers(w, members);
   document.body.classList.add('watching');
   renderWatchBar();
@@ -152,6 +153,7 @@ function watchClock(w, hostT) {
 function onWatchMsg(w, m) {
   if (watch !== w || !game || w.over) return; // 경기가 끝난 뒤엔 새 경기를 다시 들어가서 받는다
   if (m.k === 'pong' && typeof m.th === 'number') { watchClock(w, m.th); return; }
+  if (m.k === 'skip') { addSkip(m.from); return; } // VS 소개 건너뛰기 (선수 모두가 누르면 관중 화면도 같이 넘어감)
   if (m.k !== 'ev' || !m.ev) return;
   const ev = m.ev;
   if (typeof ev.t === 'number' && (ev.type === 'shot' || ev.type === 'toss')) watchClock(w, ev.t);

@@ -96,6 +96,7 @@ export function enterRoom(code, host, mode = null, { spectate = false, link = nu
 export function leaveRoom() {
   if (!room) return;
   clearInterval(room.timer);
+  clearTimeout(room.goWait);
   room.link.leave();
   room = null;
   stopGame();
@@ -105,8 +106,10 @@ export function leaveRoom() {
 export function takeRoomLink() {
   if (!room) return null;
   clearInterval(room.timer);
+  clearTimeout(room.goWait);
   const out = { link: room.link, members: room.link.members() };
   room = null;
+  document.body.classList.remove('spectating');
   return out;
 }
 
@@ -122,7 +125,11 @@ export function specLobby() {
   if (r && r.w === false) { leaveRoom(); show('lobby'); hud.toast('방장이 관전을 막았어요', 2400); return; }
   if (r && !r.play) room.sawIdle = true;
   // 'go'를 놓쳤는데 경기가 시작됨 (대기 중인 걸 본 뒤에만: 방금 끝난 경기의 '경기 중'은 무시)
-  if (r && r.play && r.pl && room.sawIdle) { specToWatch(r, false); return; }
+  // 로비 정보가 'go'보다 먼저 올 수 있으니 1.5초 기다렸다가 (그사이 'go'가 오면 VS 소개부터)
+  if (r && r.play && r.pl && room.sawIdle) {
+    if (!room.goWait) { const r0 = room; r0.goWait = setTimeout(() => { if (room === r0 && room.spectate) specToWatch(specInfo() || r, false); }, 1500); }
+    return;
+  }
   if (room.notify && specFree() > 0) { room.notify = false; playUI('turn'); hud.toast('🔔 자리가 났어요! 들어갈래요?', 3000); }
   renderSpec();
 }
@@ -135,8 +142,17 @@ function specFree() {
 // 경기 시작 → 경기 관전으로 (채널 넘겨주기). live: 'go'를 직접 받음 (첫 서브부터 빠짐없이)
 function specToWatch(info, live) {
   const nick = room.hostM?.nick || '방장';
+  // 경기 시작 신호를 직접 받았으면 VS 소개 연출도 같이 (방을 넘겨주기 전에 이름·꾸미기·칭호·연승을 모아 둔다)
+  let spec = null;
+  if (live) {
+    room.players = info.pl;
+    const tp = Object.fromEntries(room.members.map((m) => [m.id, roomTpill(m.id)]));
+    const st = Object.fromEntries(room.members.map((m) => [m.id, streakOf(m.id)]));
+    spec = { names: playerNames(), looks: looks(), tpill: (id) => tp[id] || '', streak: (id) => st[id] || 0 };
+  }
   const t = takeRoomLink();
   startWatch({ code: info.code, mode: info.mode, pl: info.pl, nick, w: true }, { keep: true, link: t.link, members: t.members, live });
+  if (spec && game) startIntro(info.pl, 0, info.mode, spec);
 }
 function renderSpec() {
   const on = !!room?.spectate;
@@ -303,8 +319,8 @@ function onRoomMsg(m) {
     case 'sw': // 다른 사람의 연습 스윙
       if (!room.inGame && ['perfect', 'good', 'block'].includes(m.g)) practiceSwing(m.id, m.g);
       break;
-    case 'hi': // 대기실 관중이 들어옴: 내 팀을 알려 준다
-      if (!room.inGame) sendState();
+    case 'hi': // 대기실 관중이 들어옴: 내 팀을 알려 준다 (경기 중엔 안 함, 관중이 몰려와도 1.5초에 한 번만 — 선수 PC 부담 없게)
+      if (!room.inGame) answerHi();
       break;
     case 'go': {
       if (room.host) break;
@@ -345,6 +361,18 @@ function onRoomMsg(m) {
       break;
     }
   }
+}
+
+// 관중의 '지금 팀 알려 줘요'에 답하기: 1.5초에 한 번까지, 그사이에 온 것은 한 번으로 모아서
+function answerHi() {
+  const r = room;
+  if (r.hiT) return;
+  const wait = Math.max(0, (r.hiAt || 0) + 1.5 - performance.now() / 1000);
+  r.hiT = setTimeout(() => {
+    r.hiT = 0;
+    r.hiAt = performance.now() / 1000;
+    if (room === r && !r.inGame) sendState();
+  }, wait * 1000 + 150);
 }
 
 function nickOf(id) {

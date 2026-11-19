@@ -27,30 +27,35 @@ export const INTRO = {
 };
 export let intro = null;
 
-export function startIntro(players, mySide, mode) {
-  const nm = playerNames(), lk = looks();
+// spec: 관중(관전 6단계)이 보는 연출. 방(room)은 이미 경기 관전으로 넘겨줬으니 넘기기 전에 모아 둔 이름·꾸미기·칭호·연승을 쓴다
+//   { names, looks, tpill(id), streak(id) }. 관중은 '나/상대' 대신 A팀/B팀, 건너뛰기 버튼 없음(선수들이 누른 건 보임)
+export function startIntro(players, mySide, mode, spec = null) {
+  const nm = spec ? spec.names : playerNames(), lk = spec ? spec.looks : looks();
+  const tpOf = spec ? spec.tpill : roomTpill, stOf = spec ? spec.streak : streakOf;
   const seats = players.map((p) => ({ side: p.side, slot: p.slot || 0, id: p.id, name: nm[p.side][p.slot || 0], look: lk[p.side][p.slot || 0] }))
     .sort((a, b) => a.side - b.side || a.slot - b.slot);
-  intro = { t0: performance.now() / 1000, mySide, mode, seats, seg: '', num: 0, beatAt: 0, skips: new Set(), swung: new Set(), fov: stage.on ? stage.fov : world.camera.fov, roomShown: true };
+  intro = { spec: !!spec, t0: performance.now() / 1000, mySide, mode, seats, seg: '', num: 0, beatAt: 0, skips: new Set(), swung: new Set(), fov: stage.on ? stage.fov : world.camera.fov, roomShown: true };
   if (game) game.paused = true;
   document.body.classList.add('intro');
   // ① 동안은 대기실을 그대로 보여 주고 (누를 수는 없게) 그 위를 어둡게 덮는다
   $('room').classList.remove('hidden');
   $('room').classList.add('leaving');
   const card = (s) => {
-    const st = streakOf(s.id);
+    const st = stOf(s.id);
     const fire = st >= 2 ? `<div class="vi-streak">${ic('flame')}${st}연승 중</div>` : '';
-    return `<div class="vi-card">${roomTpill(s.id)}<div class="nm t${s.side}">${esc(s.name)}${s.id === myId ? '<small>나</small>' : ''}</div>${lookPills(s.look)}${fire}</div>`;
+    return `<div class="vi-card">${tpOf(s.id)}<div class="nm t${s.side}">${esc(s.name)}${s.id === myId ? '<small>나</small>' : ''}</div>${lookPills(s.look)}${fire}</div>`;
   };
-  const team = (side) => `<div class="vi-team">${side === mySide ? (mode === '2v2' ? '우리 팀' : '나') : (mode === '2v2' ? '상대 팀' : '상대')} · ${TEAM_NAME[side]}</div>`
+  const who = (side) => (spec ? '' : `${side === mySide ? (mode === '2v2' ? '우리 팀' : '나') : (mode === '2v2' ? '상대 팀' : '상대')} · `);
+  const team = (side) => `<div class="vi-team">${who(side)}${TEAM_NAME[side]}</div>`
     + seats.filter((s) => s.side === side).map(card).join('');
   $('vi-opp').innerHTML = team(1 - mySide);
   $('vi-us').innerHTML = team(mySide);
   $('vi-num').innerHTML = '';
-  $('vi-stake').innerHTML = stakes(seats, mySide, mode).map((x, i) => `<div class="vs-chip" style="animation-delay:${0.15 + i * 0.18}s">${x}</div>`).join('')
+  $('vi-stake').innerHTML = (spec ? specStakes(seats, stOf) : stakes(seats, mySide, mode)).map((x, i) => `<div class="vs-chip" style="animation-delay:${0.15 + i * 0.18}s">${x}</div>`).join('')
     + '<div id="vi-eyes" class="vs-chip hidden"></div>'; // 관전자 수 (관중 목록이 늦게 올 수 있어 매 프레임 확인)
   intro.eyes = 0;
   $('vs-intro').className = 'vs-intro';
+  $('vi-skip-btn').classList.toggle('hidden', !!spec); // 관중은 건너뛰기 못 함 (선수 모두가 누르면 같이 넘어감)
   renderSkip();
 }
 
@@ -76,6 +81,12 @@ function stakes(seats, mySide, mode) {
   return out.slice(0, 3);
 }
 
+// 관중이 보는 '이 판에 걸린 것': 연승 중인 선수만 (2연승부터, 최대 2개)
+function specStakes(seats, stOf) {
+  return seats.map((s) => ({ s, st: stOf(s.id) })).filter((x) => x.st >= 2).sort((a, b) => b.st - a.st).slice(0, 2)
+    .map(({ s, st }) => `${ic('flame')}<b>${esc(s.name)}</b> ${st}연승 중`);
+}
+
 // 건너뛰기: 선수 모두가 누르면 모든 PC가 각자 정적(hush)으로 넘어간다
 function renderSkip() {
   if (!intro) return;
@@ -93,7 +104,7 @@ export function addSkip(id) {
 }
 $('vi-skip-btn').addEventListener('click', (e) => {
   e.stopPropagation();
-  if (!intro || intro.skips.has(myId)) return;
+  if (!intro || intro.spec || intro.skips.has(myId)) return;
   playUI('click');
   if (room) room.link.send({ k: 'skip', from: myId });
   addSkip(myId);
