@@ -187,7 +187,7 @@ export function buildBeach() {
   beachBall.position.set(-2.4, 0.22, 1.3); beachBall.castShadow = true; root.add(beachBall);
   // 서핑보드 (모래에 꽂힘)
   const board = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 1.6, 4, 12), std(0x22c1c3));
-  board.scale.z = 0.18; board.position.set(-4.4, 0.95, 1.6); board.rotation.set(0.05, 0.6, 0.12); board.castShadow = true; root.add(board);
+  board.scale.z = 0.18; board.position.set(-4.6, 0.95, 4.8); board.rotation.set(0.05, 0.6, 0.12); board.castShadow = true; root.add(board); // 관중석(z ±3.6) 바깥: 관중 1인칭 시야를 안 가리게
   const stripe = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 1.6, 4, 8), std(0xff7a1a)); stripe.scale.z = 0.8; stripe.position.z = 0.02; board.add(stripe);
   // 모래성 + 양동이·삽
   const castle = new THREE.Group(), cs = std(0xdcc08a, { flatShading: true });
