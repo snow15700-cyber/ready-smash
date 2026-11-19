@@ -177,6 +177,7 @@ export function buildParking() {
 
   return {
     root,
+    crowd: [1.9, 2.65], // 관중 앞줄·뒷줄 (탁구대 옆 가장자리에서 m): 기둥·주차된 차보다 앞에 서게 (crowd.js)
     sky: '#3a3d3b',
     fog: [12, 34],
     far: 60,

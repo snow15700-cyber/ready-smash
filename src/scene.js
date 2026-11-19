@@ -10,6 +10,8 @@ const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatSha
 
 // 카메라: 어깨 뒤 낮게 + 공 따라가기 + 타격 흔들림
 // 관전 중계 카메라 (탁구대 옆, +x 쪽). follow: 공을 따라가는 정도
+// 관전 1인칭(관중석 내 자리): 눈높이 eye, 공을 따라 고개 돌리기 follow. backX: 관중석에 자리가 없을 때 (맨 뒤 가운데)
+const SEAT_CAM = { eye: 1.2, lookY: 0.8, fov: 58, maxFov: 100, follow: 0.55, lerp: 4, backX: -(HALF_W + 4.5) };
 const SIDE_CAM = { x: 4.3, y: 2.4, lookY: 0.7, fov: 50, follow: 0.12, lerp: 3, halfW: 2.6 }; // halfW: 화면 가로에 꼭 들어가야 하는 반폭(m)
 const CAM = { y: 1.5, back: 1.2, x: 0.3, lookY: 0.86, lookZ: 1.0, fov: 60, followChar: 0.75, followBall: 0.35, lerp: 7, shake: 0.05 };
 
@@ -92,6 +94,7 @@ export function createWorld(canvas) {
     arena = next;
     arenaId = id;
     scene.add(arena.root);
+    crowd.setRows(arena.crowd); // 관중 줄 위치 (배경 물건과 안 겹치게, 없으면 기본)
     scene.background = new THREE.Color(arena.sky);
     scene.fog = new THREE.Fog(arena.sky, arena.fog[0], arena.fog[1]);
     camera.far = arena.far; camera.updateProjectionMatrix();
@@ -295,6 +298,28 @@ export function createWorld(canvas) {
       camLook.lerp(tl, k);
       camera.position.copy(camPos);
       if (this.shake > 0.001) camera.position.y += (Math.random() - 0.5) * this.shake * CAM.shake * 0.5;
+      this.shake *= Math.exp(-dt * 12);
+      if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+      camera.lookAt(camLook);
+    },
+    // 관전 '내 자리에서'(1인칭): 관중석에 선 내 캐릭터의 눈높이에서 탁구대를 본다. 고개는 공을 따라 돌아간다
+    // spot: 내 자리 {x, z} (관중석 자리가 없으면 맨 뒤 가운데), halfW: 화면 가로에 꼭 들어가야 하는 반폭
+    updateSeatCamera(dt, spot, ballX = 0, ballZ = 0, halfW = 2.5) {
+      const P = SEAT_CAM;
+      const sx = spot ? spot.x : P.backX, sz = spot ? spot.z : 0;
+      ballZ = Math.max(-HALF_L * 1.5, Math.min(HALF_L * 1.5, ballZ));
+      const tp = new THREE.Vector3(sx, P.eye, sz);
+      const narrow = camera.aspect < 1; // 휴대폰 세로 화면: 다 안 들어오니 고개를 공 쪽으로 더 많이 돌린다
+      const tl = new THREE.Vector3(ballX * 0.3, P.lookY, ballZ * (narrow ? 0.9 : P.follow));
+      if (!camInit) { camPos.copy(tp); camLook.copy(tl); camInit = true; }
+      camPos.lerp(tp, 1 - Math.exp(-dt * 8));
+      camLook.lerp(tl, 1 - Math.exp(-dt * P.lerp));
+      // 세로로 긴 화면(휴대폰)은 양쪽 선수가 들어오게 화각을 넓힌다
+      const dist = Math.abs(sx) + 0.5;
+      const need = (Math.atan(halfW / (camera.aspect * dist)) * 360) / Math.PI;
+      const fov = Math.min(P.maxFov, Math.max(P.fov, need));
+      camera.position.copy(camPos);
+      if (this.shake > 0.001) camera.position.y += (Math.random() - 0.5) * this.shake * CAM.shake * 0.4;
       this.shake *= Math.exp(-dt * 12);
       if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
       camera.lookAt(camLook);

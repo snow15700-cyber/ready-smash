@@ -139,6 +139,7 @@ function loop() {
   world.setArena(arenaOf(arenaLook));
   world.setBallSkin(ballOf(arenaLook)); // 탁구공도 배경처럼: 방에서는 방장 것
 
+  world.crowd.setShown(!!game); // 관중석은 경기 화면에서만 (대기실 무대엔 안 세움)
   world.crowd.update(now); // 관중석 (관중이 없으면 바로 끝남)
   world.render();
   if (perf) perf.frame(now);

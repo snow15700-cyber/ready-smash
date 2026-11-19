@@ -1001,13 +1001,12 @@ button.rl-random { margin-left: auto; font-size: 13px; padding: 5px 10px; border
 body.watching #hint { bottom: 128px; }
 @media (max-width: 600px) { .cheer-bar [data-cheer] span, .cheer-bar .cb-team span { display: none; } .cheer-bar button { padding: 6px 9px; } .crowd-pill { top: 118px; } }
 
-/* ───────── 관전 5단계: 경기 끝난 뒤 다음 판 ───────── */
-.watch-next { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(380px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 10px; padding: 18px 18px 16px; border-radius: 24px; background: var(--paper); box-shadow: 0 16px 40px rgba(60,40,20,.3); text-align: center; animation: popIn .22s ease-out; }
-.watch-next b { font-size: 19px; color: var(--blue-ink); }
-.watch-next p { margin: -4px 0 2px; font-size: 14px; color: var(--muted); word-break: keep-all; }
-.watch-next button.big.wait { background: #8a7a66; box-shadow: 0 5px 0 #5f5243; }
-.watch-next .wn-row { display: flex; gap: 8px; }
-.watch-next .wn-row button { flex: 1; }
+/* ───────── 관전 6단계: 대기실 관전 (참가·알려 줘요·다른 경기) + 대기실의 관중 수 ───────── */
+.room-eyes { font-size: 14px; font-weight: 600; color: #fff; background: rgba(255,255,255,.12); border-radius: 999px; padding: 5px 12px; white-space: nowrap; }
+.spec-acts { display: none; gap: 8px; align-items: center; flex: none; }
+body.spectating .spec-acts { display: flex; }
+.spec-acts #btn-spec-join { width: auto; font-size: 18px; padding: 10px 22px; }
+.gx .spec-acts #btn-spec-join.wait { background: rgba(255,255,255,.14); box-shadow: none; }
 
 /* ───────── 5단계 새 디자인 '탁구 색 + 유리' — 경기 중 화면 (사용자 확정 '추천' 안) ─────────
    경기 중에는 흐림(backdrop-filter) 없이 진한 반투명만(렉 방지). 글꼴: 정보 = Pretendard, 가슴 뛰는 순간(PERFECT·VS·승리·준비하시고 스매시) = Jua.
@@ -1087,3 +1086,4 @@ body.watching #hint { bottom: 128px; }
 html.lite-glass .break-banner { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(90,50,20,.85); }
 .gx .break-pill { color: #ffd9b0; background: rgba(255,138,31,.2); box-shadow: inset 0 0 0 1px rgba(255,190,110,.5); font-weight: 600; }
 .gx .break-pill b { color: #ffb066; }
+@media (max-width: 600px) { body.spectating #room-bg { display: none; } } /* 휴대폰 대기실 관전: 위 알약 두 개가 겹치지 않게 */

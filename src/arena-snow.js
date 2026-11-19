@@ -215,6 +215,7 @@ export function buildSnow() {
 
   return {
     root,
+    crowd: [4.0, 4.9], // 관중 앞줄·뒷줄 (탁구대 옆 가장자리에서 m): 눈 쌓인 벤치 뒤에 서게 (crowd.js)
     sky: '#1a2547',
     fog: [30, 160],
     far: 340,

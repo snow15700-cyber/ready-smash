@@ -3,7 +3,7 @@ import { resetScore } from './hud.js';
 import { endIntro } from './intro.js';
 import { syncLobby } from './lobbyList.js';
 import { renderMe, updSeen } from './login.js';
-import { $, game, setGame, setMatch, setPreview } from './state.js';
+import { $, game, setGame, setMatch, setPreview, world } from './state.js';
 
 export let curScreen = '';
 export const HOWTO_KEY = 'smash-howto-seen'; // 치는 방법 창을 본 적 있는지 (처음 온 사람에게 한 번 자동으로 띄움)
@@ -22,10 +22,12 @@ export function show(screen) {
   $('hud').classList.toggle('hidden', screen !== 'hud');
 }
 
-export function stopGame() {
+// keepCrowd: 관전하던 방에서 다음 경기로 이어 볼 때 — 관중석 채널은 그대로 (나갔다 바로 다시 들어가면 선수 화면에서 내가 빠질 수 있음)
+export function stopGame(keepCrowd = false) {
   endIntro(false);
-  crowdLeave();
+  if (!keepCrowd) crowdLeave();
   if (game) game.destroy();
+  world.crowd.setFirstPerson(false); // 관전 1인칭에서 숨긴 내 캐릭터 되돌리기
   setGame(null);
   setMatch(null);
   $('hint').textContent = '';

@@ -293,6 +293,7 @@ export function buildPicnic() {
   const PLANE_T = 26; // 비행기가 한 번 지나가는 주기(초)
   return {
     root,
+    crowd: [3.3, 4.2], // 관중 앞줄·뒷줄 (탁구대 옆 가장자리에서 m): 돗자리·도시락 뒤에 서게 (crowd.js)
     sky: '#a8dcff',
     fog: [70, 320],
     far: 360,
