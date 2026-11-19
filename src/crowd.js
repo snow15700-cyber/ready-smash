@@ -60,8 +60,15 @@ export function createCrowd(scene, makeCharacter) {
   // 재질 색을 dim배로 바꿔 두고(원래 색은 f.saved에), 색을 새로 쓰는 일(꾸미기·이름표·움직이는 옷) 전에 되돌렸다가 다시 어둡게.
   // 그래서 경기 도중에 들어온 관중도 처음부터 어둡다
   let dim = 1;
+  // 반사(envMap)·반짝임(specular)은 색과 따로 밝게 빛나서(기사 갑옷·미러볼 의상 같은 전설 옷) 그것도 같이 줄인다
   const undim = (f) => {
-    for (const e of f.saved) { e.m.color.copy(e.c); if (e.e) e.m.emissive.copy(e.e); }
+    for (const e of f.saved) {
+      e.m.color.copy(e.c);
+      if (e.e) e.m.emissive.copy(e.e);
+      if (e.s) e.m.specular.copy(e.s);
+      if (e.r != null) e.m.reflectivity = e.r;
+      if (e.i != null) e.m.envMapIntensity = e.i;
+    }
     f.saved = [];
   };
   const darken = (f) => {
@@ -72,9 +79,16 @@ export function createCrowd(scene, makeCharacter) {
       for (const m of [].concat(o.material)) {
         if (!m.color || seen.has(m)) continue;
         seen.add(m);
-        f.saved.push({ m, c: m.color.clone(), e: m.emissive ? m.emissive.clone() : null });
+        const env = !!m.envMap;
+        f.saved.push({
+          m, c: m.color.clone(), e: m.emissive ? m.emissive.clone() : null, s: m.specular ? m.specular.clone() : null,
+          r: env && typeof m.reflectivity === 'number' ? m.reflectivity : null, i: env && typeof m.envMapIntensity === 'number' ? m.envMapIntensity : null,
+        });
         m.color.multiplyScalar(dim);
         if (m.emissive) m.emissive.multiplyScalar(dim);
+        if (m.specular) m.specular.multiplyScalar(dim);
+        if (env && typeof m.reflectivity === 'number') m.reflectivity *= dim;
+        if (env && typeof m.envMapIntensity === 'number') m.envMapIntensity *= dim;
       }
     });
   };
