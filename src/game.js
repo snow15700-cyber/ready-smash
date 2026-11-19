@@ -23,7 +23,7 @@ export class Game {
   // authority: 이 PC가 경기를 계산하는지 (혼자 모드, 방장). 아니면 방장 이벤트를 받아 그리고 내 타격은 예측해서 먼저 보여준다
   // playerNames[side][slot]: 2v2 이름표용
   constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, playerTitles = null, best = 0, onBest = null, onRally = null, looks = null, spectator = false }) {
-    // spectator: 관전 — 입력 없음, 모든 선수가 '남'(불투명·이름표), 카메라는 중계 시점(view: 'side' | 0 | 1)
+    // spectator: 관전 — 입력 없음, 모든 선수가 '남'(불투명·이름표), 카메라는 중계 시점(view: 'me' 관중석 내 자리 1인칭 | 'side' | 0 | 1)
     this.spectator = spectator;
     this.view = 'side';
     if (spectator) { authority = false; mySlot = -1; }
@@ -544,7 +544,13 @@ export class Game {
     const cam = w.camera;
     if (this.spectator) {
       // 관전: 옆 중계 화면, 또는 A쪽/B쪽 선수 어깨 뒤 (그 쪽에서 다음에 칠 사람)
-      if (this.view === 'side') {
+      w.crowd.setFirstPerson(this.view === 'me');
+      if (this.view === 'me') {
+        // 내 자리에서 (관중석 내 캐릭터 눈높이, 1인칭)
+        const b = this.segs ? w.ball.position : null;
+        w.updateSeatCamera(dt, w.crowd.mySpot(), b ? b.x : 0, b ? b.z : 0, this.mode === '2v2' ? 3.0 : undefined);
+        A.setListener([cam.position.x, cam.position.y, cam.position.z], [1, 0, 0]);
+      } else if (this.view === 'side') {
         w.updateSideCamera(dt, this.segs ? w.ball.position.z : 0, this.mode === '2v2' ? 4.0 : undefined);
         A.setListener([cam.position.x, cam.position.y, cam.position.z], [0, 0, -1]);
       } else {

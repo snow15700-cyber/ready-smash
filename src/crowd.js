@@ -61,13 +61,20 @@ export function createCrowd(scene, makeCharacter) {
   root.visible = false;
   scene.add(root);
   const figs = new Map(); // id → { c, bub, slot, team, jumpT, bubT, phase }  (set에 오는 명단은 먼저 온 순서)
-  let last = 0;
+  let last = 0, shown = true, firstPerson = false; // shown: 경기 화면에서만 관중석을 보인다 (대기실 무대엔 안 세움 — 사용자 확정: 대기실은 관중 수만)
   // 몰입 연출(랠리가 길어지면 배경이 어두워짐)에 관중도 같이 어두워지게: 몸·탁구채·이름표·말풍선·빛 고리 전부.
   // 재질 색을 dim배로 바꿔 두고(원래 색은 f.saved에), 색을 새로 쓰는 일(꾸미기·이름표·움직이는 옷) 전에 되돌렸다가 다시 어둡게.
   // 그래서 경기 도중에 들어온 관중도 처음부터 어둡다
   let dim = 1;
+  // 반사(envMap)·반짝임(specular)은 색과 따로 밝게 빛나서(기사 갑옷·미러볼 의상 같은 전설 옷) 그것도 같이 줄인다
   const undim = (f) => {
-    for (const e of f.saved) { e.m.color.copy(e.c); if (e.e) e.m.emissive.copy(e.e); }
+    for (const e of f.saved) {
+      e.m.color.copy(e.c);
+      if (e.e) e.m.emissive.copy(e.e);
+      if (e.s) e.m.specular.copy(e.s);
+      if (e.r != null) e.m.reflectivity = e.r;
+      if (e.i != null) e.m.envMapIntensity = e.i;
+    }
     f.saved = [];
   };
   const darken = (f) => {
@@ -78,9 +85,16 @@ export function createCrowd(scene, makeCharacter) {
       for (const m of [].concat(o.material)) {
         if (!m.color || seen.has(m)) continue;
         seen.add(m);
-        f.saved.push({ m, c: m.color.clone(), e: m.emissive ? m.emissive.clone() : null });
+        const env = !!m.envMap;
+        f.saved.push({
+          m, c: m.color.clone(), e: m.emissive ? m.emissive.clone() : null, s: m.specular ? m.specular.clone() : null,
+          r: env && typeof m.reflectivity === 'number' ? m.reflectivity : null, i: env && typeof m.envMapIntensity === 'number' ? m.envMapIntensity : null,
+        });
         m.color.multiplyScalar(dim);
         if (m.emissive) m.emissive.multiplyScalar(dim);
+        if (m.specular) m.specular.multiplyScalar(dim);
+        if (env && typeof m.reflectivity === 'number') m.reflectivity *= dim;
+        if (env && typeof m.envMapIntensity === 'number') m.envMapIntensity *= dim;
       }
     });
   };
@@ -125,9 +139,11 @@ export function createCrowd(scene, makeCharacter) {
         // 관중 이름표는 선수보다 조금 작게 (여럿이 붙어 서도 덜 겹치게)
         for (const o of f.c.group.children) if (o.isSprite && o !== f.bub && !o.userData.small) { o.userData.small = true; o.scale.multiplyScalar(0.8); }
         f.c.setGlow(m.team === 0 || m.team === 1 ? TEAM_COLOR[m.team] : null);
+        f.me = !!m.me;
+        f.c.group.visible = !(f.me && firstPerson); // 1인칭으로 볼 땐 내 캐릭터는 숨김 (카메라가 머리 안에 있으니까)
         darken(f);
       }
-      root.visible = figs.size > 0;
+      root.visible = shown && figs.size > 0;
     },
     // 응원: 폴짝 뛰며 탁구채를 흔들고, 이름표 위에 말풍선
     // 몰입 연출 밝기 (scene.js의 setFocus가 배경과 같은 값으로 부른다. 1 = 원래 밝기)
@@ -163,6 +179,18 @@ export function createCrowd(scene, makeCharacter) {
         if (f.bub.visible && now - f.bubT > 2.2) f.bub.visible = false;
       }
     },
+    // 관전 '내 자리에서'(1인칭) 시점: 내 캐릭터가 선 자리 {x, z} (관중석에 자리가 없으면 null)
+    mySpot() {
+      for (const f of figs.values()) if (f.me) return SLOTS[f.slot];
+      return null;
+    },
+    // 1인칭 시점 켜기/끄기: 내 캐릭터를 숨긴다
+    setFirstPerson(on) {
+      if (firstPerson === on) return;
+      firstPerson = on;
+      for (const f of figs.values()) if (f.me) f.c.group.visible = !on;
+    },
+    setShown(on) { shown = on; root.visible = on && figs.size > 0; },
     clear() { for (const [id, f] of figs) drop(id, f); root.visible = false; },
   };
 }

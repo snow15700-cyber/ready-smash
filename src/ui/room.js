@@ -6,13 +6,14 @@ import { Game } from '../game.js';
 import { equipped } from '../items.js';
 import { Match } from '../match.js';
 import { joinRoom, normalizeCode } from '../net.js';
-import { crowdJoin } from './cheer.js';
+import { crowd, crowdJoin, crowdKeep, crowdLeave } from './cheer.js';
 import { hud } from './hud.js';
 import { addSkip, startIntro } from './intro.js';
-import { announceRoom, syncLobby } from './lobbyList.js';
+import { announceRoom, lobbyRooms, syncLobby } from './lobbyList.js';
 import { show, stopGame } from './screen.js';
 import { practiceSwing, renderStageLabels, stage } from './stage.js';
 import { $, IS_MOBILE, MOBILE_MSG, esc, game, match, myNemesis, myNick, setGame, setMatch, tpill, world } from './state.js';
+import { WATCH_MAX, startWatch, watchable } from './watch.js';
 import { gotAch, runAchCheck } from './titles.js';
 
 // 내 연승 (로그인했을 때만, 서버가 준 값). 다른 선수 것은 팀 고를 때 'st'에 실려 온다 (보여 주기만, 코인과 무관)
@@ -28,14 +29,18 @@ export const TEAM_NAME = ['A팀', 'B팀'];
 const perTeam = () => (room.mode === '2v2' ? 2 : 1);
 export const capacity = () => perTeam() * 2;
 
-export function enterRoom(code, host, mode = null) {
-  if (IS_MOBILE) { hud.toast(MOBILE_MSG, 2600); return; }
+/* 관전 6단계: spectate = 대기실 관전 (듣기만: 명단에 안 들어가고 말도 안 함, 팀도 못 고름).
+   link = 관전하던 채널을 넘겨받기 (경기 관전 ↔ 대기실 관전 ↔ 참가 사이에 채널을 나갔다 다시 들어가지 않음)
+   members = 넘겨받은 채널의 마지막 명단 */
+export function enterRoom(code, host, mode = null, { spectate = false, link = null, members = null } = {}) {
+  if (IS_MOBILE && !spectate) { hud.toast(MOBILE_MSG, 2600); return; }
   initAudio();
-  playUI('click');
+  if (!link) playUI('click');
   const nick = myNick();
   leaveRoom();
   const me = { id: myId, nick, host, at: Date.now(), look: myEquip(), title: myTitle(), titleX: myNemesis(), ...(account.loggedIn ? { pid: account.player.id } : { guest: true }), ...(host ? { mode } : {}) };
   room = {
+    spectate, sawIdle: false, notify: false,
     code, host, me, mode, members: [], hostM: host ? me : null,
     teams: {}, // id → { team, at }  (at = 팀을 고른 시각: 같은 자리를 동시에 누르면 먼저 누른 사람이 이김)
     inGame: false, players: null, result: '',
@@ -43,28 +48,46 @@ export function enterRoom(code, host, mode = null) {
     pings: [], pingN: 0, offset: 0, sawHost: host, timer: 0,
     watchOk: true, // 방장: 관전 허용 (대기실에서 끌 수 있음)
   };
-  room.link = joinRoom(code, me, {
+  const handlers = {
     onMsg: onRoomMsg,
     onMembers: onMembers,
     onStatus: (st, text) => {
       if (!room) return;
       if (st === 'error') { leaveRoom(); show('lobby'); hud.toast(text, 3000); }
     },
-  });
+  };
+  if (link) {
+    room.link = link;
+    link.setHandlers(handlers);
+    if (!spectate) link.join(me); // 관중 → 참가자: 같은 채널에서 명단에 들어간다
+  } else room.link = joinRoom(code, me, handlers, { listen: spectate });
+  // 관중석 채널: 선수(대기실 포함)는 듣기만(관중 수), 관중은 명단에 들어간다. 이미 그 방 관중석에 있으면 그대로
+  if (spectate) {
+    if (!crowdKeep(code)) crowdJoin(code, { id: myId, nick, at: Date.now(), team: null, look: myEquip(), title: myTitle(), titleX: myNemesis() });
+    room.link.ask({ k: 'hi' }); // 대기실 사람들에게 '지금 고른 팀 알려 줘요' (딱 한 번)
+  } else {
+    if (crowd?.me) crowdLeave(); // 관중이던 내가 참가: 관중 명단에서 빠진다
+    if (!crowd || crowd.code !== code) crowdJoin(code);
+  }
   // 참가자 PC: 방장과 시계 맞추기
   room.timer = setInterval(() => {
-    if (!room || room.host || !room.hostM) return;
+    if (!room || room.host || room.spectate || !room.hostM) return;
     room.link.send({ k: 'ping', n: ++room.pingN, t1: performance.now() / 1000, from: myId, to: room.hostM.id });
   }, 700);
+  const r0 = room;
   if (!host) {
     setTimeout(() => {
-      if (room && room.code === code && !room.sawHost) {
+      if (room === r0 && !room.sawHost) {
         leaveRoom();
+        if (spectate) { show('lobby'); hud.toast('방을 찾을 수 없어요', 2400); return; }
         show('join');
         $('join-msg').textContent = `'${code}' 방을 찾을 수 없어요. 코드를 다시 확인해 주세요.`;
       }
-    }, 5000);
+    }, link ? 3000 : 5000);
   }
+  stopGame(true); // 관중석 채널은 그대로
+  if (members?.length) onMembers(members);
+  specLobby();
   renderRoom();
   show('room');
   announceRoom();
@@ -73,17 +96,112 @@ export function enterRoom(code, host, mode = null) {
 export function leaveRoom() {
   if (!room) return;
   clearInterval(room.timer);
+  clearTimeout(room.goWait);
   room.link.leave();
   room = null;
   stopGame();
   syncLobby();
 }
+// 채널은 그대로 두고 방에서만 빠진다 (관전 화면으로 채널을 넘겨줄 때). { link, members }
+export function takeRoomLink() {
+  if (!room) return null;
+  clearInterval(room.timer);
+  clearTimeout(room.goWait);
+  const out = { link: room.link, members: room.link.members() };
+  room = null;
+  document.body.classList.remove('spectating');
+  return out;
+}
+
+/* ───────── 대기실 관전 (관전 6단계) ─────────
+   관중은 대기실 무대(자리 위 캐릭터·이름·아이템, 연습 스윙)를 그대로 본다. 팀은 못 고른다.
+   '🏓 참가'(빈자리, PC) → 같은 채널에서 명단에 들어가 대기실로. 꽉 찼으면 '🔔 자리 나면 알려 줘요'.
+   경기가 시작되면('go') 채널을 넘겨 경기 관전으로 (첫 서브부터 중계). 경기가 끝나면 다시 대기실 관전으로 돌아온다 */
+const specInfo = () => (room ? lobbyRooms.find((r) => r.code === room.code) : null);
+// 로비 정보가 바뀔 때마다 (lobbyList의 로비 채널): 관전 막힘·경기 시작 신호를 놓쳤을 때·빈자리 알림
+export function specLobby() {
+  if (!room?.spectate) return;
+  const r = specInfo();
+  if (r && r.w === false) { leaveRoom(); show('lobby'); hud.toast('방장이 관전을 막았어요', 2400); return; }
+  if (r && !r.play) room.sawIdle = true;
+  // 'go'를 놓쳤는데 경기가 시작됨 (대기 중인 걸 본 뒤에만: 방금 끝난 경기의 '경기 중'은 무시)
+  // 로비 정보가 'go'보다 먼저 올 수 있으니 1.5초 기다렸다가 (그사이 'go'가 오면 VS 소개부터)
+  if (r && r.play && r.pl && room.sawIdle) {
+    if (!room.goWait) { const r0 = room; r0.goWait = setTimeout(() => { if (room === r0 && room.spectate) specToWatch(specInfo() || r, false); }, 1500); }
+    return;
+  }
+  if (room.notify && specFree() > 0) { room.notify = false; playUI('turn'); hud.toast('🔔 자리가 났어요! 들어갈래요?', 3000); }
+  renderSpec();
+}
+// 빈자리 (방장 포함 인원 기준). 로비 정보가 없으면 지금 명단으로
+function specFree() {
+  if (!room?.mode) return 0;
+  const r = specInfo();
+  return Math.max(0, capacity() - (r ? r.n : room.members.length));
+}
+// 경기 시작 → 경기 관전으로 (채널 넘겨주기). live: 'go'를 직접 받음 (첫 서브부터 빠짐없이)
+function specToWatch(info, live) {
+  const nick = room.hostM?.nick || '방장';
+  // 경기 시작 신호를 직접 받았으면 VS 소개 연출도 같이 (방을 넘겨주기 전에 이름·꾸미기·칭호·연승을 모아 둔다)
+  let spec = null;
+  if (live) {
+    room.players = info.pl;
+    const tp = Object.fromEntries(room.members.map((m) => [m.id, roomTpill(m.id)]));
+    const st = Object.fromEntries(room.members.map((m) => [m.id, streakOf(m.id)]));
+    spec = { names: playerNames(), looks: looks(), tpill: (id) => tp[id] || '', streak: (id) => st[id] || 0 };
+  }
+  const t = takeRoomLink();
+  startWatch({ code: info.code, mode: info.mode, pl: info.pl, nick, w: true }, { keep: true, link: t.link, members: t.members, live });
+  if (spec && game) startIntro(info.pl, 0, info.mode, spec);
+}
+function renderSpec() {
+  const on = !!room?.spectate;
+  document.body.classList.toggle('spectating', on);
+  if (!on) return;
+  const free = specFree();
+  const join = $('btn-spec-join');
+  join.classList.remove('wait');
+  if (IS_MOBILE) { join.innerHTML = '🔒 참가는 PC에서만'; join.disabled = true; }
+  else if (free > 0) { join.innerHTML = `🏓 참가 (빈자리 ${free})`; join.disabled = false; }
+  else {
+    join.innerHTML = room.notify ? '🔔 자리 나면 알려 드릴게요' : '🔔 자리 나면 알려 줘요';
+    join.disabled = room.notify;
+    join.classList.add('wait');
+  }
+  $('btn-spec-other').disabled = !watchable().some((x) => x.code !== room.code);
+}
+$('btn-spec-join').addEventListener('click', () => {
+  if (!room?.spectate) return;
+  playUI('click');
+  if (specFree() > 0 && !IS_MOBILE) {
+    const code = room.code, mode = room.mode;
+    const t = takeRoomLink();
+    enterRoom(code, false, mode, { link: t.link, members: t.members }); // 정원이 그새 찼으면 onMembers가 알려 줌
+  } else {
+    room.notify = true;
+    renderSpec();
+  }
+});
+$('btn-spec-other').addEventListener('click', () => {
+  if (!room?.spectate) return;
+  const list = watchable().filter((r) => r.code !== room.code);
+  if (!list.length) { hud.toast('지금은 다른 경기가 없어요', 1800); return; }
+  startWatch(list[0]);
+});
+// 관중석 명단이 바뀔 때 (cheer.js): 대기실에 '👀 관중 N명', 관중이 16명을 넘으면 늦게 온 사람이 나간다
+export function roomCrowd(list) {
+  if (!room) return;
+  if (room.spectate && list.findIndex((x) => x.id === myId) >= WATCH_MAX) { leaveRoom(); show('lobby'); hud.toast(`관중석이 꽉 찼어요 (${WATCH_MAX}명까지)`, 2400); return; }
+  const n = list.length;
+  $('room-eyes').classList.toggle('hidden', !n);
+  $('room-eyes').textContent = `👀 관중 ${n}명`;
+}
 
 function onMembers(list) {
   if (!room) return;
   list = [...list].sort((a, b) => a.at - b.at);
-  // 서버는 입장 직후 '나를 빼고' 목록을 먼저 보낼 수 있다. 내가 목록에 들어올 때까지 기다린다
-  if (!list.some((m) => m.id === myId)) return;
+  // 서버는 입장 직후 '나를 빼고' 목록을 먼저 보낼 수 있다. 내가 목록에 들어올 때까지 기다린다 (관중은 명단에 없음)
+  if (!room.spectate && !list.some((m) => m.id === myId)) return;
   const host = list.find((m) => m.host);
   if (host) {
     room.sawHost = true;
@@ -92,7 +210,7 @@ function onMembers(list) {
   if (!room.host && room.sawHost && !host) {
     leaveRoom();
     show('lobby');
-    hud.toast('방장이 방을 나갔어요', 2600);
+    hud.toast(room?.spectate ? '방장이 나가서 방이 없어졌어요' : '방장이 방을 나갔어요', 2600);
     return;
   }
   // 방장을 아직 못 봤으면(모드를 모르면) 정원 확인은 미룬다
@@ -101,7 +219,7 @@ function onMembers(list) {
     // 방장 + 먼저 들어온 사람부터 정원까지 (늦게 온 사람은 나간다)
     const guests = list.filter((m) => !m.host);
     kept = [host, ...guests.slice(0, capacity() - 1)];
-    if (!kept.some((m) => m.id === myId)) {
+    if (!room.spectate && !kept.some((m) => m.id === myId)) {
       const msg = `방이 가득 찼어요 (${room.mode} 방은 ${capacity()}명까지)`;
       leaveRoom();
       show('join');
@@ -122,17 +240,18 @@ function onMembers(list) {
     backToRoom();
     hud.toast(`${goneP.nick}님이 나가서 경기가 끝났어요`, 2800);
   }
-  if (joined.length) {
+  if (joined.length && !room.spectate) {
     playUI('point');
     sendState(); // 새로 온 사람에게 내 팀을 알려 준다
   }
   renderRoom();
+  renderSpec();
   announceRoom();
 }
 
 // 내 팀 선택을 모두에게 알린다
 function sendState() {
-  if (!room) return;
+  if (!room || room.spectate) return;
   const t = room.teams[myId];
   room.link.send({ k: 'st', id: myId, team: t ? t.team : null, at: t ? t.at : 0, streak: myStreak() });
 }
@@ -146,6 +265,7 @@ function teamList(team) {
 
 // 같은 자리를 동시에 누르면: 늦게 누른 사람(나)은 스스로 빠진다
 function resolveOverflow() {
+  if (room.spectate) return;
   const mine = room.teams[myId];
   if (!mine || !room.mode) return;
   const idx = teamList(mine.team).findIndex((m) => m.id === myId);
@@ -158,7 +278,7 @@ function resolveOverflow() {
 
 // 팀 고르기 / 바꾸기 / (내 팀을 다시 누르면) 빠지기
 function pickTeam(team) {
-  if (!room || room.inGame || !room.mode) return;
+  if (!room || room.inGame || !room.mode || room.spectate) return;
   initAudio();
   playUI('click');
   const cur = room.teams[myId];
@@ -199,8 +319,12 @@ function onRoomMsg(m) {
     case 'sw': // 다른 사람의 연습 스윙
       if (!room.inGame && ['perfect', 'good', 'block'].includes(m.g)) practiceSwing(m.id, m.g);
       break;
+    case 'hi': // 대기실 관중이 들어옴: 내 팀을 알려 준다 (경기 중엔 안 함, 관중이 몰려와도 1.5초에 한 번만 — 선수 PC 부담 없게)
+      if (!room.inGame) answerHi();
+      break;
     case 'go': {
       if (room.host) break;
+      if (room.spectate) { specToWatch({ code: room.code, mode: m.mode, pl: m.players.map((p) => ({ id: p.id, side: p.side, slot: p.slot || 0 })) }, true); break; }
       const p = m.players.find((x) => x.id === myId);
       if (!p) break;
       startGuestGame(m.mode, m.players, p, m.mid);
@@ -239,6 +363,18 @@ function onRoomMsg(m) {
   }
 }
 
+// 관중의 '지금 팀 알려 줘요'에 답하기: 1.5초에 한 번까지, 그사이에 온 것은 한 번으로 모아서
+function answerHi() {
+  const r = room;
+  if (r.hiT) return;
+  const wait = Math.max(0, (r.hiAt || 0) + 1.5 - performance.now() / 1000);
+  r.hiT = setTimeout(() => {
+    r.hiT = 0;
+    r.hiAt = performance.now() / 1000;
+    if (room === r && !r.inGame) sendState();
+  }, wait * 1000 + 150);
+}
+
 function nickOf(id) {
   return room.members.find((m) => m.id === id)?.nick || '상대';
 }
@@ -274,8 +410,7 @@ function beginRoomGame(players, mode, mine, mid) {
   room.result = '';
   room.coins = null;
   room.score = [0, 0];
-  stopGame();
-  crowdJoin(room.code); // 관중 수·응원 듣기 (명단엔 안 들어감)
+  stopGame(true); // 관중석 채널(관중 수·응원 듣기)은 방에 들어올 때부터 그대로
   announceRoom();
 }
 
@@ -328,7 +463,7 @@ export function backToRoom() {
   room.inGame = false;
   room.players = null;
   room.teams = {};
-  stopGame();
+  stopGame(true);
   renderRoom();
   show('room');
   announceRoom();
@@ -385,7 +520,7 @@ const oppMember = () => (room ? room.members.find((m) => m.id !== myId) : null);
 
 function renderH2H() {
   const el = $('room-h2h');
-  const opp = room.mode === '1v1' ? oppMember() : null;
+  const opp = room.mode === '1v1' && !room.spectate ? oppMember() : null; // 관중에겐 상대 전적 없음
   if (!opp) { el.innerHTML = ''; return; }
   const name = `<b>${esc(opp.nick)}</b>님`;
   if (!account.loggedIn || !opp.pid) {
@@ -427,8 +562,8 @@ function renderRoom() {
       stage.seats.push({ team, slot: i, m: m || null });
       const num = n > 1 ? `${TEAM_NAME[team]} ${i + 1}번` : TEAM_NAME[team];
       if (!m) {
-        const locked = !room.mode || room.inGame;
-        const go = myTeam === team ? '' : `<span class="go">${TEAM_NAME[team]}으로 ▸</span>`;
+        const locked = !room.mode || room.inGame || room.spectate;
+        const go = myTeam === team || room.spectate ? '' : `<span class="go">${TEAM_NAME[team]}으로 ▸</span>`;
         html += `<div class="slot empty${locked ? ' locked' : ''}" data-team="${team}"><b>${num} · 빈자리</b>${go}</div>`;
         continue;
       }
@@ -441,11 +576,13 @@ function renderRoom() {
   const none = room.members.filter((m) => !room.teams[m.id]);
   $('room-members').innerHTML = none.length ? `팀 고르는 중${none.map((m) => `<b>${esc(m.nick)}${m.id === myId ? '(나)' : ''}</b>`).join('')}` : '';
   renderStageLabels();
-  $('room-hint').innerHTML = room.teams[myId] ? `${ic('swipe')} 화면을 누른 채 위로 밀면 연습 스윙!` : `${ic('down')} 아래 빈 칸을 눌러 팀을 골라 주세요`;
+  $('room-hint').innerHTML = room.spectate ? `${ic('eye')} 관전 중 · 선수들이 모이는 걸 보고 있어요`
+    : room.teams[myId] ? `${ic('swipe')} 화면을 누른 채 위로 밀면 연습 스윙!` : `${ic('down')} 아래 빈 칸을 눌러 팀을 골라 주세요`;
   // 배경은 방장 것이 모두에게 보인다 (방장이 바꾸면 다음 입장부터)
   const bgIt = equipped(room.hostM?.look, 'bg'), ballIt = equipped(room.hostM?.look, 'ball');
   const ballTxt = ballIt.grade === 'default' ? '' : ` · ${ic('ball')} ${esc(ballIt.name)}`; // 탁구공도 방장 것
   $('room-bg').innerHTML = `${ic('image')} ${esc(bgIt.name)}${ballTxt} · ${room.host ? '내 꾸미기' : '방장 꾸미기'}`;
+  roomCrowd(crowd?.list || []);
 
   const full = room.mode && isFull();
   $('btn-start').classList.toggle('hidden', !room.host);
@@ -458,6 +595,7 @@ function renderRoom() {
   else if (room.members.length < capacity()) tip = `친구에게 방 코드를 알려 주세요 (${capacity()}명이 모여야 해요)`;
   else if (!full) tip = '팀을 고르면 준비 완료예요. 팀은 언제든 바꿀 수 있어요';
   else tip = room.host ? '모두 준비됐어요! 경기 시작을 눌러 주세요' : '방장이 시작하기를 기다리는 중…';
+  if (room.spectate) tip = full ? '곧 경기가 시작돼요! 시작되면 바로 중계해요' : '경기가 시작되면 바로 중계해요';
   $('room-tip').textContent = tip;
   renderPing();
 }

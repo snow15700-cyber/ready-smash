@@ -40,19 +40,12 @@
       <i class="cb-sep"></i>
       <button class="small" data-cheer="clap">👏<span> 박수</span></button><button class="small" data-cheer="nice">👍<span> 나이스</span></button><button class="small" data-cheer="wow">😮<span> 우와</span></button><button class="small" data-cheer="fire">🔥<span> 함성</span></button><button class="small" data-cheer="go">📣<span> 화이팅</span></button>
     </div>
-    <!-- 관전하던 경기가 끝난 뒤: 다음 판 참가 / 다른 경기 / 로비 -->
-    <div id="watch-next" class="watch-next hidden">
-      <b id="wn-title"></b>
-      <p id="wn-sub"></p>
-      <button id="wn-join" class="big"></button>
-      <div class="wn-row"><button id="wn-other" class="small">👀 다른 경기 보기</button><button id="wn-lobby" class="small">🏠 로비로</button></div>
-    </div>
     <!-- 관전 중: 어느 방인지·관중 수·카메라 바꾸기 -->
     <div id="watch-bar" class="watch-bar hidden">
       <button class="small watch-hop" data-hop="-1" title="이전 경기">◀</button>
       <span id="watch-who" class="watch-who"></span>
       <button class="small watch-hop" data-hop="1" title="다음 경기">▶</button>
-      <div class="watch-views"><button class="small" data-view="side">📺 옆에서</button><button class="small" data-view="0">A쪽</button><button class="small" data-view="1">B쪽</button></div>
+      <div class="watch-views"><button class="small" data-view="me">🙂 내 자리</button><button class="small" data-view="side">📺 옆에서</button><button class="small" data-view="0">A쪽</button><button class="small" data-view="1">B쪽</button></div>
     </div>
   </div>
 
@@ -300,6 +293,7 @@
           <button id="btn-copy" class="small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 복사</button>
         </div>
         <span id="room-mode" class="room-mode"></span>
+        <span id="room-eyes" class="room-eyes hidden"></span>
         <button id="btn-watch-ok" class="small watch-ok hidden" title="다른 사람이 이 방 경기를 구경할 수 있는지">👀 관전 허용</button>
       </div>
       <div class="slots">
@@ -311,6 +305,7 @@
         <p id="room-members" class="waiting-list"></p>
         <p id="room-break" class="break-pill room-break hidden"></p>
         <p id="room-tip" class="room-tip"></p>
+        <div class="spec-acts"><button id="btn-spec-join" class="big"></button><button id="btn-spec-other" class="small">👀 다른 경기</button></div>
         <button id="btn-start" class="big hidden"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(-35 12 12)"><rect x="10.1" y="12" width="3.8" height="10.5" rx="1.9" fill="currentColor"/><ellipse cx="12" cy="7.6" rx="6.4" ry="6.6" fill="currentColor"/></g><circle cx="20" cy="4.5" r="2.2" fill="currentColor"/></svg> 경기 시작!</button>
       </div>
       <p id="room-ping" class="note tiny"></p>
