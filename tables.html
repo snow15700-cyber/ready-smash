@@ -38,8 +38,14 @@
   <div class="wrap">
     <div class="view">
       <canvas id="c"></canvas>
-      <div class="cap"><span id="nm">-</span><span id="gd" class="badge"></span></div>
+      <div class="cap"><span id="nm">-</span><span id="gd" class="badge"></span><span id="rally" class="snd"></span></div>
       <div class="btns" id="balls"></div>
+      <div class="btns">
+        <button data-k="mode" data-v="normal" class="on">보통 랠리</button>
+        <button data-k="mode" data-v="smash">스매시</button>
+        <button data-k="mode" data-v="score">스매시 득점</button>
+        <button data-k="mode" data-v="long">긴 랠리</button>
+      </div>
       <div class="btns">
         <button data-k="cam" data-v="game" class="on">경기 화면</button>
         <button data-k="cam" data-v="side">관전 (옆)</button>
@@ -48,7 +54,7 @@
         <button data-k="bg" data-v="light" class="on">밝은 곳</button>
         <button data-k="bg" data-v="dark">어두운 곳</button>
       </div>
-      <div class="hint">위 단추로 공을 바꿔 보며 탁구대 위에서 공이 잘 보이는지 확인해요 · 화면을 끌면 빙 돌아봐요</div>
+      <div class="hint">공을 바꿔 보며 잘 보이는지 확인해요 · 전설은 스매시·득점·긴 랠리(랠리가 길어질수록 화려해짐)에 반응해요 · 화면을 끌면 빙 돌아봐요</div>
     </div>
     <div class="list" id="list"></div>
   </div>

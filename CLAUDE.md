@@ -19,7 +19,7 @@
 | PIN 계정·전적·랭킹·코인·경기 확인·**보안(18)**·업적·칭호·**쉬는 시간 보너스(19)** | `docs/dev/accounts.md` | main (SQL 01~21 실행 완료) — 쉬는 시간 보너스·오늘의 미션 포함 / 출석 도장판 아직 |
 | 상점·꾸미기 공통, 탁구채(전설 포함)·몸·목록 그림 | `docs/dev/shop.md` | main |
 | 탁구공 | `docs/dev/balls.md` | main |
-| 탁구대(일반 6·고급 8·전설 6 기획) | `docs/dev/tables.md` | 일반 6·고급 8종 시안 페이지 test(게임 연결 전) |
+| 탁구대(일반 6·고급 8·전설 6) | `docs/dev/tables.md` | 20종 모두 시안 페이지 test(게임 연결 전) |
 | 배경(경기장)·배경 합치기(성능) | `docs/dev/arenas.md` | main (일반 배경 3종 포함, 20 실행 완료) |
 | 화면 디자인(**새 디자인 '탁구 색 + 유리'**: ①~⑤ 모든 화면)·대기실 무대·VS 소개·**업데이트 내역**(`src/updates.js`, main에 합칠 때마다 추가) | `docs/dev/design.md` | 새 디자인 test |
 
@@ -46,7 +46,7 @@
 - `src/account.js` 서버 함수 부르기 + 로컬 가짜 서버. `src/achievements.js` 업적 목록.
 - `src/items.js` 아이템 목록·탁구채 모델·`applyLook`·목록 그림(`src/thumbs/`). `src/outfits.js` 몸. `src/balls.js` 탁구공. `src/fx.js` 효과 파티클.
 - `src/crowd.js` 관중석 캐릭터(관전).
-- `src/arenas.js` + `src/arena-*.js` 배경. `src/lobbyDemo.js` 로비 배경 랠리. 시안 페이지 `outfits.html`·`balls.html`.
+- `src/arenas.js` + `src/arena-*.js` 배경. `src/lobbyDemo.js` 로비 배경 랠리. 시안 페이지 `outfits.html`·`balls.html`·`tables.html`. 탁구대 `src/tables.js`(+ `tables-rare.js`·`tables-legend.js`·`table-kit.js`).
 - `supabase/NN_*.sql` 서버(번호 순서대로 실행). `scripts/make-thumbs.cjs` 목록 그림 찍기.
 
 ## 배포 흐름 (사용자가 확정)

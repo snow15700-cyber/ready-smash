@@ -42,7 +42,7 @@ export const box = (root, w, h, d, m, x, y, z, o) => put(root, new THREE.BoxGeom
 export const cyl = (root, rt, rb, h, m, x, y, z, o, seg = 16) => put(root, new THREE.CylinderGeometry(rt, rb, h, seg), m, x, y, z, o);
 
 // 둥근 모서리 상자 (ExtrudeGeometry, 위에서 본 모양이 둥근 사각형)
-export function roundBox(w, h, d, r, bevel = 0.01) {
+export function roundBox(w, h, d, r, bevel = 0.01, segs = 3) {
   const s = new THREE.Shape();
   const x = -w / 2 + bevel, y = -d / 2 + bevel, W = w - bevel * 2, D = d - bevel * 2, rr = Math.min(r, W / 2, D / 2);
   s.moveTo(x + rr, y);
@@ -50,7 +50,7 @@ export function roundBox(w, h, d, r, bevel = 0.01) {
   s.lineTo(x + W, y + D - rr); s.quadraticCurveTo(x + W, y + D, x + W - rr, y + D);
   s.lineTo(x + rr, y + D); s.quadraticCurveTo(x, y + D, x, y + D - rr);
   s.lineTo(x, y + rr); s.quadraticCurveTo(x, y, x + rr, y);
-  const geo = new THREE.ExtrudeGeometry(s, { depth: h - bevel * 2, bevel: true, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 3, curveSegments: 8 });
+  const geo = new THREE.ExtrudeGeometry(s, { depth: h - bevel * 2, bevel: true, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: segs, curveSegments: Math.max(8, segs * 2) });
   geo.rotateX(-Math.PI / 2); // 모양(x, y) → 바닥(x, -z), 두께는 위로
   geo.translate(0, -h / 2 + bevel, 0);
   return geo;

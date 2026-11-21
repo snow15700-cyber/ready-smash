@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H } from './physics.js';
 import { rng, canvasTex } from './table-kit.js';
 import { RARE } from './tables-rare.js';
+import { LEGEND } from './tables-legend.js';
 
 export const TABLES = [
   { id: 'blue', name: '파랑 (기본)', grade: 'default' },
@@ -22,6 +23,12 @@ export const TABLES = [
   { id: 'pyeongsang', name: '시골 평상', grade: 'rare', build: 'pyeongsang' },
   { id: 'toast', name: '커다란 식빵', grade: 'rare', build: 'toast' },
   { id: 'book', name: '펼친 교과서', grade: 'rare', build: 'textbook' },
+  { id: 'arcade', name: '오락실 게임기', grade: 'legend', build: 'arcade' },
+  { id: 'carpet', name: '마법 양탄자', grade: 'legend', build: 'carpet' },
+  { id: 'turtle', name: '거대 거북이', grade: 'legend', build: 'turtle' },
+  { id: 'cake', name: '생일 케이크', grade: 'legend', build: 'cake' },
+  { id: 'breadcat', name: '식빵 고양이', grade: 'legend', build: 'breadCat' },
+  { id: 'cloud', name: '솜사탕 구름', grade: 'legend', build: 'cloud' },
 ];
 export const TABLE = Object.fromEntries(TABLES.map((t) => [t.id, t]));
 
@@ -114,7 +121,7 @@ export function makeTable(id) {
   if (build) {
     const root = new THREE.Group();
     root.name = 'table:' + id;
-    Object.assign(root.userData, RARE[build](root));
+    Object.assign(root.userData, (RARE[build] || LEGEND[build])(root));
     return root;
   }
   const L = LOOK[id] || LOOK.blue;
