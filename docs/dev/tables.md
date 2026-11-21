@@ -42,3 +42,9 @@
 ### 만드는 순서
 1. 시안 페이지 `tables.html`(balls.html처럼, 공이 오가는 장면 + 목록) → 사진으로 보고 고침
 2. 게임·상점 연결: `items.js` + 새 SQL(22번~, insert만) + `npm run thumbs`. 지금 탁구대는 `scene.js`의 `buildTable`(파랑 고정).
+
+## 1단계 시안: 일반 6종 (2026-11-21, test)
+- `src/tables.js`: `TABLES`(id·name·grade, 기본 `blue`), `makeTable(id)` → Group(원점 = 바닥 가운데, 판 윗면 = TY). 지금 `scene.js`의 `buildTable`과 같은 모양(판·흰 선·다리 8개·밑판·네트·기둥)에 색만 `LOOK`으로. 원목·위장 무늬는 캔버스 무늬(`woodTex`·`camoTex`, 정해진 난수라 늘 같은 무늬). 검정은 은색 다리(윤기). 무늬는 판 윗면에만, 옆면은 `edge` 색.
+- 아직 게임에는 안 씀(`buildTable` 그대로). 게임·상점 연결 때 `buildTable` 대신 `makeTable`을 쓰고 방장 장착으로 바꾸면 된다. 움직이는 탁구대(고급·전설)는 `userData.tick(t, dt)`을 매 프레임 부르게(시안 페이지는 이미 부름).
+- 시안 페이지 `tables.html`(`src/tables-page.js`, vite 빌드 입력·`npm run check`에 포함). 공 단추로 공을 바꾸고, 카메라 경기 화면/관전(옆)/위에서, 밝은 곳/어두운 곳, 화면을 끌면 빙 돌아봄. 주소 `?id=wood&ball=orange&cam=side&bg=dark&yaw=0.5`.
+- 공 보이기 점검(공 8종 × 탁구대 7종, 밝은 곳·어두운 곳): 모두 보임. 가장 약한 조합은 어두운 곳의 원목 + 주황 공, 체리 분홍 + 핑크 공.

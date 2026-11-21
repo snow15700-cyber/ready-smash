@@ -19,7 +19,7 @@
 | PIN 계정·전적·랭킹·코인·경기 확인·**보안(18)**·업적·칭호·**쉬는 시간 보너스(19)** | `docs/dev/accounts.md` | main (SQL 01~18 실행 완료) / 쉬는 시간 보너스 test(19 실행 필요) / 오늘의 미션 test(21 실행 필요), 출석 도장판 아직 |
 | 상점·꾸미기 공통, 탁구채(전설 포함)·몸·목록 그림 | `docs/dev/shop.md` | main |
 | 탁구공 | `docs/dev/balls.md` | main |
-| 탁구대(일반 6·고급 8·전설 6 기획) | `docs/dev/tables.md` | 기획만 |
+| 탁구대(일반 6·고급 8·전설 6 기획) | `docs/dev/tables.md` | 일반 6종 시안 페이지 test(게임 연결 전) |
 | 배경(경기장)·배경 합치기(성능) | `docs/dev/arenas.md` | main / 일반 배경 3종 test(20 실행 필요) |
 | 화면 디자인(**새 디자인 '탁구 색 + 유리'**: ①~⑤ 모든 화면)·대기실 무대·VS 소개·**업데이트 내역**(`src/updates.js`, main에 합칠 때마다 추가) | `docs/dev/design.md` | 새 디자인 test |
 
