@@ -47,6 +47,7 @@ export function enterRoom(code, host, mode = null, { spectate = false, link = nu
     inGame: false, players: null, result: '',
     h2h: {}, // 상대 pid → { wins, losses } (1v1 상대 전적)
     pings: [], pingN: 0, offset: 0, sawHost: host, timer: 0,
+    lag: {}, // 방장: 참가자 id → 그 PC까지 소식이 가는 시간(초, 편도). 참가자가 ping에 실어 보냄 (match.js RECV_LAG_MAX)
     watchOk: true, // 방장: 관전 허용 (대기실에서 끌 수 있음)
   };
   const handlers = {
@@ -73,7 +74,7 @@ export function enterRoom(code, host, mode = null, { spectate = false, link = nu
   // 참가자 PC: 방장과 시계 맞추기
   room.timer = setInterval(() => {
     if (!room || room.host || room.spectate || !room.hostM) return;
-    room.link.send({ k: 'ping', n: ++room.pingN, t1: performance.now() / 1000, from: myId, to: room.hostM.id });
+    room.link.send({ k: 'ping', n: ++room.pingN, t1: performance.now() / 1000, from: myId, to: room.hostM.id, lat: typicalLag() });
   }, 700);
   const r0 = room;
   if (!host) {
@@ -335,6 +336,7 @@ function onRoomMsg(m) {
       addSkip(m.from);
       break;
     case 'ping':
+      if (room.host && typeof m.lat === 'number') room.lag[m.from] = Math.min(1, Math.max(0, m.lat));
       if (room.host) room.link.send({ k: 'pong', n: m.n, t1: m.t1, th: performance.now() / 1000, to: m.from });
       break;
     case 'pong': {
@@ -358,6 +360,7 @@ function onRoomMsg(m) {
       const p = room.players.find((x) => x.id === m.from);
       if (!p) break;
       if (m.kind === 'toss') match.toss(p.side, m.t, m.x, p.slot || 0);
+      else if (m.kind === 'late') match.reportLate(p.side, p.slot || 0, m.idx, performance.now() / 1000); // 공 소식을 늦게 받았어요 (네트워크 렛)
       else if (m.kind === 'swing') match.swing(p.side, m.t, m.dir, m.up, p.slot || 0, performance.now() / 1000); // 도착 시각: 늦게 왔으면 공 출발을 늦춤
       break;
     }
@@ -432,6 +435,10 @@ function startOnline(mode, players) {
   setMatch(new Match({
     mode,
     isRemote: (side, slot) => !(side === mine.side && slot === (mine.slot || 0)),
+    lagOf: (side, slot) => {
+      const p = players.find((x) => x.side === side && (x.slot || 0) === slot);
+      return p && p.id !== myId ? room?.lag[p.id] || 0 : 0;
+    },
     emit: (ev) => {
       if (game) game.onEvent(ev);
       if (room) room.link.send({ k: 'ev', ev });
@@ -451,11 +458,20 @@ function startGuestGame(mode, players, mine, mid) {
     send: {
       toss: (s, t, x) => room && room.link.send({ k: 'in', kind: 'toss', t, x, from: myId }),
       swing: (s, t, dir, up) => room && room.link.send({ k: 'in', kind: 'swing', t, dir, up, from: myId }),
+      late: (idx) => room && room.link.send({ k: 'in', kind: 'late', idx, from: myId }),
     },
   }));
   game.offset = room.offset;
   hud.stats(game.stats);
   startIntro(players, mine.side, mode);
+}
+
+// 참가자 PC: 방장 소식이 보통 몇 초 걸려 오는지 (최근 ping 왕복 시간의 75% 지점 ÷ 2).
+// 가장 빠른 값이 아니라 '보통 느린 쪽'을 써서 와이파이가 들쭉날쭉해도 공이 늦게 나타나지 않게
+function typicalLag() {
+  if (!room.pings.length) return 0;
+  const r = room.pings.map((p) => p.rtt).sort((a, b) => a - b);
+  return Math.round((r[Math.floor((r.length - 1) * 0.75)] / 2) * 1000) / 1000;
 }
 
 // 경기가 끝나면 대기실로. 팀 선택은 모두 초기화 (다시 할 사람만 팀을 다시 고른다)

@@ -2,7 +2,7 @@
 import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, WIN, WIN_LATE, winFor, rallyTier, HOLD } from './physics.js';
 import { PADDLE_OFFSET, CHAR_Z } from './scene.js';
 import { applyLook } from './items.js';
-import { computeShot, hitOrder } from './match.js';
+import { computeShot, hitOrder, LET_LATE } from './match.js';
 import * as A from './audio.js';
 
 // 스윙 동작은 '클릭 직전 0.15초 ~ 클릭 직후 HOLD초' 동안의 마우스 움직임으로 판단한다.
@@ -391,6 +391,11 @@ export class Game {
         this.expect = next ? { ...next, slot: this.order[this.turn].slot, whiffed: false } : null;
         const toMe = this.expect && this.isMe(this.expect.side, this.expect.slot);
         if (!mine && toMe) this.announceTurn(false);
+        // 공 소식이 많이 늦게 도착(공이 이미 LET_LATE초 넘게 날아감): 방장에게 알려서, 놓치면 점수 없이 다시 서브 (match.js 네트워크 렛)
+        if (!mine && toMe && !this.authority && this.send.late) {
+          const lost = performance.now() / 1000 + this.offset - ev.t0;
+          if (lost > LET_LATE) this.send.late(ev.idx, lost);
+        }
         // 랠리 단계가 오르면 알림 (찬스볼 알림과 겹치면 한 줄로)
         const tier = rallyTier(this.mode, ev.rally);
         const tierMsg = tier > this.rallyTierShown ? TIER_TOAST[tier] : '';
@@ -430,6 +435,15 @@ export class Game {
           this.stats.perfectStreak = 0;
         }
         break;
+      case 'let': { // 네트워크 렛: 연결이 늦어 못 본 공 → 점수 없이 다시 서브
+        this.expect = null;
+        this.pendingHit = null;
+        this.holdPos = null;
+        this.focusRally = 0;
+        const who = this.isMe(ev.side, ev.slot ?? 0) ? '내 연결' : this.spectator ? '연결' : ev.side === me ? '팀원 연결' : '상대 연결';
+        this.hud.toast(`📶 ${who}이 늦어서 다시 서브! (점수 없음)`, 2400);
+        break;
+      }
       case 'serveMiss':
         this.expect = null;
         if (this.isMe(ev.side, ev.slot ?? 0)) this.hud.hint('괜찮아요! 다시 토스해 보세요');
