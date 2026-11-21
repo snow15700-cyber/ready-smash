@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { TABLES, TABLE, makeTable } from './tables.js';
 import { BALLS, makeBall } from './balls.js';
 import * as A from './audio.js';
+import { createFx } from './fx.js';
 import { TY, TABLE_L } from './physics.js';
 
 const GRADE = { default: '기본', common: '일반', rare: '고급', legend: '전설' };
@@ -44,6 +45,8 @@ function setBg(v) {
   floor.material.color.set(dark ? '#2a2a34' : '#c99a62');
 }
 setBg(opt.bg);
+
+const fx = createFx(scene);
 
 // ── 공: 양쪽 끝을 오가며 상대 쪽 판에 한 번 튐 ──
 const g = 8;
@@ -114,6 +117,7 @@ function placeCam() {
   let p, look;
   if (opt.cam === 'side') { cam.fov = 40; p = new THREE.Vector3(3.6, 1.9, 0); look = new THREE.Vector3(0, TY, 0); }
   else if (opt.cam === 'high') { cam.fov = 40; p = new THREE.Vector3(2.0, 2.9, 2.6); look = new THREE.Vector3(0, TY - 0.1, 0); }
+  else if (opt.cam === 'show') { cam.fov = 42; p = new THREE.Vector3(2.0, 1.85, 2.35); look = new THREE.Vector3(-0.2, TY - 0.08, 0.05); } // 소개 사진용 (단추 없음)
   else { cam.fov = 60; p = new THREE.Vector3(0.3, 1.5, 2.9); look = new THREE.Vector3(0, 0.86, -1.0); }
   p.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
   look.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
@@ -142,9 +146,10 @@ function loop() {
   vel.set(p[0] - prev.x, p[1] - prev.y, p[2] - prev.z).divideScalar(Math.max(dt, 1e-4));
   prev.set(...p);
   ball.position.set(...p);
-  if (!bounced && tt >= tr.t1) { bounced = true; A.playTable(tr.speed, tr.at(tr.t1), null, ballInfo.sound); }
+  if (!bounced && tt >= tr.t1) { bounced = true; const bp = tr.at(tr.t1); bp[1] = TY; A.playTable(tr.speed, bp, null, ballInfo.sound); table.userData.bounce?.(bp, false, fx); }
   ball.userData.tick(now, dt, { vel, smash: false });
-  table.userData.tick?.(now, dt);
+  table.userData.tick?.(now, dt, fx);
+  fx.update(dt);
   placeCam();
   R3.render(scene, cam);
   requestAnimationFrame(loop);

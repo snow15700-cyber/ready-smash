@@ -1,7 +1,10 @@
 // 탁구대 목록 + 모델 (docs/dev/tables.md). 보기만 다르다: 판 크기·높이·네트 높이·판정은 모두 같음
 // makeTable(id) → Group (원점 = 바닥 가운데, 판 윗면 = TY). 모르는 id나 'blue'는 지금의 파랑 탁구대
+// 움직이는 탁구대(고급·전설): root.userData.tick(t, dt, fx) 매 프레임, root.userData.bounce(p, smash, fx) 공이 판에 튈 때
 import * as THREE from 'three';
 import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H } from './physics.js';
+import { rng, canvasTex } from './table-kit.js';
+import { RARE } from './tables-rare.js';
 
 export const TABLES = [
   { id: 'blue', name: '파랑 (기본)', grade: 'default' },
@@ -11,6 +14,14 @@ export const TABLES = [
   { id: 'cherry', name: '체리 분홍', grade: 'common' },
   { id: 'purple', name: '보라', grade: 'common' },
   { id: 'camo', name: '위장 무늬', grade: 'common' },
+  { id: 'office', name: '사무실 책상', grade: 'rare', build: 'office' },
+  { id: 'parcel', name: '택배 상자', grade: 'rare', build: 'parcel' },
+  { id: 'tray', name: '급식판', grade: 'rare', build: 'lunchTray' },
+  { id: 'bed', name: '침대', grade: 'rare', build: 'bed' },
+  { id: 'go', name: '바둑판', grade: 'rare', build: 'goBoard' },
+  { id: 'pyeongsang', name: '시골 평상', grade: 'rare', build: 'pyeongsang' },
+  { id: 'toast', name: '커다란 식빵', grade: 'rare', build: 'toast' },
+  { id: 'book', name: '펼친 교과서', grade: 'rare', build: 'textbook' },
 ];
 export const TABLE = Object.fromEntries(TABLES.map((t) => [t.id, t]));
 
@@ -18,30 +29,12 @@ export const TABLE = Object.fromEntries(TABLES.map((t) => [t.id, t]));
 const LOOK = {
   blue: { top: '#2a62b0', edge: '#2a62b0', leg: '#2b2f3a', line: '#ffffff' },
   green: { top: '#1f6a48', edge: '#1a5a3d', leg: '#2a2e2a', line: '#ffffff' },
-  black: { top: '#1d2027', edge: '#2b2f38', leg: '#9aa2ad', line: '#ffffff', legShine: true },
+  black: { top: '#1d2027', edge: '#2b2f38', leg: '#33373f', line: '#ffffff' }, // 다리도 어둡게 (은색 다리는 어두운 배경에서 튀어 보였음)
   wood: { top: '#ffffff', tex: 'wood', edge: '#6e4527', leg: '#5a3820', line: '#fff6e6' },
   cherry: { top: '#b52d63', edge: '#9a2453', leg: '#3a2430', line: '#ffffff' },
   purple: { top: '#553a95', edge: '#47307e', leg: '#2a2438', line: '#ffffff' },
   camo: { top: '#ffffff', tex: 'camo', edge: '#3c4630', leg: '#2e3326', line: '#f2f0dc' },
 };
-
-// 결정론적 난수 (무늬가 열 때마다 같게)
-function rng(seed) {
-  let s = seed >>> 0;
-  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
-}
-
-const texCache = {};
-function canvasTex(key, w, h, draw) {
-  if (texCache[key]) return texCache[key];
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  return (texCache[key] = t);
-}
 
 // 원목: 판 길이 방향(캔버스 세로)으로 나뭇결. 흰 공·주황 공이 잘 보이게 중간보다 조금 어두운 호두색
 function woodTex() {
@@ -117,6 +110,13 @@ function netTexture() {
 }
 
 export function makeTable(id) {
+  const build = TABLE[id]?.build;
+  if (build) {
+    const root = new THREE.Group();
+    root.name = 'table:' + id;
+    Object.assign(root.userData, RARE[build](root));
+    return root;
+  }
   const L = LOOK[id] || LOOK.blue;
   const root = new THREE.Group();
   root.name = 'table:' + (LOOK[id] ? id : 'blue');
