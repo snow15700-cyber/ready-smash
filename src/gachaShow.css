@@ -89,3 +89,5 @@
   .gshow .gs-reveal.leg .nm { font-size: 32px; }
   .gshow .gs-btns button { font-size: 16px; padding: 12px 16px; }
 }
+.gshow .gs-btns button small.gs-free { color: #fff3c4; opacity: 1; }
+.gshow .gs-freeleft { margin-left: 6px; padding-left: 8px; border-left: 1px solid rgba(255,255,255,.25); color: #ffd25a; }

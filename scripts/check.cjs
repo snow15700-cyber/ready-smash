@@ -100,6 +100,11 @@ async function sqlCheck() {
   psql(DB, `update public.pingpong_players set coins = 5000 where nick = '점검봇';`);
   const g = json(`public.pingpong_gacha(${tk}, 'char', 10)`);
   must(g.status === 'ok', '캐릭터 뽑기 10회 실패: ' + JSON.stringify(g).slice(0, 200));
+  // 25 무료 뽑기 50회: 무료 횟수부터 쓰고(코인 그대로), 다 쓰면 코인
+  must(g.free === 40 && g.player.coins === 5000 && g.used_free === true, '무료 뽑기가 이상해요: ' + JSON.stringify({ free: g.free, coins: g.player.coins }));
+  psql(DB, `update public.pingpong_players set free_pulls = 0 where nick = '점검봇';`);
+  const g2 = json(`public.pingpong_gacha(${tk}, 'arena', 1)`);
+  must(g2.status === 'ok' && g2.free === 0 && g2.player.coins === 4900, '무료를 다 쓴 뒤 코인 뽑기가 이상해요: ' + JSON.stringify({ s: g2.status, free: g2.free, coins: g2.player?.coins }));
   const b = json(`public.pingpong_buy(${tk}, 'paddle_gold', 'coins')`);
   must(['ok', 'owned'].includes(b.status), '직접 구매 실패: ' + JSON.stringify(b).slice(0, 200));
   must(json(`public.pingpong_equip(${tk}, 'paddle', 'paddle_gold')`).status === 'ok', '장착 실패');
@@ -547,7 +552,7 @@ async function browserChecks() {
       await step(`화면: ${ready} 페이지 (${file})`, async () => {
         const p = await ctx.newPage();
         watch(p, file, errs);
-        await p.goto(`${URL}/${file}`);
+        await p.goto(`${URL}/${file}`, { timeout: 90000 }); // 시안 페이지는 3D 모형을 많이 지어서 느린 PC(CI)에선 오래 걸린다
         await p.waitForLoadState('load');
         await p.waitForTimeout(2500);
         await p.close();

@@ -50,7 +50,7 @@ function select(id) {
   setPreview({ look: id ? { ...myEquip(), [ITEM[id].cat]: id } : myEquip(), front });
 }
 
-async function openDress(tab) {
+export async function openDress(tab) {
   if (needLogin()) return;
   playUI('click');
   dressTab = tab;
@@ -183,8 +183,15 @@ function renderGacha() {
         : '<div class="pity-row">전설 아이템은 아직 준비 중이에요</div>')
       + `<small>지금 들어 있는 것 ${items.length}종 · 중복이면 ${ic('puzzle')} 조각으로 바뀌어요</small>`;
   }
-  $('btn-gacha-1').disabled = shopBusy || !ready || !open || coins < GACHA_PRICE[1];
-  $('btn-gacha-10').disabled = shopBusy || !ready || !open || coins < GACHA_PRICE[10];
+  // 무료 뽑기(25): 남은 횟수가 뽑을 횟수만큼 있으면 코인 대신 무료
+  const free = account.shop?.free ?? 0;
+  for (const n of [1, 10]) {
+    const b = $(`btn-gacha-${n}`), f = free >= n;
+    b.innerHTML = `${n}회 뽑기<small>${f ? '🎁 무료' : `<i class="coin-dot"></i> ${GACHA_PRICE[n]}`}</small>`;
+    b.classList.toggle('free', f);
+    b.disabled = shopBusy || !ready || !open || (!f && coins < GACHA_PRICE[n]);
+  }
+  if (open && free > 0) $('gacha-desc').insertAdjacentHTML('afterbegin', `<div class="free-row">🎁 무료 뽑기 <b>${free}회</b> 남았어요</div>`);
 }
 
 // 뽑기: 누르자마자 연출 화면(src/gachaShow.js)이 뜨고, 서버 결과가 오면 탁구공이 떨어진다.
@@ -206,7 +213,7 @@ async function doGacha(count) {
     setMsg('');
     $('gacha-result').innerHTML = '';
     lastPull = null;
-    openGacha({ coins: () => account.player?.coins ?? 0, price: GACHA_PRICE, pity: gachaPity(pool), onAgain: (n) => doGacha(n), onExit: exitGacha });
+    openGacha({ coins: () => account.player?.coins ?? 0, free: () => account.shop?.free ?? 0, price: GACHA_PRICE, pity: gachaPity(pool), onAgain: (n) => doGacha(n), onExit: exitGacha });
   }
   const r = await gacha(pool, count);
   if (r.status !== 'ok') {

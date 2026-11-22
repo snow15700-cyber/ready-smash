@@ -9,6 +9,7 @@ import './ui/titles.js';
 import './ui/lobbyList.js';
 import './ui/breakPill.js';
 import './ui/missions.js';
+import './ui/freeGacha.js';
 import { autoLogin, buyItem, equipItem, gacha, myEquip, testCoins } from './account.js';
 import { initAudio, playUI, setEcho, setListener, setQuiet } from './audio.js';
 import { applyLook, arenaOf, ballOf, tableOf } from './items.js';

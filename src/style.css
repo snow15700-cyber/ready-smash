@@ -177,6 +177,11 @@ button.big.on { background: #8a7a66; box-shadow: 0 5px 0 #5f5243; }
 .gbtns button.big { flex: 1; line-height: 1.2; font-size: 21px; padding: 12px; }
 button.big small { display: block; font-size: 14px; opacity: .92; }
 .gbtns button.ten { position: relative; background: linear-gradient(135deg, #9b5de5, #6b3cc9); box-shadow: 0 5px 0 #4b2896; }
+/* 무료 뽑기(25) */
+.gacha-desc .free-row { width: 100%; margin-bottom: 4px; padding: 7px 10px; border-radius: 12px; font-size: 15px; font-weight: 700; color: #5a3a00; background: linear-gradient(90deg, #ffe08a, #ffc93c, #ffe08a); background-size: 200% 100%; animation: shine 2.4s linear infinite; box-shadow: 0 0 14px rgba(255,190,60,.55); }
+.gacha-desc .free-row b, .gx .gacha-desc .free-row b { display: inline; font-size: 17px; font-weight: 800; color: #b3261e; }
+.gbtns button.free small { color: #fff3c4; font-weight: 700; }
+.gbtns button.ten.free::after { content: '무료'; }
 .gbtns button.ten::after { content: '10% 이득'; position: absolute; top: -9px; right: 10px; background: #ff4d6d; color: #fff; font-size: 12px; border-radius: 999px; padding: 2px 8px; }
 .gacha-result { list-style: none; margin: 0; padding: 2px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .gacha-result:empty { display: none; }
@@ -390,9 +395,39 @@ a.lb-ext .ext { display: inline-flex; font-size: 15px; opacity: .8; }
 .lm-note b { color: var(--tt-ball); }
 
 /* 좁은 화면(휴대폰·작은 창): 위에서 아래로 차례로 쌓는다 */
+/* 무료 뽑기 50회 선물 (src/ui/freeGacha.js): 꾸미기 아이콘 위에 크게, 금빛으로.
+   반짝임·선물 상자 깡충은 5초에 한 번만(.go, freeGacha.js가 붙였다 뗌) — 늘 움직이면 느린 PC에서 로비가 버벅인다 */
+.lb-free { position: absolute; right: clamp(20px, 4.5vw, 64px); bottom: 136px; z-index: 2; width: min(440px, calc(100vw - 40px)); display: flex; align-items: center; gap: 14px; text-align: left; overflow: hidden;
+  padding: 14px 16px 14px 14px; border: 0; border-radius: 24px; cursor: pointer; font-family: var(--font-ui); color: #5a3a00; isolation: isolate;
+  background: linear-gradient(115deg, #fff6d6 0%, #ffe08a 45%, #ffd25a 100%);
+  box-shadow: 0 0 0 3px #ffc93c, 0 0 34px rgba(255,190,60,.6), 0 14px 30px rgba(120,70,0,.35); }
+.lb-free.hidden { display: none; }
+.lb-free::before { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 45%; z-index: -1; pointer-events: none;
+  background: linear-gradient(105deg, transparent 0%, rgba(255,255,255,.8) 50%, transparent 100%); transform: translateX(-120%); }
+.lb-free.go::before { animation: freeSweep 1.2s ease-in-out; }
+@keyframes freeSweep { from { transform: translateX(-120%); } to { transform: translateX(260%); } }
+.lb-free:hover:not(:disabled) { transform: translateY(-2px) scale(1.01); }
+.lb-free:active:not(:disabled) { transform: scale(.98); }
+.lb-free .lf-gift { font-size: 54px; line-height: 1; filter: drop-shadow(0 4px 6px rgba(120,70,0,.3)); }
+.lb-free.go .lf-gift { animation: giftHop 1.2s ease-in-out; }
+@keyframes giftHop { 0%, 100% { transform: none; } 25% { transform: translateY(-10px) rotate(-8deg); } 50% { transform: translateY(0) rotate(6deg); } 75% { transform: translateY(-4px) rotate(-3deg); } }
+.lb-free .lf-text { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.lb-free .lf-tag { align-self: flex-start; font-size: 12px; font-weight: 800; color: #fff; background: var(--tt-red-glow, #ff3b42); border-radius: 999px; padding: 2px 9px; margin-bottom: 2px; }
+.lb-free b { font-size: 30px; font-weight: 900; letter-spacing: -0.03em; line-height: 1.1; color: #4a2c00; }
+.lb-free b em { font-style: normal; color: #d7262e; }
+.lb-free small { font-size: 13.5px; font-weight: 600; color: #7a5200; }
+.lb-free small i { font-style: normal; font-weight: 800; color: #d7262e; }
+.lb-free .lf-go { flex: none; font-size: 15px; font-weight: 800; line-height: 1.2; text-align: center; color: #fff; padding: 10px 12px; border-radius: 16px;
+  background: linear-gradient(180deg, var(--tt-red-hi, #E5343B), var(--tt-red-lo, #C81F27)); box-shadow: 0 6px 14px rgba(215,38,46,.4), inset 0 1px 0 rgba(255,255,255,.35); }
+/* 꾸미기 아이콘에 '무료' 딱지 */
+#btn-closet.free-dot { position: relative; }
+#btn-closet.free-dot::after { content: '무료'; position: absolute; top: -8px; right: -8px; font: 800 11px var(--font-ui); color: #fff; background: #ff3b42; border-radius: 999px; padding: 3px 7px; box-shadow: 0 2px 8px rgba(255,59,66,.5); }
+
 @media (max-width: 760px), (max-height: 560px) {
   .screen.lobby { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 16px; padding: 16px 16px 24px; background: rgba(14,26,58,.5); } /* 위에서부터 (가운데 정렬이면 내용이 길 때 위가 잘려서 못 올림) */
-  .lb-me, .lb-left, .lb-icons, .lb-bottom { position: static; transform: none; }
+  .lb-me, .lb-left, .lb-icons, .lb-bottom, .lb-free { position: static; transform: none; }
+  .lb-free { order: -1; width: 100%; }
+  .lb-free b { font-size: 24px; } .lb-free .lf-gift { font-size: 42px; }
   .break-banner { position: static; transform: none; order: -1; white-space: normal; max-width: 100%; }
   body.is-test .break-banner { margin-top: 28px; }
   .lb-me { order: 0; align-items: center; }

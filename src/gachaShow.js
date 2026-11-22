@@ -5,7 +5,7 @@
 // 전설: 하얀 섬광 → 잠깐 고요 → 빛기둥·빛살 속에서 아이템이 돌며 내려옴 → 휘익! 전용 소리 → 폭죽 (사용자 확정). 건너뛰기 없음.
 //
 // 쓰는 법: openGacha(cfg) → playGacha(results, pity) (results: [{ it, grade, dup, pieces }]) → (나가기·한 번 더는 cfg.onExit·onAgain)
-//   cfg: { coins() 지금 코인, price {1,10}, onAgain(n), onExit(), onDone(results), start: true면 처음에 1회·10회 버튼(시안), auto: 저절로 진행 }
+//   cfg: { coins() 지금 코인, free() 남은 무료 뽑기, price {1,10}, onAgain(n), onExit(), onDone(results), start: true면 처음에 1회·10회 버튼(시안), auto: 저절로 진행 }
 import * as THREE from 'three';
 import './gachaShow.css';
 import { GRADES, makePaddle, swatch, outfitImage, headImage, faceImage, ballImage, tableImage } from './items.js';
@@ -131,8 +131,10 @@ const timers = [];
 const later = (dt, fn) => { const g = gen; timers.push({ at: nowT + dt, fn: () => g === gen && fn() }); };
 
 function hint(txt, pulse = false) { el.hint.textContent = txt; el.hint.classList.toggle('pulse', pulse); }
-const coinTag = (n) => `<small><i class="gs-coin"></i> ${PRICE[n]}</small>`;
-const canBuy = (n) => (cfg.coins?.() ?? Infinity) >= PRICE[n];
+// 무료 뽑기(25)가 남아 있으면 그 횟수만큼은 코인 대신 '무료'
+const isFree = (n) => (cfg.free?.() ?? 0) >= n;
+const coinTag = (n) => (isFree(n) ? '<small class="gs-free">🎁 무료</small>' : `<small><i class="gs-coin"></i> ${PRICE[n]}</small>`);
+const canBuy = (n) => isFree(n) || (cfg.coins?.() ?? Infinity) >= PRICE[n];
 function setButtons(kind) {
   const btn = (n, label, big) => `<button class="${big ? 'big' : ''}" data-go="${n}" ${canBuy(n) ? '' : 'disabled'}>${label} ${coinTag(n)}</button>`;
   if (kind === 'start') el.btns.innerHTML = btn(1, '1회 뽑기', true) + btn(10, '10회 뽑기', true);
@@ -147,7 +149,8 @@ function setButtons(kind) {
 function renderCoins() {
   const c = cfg.coins?.();
   el.coins.classList.toggle('gs-hide', c == null || c === Infinity);
-  if (c != null) el.coins.innerHTML = `<i class="gs-coin"></i> ${c.toLocaleString()}`;
+  const f = cfg.free?.() ?? 0;
+  if (c != null) el.coins.innerHTML = `<i class="gs-coin"></i> ${c.toLocaleString()}` + (f > 0 ? `<span class="gs-freeleft">🎁 무료 ${f}회</span>` : '');
 }
 function renderPity() {
   if (!pity) return;

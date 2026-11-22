@@ -185,12 +185,12 @@ export async function aiRally(hits) {
 }
 
 /* ───────── 상점·옷장 (supabase/06_shop.sql) ───────── */
-// account.shop = { owned: Set(아이템 id), pity: { char, arena } }  (상점을 열 때 불러온다)
+// account.shop = { owned: Set(아이템 id), pity: { char, arena }, free: 남은 무료 뽑기 횟수(25) }  (상점을 열 때 불러온다)
 account.shop = null;
 function takeShop(r) {
   if (r.status !== 'ok') return r;
   account.player = { ...EMPTY_STATS, ...r.player };
-  account.shop = { owned: new Set(r.owned || []), pity: r.pity || { char: 0, arena: 0 } };
+  account.shop = { owned: new Set(r.owned || []), pity: r.pity || { char: 0, arena: 0 }, free: r.free ?? 0 };
   return r;
 }
 // 상점 정보 불러오기
@@ -351,7 +351,7 @@ function localServer(fn, a) {
   db.h2h ||= {};
   const me = () => db.players[db.sessions[a.p_token]];
   const pj = (p) => ({ id: p.id, nick: p.nick, wins_1v1: p.w1 || 0, losses_1v1: p.l1 || 0, wins_2v2: p.w2 || 0, losses_2v2: p.l2 || 0, best_rally: p.best || 0, coins: p.coins || 0, win_streak: p.streak || 0, pieces: p.pieces || 0, equip: p.equip || {}, title: p.title || null, nemesis: p.achN?.nemesis || null });
-  const shopOut = (p, extra = {}) => ({ status: 'ok', player: pj(p), owned: p.owned || [], pity: { char: p.pityChar || 0, arena: p.pityArena || 0 }, ...extra });
+  const shopOut = (p, extra = {}) => ({ status: 'ok', player: pj(p), owned: p.owned || [], pity: { char: p.pityChar || 0, arena: p.pityArena || 0 }, free: p.free ?? 50, ...extra }); // free: 무료 뽑기 50회(25)
   const onSale = (pool, grade) => ITEMS.filter((i) => i.pool === pool && i.grade !== 'default' && (!grade || i.grade === grade));
   const h2h = (p, opp) => { const h = db.h2h[p.id + '>' + opp] || [0, 0]; return { wins: h[0], losses: h[1] }; };
   // 13의 경기 업적 함수 → 11·12의 규칙 (입장해서 결과를 낸 경기에 한 번씩만)
@@ -603,8 +603,11 @@ function localServer(fn, a) {
     else if (!cost || !['char', 'arena'].includes(a.p_pool)) out = { status: 'bad' };
     else if (!onSale(a.p_pool).length) out = { status: 'empty' };
     else if (!poolOpen(a.p_pool)) out = { status: 'closed' }; // 일반 아이템이 들어오기 전엔 잠시 닫힘 (16_gacha_open.sql)
-    else if ((p.coins || 0) < cost) out = { status: 'no_coins' };
+    else if ((p.free ?? 50) < a.p_count && (p.coins || 0) < cost) out = { status: 'no_coins' };
     else {
+      // 무료 뽑기(25): 남은 무료 횟수가 뽑을 횟수만큼 있으면 코인 대신
+      const useFree = (p.free ?? 50) >= a.p_count;
+      p.free = (p.free ?? 50) - (useFree ? a.p_count : 0);
       p.owned ||= [];
       const key = a.p_pool === 'char' ? 'pityChar' : 'pityArena';
       let pity = p[key] || 0;
@@ -623,10 +626,10 @@ function localServer(fn, a) {
         results.push({ item: it, grade: g, dup, pieces: got });
       }
       p[key] = pity;
-      p.coins -= cost;
+      if (!useFree) p.coins -= cost;
       p.achN ||= {};
       p.achN.gacha = (p.achN.gacha || 0) + a.p_count;
-      out = shopOut(p, { results });
+      out = shopOut(p, { results, used_free: useFree });
     }
   } else if (fn === 'pingpong_buy') {
     const p = me();
