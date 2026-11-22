@@ -82,3 +82,12 @@
   - 거북이: 거의 둥근 등껍질(1.5 × 1.48m), 판 가장자리에서 둥근 어깨로 내려가 테두리 비늘로 끝남. 둘레 무늬 = 큰 갈비 비늘 14 + 가장자리 비늘 34, 판 = 등뼈 비늘(x 방향) + 갈비 비늘. 등껍질 밑 몸·배딱지, 벌어진 다리 4개, 머리(-x, 1.75배)·꼬리(+x). 빛나는 겹은 판·둘레 둘 다.
   - 고양이: 통통한 식빵 몸(1.5 × 1.46m): 판 둘레에서 부풀었다가 바닥으로 말려 들어감. 둘레 무늬 = 등에서 옆구리로 내려가는 줄무늬 + 흰 가슴털 + 밝은 배. 머리 2.1배(이마 M무늬·볼 줄무늬), 흰 앞발 2배. 꼬리 = 네트 그대로.
 - 생일 케이크: 옆면 글씨 '생일 축하해!' → 'HBD'.
+
+## 2단계: 게임·상점 연결 (2026-11-22, test — `supabase/22_tables.sql` 실행 필요)
+- **식빵 고양이 삭제**(사용자 요청) → 일반 6 · 고급 7 · 전설 5 = 18종 + 기본 파랑.
+- `items.js`: `table_<id>`(`table` 필드 = tables.js id, 기본 `table_blue` 이름 '파랑', `DEFAULTS.table`), `CATS.table.ready`, `tableOf(look)`, 목록 그림 `tableImage`(비스듬히 내려다본 모양, 옆 소품 포함). `snap`은 숨겨 둔 것(지니)을 크기에서 빼고, 큰 물건이 안 잘리게 카메라 far를 늘림. `npm run thumbs`가 탁구대도 찍음(`src/thumbs/table_*.webp`).
+- 서버 `supabase/22_tables.sql`: insert만(경기장 뽑기 `arena`). 사용자가 SQL Editor에서 실행해야 뽑기·구매에 나옴.
+- `scene.js`: 예전 `buildTable` 대신 `world.setTable(id)`(바꿀 때 메시·재질 정리, 캐시 그림은 그대로). 매 프레임 `table.userData.tick(t, dt, fx, { ball, rally: world.tableRally, heat: 몰입 정도 focusK })`. 공이 판에 튈 때 `ballBounce` 예약 처리에서 `bounce`(바닥 튐은 제외), 선수가 칠 때 `hitFx`에서 `hit`, `world.tableScore(info)` → `score`.
+- `game.js`: 'shot'마다 `world.tableRally = ev.rally`, 'point'에서 `world.tableScore({ x, z: 진 쪽 끝, smash: 마지막 샷이 스매시 })` 후 0으로. 전설의 큰 득점 연출(K.O.·양탄자 말림+지니·거북이 쏙/빼꼼·케이크 촛불)은 **스매시 득점일 때만**, 보통 득점은 작게('POINT' 글자·반짝이·끄덕·색종이 조금, 구름은 하트 풍선 3개).
+- 어떤 탁구대를 보이나(`main.js` 루프, 배경·공과 같음): 방 = 방장 presence `look.table`, 로비·꾸미기 = 내 장착(입어 보는 중이면 그것), 혼자 하기 = 내 장착. 대기실 알약 `#room-bg`에 탁구대 이름(기본이면 생략). 꾸미기 설명: 고급 '공이 튀면 반응해요', 전설 '스매시 득점·긴 랠리에 특별한 효과'.
+- 점검: `npm run check`에 '탁구대 19종 짓기·바꾸기(튀기·득점 연출)' 추가, 목록 그림 검사에 `table_`.

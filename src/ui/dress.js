@@ -121,7 +121,9 @@ function renderSpot() {
   $('spot-name').textContent = it.name;
   const status = isOn ? '장착 중' : have ? '가지고 있어요' : '입어 보는 중';
   const snd = (it.sound ? ` · ${ic('volume')} 특별한 소리` : '') // 소리 이름은 보여 주지 않는다 (사용자 결정)
-    + (it.hatch ? ` · ${ic('sparkle')} 스매시 득점 시 특별한 효과` : ''); // 계란·드래곤 알: 깨지고 병아리·아기 용
+    + (it.hatch ? ` · ${ic('sparkle')} 스매시 득점 시 특별한 효과` : '') // 계란·드래곤 알: 깨지고 병아리·아기 용
+    + (it.cat === 'table' && it.grade === 'rare' ? ` · ${ic('sparkle')} 공이 튀면 반응해요` : '')
+    + (it.cat === 'table' && it.grade === 'legend' ? ` · ${ic('sparkle')} 스매시 득점·긴 랠리에 특별한 효과` : '');
   $('spot-desc').innerHTML = status + snd;
   let acts = '';
   if (isOn) acts += `<span class="pill">${ic('check')} 장착 중</span>`;

@@ -611,9 +611,10 @@ function renderRoom() {
   $('room-hint').innerHTML = room.spectate ? `${ic('eye')} 관전 중 · 선수들이 모이는 걸 보고 있어요`
     : room.teams[myId] ? `${ic('swipe')} 화면을 누른 채 위로 밀면 연습 스윙!` : `${ic('down')} 아래 빈 칸을 눌러 팀을 골라 주세요`;
   // 배경은 방장 것이 모두에게 보인다 (방장이 바꾸면 다음 입장부터)
-  const bgIt = equipped(room.hostM?.look, 'bg'), ballIt = equipped(room.hostM?.look, 'ball');
+  const bgIt = equipped(room.hostM?.look, 'bg'), ballIt = equipped(room.hostM?.look, 'ball'), tableIt = equipped(room.hostM?.look, 'table');
   const ballTxt = ballIt.grade === 'default' ? '' : ` · ${ic('ball')} ${esc(ballIt.name)}`; // 탁구공도 방장 것
-  $('room-bg').innerHTML = `${ic('image')} ${esc(bgIt.name)}${ballTxt} · ${room.host ? '내 꾸미기' : '방장 꾸미기'}`;
+  const tableTxt = tableIt.grade === 'default' ? '' : ` · ${ic('table')} ${esc(tableIt.name)}`; // 탁구대도 방장 것
+  $('room-bg').innerHTML = `${ic('image')} ${esc(bgIt.name)}${tableTxt}${ballTxt} · ${room.host ? '내 꾸미기' : '방장 꾸미기'}`;
   roomCrowd(crowd?.list || []);
 
   const full = room.mode && isFull();

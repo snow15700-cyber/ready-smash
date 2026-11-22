@@ -26,7 +26,6 @@ export const TABLES = [
   { id: 'carpet', name: '마법 양탄자', grade: 'legend', build: 'carpet' },
   { id: 'turtle', name: '거대 거북이', grade: 'legend', build: 'turtle' },
   { id: 'cake', name: '생일 케이크', grade: 'legend', build: 'cake' },
-  { id: 'breadcat', name: '식빵 고양이', grade: 'legend', build: 'breadCat' },
   { id: 'cloud', name: '솜사탕 구름', grade: 'legend', build: 'cloud' },
 ];
 export const TABLE = Object.fromEntries(TABLES.map((t) => [t.id, t]));

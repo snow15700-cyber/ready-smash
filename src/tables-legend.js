@@ -1,4 +1,4 @@
-// 전설 탁구대 6종 (docs/dev/tables.md). 보기만 다르다: 판 = TABLE_W × TABLE_L, 윗면 TY, 네트 높이 NET_H.
+// 전설 탁구대 5종 (식빵 고양이는 사용자 요청으로 뺌) (docs/dev/tables.md). 보기만 다르다: 판 = TABLE_W × TABLE_L, 윗면 TY, 네트 높이 NET_H.
 // 고급과 같은 규칙(네트는 비쳐 보이게, 키 큰 소품은 -x, +x엔 낮은 것, 양 끝은 비움) + 전설만의 것:
 //   tick(t, dt, fx, st)  st = { ball: 공 위치 | null, rally: 랠리 수, heat: 0~1 (랠리가 길어질수록 → 더 화려하게) }
 //   bounce(p, smash, fx) 공이 판에 튐 · hit(p, smash, fx) 선수가 침 · score({ x, z, smash }, fx) 득점 (z = 공이 빠져나간 끝)
@@ -348,8 +348,13 @@ function arcade(root) {
       if (pd) { pd.kick = smash ? 1 : 0.5; pd.press = 1; }
     },
     score(info, fx) {
-      ko = 2.4; flash = 1; shake = 0.6;
       const side = -half(info.z);
+      if (!info.smash) { // 보통 득점: 'POINT' 글자만
+        score[side] += 1000;
+        floats.push({ s: 'POINT', x: SW / 2, y: side > 0 ? SH * 0.3 : SH * 0.7, size: 3, c: '#7fe0ff', t: 0, life: 1.4, flip: side < 0 });
+        return;
+      }
+      ko = 2.4; flash = 1; shake = 0.6;
       score[side] += 5000;
       for (const o of inv) if (o.alive) { const [ix, iy] = invPos(o, performance.now() / 1000); o.alive = 0; o.respawn = 3; boom(ix, iy, 16, ['#7dff6a', '#ffe14d', '#ffffff'], 55); }
       for (let i = 0; i < 4; i++) boom(SW * (0.2 + i * 0.2), SH * (side > 0 ? 0.3 : 0.7), 18, ['#ffe14d', '#ff5f8f', '#7fe0ff'], 60);
@@ -596,8 +601,9 @@ function carpet(root) {
       }, [p[0], TY + 0.01, p[2]], 0);
     },
     score(info, fx) {
-      curl = { t: 0, s: half(info.z) };
       pulse = 1;
+      if (!info.smash) { fx?.hit((emit) => emit({ tex: 'star4', n: 10, color: ['#ffd77a', '#fff1c0'], size: 0.05, life: 1.2, speed: 0.8, up: 1, g: 0.5, drag: 1.2, add: true, spin: 4, spread: 0.2 }), [info.x * 0.5, TY + 0.1, info.z * 0.85], 0); return; }
+      curl = { t: 0, s: half(info.z) };
       fx?.hit((emit) => {
         emit({ tex: 'star4', n: 26, color: ['#ffd77a', '#fff1c0', '#c9a6ff', '#7fe0ff'], size: 0.06, life: 1.6, speed: 1.2, up: 1.4, g: 0.5, drag: 1.2, add: true, spin: 4, spread: 0.3 });
         emit({ tex: 'puff', n: 6, color: ['#b48cff', '#e0b0ff'], size: 0.18, grow: 2.5, life: 1.4, speed: 0.4, up: 0.4, alpha: 0.4, spread: 0.2 });
@@ -811,6 +817,7 @@ function turtle(root) {
       }, [p[0], TY + 0.01, p[2]], 0);
     },
     score(info, fx) {
+      if (!info.smash) { nod = 1; happy = 1; return; } // 보통 득점: 끄덕 + 웃음
       peek = 0;
       const hw = new THREE.Vector3(); head.getWorldPosition(hw);
       fx?.hit((emit) => emit({ tex: 'excl', n: 1, color: '#ffffff', size: 0.18, grow: 1.2, life: 1.0, speed: 0, up: 0.4, drag: 3, rot: 0, pop: true }), [hw.x, hw.y + 0.38, hw.z], 0);
@@ -981,6 +988,7 @@ function cake(root) {
       }, [p[0], TY + 0.01, p[2]], 0);
     },
     score(info, fx) {
+      if (!info.smash) { fx?.hit((emit) => emit({ tex: 'pix', n: 14, color: candleCols, size: 0.02, life: 1.2, speed: 0.8, up: 1.6, g: 3.5, spin: 8 }), [0, TY + 0.15, -info.z * 0.4], 0); return; } // 보통 득점: 색종이 조금
       blowT = 0;
       const dir = -half(info.z); // 바람이 이긴 사람 쪽에서 분다
       candles.forEach((c, i) => { setTimeout(() => { c.on = 0; fx?.hit((emit) => emit({ tex: 'puff', n: 2, color: '#d8d8d8', size: 0.03, grow: 3, life: 1.4, speed: 0.05, up: 0.18, g: -0.02, alpha: 0.5, wob: 0.04 }), [c.x, c.top + 0.01, 0], 0); }, (dir > 0 ? i : 8 - i) * 25); });
@@ -989,223 +997,7 @@ function cake(root) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   5. 식빵 고양이 (회색 고등어 무늬, 식빵 자세. 등 = 판, 꼬리 = 네트)
-   ════════════════════════════════════════════════════════════ */
-function breadCat(root) {
-  // 진짜 고양이처럼: 식빵 자세로 엎드린 통통한 회색 고등어 고양이. 등(평평한 꼭대기) = 판,
-  // 몸은 판 둘레에서 둥글게 부풀었다가 바닥으로 말려 들어감. 머리는 -x, 엉덩이·꼬리는 +x (양 끝은 비움)
-  const furBase = '#9a9ca3', furDark = '#5b5d65';
-  const A = 1.5, B = 1.46, N = 3.2;
-  const furTex = canvasTex('cat-back', 512, 920, (c, w, h) => {
-    const r = rng(141);
-    const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#9a9ca4'); gr.addColorStop(0.5, '#8b8e97'); gr.addColorStop(1, '#9a9ca4');
-    c.fillStyle = gr; c.fillRect(0, 0, w, h);
-    c.filter = 'blur(5px)';
-    c.fillStyle = 'rgba(62,64,72,0.5)';
-    for (let i = 0; i < 7; i++) { // 등줄기(가운데, x 방향)에서 옆구리(z)로 내려가는 줄무늬
-      const x0 = 58 + i * 66 + (r() - 0.5) * 12;
-      for (const s of [-1, 1]) {
-        const L = [], Rt = [];
-        const ph = r() * 6, amp = 8 + r() * 10, len = h / 2 + 10;
-        for (let k = 0; k <= 24; k++) {
-          const u = k / 24, y = h / 2 + s * u * len, x = x0 + Math.sin(u * 5 + ph) * amp - u * 10, wd = 15 * (1 - u * 0.45);
-          L.push([x - wd, y]); Rt.push([x + wd, y]);
-        }
-        c.beginPath(); L.forEach(([px, py], k) => (k ? c.lineTo(px, py) : c.moveTo(px, py))); Rt.reverse().forEach(([px, py]) => c.lineTo(px, py)); c.closePath(); c.fill();
-      }
-    }
-    c.fillStyle = 'rgba(58,60,68,0.55)'; c.fillRect(-20, h / 2 - 18, w + 40, 36); // 등줄기
-    c.filter = 'none';
-    for (let i = 0; i < 30000; i++) {
-      const x = r() * w, y = r() * h, l = 3 + r() * 6, an = (y < h / 2 ? -1 : 1) * (1.25 + r() * 0.4);
-      c.strokeStyle = r() < 0.5 ? 'rgba(40,42,48,0.16)' : 'rgba(225,226,232,0.16)'; c.lineWidth = 0.8;
-      c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(an) * l, y + Math.sin(an) * l); c.stroke();
-    }
-    c.strokeStyle = 'rgba(238,239,243,0.8)'; c.lineWidth = 9; c.strokeRect(4.5, 4.5, w - 9, h - 9); // 판 가장자리 = 경계선
-  });
-  const top = softTop(root, TABLE_W, TABLE_L, lam('#ffffff', { map: furTex }), { y: TY, segW: 30, segL: 54, radius: 0.15 });
-  // 몸 둘레 무늬 (u = 둘레, v = 위→바닥): 줄무늬가 등에서 옆구리로 이어지고, 배·가슴은 밝게, 앞(-x)은 흰 턱받이
-  const sideTex = canvasTex('cat-side', 1024, 256, (c, w, h) => {
-    const r = rng(143);
-    c.fillStyle = furBase; c.fillRect(0, 0, w, h);
-    c.filter = 'blur(5px)'; c.fillStyle = 'rgba(62,64,72,0.48)';
-    for (let i = 0; i < 26; i++) {
-      const u = (i + 0.5) / 26, x0 = u * w;
-      if (Math.abs(u - 0.5) < 0.07) continue; // 가슴 쪽은 줄무늬 없이
-      const L = [], Rt = [];
-      for (let k = 0; k <= 16; k++) { const v = k / 16, y = v * h * 0.85, x = x0 + Math.sin(v * 4 + i) * 8, wd = 11 * (1 - v * 0.6); L.push([x - wd, y]); Rt.push([x + wd, y]); }
-      c.beginPath(); L.forEach(([px, py], k) => (k ? c.lineTo(px, py) : c.moveTo(px, py))); Rt.reverse().forEach(([px, py]) => c.lineTo(px, py)); c.closePath(); c.fill();
-    }
-    c.filter = 'blur(12px)';
-    c.fillStyle = 'rgba(244,242,238,0.95)'; c.beginPath(); c.ellipse(w * 0.5, h * 0.95, w * 0.07, h * 0.75, 0, 0, Math.PI * 2); c.fill(); // 흰 가슴털
-    c.filter = 'none';
-    const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0.6, 'rgba(210,212,218,0)'); gr.addColorStop(1, 'rgba(210,212,218,0.9)'); c.fillStyle = gr; c.fillRect(0, 0, w, h); // 배는 밝게
-    for (let i = 0; i < 12000; i++) { const x = r() * w, y = r() * h; c.strokeStyle = r() < 0.5 ? 'rgba(40,42,48,0.15)' : 'rgba(225,226,232,0.15)'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(x, y); c.lineTo(x + (r() - 0.5) * 3, y + 5); c.stroke(); }
-  });
-  // 몸통: 판 가장자리에서 둥글게 부풀어(가운데 높이에서 가장 넓음) 바닥 쪽으로 말려 들어감 = 식빵
-  const loaf = (t) => { const al = t * Math.PI * 0.94; return [Math.sin(al), (TY - 0.004) * (1 + Math.cos(al)) / 2]; };
-  put(root, skirt({ a: A, b: B, n: N, profile: loaf, hw: HW, hl: HL, steps: 32 }), new THREE.MeshLambertMaterial({ map: sideTex, side: THREE.DoubleSide }), 0, 0, 0);
-  put(root, new THREE.CircleGeometry(1, 48), lam('#7d8088'), 0, 0.02, 0, { rx: -Math.PI / 2, shadow: false }).scale.set(A * 0.95, B * 0.95, 1); // 바닥 쪽 막음
-  // 머리 (-x): 몸 앞에 크게
-  const headG = new THREE.Group();
-  headG.position.set(-(A - 0.02), 1.0, 0);
-  root.add(headG);
-  const head = new THREE.Group();
-  head.scale.setScalar(2.1);
-  headG.add(head);
-  const furM = lam(furBase), whiteM = lam('#f4f2ee'), pinkM = lam('#ffb3c4');
-  const headTex = canvasTex('cat-head', 512, 256, (c, w, h) => { // 이마 M무늬 + 볼 줄무늬
-    c.fillStyle = furBase; c.fillRect(0, 0, w, h);
-    c.filter = 'blur(3px)'; c.strokeStyle = 'rgba(62,64,72,0.6)'; c.lineCap = 'round'; c.lineWidth = 9;
-    for (const dx of [-30, -10, 10, 30]) { c.beginPath(); c.moveTo(w * 0.5 + dx, h * 0.12); c.lineTo(w * 0.5 + dx * 0.6, h * 0.32); c.stroke(); }
-    for (const s of [-1, 1]) for (const dy of [0, 22]) { c.beginPath(); c.moveTo(w * 0.5 + s * 70, h * 0.45 + dy); c.quadraticCurveTo(w * 0.5 + s * 110, h * 0.42 + dy, w * 0.5 + s * 140, h * 0.5 + dy); c.stroke(); }
-    c.filter = 'none';
-  });
-  headTex.wrapS = THREE.RepeatWrapping; headTex.offset.x = 0.5; // 그림 가운데(이마)가 얼굴(-x) 쪽에 오게
-  const skull = put(head, new THREE.SphereGeometry(0.3, 36, 26), lam('#ffffff', { map: headTex }), 0, 0, 0);
-  skull.scale.set(0.92, 0.84, 1.08);
-  for (const s of [-1, 1]) put(head, new THREE.SphereGeometry(0.1, 20, 14), whiteM, -0.22, -0.08, s * 0.07).scale.set(0.8, 0.75, 1);
-  put(head, new THREE.SphereGeometry(0.07, 16, 12), whiteM, -0.2, -0.14, 0).scale.set(0.8, 0.6, 1);
-  const ears = [];
-  for (const s of [-1, 1]) {
-    const eg = new THREE.Group(); eg.position.set(0.0, 0.2, s * 0.17); eg.rotation.x = s * 0.35; head.add(eg);
-    put(eg, new THREE.ConeGeometry(0.1, 0.18, 4), furM, 0, 0.08, 0, { ry: Math.PI / 4 }).scale.set(1, 1, 0.5);
-    put(eg, new THREE.ConeGeometry(0.065, 0.12, 4), pinkM, -0.03, 0.07, 0, { ry: Math.PI / 4 }).scale.set(1, 1, 0.35);
-    ears.push({ eg, s, perk: 0, tw: 0 });
-  }
-  const eyes = [-1, 1].map((s) => cuteEye(head, -0.2, 0.04, s * 0.11, 0.07, { iris: '#15161b', white: '#cfe08a', lid: furBase }));
-  for (const e of eyes) { e.g.scale.set(0.75, 1, 1); e.pu.scale.set(0.5, 1.15, 1.15); }
-  put(head, new THREE.ConeGeometry(0.024, 0.02, 3), lam('#ff8fa8'), -0.29, -0.04, 0, { rz: Math.PI / 2, ry: Math.PI });
-  const mouthG = new THREE.Group(); mouthG.position.set(-0.285, -0.085, 0); head.add(mouthG);
-  for (const s of [-1, 1]) put(mouthG, new THREE.TorusGeometry(0.02, 0.0045, 6, 14, Math.PI), lam('#3a3238'), 0, 0, s * 0.02, { ry: Math.PI / 2, rz: Math.PI, shadow: false });
-  const yawn = put(head, new THREE.SphereGeometry(0.045, 16, 12), lam('#d8546e'), -0.27, -0.1, 0, { shadow: false });
-  yawn.scale.set(0.4, 0.01, 1);
-  for (const s of [-1, 1]) put(head, new THREE.CircleGeometry(0.035, 16), new THREE.MeshBasicMaterial({ color: '#ffa0b8', transparent: true, opacity: 0.55 }), -0.255, -0.03, s * 0.19, { shadow: false, ry: -Math.PI / 2 - s * 0.7 });
-  for (const s of [-1, 1]) for (let k = 0; k < 3; k++) {
-    const wsk = put(head, new THREE.CylinderGeometry(0.0018, 0.0012, 0.24, 4), lam('#ffffff'), -0.26, -0.06 + k * 0.025, s * 0.2, { shadow: false });
-    wsk.rotation.set(Math.PI / 2 + s * (k - 1) * 0.15, 0, 0); wsk.rotation.y = s * 0.25;
-  }
-  // 앞발 (가슴 밑으로 살짝, 꾹꾹이) — 흰 양말 + 분홍 젤리
-  const PX0 = -(A + 0.22);
-  const paws = [-1, 1].map((s) => {
-    const pg = new THREE.Group(); pg.position.set(PX0, 0.1, s * 0.34); pg.scale.setScalar(2.0); root.add(pg);
-    const p = put(pg, new THREE.SphereGeometry(0.085, 18, 12), whiteM, 0, 0, 0); p.scale.set(1.3, 0.7, 0.9);
-    for (let k = 0; k < 3; k++) put(pg, new THREE.SphereGeometry(0.014, 8, 6), pinkM, -0.1, -0.01, (k - 1) * 0.03, { shadow: false }).scale.set(0.5, 1, 1);
-    return { pg, s };
-  });
-  // 꼬리 = 네트: 엉덩이(+x)에서 올라와 등 위(z=0)를 가로지르고, 머리 쪽 끝이 살짝 말림 (아래는 비어 공이 보임)
-  const tailCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(A + 0.02, 0.36, 0), new THREE.Vector3(A - 0.12, TY - 0.06, 0), new THREE.Vector3(HW + 0.2, TY + 0.1, 0),
-    new THREE.Vector3(0.2, TY + 0.113, 0), new THREE.Vector3(-0.5, TY + 0.112, 0), new THREE.Vector3(-0.82, TY + 0.115, 0), new THREE.Vector3(-0.93, TY + 0.15, 0.03), new THREE.Vector3(-0.88, TY + 0.19, 0.05),
-  ]);
-  const TS = 140, RS = 12;
-  const tailG = new THREE.TubeGeometry(tailCurve, TS, 1, RS);
-  const tp = tailG.attributes.position;
-  const tBase = Float32Array.from(tp.array);
-  const centers = Array.from({ length: TS + 1 }, (_, i) => tailCurve.getPointAt(i / TS));
-  const radius = (u) => 0.03 + 0.014 * Math.sin(Math.min(1, u * 1.3) * Math.PI) * (u < 0.92 ? 1 : (1 - u) / 0.08 * 0.5 + 0.5) - (u > 0.95 ? (u - 0.95) * 0.4 : 0);
-  const tailTex = canvasTex('cat-tail', 256, 32, (c, w, h) => { c.fillStyle = furBase; c.fillRect(0, 0, w, h); c.filter = 'blur(2px)'; c.fillStyle = 'rgba(80,82,90,0.7)'; for (let x = 8; x < w - 20; x += 24) c.fillRect(x, -4, 9, h + 8); c.fillStyle = furDark; c.fillRect(w - 18, -4, 22, h + 8); c.filter = 'none'; });
-  put(root, tailG, lam('#ffffff', { map: tailTex }), 0, 0, 0, { shadow: true });
-  function tailShape(t, puff, heat) {
-    for (let i = 0; i <= TS; i++) {
-      const u = i / TS, c = centers[i];
-      const r = radius(u) * (1 + puff * 0.9) * (1 + Math.sin(u * 60) * 0.03 * puff);
-      const sway = Math.sin(t * (1.8 + heat * 2) - u * 5) * 0.03 * smooth(0.25, 0.6, u) + Math.sin(t * 3.1 - u * 9) * 0.008 * u;
-      const lift = smooth(0.85, 1, u) * Math.sin(t * 2.4) * 0.02;
-      for (let j = 0; j <= RS; j++) {
-        const k = (i * (RS + 1) + j) * 3;
-        tp.array[k] = c.x + (tBase[k] - c.x) * r;
-        tp.array[k + 1] = c.y + (tBase[k + 1] - c.y) * r + lift;
-        tp.array[k + 2] = c.z + (tBase[k + 2] - c.z) * r + sway;
-      }
-    }
-    tp.needsUpdate = true;
-    tailG.computeVertexNormals();
-  }
-  // 분홍 발자국 (공이 튄 자리에 꾹)
-  const pawTex = canvasTex('pawprint', 128, 128, (c) => {
-    c.fillStyle = '#ff9db6';
-    c.beginPath(); c.ellipse(64, 80, 30, 24, 0, 0, Math.PI * 2); c.fill();
-    for (const [x, y] of [[30, 42], [52, 26], [76, 26], [98, 42]]) { c.beginPath(); c.ellipse(x, y, 12, 15, 0, 0, Math.PI * 2); c.fill(); }
-  }, { alpha: true });
-  const prints = Array.from({ length: 6 }, () => { const m = put(root, new THREE.PlaneGeometry(0.11, 0.11), new THREE.MeshBasicMaterial({ map: pawTex, transparent: true, opacity: 0, depthWrite: false }), 0, TY + 0.004, 0, { shadow: false, rx: -Math.PI / 2 }); return { m, t: 9 }; });
-  let printI = 0;
-  // 옆 소품 (+x 바깥, 낮음): 털실 + 실 + 물고기 장난감 / (-x 바깥): '나비' 밥그릇
-  const yarnTex = canvasTex('yarn', 128, 128, (c, w, h) => { c.fillStyle = '#ff7fa8'; c.fillRect(0, 0, w, h); c.strokeStyle = 'rgba(200,60,110,0.6)'; c.lineWidth = 3; for (let i = 0; i < 26; i++) { c.beginPath(); c.moveTo(0, i * 6); c.bezierCurveTo(w * 0.3, i * 6 - 20, w * 0.7, i * 6 + 20, w, i * 6); c.stroke(); } });
-  const yarn = put(root, new THREE.SphereGeometry(0.1, 20, 16), lam('#ffffff', { map: yarnTex }), A + 0.45, 0.1, -0.95);
-  put(root, new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(A + 0.4, 0.02, -0.87), new THREE.Vector3(A + 0.3, 0.005, -0.6), new THREE.Vector3(A + 0.5, 0.005, -0.35), new THREE.Vector3(A + 0.35, 0.005, -0.1)]), 30, 0.006, 5), lam('#ff7fa8'), 0, 0, 0, { shadow: false });
-  const fish = new THREE.Group(); fish.position.set(A + 0.4, 0.035, 0.85); fish.rotation.y = 0.5; root.add(fish);
-  put(fish, new THREE.SphereGeometry(0.06, 14, 10), lam('#4dabf7'), 0, 0, 0).scale.set(1.6, 0.6, 0.6);
-  put(fish, new THREE.ConeGeometry(0.04, 0.06, 3), lam('#4dabf7'), 0.12, 0, 0, { rz: Math.PI / 2 });
-  put(fish, new THREE.SphereGeometry(0.01, 8, 6), lam('#111'), -0.07, 0.015, 0.025);
-  const bowlX = -(A + 0.4), bowlZ = 0.95;
-  const bowlPts = [[0, 0], [0.13, 0], [0.15, 0.06], [0.12, 0.065], [0.1, 0.02], [0, 0.02]].map(([a, b]) => new THREE.Vector2(a, b));
-  put(root, new THREE.LatheGeometry(bowlPts, 28), shiny('#ffd43b', 70), bowlX, 0, bowlZ);
-  for (let i = 0; i < 14; i++) put(root, new THREE.SphereGeometry(0.015, 6, 5), lam('#a8652c'), bowlX + Math.cos(i * 2.4) * 0.06 * Math.sqrt(i / 14), 0.035, bowlZ + Math.sin(i * 2.4) * 0.06 * Math.sqrt(i / 14));
-  const name = canvasTex('cat-bowl', 128, 32, (c, w, h) => { c.fillStyle = '#ffd43b'; c.fillRect(0, 0, w, h); c.font = 'bold 24px Jua, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#c2185b'; c.fillText('나비 ♥', w / 2, h / 2 + 1); });
-  put(root, new THREE.PlaneGeometry(0.12, 0.03), lam('#ffffff', { map: name }), bowlX + 0.142, 0.035, bowlZ, { shadow: false, ry: Math.PI / 2, rz: -0.3 });
-
-  const blink = blinker();
-  let puff = 0, wide = 0, stretch = -1, yawnT = 6 + R() * 6, knead = 4, twT = 2;
-  const headBase = headG.position.clone();
-  return {
-    tick(t, dt, fx, st = {}) {
-      const heat = st.heat || 0;
-      top.userData.update(dt);
-      puff = Math.max(0, puff - dt * 0.7); wide = Math.max(0, wide - dt * 1.2);
-      tailShape(t, ease(puff), heat);
-      let s = 0;
-      if (stretch >= 0) { stretch += dt; s = Math.sin(clamp(stretch / 1.8, 0, 1) * Math.PI); if (stretch > 1.8) stretch = -1; }
-      headG.position.set(headBase.x - s * 0.2, headBase.y + s * 0.12 + Math.sin(t * 1.4) * 0.008, 0);
-      headG.rotation.z = -s * 0.35;
-      for (const p of paws) p.pg.position.x = PX0 - s * 0.35;
-      const hw = new THREE.Vector3(); head.getWorldPosition(hw);
-      follow(head, hw, stretch >= 0 ? null : st.ball, dt, { maxYaw: 0.8 });
-      head.position.y = heat > 0.3 ? Math.sin(t * 60) * 0.0015 * heat : 0; // 골골송
-      const b = blink(dt);
-      yawnT -= dt;
-      let yk = 0;
-      if (yawnT < 0) { yk = Math.sin(clamp(-yawnT / 1.6, 0, 1) * Math.PI); if (yawnT < -1.6) yawnT = 8 + R() * 8; }
-      yawn.scale.y = 0.01 + yk * 0.9 + s * 0.6;
-      for (const e of eyes) {
-        e.blink(Math.max(b, yk * 0.9, s * 0.8));
-        e.pu.scale.set(0.5, 1.15 + heat * 0.25 - wide * 0.4, 1.15 + heat * 0.25 - wide * 0.4);
-        if (st.ball) e.look(clamp(st.ball[2] - hw.z, -1, 1) * 0.5, clamp(st.ball[1] - hw.y, -1, 1));
-      }
-      twT -= dt;
-      if (twT < 0) { twT = 1.5 + R() * 3; ears[Math.floor(R() * 2)].tw = 1; }
-      for (const e of ears) {
-        e.perk = Math.max(0, e.perk - dt * 2.5); e.tw = Math.max(0, e.tw - dt * 5);
-        e.eg.rotation.x = e.s * (0.35 - e.perk * 0.25 + (wide > 0 ? -0.1 : 0)) + Math.sin(t * 40) * e.tw * 0.15;
-        e.eg.rotation.z = -e.perk * 0.15;
-      }
-      knead -= dt;
-      const kOn = knead < 0;
-      if (knead < -2.4) knead = 5 + R() * 6;
-      for (const p of paws) p.pg.position.y = 0.1 - (kOn ? Math.max(0, Math.sin(t * 7 + (p.s > 0 ? Math.PI : 0))) * 0.025 : 0);
-      for (const p of prints) { p.t += dt; p.m.material.opacity = p.t < 0.1 ? p.t / 0.1 * 0.8 : Math.max(0, 0.8 - (p.t - 0.1) / 1.6 * 0.8); }
-      yarn.rotation.y += dt * 0.2;
-      if (fx && heat > 0.5 && R() < dt * heat * 1.6) fx.hit((emit) => emit({ tex: 'heart', n: 1, color: ['#ff8fb3', '#ffb3c8'], size: 0.05, grow: 1.3, life: 1.3, speed: 0.04, up: 0.3, g: -0.1, drag: 1, rot: 0, wob: 0.05 }), [hw.x - 0.2, hw.y + 0.4, hw.z + (R() - 0.5) * 0.2], 0);
-    },
-    bounce(p, smash, fx) {
-      top.userData.press(p[0], p[2], smash ? 0.024 : 0.014);
-      for (const e of ears) e.perk = 1;
-      const pr = prints[printI++ % prints.length];
-      pr.t = 0; pr.m.position.set(p[0], TY + 0.004, p[2]); pr.m.rotation.z = R() * 6;
-      if (smash) { puff = 1; wide = 1; }
-      fx?.hit((emit) => emit({ tex: 'puff', n: smash ? 2 : 1, color: '#e8e9ee', size: 0.04, grow: 1.8, life: 0.5, speed: 0.15, up: 0.2, alpha: 0.35 }), [p[0], TY + 0.01, p[2]], 0);
-      if (smash) fx?.hit((emit) => emit({ tex: 'nyang', n: 1, color: '#ffffff', size: 0.12, grow: 1.2, life: 0.8, speed: 0, up: 0.5, drag: 3, rot: R() * 0.4 - 0.2, pop: true }), [headBase.x, headBase.y + 0.6, 0], 0);
-    },
-    score(info, fx) {
-      stretch = 0;
-      fx?.hit((emit) => emit({ tex: 'heart', n: 12, color: ['#ff5f8f', '#ff8fb3', '#ffb3c8'], size: 0.07, grow: 1.4, life: 1.6, speed: 0.6, up: 0.9, g: -0.2, drag: 1.6, wob: 0.15, rot: 0, spread: 0.1 }), [headBase.x - 0.1, headBase.y + 0.5, 0], 0);
-    },
-  };
-}
-
-
-/* ════════════════════════════════════════════════════════════
-   6. 솜사탕 구름 (둥둥, 무지개 = 네트)
+   5. 솜사탕 구름 (둥둥, 무지개 = 네트)
    ════════════════════════════════════════════════════════════ */
 function cloud(root) {
   const topTex = canvasTex('cloud-top', 512, 920, (c, w, h) => {
@@ -1342,4 +1134,4 @@ function cloud(root) {
   };
 }
 
-export const LEGEND = { arcade, carpet, turtle, cake, breadCat, cloud };
+export const LEGEND = { arcade, carpet, turtle, cake, cloud };

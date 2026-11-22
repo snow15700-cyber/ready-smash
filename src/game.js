@@ -1,5 +1,5 @@
 // 화면 쪽 게임: 이벤트를 받아 공·캐릭터·소리·링을 그리고, 내 입력을 판정해 보낸다
-import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, WIN, WIN_LATE, winFor, rallyTier, HOLD } from './physics.js';
+import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, HALF_L, WIN, WIN_LATE, winFor, rallyTier, HOLD } from './physics.js';
 import { PADDLE_OFFSET, CHAR_Z } from './scene.js';
 import { applyLook } from './items.js';
 import { computeShot, hitOrder, LET_LATE } from './match.js';
@@ -375,6 +375,7 @@ export class Game {
         this.net.nextIdx = (ev.idx ?? this.net.nextIdx) + 1;
         this.net.rally = ev.rally;
         this.focusRally = ev.rally;
+        this.w.tableRally = ev.rally;
         this.net.incoming = ev.kind === 'chance' || ev.kind === 'smash' ? ev.kind : null;
         const mine = this.isMe(ev.side, ev.slot ?? 0);
         const wasPredicted = this.predicted && mine && Math.abs(this.predicted.t - ev.t) < 1e-6;
@@ -461,6 +462,9 @@ export class Game {
       }
       case 'point':
         this.focusRally = 0;
+        // 전설 탁구대 득점 연출 (보기만): 공이 빠져나간 쪽 끝 = 진 쪽
+        this.w.tableScore?.({ x: this.w.ball.position.x, z: sideSign(1 - ev.winner) * HALF_L, smash: this.lastShot?.kind === 'smash' });
+        this.w.tableRally = 0;
         this.score = ev.score;
         this.hud.score(this.score, ev.deuce);
         A.playUI(this.spectator || ev.winner === me ? 'point' : 'lose');

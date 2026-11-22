@@ -5,6 +5,7 @@ import { makeBall, ballFx } from './balls.js';
 import { playCrack, playPeep, playRoar } from './audio.js';
 import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H, HIT_Z, sideSign } from './physics.js';
 import { createCrowd } from './crowd.js';
+import { makeTable } from './tables.js';
 
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts });
 
@@ -112,7 +113,20 @@ export function createWorld(canvas) {
     bg0 = scene.background.clone();
     if (focusK) { const k = focusK; focusK = -1; world.setFocus(k); }
   }
-  buildTable(scene);
+  // 탁구대: 꾸미기로 바뀐다 (tables.js). 방에서는 방장 것, 로비·혼자 하기는 내 것 (main.js 루프). 보기만 다름
+  let table = null, tableId = null;
+  function setTable(id) {
+    id = id || 'blue';
+    if (id === tableId) return;
+    tableId = id;
+    if (table) {
+      scene.remove(table);
+      table.traverse((o) => { o.geometry?.dispose?.(); for (const mt of [].concat(o.material || [])) mt.dispose?.(); });
+    }
+    table = makeTable(id);
+    scene.add(table);
+  }
+  setTable(null);
 
   // team[side][slot]: 2v2용으로 한쪽에 두 명씩. chars = 각 쪽 1번 선수 (1v1·AI용)
   const team = [0, 1].map((side) => [0, 1].map((slot) => {
@@ -248,6 +262,7 @@ export function createWorld(canvas) {
     kick(amount) { this.shake = Math.max(this.shake, amount); },
     // 전설 탁구채로 쳤을 때 효과. pos가 없으면 탁구채 자리에서
     hitFx(char, pos, grade) {
+      if (char && table?.userData.hit) table.userData.hit(pos || char.group.position.toArray(), grade === 'perfect', fx); // 오락실 게임기: 조이스틱·버튼
       const model = char?.paddleModel;
       if (!char?.fx || !model) return;
       if (!pos) pos = model.getWorldPosition(fxPos).toArray();
@@ -356,6 +371,11 @@ export function createWorld(canvas) {
     clearTrail() { trailHist.length = 0; },
     // 탁구공 꾸미기: 방에서는 방장 것, 로비·혼자 하기는 내 것 (main.js 루프)
     setBallSkin,
+    setTable,
+    get table() { return table; },
+    tableRally: 0, // 지금 랠리 수 (game.js가 넣음, 오락실 게임기 콤보)
+    // 득점: 전설 탁구대 연출 (z = 공이 빠져나간 끝, smash = 스매시로 득점)
+    tableScore(info) { table?.userData.score?.(info, fx); },
     get ballSound() { return ballModel?.userData.sound || null; },
     // 공이 delay초 뒤에 튄다 (game.js·lobbyDemo.js가 소리와 같은 세그먼트로 예약): 공의 튈 때 반응 + 효과
     ballBounce(delay, p, smash, floor) {
@@ -390,10 +410,15 @@ export function createWorld(canvas) {
           const q = bounceQ[i];
           if (t < q.at) continue;
           bounceQ.splice(i, 1);
-          if (t - q.at < 0.3 && ball.visible) ballBfx.bounce(ballModel, q.p, q.smash, q.floorY);
+          if (t - q.at < 0.3 && ball.visible) {
+            ballBfx.bounce(ballModel, q.p, q.smash, q.floorY);
+            if (q.floorY === TY) table?.userData.bounce?.([q.p[0], TY, q.p[2]], q.smash, fx); // 탁구대도 반응 (고급·전설)
+          }
         }
         ballBfx.frame(ballModel, ball.visible ? ball.position.toArray() : null, ballSmash && ball.visible, dt);
       }
+      // 탁구대 스스로 움직임 (고급·전설). heat = 몰입 정도(랠리가 길어질수록 화려하게)
+      table?.userData.tick?.(t, dt, fx, { ball: ball.visible ? ball.position.toArray() : null, rally: world.tableRally, heat: Math.max(0, focusK) });
       fx.update(dt);
       // 첫 화면: 그림 준비(셰이더 컴파일)를 먼저 끝낸다. 그동안 글자·버튼(HTML)은 먼저 보이고 화면이 멈추지 않는다
       if (!warm) {
@@ -491,55 +516,6 @@ function buildGym() {
   ban.position.set(0, 8, -D / 2 + 0.2);
   scene.add(ban);
   return scene;
-}
-
-function buildTable(scene) {
-  const top = new THREE.Mesh(new THREE.BoxGeometry(TABLE_W, 0.035, TABLE_L), mat('#2a62b0'));
-  top.position.y = TY - 0.0175;
-  top.castShadow = true;
-  top.receiveShadow = true;
-  scene.add(top);
-  const lineMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
-  const line = (w, d, x, z) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.002, d), lineMat);
-    m.position.set(x, TY + 0.001, z);
-    scene.add(m);
-  };
-  line(0.02, TABLE_L, -HALF_W + 0.01, 0);
-  line(0.02, TABLE_L, HALF_W - 0.01, 0);
-  line(TABLE_W, 0.02, 0, -HALF_L + 0.01);
-  line(TABLE_W, 0.02, 0, HALF_L - 0.01);
-  line(0.005, TABLE_L, 0, 0);
-  // 다리
-  const legMat = mat('#2b2f3a');
-  for (const x of [-0.6, 0.6]) for (const z of [-1.1, -0.3, 0.3, 1.1]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, TY - 0.035, 0.05), legMat);
-    leg.position.set(x, (TY - 0.035) / 2, z);
-    leg.castShadow = true;
-    scene.add(leg);
-  }
-  const apron = new THREE.Mesh(new THREE.BoxGeometry(TABLE_W - 0.1, 0.06, TABLE_L - 0.1), legMat);
-  apron.position.y = TY - 0.07;
-  scene.add(apron);
-  // 네트
-  const netTex = canvasTex(256, 32, (g, w, h) => {
-    g.clearRect(0, 0, w, h);
-    g.strokeStyle = 'rgba(30,30,40,0.9)';
-    g.lineWidth = 1;
-    for (let x = 0; x <= w; x += 4) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
-    for (let y = 0; y <= h; y += 4) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
-  });
-  const net = new THREE.Mesh(new THREE.PlaneGeometry(1.83, NET_H), new THREE.MeshBasicMaterial({ map: netTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
-  net.position.set(0, TY + NET_H / 2, 0);
-  scene.add(net);
-  const tape = new THREE.Mesh(new THREE.BoxGeometry(1.83, 0.015, 0.006), mat('#ffffff'));
-  tape.position.set(0, TY + NET_H, 0);
-  scene.add(tape);
-  for (const x of [-0.915, 0.915]) {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, NET_H + 0.02, 6), legMat);
-    post.position.set(x, TY + NET_H / 2, 0);
-    scene.add(post);
-  }
 }
 
 // 단순한 흰색 캐릭터 (앞쪽 = -z): 몸통 + 머리 + 떠 있는 탁구채
