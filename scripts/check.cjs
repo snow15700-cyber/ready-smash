@@ -168,6 +168,7 @@ async function sqlCheck() {
   psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '21_missions.sql'), 'utf8'));
   // 24 세트: 위에서 19·21을 다시 실행해 세트가 빠진 함수로 돌아갔으니 24를 다시 → 세트 칭호·코인
   psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '24_sets.sql'), 'utf8'));
+  psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '26_ai_coins_up.sql'), 'utf8')); // 26: 혼자 하기 3번에 1코인
   psql(DB, `insert into public.pingpong_inventory(player_id, item_id) select id, x from public.pingpong_players, unnest(array['head_nightcap', 'body_starpj', 'face_sleepy']) x where nick = '점검봇' on conflict do nothing;`);
   for (const [c, i] of [['head', 'head_nightcap'], ['body', 'body_starpj'], ['face', 'face_sleepy']]) json(`public.pingpong_equip(${tk}, '${c}', '${i}')`);
   const setAch = json(`public.pingpong_achievements(${tk})`).new.map((n) => n.id);
@@ -175,7 +176,7 @@ async function sqlCheck() {
   json(`public.pingpong_ai_start(${tk})`);
   psql(DB, `update public.pingpong_players set ai_at = now() - interval '100 seconds', ai_rem = 0 where nick = '점검봇';`);
   const setAi = json(`public.pingpong_ai_rally(${tk}, 40)`);
-  must(setAi.set_coins === 3 && /꿀잠/.test(setAi.set), '꿀잠 완전 세트 혼자 하기 +30%가 이상해요: ' + JSON.stringify(setAi).slice(0, 200));
+  must(setAi.set_coins === 4 && setAi.coins - setAi.bonus === 17 && /꿀잠/.test(setAi.set), '혼자 하기 40번 = 13코인 + 꿀잠 완전 세트 +30%(4)가 이상해요: ' + JSON.stringify(setAi).slice(0, 200));
   // 표는 브라우저가 직접 못 읽어야 한다 (RLS·권한)
   for (const t of ['pingpong_players', 'pingpong_sessions', 'pingpong_inventory', 'pingpong_matches']) {
     let leaked = true;
@@ -475,6 +476,8 @@ async function browserChecks() {
       await page.evaluate(() => window.__smash.match.emit({ type: 'gameOver', winner: 0, score: [5, 0] }));
       // 6단계: 경기가 끝나면 관중은 대기실 관전으로 (자리가 꽉 찼으니 '자리 나면 알려 줘요'), 선수 대기실엔 '관중 1명'
       await waitFor(viewer, () => window.__smash.room?.spectate && !document.querySelector('#room').classList.contains('hidden') && document.querySelector('#btn-spec-join').textContent.includes('알려'), null, 20000, "경기 끝 → 관중은 대기실 관전 ('알려 줘요')");
+      // 관전이 끝나면 응원 막대도 숨김 (안 그러면 그 사람이 참가해 경기할 때 응원 막대가 남아 보였다)
+      must(await viewer.evaluate(() => document.querySelector('#cheer-bar').classList.contains('hidden')), '관전이 끝났는데 응원 막대가 남아 있어요');
       await waitFor(page, () => !document.querySelector('#room').classList.contains('hidden') && document.querySelector('#room-eyes').textContent.includes('관중 1명'), null, 20000, "선수 대기실에 '관중 1명'");
       await waitFor(viewer, () => document.querySelector('#team-0').textContent.includes('점검') || document.querySelectorAll('#team-0 .slot').length > 0, null, 5000, '대기실 관전 자리 칸');
       // 6단계: 대기실 관전 중 다음 경기 시작 → 관중도 VS 소개 (건너뛰기 버튼 없음), 선수 모두 건너뛰면 같이 넘어가 중계
@@ -487,6 +490,8 @@ async function browserChecks() {
       await page.click('#btn-start');
       await waitFor(viewer, () => window.__smash.game?.spectator && window.__smash.intro && document.querySelector('#vi-skip-btn').classList.contains('hidden'), null, 20000, '관중도 VS 소개 (건너뛰기 버튼 없음)');
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.intro && window.__smash.intro.seg && window.__smash.intro.seg !== 'dim', null, 30000, '선수 VS 소개');
+      // 대기실 이름표·VS 소개 이름 카드는 칭호 + 닉네임만 (아이템·세트 알약 없음, 사용자 확정 11/22)
+      for (const p of [page, guest, viewer]) must(await p.evaluate(() => document.querySelectorAll('#room-labels .it, #vs-intro .it').length === 0 && document.querySelectorAll('#vs-intro .vi-card').length === 2), '이름표에 아이템 알약이 보여요');
       for (const p of [page, guest]) await p.evaluate(() => document.querySelector('#vi-skip-btn').click());
       await waitFor(viewer, () => !window.__smash.intro && window.__smash.game?.spectator && !window.__smash.game.paused, null, 20000, '선수 모두 건너뛰기 → 관중도 중계');
       await page.waitForTimeout(1500);

@@ -8,7 +8,7 @@ import { account } from '../account.js';
 import { breakAt } from '../breaks.js';
 import { ic } from '../icons.js';
 import { TEAM_NAME, looks, myId, playerNames, room, roomTpill, streakOf } from './room.js';
-import { holdPose, lookPills, stage, stageFrame, stageOff } from './stage.js';
+import { holdPose, stage, stageFrame, stageOff } from './stage.js';
 import { $, ease, esc, game, lerp3, match, world } from './state.js';
 
 /* ───────── 경기 시작 전 연출 (약 10초, 1v1·2v2) ─────────
@@ -43,7 +43,7 @@ export function startIntro(players, mySide, mode, spec = null) {
   const card = (s) => {
     const st = stOf(s.id);
     const fire = st >= 2 ? `<div class="vi-streak">${ic('flame')}${st}연승 중</div>` : '';
-    return `<div class="vi-card">${tpOf(s.id)}<div class="nm t${s.side}">${esc(s.name)}${s.id === myId ? '<small>나</small>' : ''}</div>${lookPills(s.look)}${fire}</div>`;
+    return `<div class="vi-card">${tpOf(s.id)}<div class="nm t${s.side}">${esc(s.name)}${s.id === myId ? '<small>나</small>' : ''}</div>${fire}</div>`;
   };
   const who = (side) => (spec ? '' : `${side === mySide ? (mode === '2v2' ? '우리 팀' : '나') : (mode === '2v2' ? '상대 팀' : '상대')} · `);
   const team = (side) => `<div class="vi-team">${who(side)}${TEAM_NAME[side]}</div>`
