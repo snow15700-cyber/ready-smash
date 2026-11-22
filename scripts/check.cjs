@@ -168,6 +168,7 @@ async function sqlCheck() {
   psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '21_missions.sql'), 'utf8'));
   // 24 세트: 위에서 19·21을 다시 실행해 세트가 빠진 함수로 돌아갔으니 24를 다시 → 세트 칭호·코인
   psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '24_sets.sql'), 'utf8'));
+  psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '26_ai_coins_up.sql'), 'utf8')); // 26: 혼자 하기 3번에 1코인
   psql(DB, `insert into public.pingpong_inventory(player_id, item_id) select id, x from public.pingpong_players, unnest(array['head_nightcap', 'body_starpj', 'face_sleepy']) x where nick = '점검봇' on conflict do nothing;`);
   for (const [c, i] of [['head', 'head_nightcap'], ['body', 'body_starpj'], ['face', 'face_sleepy']]) json(`public.pingpong_equip(${tk}, '${c}', '${i}')`);
   const setAch = json(`public.pingpong_achievements(${tk})`).new.map((n) => n.id);
@@ -175,7 +176,7 @@ async function sqlCheck() {
   json(`public.pingpong_ai_start(${tk})`);
   psql(DB, `update public.pingpong_players set ai_at = now() - interval '100 seconds', ai_rem = 0 where nick = '점검봇';`);
   const setAi = json(`public.pingpong_ai_rally(${tk}, 40)`);
-  must(setAi.set_coins === 3 && /꿀잠/.test(setAi.set), '꿀잠 완전 세트 혼자 하기 +30%가 이상해요: ' + JSON.stringify(setAi).slice(0, 200));
+  must(setAi.set_coins === 4 && setAi.coins - setAi.bonus === 17 && /꿀잠/.test(setAi.set), '혼자 하기 40번 = 13코인 + 꿀잠 완전 세트 +30%(4)가 이상해요: ' + JSON.stringify(setAi).slice(0, 200));
   // 표는 브라우저가 직접 못 읽어야 한다 (RLS·권한)
   for (const t of ['pingpong_players', 'pingpong_sessions', 'pingpong_inventory', 'pingpong_matches']) {
     let leaked = true;
