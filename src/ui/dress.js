@@ -191,7 +191,7 @@ function renderGacha() {
     b.classList.toggle('free', f);
     b.disabled = shopBusy || !ready || !open || (!f && coins < GACHA_PRICE[n]);
   }
-  if (open && free > 0) $('gacha-desc').insertAdjacentHTML('afterbegin', `<div class="free-row">🎁 무료 뽑기 <b>${free}회</b> 남았어요</div>`);
+  if (open && free > 0) $('gacha-desc').insertAdjacentHTML('afterbegin', `<div class="free-row">🎁 무료 뽑기 <b>${free}회</b> 남았어요<small>캐릭터·경기장 뽑기가 <b>같이 쓰는</b> 횟수예요. 나눠서 뽑아 보세요!</small></div>`);
 }
 
 // 뽑기: 누르자마자 연출 화면(src/gachaShow.js)이 뜨고, 서버 결과가 오면 탁구공이 떨어진다.
