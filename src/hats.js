@@ -5,6 +5,8 @@ import { rng, canvasTex, envCube } from './outfits.js';
    좌표 = 캐릭터 머리 중심(scene.js makeCharacter의 head: y 1.17, 반지름 0.16). 앞 = -z, 오른쪽(탁구채 쪽) = +x.
    캐릭터는 몸 위의 hatAt 그룹에 붙인다(병아리처럼 머리 모양이 다른 옷은 outfits.js의 hatAt으로 자리·크기를 바꿈).
    - 일반: 머리에 살짝 얹는 것 / 고급: 모양이 크고 웃긴 것 (+ 세트용) / 전설(2단계): 움직이는 효과
+   ★ 얼굴 자리(사용자 요청): 앞(-z)쪽 가장자리는 눈썹 위(머리 중심에서 y 0.06 이상)까지만 — 나중에 얼굴 아이템(눈)이 보이게.
+     그래서 모자·띠는 대부분 '앞은 높게, 뒤는 낮게'(rotation.x > 0) 기울인다.
    update(t, dt): 매 프레임(흔들림·불빛 등). hideFace: 얼굴 아이템을 가리는 머리(투구·가면). */
 
 const HR = 0.16;
@@ -100,7 +102,7 @@ const BUILD = {};
 // 빨간 헤어밴드: 이마에 두른 운동용 밴드 (앞은 이마, 뒤는 조금 높게). 흰 줄 두 개 + 작은 탁구채 로고
 BUILD.band = (g) => {
   const b = grp(g);
-  b.rotation.x = -0.3;
+  b.rotation.x = 0.4; // 앞(이마 위)은 높게, 뒤는 낮게
   const tex = canvasTex(1024, 64, (c, w, h) => {
     c.fillStyle = '#e5323b'; c.fillRect(0, 0, w, h);
     // 수건 같은 결
@@ -126,7 +128,7 @@ BUILD.band = (g) => {
 // 야구 모자: 남색 6쪽 모자 + 앞 흰 로고 + 챙(살짝 휘고 앞으로 숙임) + 꼭지 단추
 BUILD.cap = (g) => {
   const cap = grp(g);
-  cap.rotation.x = -0.1;
+  cap.rotation.x = 0.42; // 살짝 뒤로 젖혀 쓴 모자 (챙이 눈을 안 가림)
   const NAVY = '#24407a';
   const tex = canvasTex(1024, 256, (c, w, h) => {
     c.fillStyle = NAVY; c.fillRect(0, 0, w, h);
@@ -159,7 +161,7 @@ BUILD.cap = (g) => {
   // 챙: 앞 반달 모양 (모양 y = 앞으로 나온 거리)
   const s = new THREE.Shape();
   const N = 24;
-  for (let i = 0; i <= N; i++) { const a = (i / N) * Math.PI; s.lineTo(Math.cos(a) * 0.15, Math.sin(a) * 0.15 + 0.06); }
+  for (let i = 0; i <= N; i++) { const a = (i / N) * Math.PI; s.lineTo(Math.cos(a) * 0.155, Math.sin(a) * 0.13 + 0.115); }
   for (let i = N; i >= 0; i--) { const a = (i / N) * Math.PI; const x = Math.cos(a) * 0.15; s.lineTo(x, Math.sqrt(Math.max(0, 0.165 * 0.165 - x * x)) - 0.02); }
   const brimGeo = new THREE.ExtrudeGeometry(s, { depth: 0.008, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2, curveSegments: 4 });
   brimGeo.rotateX(Math.PI / 2); // 모양 (x, y, 두께) → (x, -두께, y)
@@ -167,17 +169,22 @@ BUILD.cap = (g) => {
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), f = p.getZ(i), y = p.getY(i); // f = 앞으로 나온 거리
     // 앞으로 나온 만큼 아래로 숙이고, 양옆은 아래로 휜다
-    p.setXYZ(i, x, y - Math.max(0, f - 0.12) * 0.3 - x * x * 1.4, -f);
+    p.setXYZ(i, x, y - Math.max(0, f - 0.12) * 0.12 - x * x * 1.1, -f);
   }
   brimGeo.computeVertexNormals();
-  mesh(brimGeo, [lam(NAVY), lam('#1b3264')], 0, 0.016, 0, cap);
+  // 챙은 모자 앞 가장자리를 축으로 아래로 돌려 거의 수평 (모자를 뒤로 젖혀도 챙이 하늘을 안 보게)
+  const PIV = 0.15;
+  brimGeo.translate(0, 0, PIV);
+  const brimAt = grp(cap, 0, 0.016, -PIV);
+  brimAt.rotation.x = -0.36;
+  mesh(brimGeo, [lam(NAVY), lam('#1b3264')], 0, 0, 0, brimAt);
   // 챙 아래 초록 (옛날 야구 모자처럼)
 };
 
 // 털 비니: 겨자색 골지 + 접힌 단 + 보송한 방울
 BUILD.beanie = (g) => {
   const b = grp(g);
-  b.rotation.x = -0.12;
+  b.rotation.x = 0.45;
   const knit = (base, rib) => canvasTex(1024, 256, (c, w, h) => {
     c.fillStyle = base; c.fillRect(0, 0, w, h);
     for (let x = 0; x < w; x += 16) {
@@ -189,17 +196,16 @@ BUILD.beanie = (g) => {
     for (let y = 4; y < h; y += 10) for (let x = 0; x < w; x += 16) { c.beginPath(); c.moveTo(x + 2, y); c.lineTo(x + 8, y + 6); c.lineTo(x + 14, y); c.stroke(); }
     grain(c, w, h, 2500, 0.1, 8);
   });
-  const crown = mesh(capGeo(0.172, Math.PI * 0.56), lam('#ffffff', { map: knit('#e9a63a', '#d18f28') }), 0, 0, 0, b);
+  const crown = mesh(capGeo(0.172, Math.PI * 0.5), lam('#ffffff', { map: knit('#e9a63a', '#d18f28') }), 0, 0, 0, b);
   crown.scale.y = 1.12;
   // 접힌 단
   const cuffTex = knit('#d8942c', '#bf7d1f');
   cuffTex.repeat.set(1, 0.4);
-  mesh(new THREE.CylinderGeometry(0.18, 0.183, 0.06, 64, 1, true), lam('#ffffff', { map: cuffTex, side: THREE.DoubleSide }), 0, 0.0, 0, b);
-  const top = mesh(new THREE.TorusGeometry(0.18, 0.007, 6, 64), lam('#d8942c'), 0, 0.03, 0, b);
+  mesh(new THREE.CylinderGeometry(0.176, 0.18, 0.055, 64, 1, true), lam('#ffffff', { map: cuffTex, side: THREE.DoubleSide }), 0, 0.022, 0, b);
+  const top = mesh(new THREE.TorusGeometry(0.176, 0.007, 6, 64), lam('#d8942c'), 0, 0.05, 0, b);
   top.rotation.x = Math.PI / 2;
   // 작은 가죽 이름표
-  const tag = mesh(new THREE.BoxGeometry(0.04, 0.022, 0.004), lam('#7a4b2a'), 0, 0.0, -0.183, b);
-  tag.lookAt(0, 0, -1);
+  const tag = mesh(new THREE.BoxGeometry(0.04, 0.022, 0.004), lam('#7a4b2a'), 0, 0.022, -0.181, b);
   // 방울
   mesh(fuzzGeo(0.048, 0.14, 11), lam('#fff4dc'), 0, 0.172 * 1.12 + 0.035, 0, b);
 };
@@ -334,12 +340,12 @@ BUILD.towel = (g) => {
   });
   const PINK = '#f7a3b6';
   const t1 = terry(PINK);
-  const cover = mesh(capGeo(0.176, Math.PI * 0.47), lam('#ffffff', { map: t1 }), 0, 0, 0.005, g);
-  cover.rotation.x = -0.22;
+  const cover = mesh(capGeo(0.176, Math.PI * 0.45), lam('#ffffff', { map: t1 }), 0, 0, 0.005, g);
   cover.scale.set(1.02, 0.98, 1.02);
   // 이마 두른 부분 (두툼한 접힘)
-  const fold = mesh(new THREE.TorusGeometry(0.17, 0.016, 10, 64), lam('#ffffff', { map: terry('#f497ac') }), 0, 0.03, 0.01, g);
-  fold.rotation.x = Math.PI / 2 - 0.22;
+  const fold = mesh(new THREE.TorusGeometry(0.17, 0.016, 10, 64), lam('#ffffff', { map: terry('#f497ac') }), 0, 0.03, 0.005, g);
+  fold.rotation.x = Math.PI / 2;
+  g.rotation.x = 0.42; // 앞은 높게 (얼굴 자리)
   // 돌돌 말린 양쪽 (말린 끝에 소용돌이)
   const spiral = canvasTex(256, 256, (c, w, h) => {
     c.fillStyle = PINK; c.fillRect(0, 0, w, h);
@@ -359,7 +365,7 @@ BUILD.towel = (g) => {
 // 리본 머리띠: 가는 분홍 머리띠 + 왼쪽 위에 큰 땡땡이 리본
 BUILD.ribbon = (g) => {
   const band = mesh(new THREE.TorusGeometry(0.168, 0.008, 8, 48, Math.PI), lam('#ff5f97'), 0, 0, 0.03, g);
-  band.rotation.x = -0.25;
+  band.rotation.x = 0.25;
   band.scale.z = 1.6;
   const dots = canvasTex(512, 256, (c, w, h) => {
     c.fillStyle = '#ff6fa3'; c.fillRect(0, 0, w, h);
@@ -388,31 +394,55 @@ BUILD.ribbon = (g) => {
 
 /* ═════════════ 고급 ═════════════ */
 
-// 토끼 귀: 긴 귀 두 개 (오른쪽은 반쯤 접힘). 칠 때 귀가 접혔다 펴진다
+// 토끼 귀: 길쭉하고 매끈한 귀 두 개 (가운데가 넓은 잎 모양, 앞면 분홍). 오른쪽 귀는 끝이 바깥으로 부드럽게 처짐
+// 칠 때 두 귀가 뒤로 휘청했다 돌아온다
+// 휜 귀 모양: 중심선(곡선)을 따라 납작한 타원 단면을 이어 붙인다. w = 너비, bend = 끝이 옆으로 처지는 정도
+function earGeo(len, w, depth, bend, front = 0) {
+  const R = 18, S = 14;
+  const pos = [], idx = [];
+  const center = (s) => new THREE.Vector3(bend * Math.pow(Math.max(0, s - 0.35) / 0.65, 2) * len * 0.55, s * len - bend * Math.pow(Math.max(0, s - 0.55) / 0.45, 2) * len * 0.25, 0);
+  for (let i = 0; i <= R; i++) {
+    const s = i / R;
+    const c = center(s), c2 = center(Math.min(1, s + 0.01)), c1 = center(Math.max(0, s - 0.01));
+    const tan = c2.clone().sub(c1).normalize();
+    const side = new THREE.Vector3(tan.y, -tan.x, 0); // 곡선 옆 방향 (xy 평면)
+    const half = w * Math.pow(Math.sin(Math.min(1, s * 1.05 + 0.06) * Math.PI), 0.7) * (s < 0.1 ? 0.7 + s * 3 : 1);
+    for (let j = 0; j < S; j++) {
+      const a = (j / S) * Math.PI * 2;
+      const p = c.clone().addScaledVector(side, Math.cos(a) * half);
+      p.z = Math.sin(a) * half * depth + front;
+      pos.push(p.x, p.y, p.z);
+    }
+  }
+  for (let i = 0; i < R; i++) for (let j = 0; j < S; j++) {
+    const a = i * S + j, b = i * S + ((j + 1) % S), c = a + S, d = b + S;
+    idx.push(a, c, b, b, c, d);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
 BUILD.bunny = (g, char) => {
-  const fur = lam('#fbf8f2'), pink = lam('#ffb6c4');
-  const ear = (d) => {
-    const base = grp(g, d * 0.062, 0.135, 0.015);
-    base.rotation.set(0.0, 0, -d * 0.2);
-    const seg = (parent, len) => {
-      const o = mesh(new THREE.CapsuleGeometry(0.036, len, 6, 14), fur, 0, len / 2 + 0.01, 0, parent);
-      o.scale.z = 0.5;
-      const i = mesh(new THREE.CapsuleGeometry(0.021, len * 0.9, 6, 10), pink, 0, len / 2 + 0.012, -0.013, parent);
-      i.scale.z = 0.35;
-    };
-    seg(base, 0.09);
-    const joint = grp(base, 0, 0.1, 0);
-    seg(joint, 0.08);
-    return { base, joint };
-  };
-  const L = ear(-1), R = ear(1);
+  const fur = lam('#fbf8f2', { side: THREE.DoubleSide }), pink = lam('#ffb6c4');
+  const ears = [];
+  for (const d of [-1, 1]) {
+    const base = grp(g, d * 0.062, 0.118, 0.025);
+    base.rotation.set(0.05, 0, -d * 0.2);
+    const bend = d > 0 ? 0.95 : 0.05; // 오른쪽 귀만 끝이 바깥으로 처짐
+    mesh(earGeo(0.2, 0.038, 0.42, bend), fur, 0, 0, 0, base);
+    const inner = mesh(earGeo(0.17, 0.022, 0.25, bend * 1.18), pink, 0, 0.016, -0.011, base);
+    inner.scale.set(1, 1, 1);
+    ears.push(base);
+  }
   return (t) => {
     const h = sinceSwing(char);
-    const fold = h < 0.45 ? Math.sin((h / 0.45) * Math.PI) : 0;
-    L.joint.rotation.x = -0.08 + Math.sin(t * 1.7) * 0.04 - fold * 0.9;
-    R.joint.rotation.x = 1.15 + Math.sin(t * 1.9 + 1) * 0.06 + fold * 0.4;
-    L.base.rotation.x = Math.sin(t * 1.2) * 0.03 + fold * 0.25;
-    R.base.rotation.x = Math.sin(t * 1.4 + 2) * 0.03 + fold * 0.25;
+    const flop = h < 0.6 ? Math.sin((h / 0.6) * Math.PI) * (1 - h / 0.6) : 0;
+    ears.forEach((e, i) => {
+      e.rotation.x = 0.05 + flop * 0.35 + Math.sin(t * 1.6 + i * 1.7) * 0.025;
+      e.rotation.z = (i ? -1 : 1) * 0.2 + Math.sin(t * 1.3 + i) * 0.02;
+    });
   };
 };
 
@@ -427,7 +457,7 @@ BUILD.chef = (g) => {
     }
   });
   const hat = grp(g, 0, 0, 0.01);
-  hat.rotation.x = 0.06;
+  hat.rotation.x = 0.32;
   const cream = lam('#ffffff');
   // 이마 띠
   mesh(bandGeo(0.03, 0.085, 0.008), lam('#f4f1ec', { side: THREE.DoubleSide }), 0, 0, 0, hat);
@@ -444,41 +474,6 @@ BUILD.chef = (g) => {
   top.scale.set(1, 0.5, 1);
 };
 
-// 뽀글 파마: 동글동글 작은 곱슬이 머리 위·옆·뒤를 꽉 채운 아줌마 파마 (얼굴은 비움)
-BUILD.perm = (g) => {
-  const hair = phong('#4a2f34', { shininess: 50, specular: '#8a6060' });
-  // 바탕 (틈 메우기)
-  const base = mesh(capGeo(0.17, Math.PI * 0.64), hair, 0, 0, 0.01, g);
-  base.rotation.x = 0.55; // 앞(이마)은 높게, 뒤(목덜미)는 낮게
-  const N = 520, curls = [];
-  const r = rng(77);
-  for (let i = 0; i < N; i++) {
-    // 고르게 퍼진 점 (피보나치 구)
-    const y = 1 - (i + 0.5) / N * 2, rad = Math.sqrt(1 - y * y), th = i * 2.39996;
-    const v = new THREE.Vector3(Math.cos(th) * rad, y, Math.sin(th) * rad);
-    // 머리 선: 앞(-z)은 이마 위까지, 옆은 귀 아래까지, 뒤는 목덜미까지
-    const front = -v.z;
-    const limit = front > 0.3 ? 0.42 - 0.2 * (front - 0.3) : front > -0.2 ? -0.2 : -0.5;
-    if (v.y < limit) continue;
-    curls.push(v.multiplyScalar(0.178 + r() * 0.012));
-  }
-  const geo = new THREE.TorusGeometry(0.02, 0.011, 8, 14); // 돌돌 말린 곱슬
-  const inst = new THREE.InstancedMesh(geo, hair, curls.length);
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3();
-  curls.forEach((p, i) => {
-    const k = 0.85 + r() * 0.45;
-    s.set(k, k * 0.9, k);
-    q.setFromEuler(new THREE.Euler(r() * 3, r() * 3, r() * 3));
-    m4.compose(p, q, s);
-    inst.setMatrixAt(i, m4);
-  });
-  inst.castShadow = true;
-  g.add(inst);
-  // 위쪽 볼륨
-  const top = mesh(new THREE.SphereGeometry(0.15, 24, 14), hair, 0, 0.07, 0.03, g);
-  top.scale.set(1.05, 0.95, 1.05);
-};
-
 // 바가지 머리: 눈썹 위에서 일자로 자른 동글 단발 (윤기 띠)
 BUILD.bowl = (g) => {
   const tex = canvasTex(1024, 256, (c, w, h) => {
@@ -492,7 +487,7 @@ BUILD.bowl = (g) => {
   });
   const hair = phong('#ffffff', { map: tex, shininess: 60, specular: '#444444', side: THREE.DoubleSide });
   const cap = grp(g, 0, 0, 0.005);
-  cap.rotation.x = -0.18;
+  cap.rotation.x = 0.52; // 앞머리는 눈썹 위에서 일자, 뒤는 목덜미까지
   const th = Math.PI * 0.56;
   mesh(capGeo(0.178, th), hair, 0, 0, 0, cap);
   // 자른 끝 (두께)
@@ -517,7 +512,7 @@ BUILD.gat = (g) => {
     return m;
   };
   // 망건 (이마 검은 띠) + 상투
-  mesh(bandGeo(0.035, 0.085, 0.004), lam('#1a1a1c', { side: THREE.DoubleSide }), 0, 0, 0, g);
+  mesh(bandGeo(0.075, 0.11, 0.004), lam('#1a1a1c', { side: THREE.DoubleSide }), 0, 0, 0, g);
   mesh(new THREE.CapsuleGeometry(0.026, 0.03, 6, 12), lam('#1a1412'), 0, HR + 0.03, 0.0, g);
   mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.07, 8), lam('#d9c070'), 0, HR + 0.04, 0, g).rotation.z = Math.PI / 2; // 동곳
   const hat = grp(g, 0, 0.12, 0);
@@ -552,7 +547,7 @@ BUILD.hardhat = (g) => {
   const Y = '#ffc61e';
   const plastic = phong(Y, { shininess: 90, specular: '#fff4c0' });
   const hat = grp(g, 0, 0.0, 0.005);
-  hat.rotation.x = -0.06;
+  hat.rotation.x = 0.36;
   const prof = [[0.186, 0.0], [0.186, 0.02], [0.178, 0.075], [0.155, 0.135], [0.115, 0.178], [0.06, 0.2], [0.0001, 0.205]];
   const pts = prof.map(([r, y]) => new THREE.Vector2(r, y)); // 돌림체 점은 아래→위 (겉면이 밖을 보게)
   mesh(new THREE.LatheGeometry(pts, 64), plastic, 0, 0, 0, hat);
@@ -572,7 +567,7 @@ BUILD.hardhat = (g) => {
   const lip = mesh(new THREE.TorusGeometry(0.186, 0.005, 6, 64), plastic, 0, 0.001, 0, hat);
   lip.rotation.x = Math.PI / 2;
   // 가운데 능선 (앞→뒤)
-  profileTube(prof.slice(1), 0.006, 0.011, plastic, hat);
+  profileTube(prof.slice(4), 0.006, 0.011, plastic, hat); // 가운데 능선: 스티커 위에서 시작 (글자를 안 가리게)
   // 스티커 (앞)
   const st = canvasTex(256, 128, (c, w, h) => {
     c.fillStyle = '#ffffff'; c.beginPath(); c.roundRect(4, 4, w - 8, h - 8, 18); c.fill();
@@ -580,10 +575,14 @@ BUILD.hardhat = (g) => {
     c.fillStyle = '#1f9d4a'; c.font = 'bold 44px Jua, sans-serif'; c.textBaseline = 'middle';
     c.fillText('안전', w * 0.45, h * 0.32); c.fillText('제일', w * 0.45, h * 0.72);
   });
-  const sticker = mesh(new THREE.CylinderGeometry(0.168, 0.176, 0.06, 24, 1, true, Math.PI - 0.38, 0.76), lam('#ffffff', { map: st, transparent: true, side: THREE.DoubleSide }), 0, 0.1, 0, hat);
-  sticker.rotation.x = -0.32;
-  sticker.position.z = -0.03;
+  // 겉면 모양 그대로 조금 띄운 조각 (돌림체 일부, 앞 = phi π). 점은 아래→위라 글자가 바로 선다
+  const rAt = (y) => { for (let i = 1; i < prof.length; i++) if (prof[i][1] >= y) { const [r0, y0] = prof[i - 1], [r1, y1] = prof[i]; return r0 + (r1 - r0) * ((y - y0) / (y1 - y0)); } return 0; };
+  const sp = [];
+  for (let k = 0; k <= 8; k++) { const y = 0.045 + k * 0.009; sp.push(new THREE.Vector2(rAt(y) + 0.006, y)); }
+  const sticker = mesh(new THREE.LatheGeometry(sp, 16, Math.PI - 0.42, 0.84), lam('#ffffff', { map: st, transparent: true, side: THREE.DoubleSide }), 0, 0, 0, hat);
   sticker.material.userData.baseOp = 1;
+  // 스티커 테두리 (살짝 두께)
+  sticker.renderOrder = 1;
   // 턱끈
   surfTube([[-0.17, 0.0, 0.0], [-0.15, -0.07, -0.04], [-0.07, -0.15, -0.05], [0, -0.165, -0.03], [0.07, -0.15, -0.05], [0.15, -0.07, -0.04], [0.17, 0.0, 0.0]], 0.166, 0.004, lam('#3b3b40'), g);
 };
@@ -598,10 +597,10 @@ BUILD.frog = (g) => {
   });
   const green = lam('#ffffff', { map: knit });
   const hat = grp(g, 0, 0, 0.005);
-  hat.rotation.x = -0.15;
-  const cap = mesh(capGeo(0.176, Math.PI * 0.58), green, 0, 0, 0, hat);
+  hat.rotation.x = 0.42;
+  const cap = mesh(capGeo(0.176, Math.PI * 0.52), green, 0, 0, 0, hat);
   cap.scale.y = 1.05;
-  const cuff = mesh(new THREE.TorusGeometry(0.17, 0.014, 10, 64), lam('#57ad3a'), 0, -0.04, 0, hat);
+  const cuff = mesh(new THREE.TorusGeometry(0.176, 0.014, 10, 64), lam('#57ad3a'), 0, -0.012, 0, hat);
   cuff.rotation.x = Math.PI / 2;
   // 눈 두 개
   for (const d of [-1, 1]) {
@@ -630,17 +629,17 @@ BUILD.straw = (g) => {
     }
     grain(c, w, h, 3000, 0.15, 16);
   });
-  const hat = grp(g, 0, 0.065, 0.005);
-  hat.rotation.set(0.1, 0, 0.06);
-  const pts = [[0.0001, 0.115], [0.08, 0.112], [0.112, 0.095], [0.122, 0.05], [0.124, 0.02], [0.14, 0.012], [0.22, 0.0], [0.29, -0.015], [0.305, -0.022]].map(([r, y]) => new THREE.Vector2(r, y));
+  const hat = grp(g, 0, 0.1, 0.005);
+  hat.rotation.set(0.18, 0, 0.06);
+  const pts = [[0.0001, 0.135], [0.08, 0.132], [0.115, 0.112], [0.126, 0.06], [0.128, 0.02], [0.14, 0.012], [0.22, 0.0], [0.29, -0.015], [0.305, -0.022]].map(([r, y]) => new THREE.Vector2(r, y));
   weave.repeat.set(1, 1);
   mesh(new THREE.LatheGeometry(pts, 72), lam('#ffffff', { map: weave, side: THREE.DoubleSide }), 0, 0, 0, hat);
   const edge = mesh(new THREE.TorusGeometry(0.305, 0.006, 6, 80), lam('#d1ab5c'), 0, -0.022, 0, hat);
   edge.rotation.x = Math.PI / 2;
   // 빨간 띠
-  mesh(new THREE.CylinderGeometry(0.124, 0.126, 0.035, 64, 1, true), lam('#e0393f', { side: THREE.DoubleSide }), 0, 0.04, 0, hat);
+  mesh(new THREE.CylinderGeometry(0.128, 0.13, 0.035, 64, 1, true), lam('#e0393f', { side: THREE.DoubleSide }), 0, 0.04, 0, hat);
   // 히비스커스 (오른쪽 옆)
-  const fl = grp(hat, 0.125, 0.045, -0.02);
+  const fl = grp(hat, 0.13, 0.045, -0.02);
   fl.rotation.set(0, Math.PI / 2 + 0.3, 0);
   const petal = lam('#ff4f7b');
   for (let i = 0; i < 5; i++) {
@@ -704,15 +703,15 @@ BUILD.headset = (g) => {
   const glows = [];
   for (const d of [-1, 1]) {
     const cup = grp(g, d * 0.172, -0.005, 0.0);
-    cup.rotation.z = (d * Math.PI) / 2;
-    mesh(new THREE.CylinderGeometry(0.062, 0.066, 0.04, 32), black, 0, d * 0.0, 0, cup);
-    const cush = mesh(new THREE.TorusGeometry(0.052, 0.014, 10, 32), soft, 0, d * -0.018, 0, cup);
+    cup.rotation.z = (-d * Math.PI) / 2; // 덮개 local +y = 바깥쪽 (양쪽 모두)
+    mesh(new THREE.CylinderGeometry(0.062, 0.066, 0.04, 32), black, 0, 0, 0, cup);
+    const cush = mesh(new THREE.TorusGeometry(0.052, 0.014, 10, 32), soft, 0, -0.018, 0, cup);
     cush.rotation.x = Math.PI / 2;
     const glow = new THREE.MeshLambertMaterial({ color: '#000000', emissive: '#ff3d7f', emissiveIntensity: 1 });
-    const ring = mesh(new THREE.TorusGeometry(0.05, 0.005, 6, 40), glow, 0, d * 0.021, 0, cup);
+    const ring = mesh(new THREE.TorusGeometry(0.05, 0.005, 6, 40), glow, 0, 0.021, 0, cup);
     ring.rotation.x = Math.PI / 2;
     ring.castShadow = false;
-    mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.004, 24), phong('#1a1a1e', { shininess: 90 }), 0, d * 0.022, 0, cup);
+    mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.004, 24), phong('#1a1a1e', { shininess: 90 }), 0, 0.022, 0, cup);
     glows.push(glow);
     // 머리띠와 이음
     mesh(new THREE.BoxGeometry(0.012, 0.05, 0.018), black, 0, d * 0.0, 0, grp(g, d * 0.178, 0.06, 0.005));
@@ -728,7 +727,7 @@ BUILD.headset = (g) => {
 // 합격 머리띠: 흰 띠 + 빨간 '합격' + 뒤 매듭과 펄럭이는 끈
 BUILD.pass = (g) => {
   const b = grp(g);
-  b.rotation.x = -0.28;
+  b.rotation.x = 0.4;
   const tex = canvasTex(1024, 64, (c, w, h) => {
     c.fillStyle = '#fbfaf6'; c.fillRect(0, 0, w, h);
     grain(c, w, h, 1500, 0.08, 23);
@@ -767,8 +766,8 @@ BUILD.hiking = (g) => {
     for (let y = h * 0.62; y < h; y += 18) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); }
     c.setLineDash([]);
   });
-  const hat = grp(g, 0, 0.035, 0.005);
-  hat.rotation.x = -0.04;
+  const hat = grp(g, 0, 0.055, 0.005);
+  hat.rotation.x = 0.32;
   const pts = [[0.0001, 0.125], [0.1, 0.12], [0.138, 0.09], [0.15, 0.03], [0.152, 0.005], [0.18, -0.008], [0.235, -0.03], [0.248, -0.04]].map(([r, y]) => new THREE.Vector2(r, y));
   mesh(new THREE.LatheGeometry(pts, 64), lam('#ffffff', { map: tex, side: THREE.DoubleSide }), 0, 0, 0, hat);
   mesh(new THREE.CylinderGeometry(0.151, 0.153, 0.028, 64, 1, true), lam('#6b5f3a', { side: THREE.DoubleSide }), 0, 0.02, 0, hat);
@@ -849,6 +848,7 @@ BUILD.nightcap = (g) => {
     for (let i = 0; i < 160; i++) dot(c, r() * w, r() * h, 2, '#ffffff');
   });
   const root = grp(g, 0, 0.045, 0.01);
+  root.rotation.x = 0.35;
   // 고깔을 만들고 위로 갈수록 오른쪽 아래로 휘게
   const H = 0.36;
   const geo = new THREE.ConeGeometry(0.172, H, 40, 30, true);
@@ -1020,7 +1020,6 @@ export const HATS = [
   ['ribbon', '리본 머리띠', 'common'],
   ['bunny', '토끼 귀', 'rare'],
   ['chef', '요리사 모자', 'rare'],
-  ['perm', '뽀글 파마', 'rare'],
   ['bowl', '바가지 머리', 'rare'],
   ['gat', '갓', 'rare'],
   ['hardhat', '안전모', 'rare'],
