@@ -23,7 +23,7 @@ export function renderFreeGacha() {
   $('btn-closet').classList.toggle('free-dot', show && account.loggedIn);
   if (!show) return;
   el.innerHTML = `<span class="lf-gift">🎁</span>`
-    + `<span class="lf-text"><span class="lf-tag">모두에게 선물!</span><b>무료 뽑기 <em>${GIFT}회</em></b>`
+    + `<span class="lf-text"><span class="lf-tag">🎉 오픈 1주일 기념 선물!</span><b>무료 뽑기 <em>${GIFT}회</em></b>`
     + `<small>${account.loggedIn ? `남은 <i>${left}회</i> · 캐릭터·경기장 합쳐서` : '로그인하면 받을 수 있어요'}</small></span>`
     + `<span class="lf-go">${account.loggedIn ? '뽑으러<br>가기' : '로그인<br>하기'}</span>`;
 }
