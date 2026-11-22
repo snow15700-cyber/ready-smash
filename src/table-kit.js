@@ -107,3 +107,39 @@ export function steamer(at, { every = 0.45, color = '#ffffff', size = 0.06, up =
 }
 
 export const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+// 판(가운데 평평한 직사각형) 둘레를 감싸며 내려가는 몸 (거북이 등껍질·고양이 몸통)
+// 위에서 본 바깥 모양 = 초타원 (a: x 반지름, b: z 반지름, n: 네모난 정도).
+// profile(t) → [k, y]: t 0(판 가장자리) → 1(끝). k = 판 가장자리(0) ~ 바깥 모양(1) 사이 위치, y = 높이.
+// uv: u = 둘레 방향(각도, uRep번 반복), v = t
+export function skirt({ a, b, n, profile, rays = 144, steps = 28, uRep = 1, hw, hl }) {
+  const angs = [];
+  for (let i = 0; i < rays; i++) angs.push((i / rays) * Math.PI * 2);
+  const c = Math.atan2(hl, hw);
+  for (const v of [c, Math.PI - c, Math.PI + c, Math.PI * 2 - c]) angs.push(v); // 판 모서리를 지나는 선 (모서리가 안 깎이게)
+  angs.sort((p, q) => p - q);
+  angs.push(angs[0] + Math.PI * 2);
+  const pos = [], uv = [], idx = [];
+  for (const f of angs) {
+    const cs = Math.cos(f), sn = Math.sin(f);
+    const rc = Math.min(Math.abs(cs) > 1e-6 ? hw / Math.abs(cs) : 1e9, Math.abs(sn) > 1e-6 ? hl / Math.abs(sn) : 1e9);
+    const rb = Math.pow(Math.abs(cs / a) ** n + Math.abs(sn / b) ** n, -1 / n);
+    for (let j = 0; j <= steps; j++) {
+      const t = j / steps, [k, y] = profile(t);
+      const r = rc + (rb - rc) * k;
+      pos.push(r * cs, y, r * sn);
+      uv.push((f / (Math.PI * 2)) * uRep, 1 - t);
+    }
+  }
+  const S = steps + 1;
+  for (let i = 0; i < angs.length - 1; i++) for (let j = 0; j < steps; j++) {
+    const p = i * S + j, q = (i + 1) * S + j;
+    idx.push(p, q, p + 1, q, q + 1, p + 1);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}

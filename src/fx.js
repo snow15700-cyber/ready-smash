@@ -123,6 +123,7 @@ const DRAW = {
     c.fillStyle = 'rgba(0,0,0,0.18)'; c.beginPath(); c.arc(72, 74, 14, 0, Math.PI * 2); c.fill();
   },
   zz(c) { text(c, 'Z', 96, '#ffffff', '#5a6aa8', 12); },
+  tada(c) { text(c, '짜잔!', 50, '#fff3a0', '#7a3cff', 11); },
   excl(c) { text(c, '!', 110, '#ffe14d', '#d23a2a', 14); },
   pix(c) { c.fillStyle = '#fff'; c.fillRect(24, 24, 80, 80); }, // 네모 조각 (색종이·픽셀)
   rock(c) { // 울퉁불퉁 돌 조각

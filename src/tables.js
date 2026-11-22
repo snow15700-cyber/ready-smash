@@ -17,7 +17,6 @@ export const TABLES = [
   { id: 'camo', name: '위장 무늬', grade: 'common' },
   { id: 'office', name: '사무실 책상', grade: 'rare', build: 'office' },
   { id: 'parcel', name: '택배 상자', grade: 'rare', build: 'parcel' },
-  { id: 'tray', name: '급식판', grade: 'rare', build: 'lunchTray' },
   { id: 'bed', name: '침대', grade: 'rare', build: 'bed' },
   { id: 'go', name: '바둑판', grade: 'rare', build: 'goBoard' },
   { id: 'pyeongsang', name: '시골 평상', grade: 'rare', build: 'pyeongsang' },

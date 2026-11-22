@@ -1,4 +1,4 @@
-// 고급 탁구대 8종: 물건이 탁구대가 된다 (docs/dev/tables.md). 보기만 다르다.
+// 고급 탁구대 7종 (급식판은 사용자 요청으로 뺌): 물건이 탁구대가 된다 (docs/dev/tables.md). 보기만 다르다.
 // 공통: 치는 판 = TABLE_W × TABLE_L, 윗면 높이 TY, 네트 높이 NET_H (판정 그대로)
 //   - 네트는 뒤가 비쳐 보이게(틈·반투명): 상대 쪽 네트 가까이 떨어진 공이 가려지지 않게
 //   - 키 큰 소품은 -x 쪽(관전 카메라 반대편), +x 쪽에는 낮은 것만. 양 끝(선수 자리)에는 안 둠
@@ -100,11 +100,13 @@ function office(root) {
     const l = put(root, new THREE.SphereGeometry(0.03, 8, 6), leaf, cx + 0.08 + Math.cos(a) * 0.025, mugY + 0.1, cz + 0.12 + Math.sin(a) * 0.025);
     l.scale.set(0.6, 1.2, 0.6); l.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6);
   }
-  // 모니터 (책상 옆에 집게로 단 팔)
-  const mz = -0.6, mx = -(HW + 0.24);
-  cyl(root, 0.016, 0.016, 0.46, metal, -HW - 0.03, TY + 0.19, mz);
-  box(root, 0.05, 0.08, 0.06, metal, -HW - 0.02, TY - 0.03, mz);
-  box(root, 0.2, 0.03, 0.04, metal, -HW - 0.13, TY + 0.4, mz);
+  // 모니터: 화면은 책상 쪽, 모니터 팔은 모니터 뒤(바깥쪽) 기둥에서 나와 모니터 등에 붙음
+  const mz = -0.6, mx = -(HW + 0.1), px = -(HW + 0.36);
+  cyl(root, 0.13, 0.15, 0.03, metal, px, 0.015, mz, {}, 24); // 받침
+  cyl(root, 0.018, 0.018, TY + 0.4, metal, px, (TY + 0.4) / 2, mz);
+  box(root, 0.24, 0.03, 0.04, metal, px + 0.12, TY + 0.4, mz); // 팔
+  put(root, new THREE.SphereGeometry(0.022, 12, 8), metal, px, TY + 0.4, mz);
+  box(root, 0.03, 0.1, 0.1, metal, mx - 0.03, TY + 0.4, mz); // 모니터 뒤 연결판
   box(root, 0.035, 0.38, 0.64, lam('#24272d'), mx, TY + 0.4, mz);
   const scr = canvasTex('office-screen', 256, 384, (g, w, h) => {
     g.fillStyle = '#f4f7fb'; g.fillRect(0, 0, w, h);
@@ -208,7 +210,7 @@ function parcel(root) {
     cyl(root, 0.028, 0.028, TY + NET_H + 0.02, tube, x, (TY + NET_H + 0.02) / 2, 0);
     cyl(root, 0.02, 0.02, 0.002, lam('#3b2a18'), x, TY + NET_H + 0.021, 0, { shadow: false });
     // 테이프 롤
-    put(root, new THREE.TorusGeometry(0.05, 0.022, 10, 24), new THREE.MeshPhongMaterial({ color: '#c99446', shininess: 80, transparent: true, opacity: 0.92 }), x, TY + NET_H - 0.06, 0, { ry: Math.PI / 2 });
+    put(root, new THREE.TorusGeometry(0.05, 0.022, 10, 24), new THREE.MeshPhongMaterial({ color: '#c99446', shininess: 80, transparent: true, opacity: 0.92 }), x, TY + NET_H - 0.03, 0, { rx: Math.PI / 2 }); // 기둥에 끼운 테이프 롤 (눕혀서)
   }
   const tab = put(root, new THREE.PlaneGeometry(0.05, 0.026), tapeMat, 0.93, TY + NET_H - 0.012, 0.03, { shadow: false, ry: -Math.PI / 2 }); // 덜렁거리는 테이프 끝
   // 옆 소품: 작은 상자 더미(-x), 뽁뽁이 롤(+x, 낮음)
@@ -242,96 +244,6 @@ function parcel(root) {
       h.top.userData.press(lx, lz, smash ? 0.03 : 0.018);
       h.sq = 0.5;
       fx?.hit((emit) => emit({ tex: 'puff', n: smash ? 3 : 2, color: '#e7cfa5', size: 0.05, grow: 2, life: 0.7, speed: 0.25, up: 0.25, alpha: 0.35, spread: 0.03 }), [p[0], TY + 0.01, p[2]], 0);
-    },
-  };
-}
-
-/* ═════════════ 3. 급식판 ═════════════ */
-function lunchTray(root) {
-  // 스테인리스 판 + 눌러 찍은 칸 (반쪽마다: 끝 쪽에 밥·국 큰 칸, 네트 쪽에 반찬 세 칸)
-  const tex = canvasTex('tray-top', PX, PZ, (g, w, h) => {
-    const r = rng(51);
-    g.fillStyle = '#9aa2aa'; g.fillRect(0, 0, w, h);
-    for (let y = 0; y < h; y++) { g.fillStyle = `rgba(255,255,255,${r() * 0.06})`; g.fillRect(0, y, w, 1); } // 헤어라인
-    const pit = (x, y, cw, ch, rad) => { // 눌린 칸: 어두운 바닥 + 위쪽 그늘 + 아래쪽 빛
-      const gr = g.createLinearGradient(0, y, 0, y + ch);
-      gr.addColorStop(0, '#7b838b'); gr.addColorStop(0.15, '#8a929a'); gr.addColorStop(1, '#949ca4');
-      g.fillStyle = gr; rr(g, x, y, cw, ch, rad); g.fill();
-      g.lineWidth = 4; g.strokeStyle = 'rgba(40,45,52,0.45)'; rr(g, x, y, cw, ch, rad); g.stroke();
-      g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,0.55)'; rr(g, x + 3, y + 3, cw - 6, ch - 6, rad - 3); g.stroke();
-    };
-    const m = 26, gap = 18;
-    const sh = h * 0.34; // 반찬 칸 높이 (위 = 네트 쪽)
-    const sw = (w - m * 2 - gap * 2) / 3;
-    for (let i = 0; i < 3; i++) pit(m + i * (sw + gap), m, sw, sh, 26);
-    const by = m + sh + gap, bh = h - by - m;
-    pit(m, by, (w - m * 2 - gap) * 0.55, bh, 40);
-    pit(m + (w - m * 2 - gap) * 0.55 + gap, by, (w - m * 2 - gap) * 0.45, bh, 60);
-    g.strokeStyle = 'rgba(255,255,255,0.75)'; g.lineWidth = 6; g.strokeRect(3, 3, w - 6, h - 6);
-    g.fillStyle = 'rgba(255,255,255,0.18)'; text(g, '○○초등학교', w - 70, h - 13, 13, 'rgba(60,66,74,0.6)');
-  });
-  const steelTop = new THREE.MeshPhongMaterial({ color: '#ffffff', map: tex, shininess: 70, specular: '#9aa0a8' });
-  const steel = shiny('#b7bec5', 90);
-  for (const s of [-1, 1]) {
-    const m = put(root, new THREE.PlaneGeometry(TABLE_W, HL), steelTop, 0, TY, s * HL / 2, { shadow: false, rx: -Math.PI / 2 });
-    if (s < 0) m.rotation.z = Math.PI; // 네트 쪽이 반찬 칸이 되게 뒤집기
-  }
-  box(root, TABLE_W, 0.02, TABLE_L, steel, 0, TY - 0.0105, 0);
-  // 테두리 턱 (경계선 역할, 아주 낮게)
-  for (const [w, d, x, z] of [[0.022, TABLE_L, -HW + 0.011, 0], [0.022, TABLE_L, HW - 0.011, 0], [TABLE_W, 0.022, 0, -HL + 0.011], [TABLE_W, 0.022, 0, HL - 0.011]]) box(root, w, 0.012, d, steel, x, TY + 0.003, z, { shadow: false });
-  // 아래: 배식 수레 (사각 파이프 + 아래 선반 + 쌓은 식판 + 우유 상자)
-  const pipe = shiny('#a9b0b8', 70);
-  for (const x of [-0.7, 0.7]) for (const z of [-1.28, 1.28]) {
-    box(root, 0.04, TY - 0.02, 0.04, pipe, x, (TY - 0.02) / 2, z);
-    put(root, new THREE.SphereGeometry(0.03, 10, 8), lam('#2d2f33'), x, 0.03, z); // 바퀴
-  }
-  for (const y of [0.2, TY - 0.05]) { box(root, 1.44, 0.03, 0.03, pipe, 0, y, -1.28); box(root, 1.44, 0.03, 0.03, pipe, 0, y, 1.28); box(root, 0.03, 0.03, 2.56, pipe, -0.7, y, 0); box(root, 0.03, 0.03, 2.56, pipe, 0.7, y, 0); }
-  box(root, 1.4, 0.012, 2.52, shiny('#8f979f', 60), 0, 0.21, 0);
-  for (let i = 0; i < 6; i++) box(root, 0.46, 0.018, 0.62, steel, -0.35, 0.226 + i * 0.02, 0.6 + (i % 2) * 0.01);
-  const milkTex = canvasTex('milk', 128, 128, (g, w, h) => {
-    g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
-    g.fillStyle = '#2f6fe0'; g.fillRect(0, h * 0.55, w, h * 0.45);
-    text(g, '우유', w / 2, h * 0.3, 40, '#2f6fe0'); text(g, '200ml', w / 2, h * 0.75, 22, '#fff');
-  });
-  const milk = lam('#ffffff', { map: milkTex });
-  const crateX = 0.3, crateZ = -0.6;
-  const crate = new THREE.MeshLambertMaterial({ color: '#ffd23d' });
-  box(root, 0.5, 0.012, 0.36, crate, crateX, 0.222, crateZ);
-  for (const [w, d, x, z] of [[0.5, 0.012, 0, -0.174], [0.5, 0.012, 0, 0.174], [0.012, 0.36, -0.244, 0], [0.012, 0.36, 0.244, 0]]) box(root, w, 0.14, d, crate, crateX + x, 0.29, crateZ + z);
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) {
-    const mx = crateX - 0.18 + i * 0.12, mz = crateZ - 0.11 + j * 0.11;
-    box(root, 0.07, 0.11, 0.07, milk, mx, 0.285, mz);
-    put(root, new THREE.CylinderGeometry(0.0001, 0.05, 0.035, 4, 1), lam('#ffffff'), mx, 0.358, mz, { ry: Math.PI / 4 });
-  }
-  // 네트 = 숟가락 기둥 + 젓가락 두 줄 (사이가 비어 공이 보임)
-  const spoon = shiny('#cfd5dc', 110);
-  for (const x of [-0.915, 0.915]) {
-    box(root, 0.024, 0.2, 0.008, spoon, x, TY + 0.06, 0);
-    const bowl = put(root, new THREE.SphereGeometry(0.05, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshPhongMaterial({ color: '#cfd5dc', shininess: 110, specular: '#ffffff', side: THREE.DoubleSide }), x, TY + 0.2, 0, { rx: Math.PI / 2 });
-    bowl.scale.set(1, 0.3, 1.3);
-    box(root, 0.04, 0.012, 0.08, steel, x, TY - 0.03, 0); // 집게
-  }
-  for (const y of [0.07, NET_H - 0.006]) {
-    const c = put(root, new THREE.CylinderGeometry(0.005, 0.007, 1.86, 4), spoon, 0, TY + y, 0, { rz: Math.PI / 2, rx: Math.PI / 4 });
-    c.scale.set(1, 1, 0.6);
-  }
-  // 옆 소품 (-x): 국통 (김이 모락모락)
-  const px = -(HW + 0.38), pz = 0.25;
-  cyl(root, 0.2, 0.19, 0.42, steel, px, 0.21, pz, {}, 28);
-  cyl(root, 0.19, 0.19, 0.005, lam('#c4572e'), px, 0.4, pz, { shadow: false }, 28); // 국 (빨간 국물)
-  for (const s of [-1, 1]) put(root, new THREE.TorusGeometry(0.04, 0.008, 6, 12, Math.PI), steel, px, 0.36, pz + s * 0.2, { ry: Math.PI / 2 });
-  const lid = cyl(root, 0.205, 0.205, 0.012, steel, px + 0.05, 0.44, pz + 0.03, {}, 28);
-  lid.rotation.z = 0.25;
-  const ladle = cyl(root, 0.008, 0.008, 0.5, steel, px + 0.06, 0.55, pz - 0.05);
-  ladle.rotation.set(0.3, 0, -0.35);
-  const steam = steamer([px, 0.44, pz], { every: 0.35, size: 0.08, up: 0.2, alpha: 0.3, life: 2.0 });
-  return {
-    tick(t, dt, fx) { steam(fx, dt); },
-    bounce(p, smash, fx) {
-      fx?.hit((emit) => {
-        emit({ tex: 'star4', n: smash ? 3 : 1, color: '#ffffff', size: smash ? 0.09 : 0.06, grow: 0.4, life: 0.35, speed: smash ? 0.5 : 0.05, up: 0.1, add: true, spin: 3, spread: 0.02 });
-        emit({ tex: 'ring', n: 1, color: '#dfe8f2', size: 0.03, grow: 4, life: 0.3, speed: 0, up: 0, add: true, alpha: 0.6 });
-      }, [p[0], TY + 0.012, p[2]], 0);
     },
   };
 }
@@ -388,24 +300,16 @@ function bed(root) {
     pa.setX(i, pa.getX(i) * (1 - 0.06 * z * z)); pa.setZ(i, pa.getZ(i) * (1 - 0.1 * x * x));
   }
   pg.computeVertexNormals();
-  for (let i = 0; i < 4; i++) {
-    const pl = put(root, pg, lam(pillowCol[i]), -0.54 + i * 0.36, TY + 0.03, 0);
-    pl.scale.set(0.32, 0.075, 0.2);
-    pl.rotation.y = (i % 2 ? 1 : -1) * 0.06;
-    pillows.push(pl);
-  }
-  const lace = canvasTex('bed-net', 256, 64, (g, w, h) => {
-    g.strokeStyle = 'rgba(255,255,255,0.85)'; g.lineWidth = 1;
-    for (let x = 0; x <= w; x += 5) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
-    for (let y = 0; y <= h; y += 5) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
-    g.fillStyle = 'rgba(255,255,255,0.95)'; for (let x = 0; x < w; x += 16) { g.beginPath(); g.arc(x + 8, 3, 6, 0, Math.PI); g.fill(); }
-  });
-  put(root, new THREE.PlaneGeometry(1.83, NET_H), new THREE.MeshBasicMaterial({ map: lace, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false, color: '#f6f2ff' }), 0, TY + NET_H / 2, 0, { shadow: false });
-  box(root, 1.84, 0.01, 0.01, pip, 0, TY + NET_H, 0, { shadow: false });
-  for (const x of [-0.92, 0.92]) {
-    const pts = [[0.03, 0], [0.03, 0.2], [0.04, 0.24], [0.024, 0.3], [0.024, TY + NET_H - 0.02], [0.034, TY + NET_H], [0.0, TY + NET_H + 0.012]].map(([a, b]) => new THREE.Vector2(a, b));
-    put(root, new THREE.LatheGeometry(pts, 16), oak, x, 0, 0);
-    put(root, new THREE.SphereGeometry(0.035, 16, 12), oak, x, TY + NET_H + 0.03, 0);
+  // 베개를 3층으로 쌓아 네트처럼 (4개 → 3개 → 2개)
+  let pi = 0;
+  for (const [n, y] of [[4, 0.026], [3, 0.077], [2, 0.126]]) {
+    for (let i = 0; i < n; i++) {
+      const pl = put(root, pg, lam(pillowCol[pi++ % pillowCol.length]), (i - (n - 1) / 2) * 0.36 + (n === 3 ? 0.02 : 0), TY + y, (pi % 3 - 1) * 0.008);
+      pl.scale.set(0.34, 0.058, 0.2);
+      pl.rotation.y = (pi % 2 ? 1 : -1) * 0.07;
+      pl.userData.by = TY + y;
+      pillows.push(pl);
+    }
   }
   // 옆 소품 (-x): 협탁 + 스탠드 + 자명종 / (+x): 토끼 슬리퍼
   const nx = -(HW + 0.36), nz = -0.95;
@@ -442,12 +346,12 @@ function bed(root) {
       if (zt < 0 && fx) { // 베개에서 Z가 하나씩 둥실
         zt = 2.2 + Math.random() * 1.5;
         const pl = pillows[Math.floor(Math.random() * pillows.length)];
-        fx.hit((emit) => emit({ tex: 'zz', n: 1, color: '#dfe6ff', size: 0.045, grow: 1.4, life: 1.8, speed: 0.02, up: 0.14, g: -0.02, drag: 0.5, wob: 0.06, alpha: 0.8, rot: 0.2 }), [pl.position.x, TY + 0.09, 0], 0);
+        fx.hit((emit) => emit({ tex: 'zz', n: 1, color: '#dfe6ff', size: 0.045, grow: 1.4, life: 1.8, speed: 0.02, up: 0.14, g: -0.02, drag: 0.5, wob: 0.06, alpha: 0.8, rot: 0.2 }), [pl.position.x, TY + 0.17, 0], 0);
       }
       ring -= dt; // 가끔 자명종이 덜덜
       if (ring < 0) ring = 7 + Math.random() * 5;
       clock.rotation.x = ring < 0.8 ? Math.sin(t * 60) * 0.12 : 0;
-      for (const [i, pl] of pillows.entries()) pl.scale.y = 0.075 * (1 + Math.sin(t * 1.3 + i) * 0.04); // 숨 쉬듯
+      for (const [i, pl] of pillows.entries()) pl.scale.y = 0.058 * (1 + Math.sin(t * 1.3 + i) * 0.04); // 숨 쉬듯
     },
     bounce(p, smash, fx) {
       top.userData.press(p[0], p[2], smash ? 0.035 : 0.022);
@@ -593,33 +497,35 @@ function pyeongsang(root) {
   const ropeTex = canvasTex('rope', 64, 16, (g, w, h) => { g.fillStyle = '#c9a86a'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(110,80,35,0.6)'; g.lineWidth = 3; for (let x = -16; x < w; x += 8) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 16, h); g.stroke(); } }, { repeat: true });
   ropeTex.repeat.set(40, 1);
   put(root, new THREE.TubeGeometry(rope, 40, 0.007, 6), lam('#ffffff', { map: ropeTex }), 0, 0, 0, { shadow: false });
-  // 수박 조각: 둥근 껍질이 아래, 뾰족한 끝이 위
-  const wedge = new THREE.Shape();
-  wedge.moveTo(0, 0.135);
-  wedge.lineTo(0.06, 0.02);
-  wedge.quadraticCurveTo(0, -0.012, -0.06, 0.02);
-  wedge.closePath();
-  const melonTex = canvasTex('melon', 128, 160, (g, w, h) => {
-    const X = (x) => (x + 0.06) / 0.12 * w, Y = (y) => h - (y + 0.012) / 0.147 * h;
-    const path = (sh) => { g.beginPath(); g.moveTo(X(0), Y(0.135 - sh)); g.lineTo(X(0.06 - sh), Y(0.02 + sh * 0.4)); g.quadraticCurveTo(X(0), Y(-0.012 + sh * 1.2), X(-0.06 + sh), Y(0.02 + sh * 0.4)); g.closePath(); };
-    g.fillStyle = '#2f7a2e'; g.fillRect(0, 0, w, h);
-    path(0.006); g.fillStyle = '#e9f2c8'; g.fill();
-    path(0.014); g.fillStyle = '#ff4f5e'; g.fill();
-    const r = rng(83);
-    g.fillStyle = '#2a1a14';
-    for (let i = 0; i < 9; i++) { const y = 0.04 + r() * 0.06, x = (r() - 0.5) * (0.13 - y) * 0.6; g.beginPath(); g.ellipse(X(x), Y(y), 3, 5, 0, 0, Math.PI * 2); g.fill(); }
-  });
-  melonTex.repeat.set(1 / 0.12, 1 / 0.147); melonTex.offset.set(0.5, 0.012 / 0.147);
-  const rind = lam('#2f7a2e');
+  // 빨랫줄에 넌 빨래 (티셔츠·러닝셔츠·수건·양말) + 빨래집게. 사이사이가 비어 공이 보임
+  const clothesShape = {
+    tee() { const h = new THREE.Shape(); h.moveTo(-0.045, 0); h.lineTo(-0.02, 0); h.quadraticCurveTo(0, -0.018, 0.02, 0); h.lineTo(0.045, 0); h.lineTo(0.08, -0.03); h.lineTo(0.065, -0.05); h.lineTo(0.045, -0.04); h.lineTo(0.045, -0.13); h.lineTo(-0.045, -0.13); h.lineTo(-0.045, -0.04); h.lineTo(-0.065, -0.05); h.lineTo(-0.08, -0.03); h.closePath(); return h; },
+    tank() { const h = new THREE.Shape(); h.moveTo(-0.035, 0); h.lineTo(-0.022, 0); h.quadraticCurveTo(-0.018, -0.03, 0, -0.035); h.quadraticCurveTo(0.018, -0.03, 0.022, 0); h.lineTo(0.035, 0); h.quadraticCurveTo(0.03, -0.04, 0.045, -0.055); h.lineTo(0.045, -0.125); h.lineTo(-0.045, -0.125); h.lineTo(-0.045, -0.055); h.quadraticCurveTo(-0.03, -0.04, -0.035, 0); return h; },
+    towel() { const h = new THREE.Shape(); h.moveTo(-0.055, 0); h.lineTo(0.055, 0); h.lineTo(0.055, -0.12); h.lineTo(-0.055, -0.12); h.closePath(); return h; },
+    sock() { const h = new THREE.Shape(); h.moveTo(-0.015, 0); h.lineTo(0.015, 0); h.lineTo(0.015, -0.07); h.quadraticCurveTo(0.015, -0.1, 0.045, -0.1); h.quadraticCurveTo(0.06, -0.1, 0.06, -0.085); h.quadraticCurveTo(0.06, -0.07, 0.04, -0.07); h.lineTo(0.03, -0.07); h.quadraticCurveTo(-0.015, -0.07, -0.015, -0.1); h.closePath(); return h; },
+  };
+  // 무늬: 도형 좌표(m)를 그대로 그림 좌표로 쓰는 텍스처 (가로 0.16 × 세로 0.14 범위)
+  const clothTex = (key, draw) => { const t = canvasTex('cloth-' + key, 128, 112, draw); t.repeat.set(1 / 0.16, 1 / 0.14); t.offset.set(0.5, 1); return t; };
+  const items = [
+    ['tee', '#4f8be8', clothTex('tee', (g, w, h) => { g.fillStyle = '#4f8be8'; g.fillRect(0, 0, w, h); g.fillStyle = '#ffffff'; g.font = 'bold 22px Jua, sans-serif'; g.textAlign = 'center'; g.fillText('탁구부', w / 2, 52); })],
+    ['towel', '#ffd43b', clothTex('towel', (g, w, h) => { g.fillStyle = '#ffd43b'; g.fillRect(0, 0, w, h); g.fillStyle = '#f08c00'; for (const y of [10, 92]) g.fillRect(0, y, w, 8); })],
+    ['sock', '#ffffff', clothTex('sock', (g, w, h) => { g.fillStyle = '#f2f0ea'; g.fillRect(0, 0, w, h); g.fillStyle = '#e8473a'; for (const y of [4, 14]) g.fillRect(0, y, w, 5); })],
+    ['tank', '#9bd27a', clothTex('tank', (g, w, h) => { g.fillStyle = '#9bd27a'; g.fillRect(0, 0, w, h); })],
+    ['tee', '#ff8fb3', clothTex('tee2', (g, w, h) => { g.fillStyle = '#ff8fb3'; g.fillRect(0, 0, w, h); g.fillStyle = '#ffffff'; g.beginPath(); g.arc(w / 2, 48, 12, 0, 7); g.fill(); g.fillStyle = '#ff8fb3'; g.beginPath(); g.arc(w / 2 + 4, 46, 9, 0, 7); g.fill(); })],
+    ['sock', '#ffffff', clothTex('sock', null)],
+  ];
+  const peg = lam('#c9a36a');
   const wedges = [];
-  const wg = new THREE.ExtrudeGeometry(wedge, { depth: 0.026, bevelEnabled: true, bevelSize: 0.003, bevelThickness: 0.003, bevelSegments: 2, curveSegments: 10 });
-  wg.translate(0, 0, -0.013);
-  for (let i = 0; i < 6; i++) {
-    const m = put(root, wg, [lam('#ffffff', { map: melonTex }), rind], -0.625 + i * 0.25, TY + 0.013, 0);
-    m.scale.set(1.15, 1.05, 1);
-    m.rotation.z = (i % 2 ? 1 : -1) * 0.05;
-    wedges.push(m);
-  }
+  items.forEach(([kind, col, tex], i) => {
+    const x = -0.75 + i * 0.3;
+    const ropeY = TY + NET_H - 0.012 * (1 - (x / 0.93) ** 2);
+    const piv = new THREE.Group(); piv.position.set(x, ropeY, 0); piv.scale.setScalar(1.25); root.add(piv);
+    const geo = new THREE.ExtrudeGeometry(clothesShape[kind](), { depth: 0.006, bevelEnabled: false, curveSegments: 10 });
+    geo.translate(0, 0, -0.003);
+    put(piv, geo, [lam('#ffffff', { map: tex, side: THREE.DoubleSide }), lam(col)], 0, 0.004, 0);
+    for (const dx of kind === 'sock' ? [0] : [-0.03, 0.03]) box(piv, 0.008, 0.03, 0.012, peg, dx, 0.004, 0); // 빨래집게
+    wedges.push(piv);
+  });
   // 옆 소품 (-x): 모기향 (연기) + 밀짚모자(기둥 위) + 부채 / (+x): 고무신
   const mx = -(HW + 0.3), mz = 0.35;
   box(root, 0.2, 0.01, 0.2, shiny('#6f7780', 50), mx, 0.005, mz);
@@ -637,8 +543,10 @@ function pyeongsang(root) {
   put(hat, new THREE.SphereGeometry(0.075, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), straw, 0, 0.004, 0).scale.y = 0.8;
   cyl(hat, 0.074, 0.074, 0.02, lam('#d8373f'), 0, 0.014, 0, {}, 24);
   hat.rotation.set(0.12, 0, 0.18);
-  const fan = new THREE.Group();
-  fan.position.set(-(HW + 0.16), 0.25, -0.55);
+  const fan = new THREE.Group(); // 바닥에 눕혀 둔 부채 (모기향 옆)
+  fan.position.set(-(HW + 0.42), 0.012, -0.35);
+  fan.rotation.set(-Math.PI / 2, 0, 0.9);
+  fan.scale.setScalar(1.15);
   root.add(fan);
   const fanTex = canvasTex('fan', 128, 128, (g, w, h) => {
     g.fillStyle = '#fff6e8'; g.beginPath(); g.arc(64, 64, 62, 0, Math.PI * 2); g.fill();
@@ -647,9 +555,8 @@ function pyeongsang(root) {
     g.fillStyle = '#d8373f'; g.beginPath(); g.arc(47, 64, 17, 0, Math.PI); g.fill();
     g.fillStyle = '#2f5fbf'; g.beginPath(); g.arc(81, 64, 17, Math.PI, 0); g.fill();
   });
-  put(fan, new THREE.CircleGeometry(0.15, 28), lam('#ffffff', { map: fanTex, side: THREE.DoubleSide }), 0, 0.12, 0, { ry: Math.PI / 2 });
-  cyl(fan, 0.008, 0.008, 0.28, lam('#a07040'), 0, -0.08, 0);
-  fan.rotation.z = -0.25;
+  put(fan, new THREE.CircleGeometry(0.15, 28), lam('#ffffff', { map: fanTex, side: THREE.DoubleSide }), 0, 0.42, 0);
+  cyl(fan, 0.008, 0.008, 0.3, lam('#a07040'), 0, 0.15, 0);
   for (const s of [-1, 1]) { // 고무신
     const g = new THREE.Group();
     g.position.set(HW + 0.3 + s * 0.07, 0, 0.85);
@@ -669,7 +576,7 @@ function pyeongsang(root) {
         for (let k = Math.ceil(dt / 0.004), h = dt / k; k > 0; k--) { p.v += (-p.y * 900 - p.v * 22) * h; p.y += p.v * h; } // 느린 PC에서도 안 튀게 잘게 나눠 계산
         p.m.position.y = TY - 0.0175 + p.y;
       }
-      wedges.forEach((w, i) => { w.rotation.z = (i % 2 ? 1 : -1) * 0.05 + Math.sin(t * 1.7 + i) * 0.015; });
+      wedges.forEach((w, i) => { w.rotation.x = Math.sin(t * 1.6 + i * 0.9) * 0.12 + Math.sin(t * 3.7 + i) * 0.04; w.rotation.z = Math.sin(t * 1.1 + i) * 0.04; }); // 바람에 살랑
     },
     bounce(p, smash, fx) {
       const i = Math.max(0, Math.min(N - 1, Math.floor((p[0] + HW) / (pw + gap))));
@@ -689,7 +596,7 @@ function toast(root) {
     g.fillStyle = '#8a4c1e'; g.fillRect(0, 0, w, h); // 껍질
     const b = k2p(0.032);
     const gr = g.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.7);
-    gr.addColorStop(0, '#c9863f'); gr.addColorStop(0.6, '#d89c55'); gr.addColorStop(1, '#e3b26c');
+    gr.addColorStop(0, '#dcae6c'); gr.addColorStop(0.6, '#e2b878'); gr.addColorStop(1, '#e8c286'); // 막 구운 연한 노릇함 (랠리가 길어지면 더 구워짐)
     g.fillStyle = gr; rr(g, b, b, w - b * 2, h - b * 2, c * 0.7); g.fill();
     for (let i = 0; i < 1500; i++) { // 기공
       const x = b + r() * (w - b * 2), y = b + r() * (h - b * 2), s = 0.8 + r() * r() * 5;
@@ -706,6 +613,25 @@ function toast(root) {
     g.restore();
   }, { alpha: true });
   const topM = lam('#ffffff', { map: tex, transparent: false, alphaTest: 0.5 });
+  // 더 구운 겹: 랠리가 길어질수록(열기) 진해져 노릇노릇 → 바삭하게
+  const toastTex = canvasTex('toast-more', PX, PZ, (g, w, h) => {
+    const r = rng(94);
+    const c = k2p(CR), b = k2p(0.032);
+    g.clearRect(0, 0, w, h);
+    g.save(); rr(g, 0, 0, w, h, c); g.clip();
+    g.fillStyle = 'rgba(70,32,8,0.9)'; g.fillRect(0, 0, w, h); // 껍질도 더 진하게
+    const gr = g.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.75);
+    gr.addColorStop(0, 'rgba(150,78,24,0.95)'); gr.addColorStop(0.7, 'rgba(176,98,36,0.9)'); gr.addColorStop(1, 'rgba(196,122,52,0.85)');
+    g.fillStyle = gr; rr(g, b, b, w - b * 2, h - b * 2, c * 0.7); g.fill();
+    for (let i = 0; i < 26; i++) { // 진하게 탄 얼룩
+      const x = b + r() * (w - b * 2), y = b + r() * (h - b * 2), s2 = 18 + r() * 60;
+      const sg = g.createRadialGradient(x, y, 0, x, y, s2); sg.addColorStop(0, 'rgba(90,40,10,0.45)'); sg.addColorStop(1, 'rgba(90,40,10,0)');
+      g.fillStyle = sg; g.fillRect(x - s2, y - s2, s2 * 2, s2 * 2);
+    }
+    for (let i = 0; i < 1200; i++) { const x = r() * w, y = r() * h, s2 = 0.8 + r() * r() * 4; g.fillStyle = r() < 0.7 ? 'rgba(70,32,8,0.3)' : 'rgba(240,190,120,0.25)'; g.beginPath(); g.ellipse(x, y, s2, s2 * 0.7, r() * 3, 0, Math.PI * 2); g.fill(); }
+    g.restore();
+  }, { alpha: true });
+  const toastM = new THREE.MeshLambertMaterial({ map: toastTex, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   const crust = lam('#8f5222');
   const slices = [];
   for (const s of [-1, 1]) {
@@ -714,6 +640,9 @@ function toast(root) {
     root.add(g);
     put(g, roundBox(TABLE_W, 0.05, HL - 0.006, CR, 0.012), crust, 0, TY - 0.026, 0);
     const top = softTop(g, TABLE_W, HL - 0.006, topM, { y: TY + 0.0005, radius: 0.12, segW: 26, segL: 24 });
+    const more = new THREE.Mesh(top.geometry, toastM); // 같은 모양(말랑하게 눌림도 같이)
+    more.position.copy(top.position); more.renderOrder = 1;
+    g.add(more);
     slices.push({ g, top, s });
   }
   // 도마 + 다리
@@ -764,18 +693,26 @@ function toast(root) {
   for (const z of [-0.04, 0.04]) box(toaster, 0.26, 0.01, 0.025, lam('#2b2a33'), 0, 0.241, z, { shadow: false });
   box(toaster, 0.04, 0.02, 0.03, shiny('#c9ced6', 80), 0.19, 0.16, 0);
   const steam = steamer([0, TY + 0.01, 0], { every: 0.7, size: 0.07, up: 0.12, alpha: 0.14, life: 1.6 });
+  let toasted = 0;
+  const ease3 = (k) => k * k * (3 - 2 * k);
   return {
-    tick(t, dt, fx) {
+    tick(t, dt, fx, st = {}) {
+      const heat = st.heat || 0;
       for (const s of slices) s.top.userData.update(dt);
-      if (fx) { // 빵 위 여기저기서 따뜻한 김 (아주 흐리게)
-        const pos = [(Math.random() - 0.5) * 1.2, TY + 0.01, (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.9)];
-        steam({ hit: (fn, _p, lv) => fx.hit(fn, pos, lv) }, dt);
+      // 노릇노릇: 열기를 천천히 따라감 (득점 뒤 열기가 내려가면 다시 연해짐)
+      toasted += ((heat) - toasted) * Math.min(1, dt * 0.8);
+      toastM.opacity = ease3(toasted) * 0.95;
+      if (fx) { // 빵 위 여기저기서 따뜻한 김 (구워질수록 많이)
+        for (let k = 0; k < 1 + Math.floor(toasted * 2); k++) {
+          const pos = [(Math.random() - 0.5) * 1.2, TY + 0.01, (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.9)];
+          steam({ hit: (fn, _p, lv) => fx.hit(fn, pos, lv) }, dt);
+        }
       }
     },
     bounce(p, smash, fx) {
       const s = slices.find((o) => Math.sign(p[2]) === o.s) || slices[0];
       s.top.userData.press(p[0], p[2] - s.g.position.z, smash ? 0.02 : 0.012);
-      fx?.hit((emit) => emit({ tex: 'crumb', n: smash ? 9 : 4, color: ['#c98a45', '#e0b070', '#a8652c'], size: 0.014, life: 1.3, speed: 0.6, up: 1.1, g: 6, spin: 6, floor: TY + 0.005, spread: 0.02 }), [p[0], TY + 0.01, p[2]], 0);
+      fx?.hit((emit) => emit({ tex: 'crumb', n: smash ? 9 : 4, color: toasted > 0.5 ? ['#8a4a1a', '#a8652c', '#c98a45'] : ['#c98a45', '#e0b070', '#a8652c'], size: 0.014, life: 1.3, speed: 0.6, up: 1.1, g: 6, spin: 6, floor: TY + 0.005, spread: 0.02 }), [p[0], TY + 0.01, p[2]], 0);
     },
   };
 }
@@ -869,8 +806,8 @@ function textbook(root) {
   const pencil = (x) => {
     const L = TY + NET_H + 0.08;
     put(root, new THREE.CylinderGeometry(0.024, 0.024, L - 0.08, 6), lam('#ffc83d'), x, 0.08 + (L - 0.08) / 2, 0);
-    put(root, new THREE.CylinderGeometry(0.024, 0.004, 0.06, 6), lam('#f1d1a4'), x, 0.05, 0, { rx: Math.PI });
-    put(root, new THREE.CylinderGeometry(0.006, 0.0005, 0.02, 6), lam('#333'), x, 0.012, 0, { rx: Math.PI });
+    put(root, new THREE.CylinderGeometry(0.024, 0.006, 0.06, 6), lam('#f1d1a4'), x, 0.05, 0); // 깎은 나무 (위가 굵고 아래로 뾰족)
+    put(root, new THREE.CylinderGeometry(0.006, 0.0005, 0.02, 6), lam('#333'), x, 0.01, 0); // 연필심
     cyl(root, 0.025, 0.025, 0.03, shiny('#c9ced6', 90), x, L + 0.015, 0);
     cyl(root, 0.024, 0.024, 0.035, lam('#ff8fa3'), x, L + 0.047, 0);
   };
@@ -930,4 +867,4 @@ function textbook(root) {
   };
 }
 
-export const RARE = { office, parcel, lunchTray, bed, goBoard, pyeongsang, toast, textbook };
+export const RARE = { office, parcel, bed, goBoard, pyeongsang, toast, textbook };
