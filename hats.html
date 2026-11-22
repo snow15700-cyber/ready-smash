@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>머리 꾸미기 시안</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+  <style>
+    :root { --orange: #ff8a3d; --blue: #2f6fe0; --paper: #fff8ee; --ink: #2b2a33; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Jua, sans-serif; background: #f3e6cf; color: var(--ink); }
+    .wrap { display: flex; gap: 16px; padding: 16px; min-height: 100vh; }
+    .view { position: sticky; top: 16px; flex: 0 0 420px; height: calc(100vh - 32px); max-height: 720px; background: var(--paper); border-radius: 20px; box-shadow: 0 4px 0 rgba(0,0,0,0.08); overflow: hidden; display: flex; flex-direction: column; }
+    .view canvas { flex: 1; width: 100%; display: block; cursor: grab; }
+    .view .cap { padding: 12px 16px; display: flex; align-items: center; gap: 10px; font-size: 22px; }
+    .badge { font-size: 14px; padding: 3px 10px; border-radius: 99px; color: #fff; }
+    .common { background: #8aa0b8; } .rare { background: #4f8be8; } .legend { background: linear-gradient(90deg, #ff9a3d, #e94fa8); }
+    .hint { font-size: 13px; color: #8a7f70; padding: 0 16px 12px; }
+    .list { flex: 1; }
+    h2 { margin: 6px 4px 10px; font-size: 22px; display: flex; align-items: center; gap: 8px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .card { background: var(--paper); border-radius: 14px; padding: 6px 6px 8px; text-align: center; cursor: pointer; border: 3px solid transparent; box-shadow: 0 3px 0 rgba(0,0,0,0.07); }
+    .card.on { border-color: var(--orange); }
+    .card img { width: 100%; display: block; border-radius: 10px; }
+    .card .n { font-size: 15px; margin-top: 4px; }
+    .card.g-legend { background: linear-gradient(180deg, #fff3e0, #ffe6f2); }
+    .card.g-rare { background: linear-gradient(180deg, #f2f7ff, #e6efff); }
+    .bodies { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 8px; }
+    .bodies button { font: inherit; font-size: 13px; border: 2px solid #e2d4bd; background: #fff; border-radius: 99px; padding: 3px 10px; cursor: pointer; }
+    .bodies button.on { border-color: var(--orange); background: #fff1e4; }
+    @media (max-width: 760px) { .wrap { flex-direction: column; } .view { position: relative; flex: none; height: 460px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="view">
+      <canvas id="c"></canvas>
+      <div class="cap"><span id="nm">-</span><span id="gd" class="badge"></span></div>
+      <div class="bodies" id="bodies"></div>
+      <div class="hint">끌어서 돌려 보기 · 1.6초마다 스윙 · 아래에서 몸을 골라 같이 입어 보기</div>
+    </div>
+    <div class="list" id="list"></div>
+  </div>
+  <script type="module" src="/src/hats-page.js"></script>
+</body>
+</html>
