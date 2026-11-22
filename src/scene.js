@@ -5,6 +5,7 @@ import { makeBall, ballFx } from './balls.js';
 import { playCrack, playPeep, playRoar } from './audio.js';
 import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H, HIT_Z, sideSign } from './physics.js';
 import { createCrowd } from './crowd.js';
+import { makeTable } from './tables.js';
 
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts });
 
@@ -112,7 +113,20 @@ export function createWorld(canvas) {
     bg0 = scene.background.clone();
     if (focusK) { const k = focusK; focusK = -1; world.setFocus(k); }
   }
-  buildTable(scene);
+  // 탁구대: 꾸미기로 바뀐다 (tables.js). 방에서는 방장 것, 로비·혼자 하기는 내 것 (main.js 루프). 보기만 다름
+  let table = null, tableId = null;
+  function setTable(id) {
+    id = id || 'blue';
+    if (id === tableId) return;
+    tableId = id;
+    if (table) {
+      scene.remove(table);
+      table.traverse((o) => { o.geometry?.dispose?.(); for (const mt of [].concat(o.material || [])) mt.dispose?.(); });
+    }
+    table = makeTable(id);
+    scene.add(table);
+  }
+  setTable(null);
 
   // team[side][slot]: 2v2용으로 한쪽에 두 명씩. chars = 각 쪽 1번 선수 (1v1·AI용)
   const team = [0, 1].map((side) => [0, 1].map((slot) => {
@@ -248,6 +262,7 @@ export function createWorld(canvas) {
     kick(amount) { this.shake = Math.max(this.shake, amount); },
     // 전설 탁구채로 쳤을 때 효과. pos가 없으면 탁구채 자리에서
     hitFx(char, pos, grade) {
+      if (char && table?.userData.hit) table.userData.hit(pos || char.group.position.toArray(), grade === 'perfect', fx); // 오락실 게임기: 조이스틱·버튼
       const model = char?.paddleModel;
       if (!char?.fx || !model) return;
       if (!pos) pos = model.getWorldPosition(fxPos).toArray();
@@ -356,6 +371,11 @@ export function createWorld(canvas) {
     clearTrail() { trailHist.length = 0; },
     // 탁구공 꾸미기: 방에서는 방장 것, 로비·혼자 하기는 내 것 (main.js 루프)
     setBallSkin,
+    setTable,
+    get table() { return table; },
+    tableRally: 0, // 지금 랠리 수 (game.js가 넣음, 오락실 게임기 콤보)
+    // 득점: 전설 탁구대 연출 (z = 공이 빠져나간 끝, smash = 스매시로 득점)
+    tableScore(info) { table?.userData.score?.(info, fx); },
     get ballSound() { return ballModel?.userData.sound || null; },
     // 공이 delay초 뒤에 튄다 (game.js·lobbyDemo.js가 소리와 같은 세그먼트로 예약): 공의 튈 때 반응 + 효과
     ballBounce(delay, p, smash, floor) {
@@ -390,10 +410,15 @@ export function createWorld(canvas) {
           const q = bounceQ[i];
           if (t < q.at) continue;
           bounceQ.splice(i, 1);
-          if (t - q.at < 0.3 && ball.visible) ballBfx.bounce(ballModel, q.p, q.smash, q.floorY);
+          if (t - q.at < 0.3 && ball.visible) {
+            ballBfx.bounce(ballModel, q.p, q.smash, q.floorY);
+            if (q.floorY === TY) table?.userData.bounce?.([q.p[0], TY, q.p[2]], q.smash, fx); // 탁구대도 반응 (고급·전설)
+          }
         }
         ballBfx.frame(ballModel, ball.visible ? ball.position.toArray() : null, ballSmash && ball.visible, dt);
       }
+      // 탁구대 스스로 움직임 (고급·전설). heat = 몰입 정도(랠리가 길어질수록 화려하게)
+      table?.userData.tick?.(t, dt, fx, { ball: ball.visible ? ball.position.toArray() : null, rally: world.tableRally, heat: Math.max(0, focusK) });
       fx.update(dt);
       // 첫 화면: 그림 준비(셰이더 컴파일)를 먼저 끝낸다. 그동안 글자·버튼(HTML)은 먼저 보이고 화면이 멈추지 않는다
       if (!warm) {
@@ -493,55 +518,6 @@ function buildGym() {
   return scene;
 }
 
-function buildTable(scene) {
-  const top = new THREE.Mesh(new THREE.BoxGeometry(TABLE_W, 0.035, TABLE_L), mat('#2a62b0'));
-  top.position.y = TY - 0.0175;
-  top.castShadow = true;
-  top.receiveShadow = true;
-  scene.add(top);
-  const lineMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
-  const line = (w, d, x, z) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.002, d), lineMat);
-    m.position.set(x, TY + 0.001, z);
-    scene.add(m);
-  };
-  line(0.02, TABLE_L, -HALF_W + 0.01, 0);
-  line(0.02, TABLE_L, HALF_W - 0.01, 0);
-  line(TABLE_W, 0.02, 0, -HALF_L + 0.01);
-  line(TABLE_W, 0.02, 0, HALF_L - 0.01);
-  line(0.005, TABLE_L, 0, 0);
-  // 다리
-  const legMat = mat('#2b2f3a');
-  for (const x of [-0.6, 0.6]) for (const z of [-1.1, -0.3, 0.3, 1.1]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, TY - 0.035, 0.05), legMat);
-    leg.position.set(x, (TY - 0.035) / 2, z);
-    leg.castShadow = true;
-    scene.add(leg);
-  }
-  const apron = new THREE.Mesh(new THREE.BoxGeometry(TABLE_W - 0.1, 0.06, TABLE_L - 0.1), legMat);
-  apron.position.y = TY - 0.07;
-  scene.add(apron);
-  // 네트
-  const netTex = canvasTex(256, 32, (g, w, h) => {
-    g.clearRect(0, 0, w, h);
-    g.strokeStyle = 'rgba(30,30,40,0.9)';
-    g.lineWidth = 1;
-    for (let x = 0; x <= w; x += 4) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
-    for (let y = 0; y <= h; y += 4) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
-  });
-  const net = new THREE.Mesh(new THREE.PlaneGeometry(1.83, NET_H), new THREE.MeshBasicMaterial({ map: netTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
-  net.position.set(0, TY + NET_H / 2, 0);
-  scene.add(net);
-  const tape = new THREE.Mesh(new THREE.BoxGeometry(1.83, 0.015, 0.006), mat('#ffffff'));
-  tape.position.set(0, TY + NET_H, 0);
-  scene.add(tape);
-  for (const x of [-0.915, 0.915]) {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, NET_H + 0.02, 6), legMat);
-    post.position.set(x, TY + NET_H / 2, 0);
-    scene.add(post);
-  }
-}
-
 // 단순한 흰색 캐릭터 (앞쪽 = -z): 몸통 + 머리 + 떠 있는 탁구채
 export function makeCharacter(paddleColor) {
   const group = new THREE.Group();
@@ -570,15 +546,69 @@ export function makeCharacter(paddleColor) {
     outfit = o;
     torso.visible = !o;
     head.visible = !o?.hideHead; // 몸 전체가 캐릭터가 되는 옷(병아리 B안 등)은 흰 머리를 숨긴다
+    // 머리 아이템 자리: 병아리처럼 머리 모양이 다른 옷은 자리·크기를 옷이 정한다 (outfits.js의 hatAt)
+    const at = o?.hatAt;
+    hatAt.position.set(0, at?.y ?? 1.17, at?.z ?? 0);
+    hatAt.scale.set(at?.s ?? 1, at?.sy ?? at?.s ?? 1, at?.s ?? 1);
     if (o) {
       o.group.traverse((m) => { if (m.isMesh && !m.userData.fx) m.castShadow = true; });
       body.add(o.group);
     }
+    syncHat();
     if (lastOp) { group.userData.op = null; setOpacity(...lastOp); }
   };
-  // 움직이는 옷(전설)의 효과: 매 프레임 불러 준다
-  const tickOutfit = (t, dt) => { if (outfit?.update) outfit.update(t, dt); };
-  const head = add(new THREE.SphereGeometry(0.16, 20, 14), white, 0, 1.17, 0);
+  // 움직이는 옷(전설)·머리 아이템의 효과: 매 프레임 불러 준다
+  const tickOutfit = (t, dt) => { if (outfit?.update) outfit.update(t, dt); if (hat?.update) hat.update(t, dt); if (face?.update) face.update(t, dt); };
+  const head = add(new THREE.SphereGeometry(0.16, 32, 24), white, 0, 1.17, 0);
+  // 머리 꾸미기 (hats.js의 makeHat): 머리 중심에 붙는 그룹. null이면 없음
+  const hatAt = new THREE.Group();
+  hatAt.position.copy(head.position);
+  body.add(hatAt);
+  let hat = null;
+  // 머리 아이템을 쓰면 옷의 일부(병아리 삐침 털 등)를 숨긴다. 얼굴은 얼굴을 덮는 몸(병아리)·머리(투구·가면)면 숨긴다 (사용자 확정)
+  const syncHat = () => {
+    for (const m of outfit?.hatHide || []) m.visible = !hat;
+    if (face) face.group.visible = !outfit?.hideHead && !hat?.hideFace;
+  };
+  // 얼굴 꾸미기 (faces.js의 makeFace): 흰 머리 앞면에 그린 그림. null이면 얼굴 없음(기본)
+  const faceAt = new THREE.Group();
+  faceAt.position.copy(head.position);
+  body.add(faceAt);
+  let face = null;
+  // 전설 머리·얼굴의 경기 반응 ('perfect' · 'score' · 'miss' · 'smash' · 'rally' n · 'end') — 보기만
+  const react = (kind, n) => { hat?.react?.(kind, n); face?.react?.(kind, n); };
+  const setFace = (f) => {
+    if (face) {
+      faceAt.remove(face.group);
+      face.group.traverse((m) => { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); });
+      for (const t of face.group.userData.maps || []) t.dispose();
+    }
+    face = f || null;
+    if (face) faceAt.add(face.group);
+    syncHat();
+    if (lastOp) { group.userData.op = null; setOpacity(...lastOp); }
+  };
+  const setHat = (h) => {
+    if (hat) {
+      hatAt.remove(hat.group);
+      hat.group.traverse((m) => {
+        if (m.geometry) m.geometry.dispose();
+        for (const mt of [].concat(m.material || [])) { for (const k of ['map', 'bumpMap', 'alphaMap']) mt[k]?.dispose(); mt.dispose(); }
+      });
+    }
+    hat = h || null;
+    if (hat) {
+      hatAt.add(hat.group);
+      // 효과 부품은 setOpacity를 안 받으므로, 그릴 때만 밝기 배수를 곱했다가 되돌린다 (매 프레임 바꾸는 값과 안 섞이게)
+      hat.group.traverse((o) => {
+        if (!(o.isSprite || (o.isMesh && o.userData.fx))) return;
+        o.onBeforeRender = () => { if (hatFxK < 1) { o.userData.op0 = o.material.opacity; o.material.opacity *= hatFxK; if (!o.material.transparent) { o.material.transparent = true; o.userData.tr0 = true; } } };
+        o.onAfterRender = () => { if (o.userData.op0 != null) { o.material.opacity = o.userData.op0; o.userData.op0 = null; if (o.userData.tr0) { o.material.transparent = false; o.userData.tr0 = false; } } };
+      });
+    }
+    syncHat();
+    if (lastOp) { group.userData.op = null; setOpacity(...lastOp); }
+  };
   // 탁구채 (팔 없이 몸 옆에 떠 있음). arm 그룹은 보이지 않는 회전축 역할만 함
   const arm = new THREE.Group();
   arm.position.set(0.19, 0.98, 0);
@@ -615,12 +645,17 @@ export function makeCharacter(paddleColor) {
     handle.visible = blade.visible = !model;
     if (lastOp) { group.userData.op = null; setOpacity(...lastOp); }
   };
+  // 머리 아이템 부품인가 (경기 중 내 캐릭터는 머리를 더 투명하게 — 사용자 확정 '가': 큰 모자가 탁구대를 가리지 않게)
+  const isHatPart = (o) => { for (let p = o; p; p = p.parent) if (p === hatAt) return true; return false; };
+  const HAT_FADE = 0.4; // 몸이 반투명일 때 머리 아이템은 몸 투명도 × 이만큼
+  let hatFxK = 1; // 머리 효과(불꽃·후광 등)의 밝기 배수 — 몸이 반투명이면 같이 흐리게
   const isPaddlePart = (o) => {
     for (let p = o; p; p = p.parent) if (p === custom) return true;
     return o === handle || o === blade;
   };
   const setOpacity = (bodyOp, paddleOp) => {
     lastOp = [bodyOp, paddleOp];
+    hatFxK = bodyOp < 1 ? 0.08 : 1; // 경기 중 내 캐릭터: 불꽃·후광 같은 효과도 거의 안 보이게 (탁구대를 가리지 않게)
     const key = bodyOp + '/' + paddleOp;
     if (group.userData.op === key) return;
     group.userData.op = key;
@@ -628,7 +663,7 @@ export function makeCharacter(paddleColor) {
       // keepOp: 대기실 빛 고리, fx: 옷 효과(반짝이 등), fxKeep: 전설 탁구채 효과 부품 — 스스로 투명도를 정한다
       if (!o.isMesh || o.userData.keepOp || o.userData.fx || o.userData.fxKeep) return;
       const isPaddle = isPaddlePart(o);
-      const op = isPaddle ? paddleOp : bodyOp;
+      const op = isPaddle ? paddleOp : bodyOp < 1 && isHatPart(o) ? bodyOp * HAT_FADE : bodyOp;
       for (const m of [].concat(o.material)) {
         const base = m.userData.baseOp ?? 1; // 원래 반투명한 재질(곰젤리 등)
         m.transparent = op * base < 1;
@@ -708,7 +743,7 @@ export function makeCharacter(paddleColor) {
     glow.material.color.set(color);
     glow.visible = true;
   };
-  const api = { group, body, arm, head, handle, blade, swingT: -1, paddleModel: null, setOpacity, setPaddleColor, setPaddle, setPaddleModel, setTag, setHold, setGlow, setOutfit, tickOutfit };
+  const api = { group, body, arm, head, handle, blade, swingT: -1, paddleModel: null, setOpacity, setPaddleColor, setPaddle, setPaddleModel, setTag, setHold, setGlow, setOutfit, tickOutfit, setHat, hatAt, setFace, react };
   return api;
 }
 

@@ -6,6 +6,7 @@ import { ONLINE } from '../net.js';
 import { hud } from './hud.js';
 import { show } from './screen.js';
 import { $, esc, setPreview, world } from './state.js';
+import { setOf, setsWith, setBonusText } from '../sets.js';
 import { renderTitles, runAchCheck } from './titles.js';
 
 /* ───────── 꾸미기 (옷장 · 뽑기 · 칭호를 한 화면에) ─────────
@@ -30,7 +31,7 @@ export const SHOP_MSG = {
   not_owned: '가지고 있지 않은 아이템이에요',
   no_session: '로그인이 풀렸어요. 다시 로그인해 주세요',
 };
-const CAT_ICON = { paddle: ic('paddle'), head: ic('hat'), body: ic('shirt'), trail: ic('trail'), table: ic('table'), bg: ic('image'), ball: ic('ball') };
+const CAT_ICON = { paddle: ic('paddle'), head: ic('hat'), face: ic('smile'), body: ic('shirt'), trail: ic('trail'), table: ic('table'), bg: ic('image'), ball: ic('ball') };
 
 function needLogin() {
   if (account.loggedIn) return false;
@@ -43,7 +44,9 @@ export const setMsg = (html, ok = false) => { $('dress-msg').innerHTML = html; $
 // 아이템 고르기 = 캐릭터에 입혀 보기
 function select(id) {
   selId = id;
-  setPreview({ look: id ? { ...myEquip(), [ITEM[id].cat]: id } : myEquip() });
+  // 얼굴을 고르는 중이면 카메라가 앞으로 돌아가 얼굴을 비춘다 (사용자 확정, main.js의 PV_FRONT)
+  const front = id ? ITEM[id].cat === 'face' : dressTab === 'closet' && closetCat === 'face';
+  setPreview({ look: id ? { ...myEquip(), [ITEM[id].cat]: id } : myEquip(), front });
 }
 
 async function openDress(tab) {
@@ -86,7 +89,7 @@ export function renderDress() {
 
 // 카테고리 칩: 첫 줄 = 캐릭터(탁구채·몸·머리·궤적), 둘째 줄 = 경기장(배경·탁구공·탁구대) (사용자 확정)
 // 아이템이 아직 없는 카테고리는 흐리게 잠금 (글자 '곧'은 안 씀)
-const CHIP_ROWS = [['paddle', 'body', 'head', 'trail'], ['bg', 'ball', 'table']];
+const CHIP_ROWS = [['paddle', 'head', 'face', 'body', 'trail'], ['bg', 'ball', 'table']];
 function renderChips() {
   const has = (cat) => ITEMS.some((i) => i.cat === cat);
   $('cat-chips').innerHTML = CHIP_ROWS.map((row) => '<div class="chip-row">' + row.map((cat) => {
@@ -107,6 +110,17 @@ function renderGrid() {
   }).join('') : '<li class="empty-msg">곧 열려요!</li>';
 }
 
+// 이 아이템이 들어 있는 세트 안내 (src/sets.js): 머리 + 몸 = 세트, 세 번째까지 = 완전 세트. 입고 있는 건 ✓
+function setInfo(it) {
+  const look = selId ? { ...myEquip(), [it.cat]: it.id } : myEquip();
+  return setsWith(it.id).map((st) => {
+    const on = (id) => look[ITEM[id].cat] === id;
+    const piece = (id) => `<b class="${on(id) ? 'on' : ''}">${on(id) ? '✓ ' : ''}${esc(ITEM[id].name)}</b>`;
+    return `<div class="spot-set">${ic('sparkle')} 세트 「${esc(st.name)}」: ${piece(st.head)} + ${piece(st.body)} → ${setBonusText(st)}`
+      + `<br>완전 세트: + ${piece(st.third)} → ${setBonusText(st, true)} · 칭호도 받아요</div>`;
+  }).join('');
+}
+
 // 왼쪽 아래 '크게 보기' 카드: 고른 아이템(없으면 지금 장착한 것)과 할 수 있는 일(장착·사기·소리 듣기)
 function renderSpot() {
   const it = selId ? ITEM[selId] : dressTab === 'gacha' ? null : equipped(myEquip(), closetCat);
@@ -121,8 +135,10 @@ function renderSpot() {
   $('spot-name').textContent = it.name;
   const status = isOn ? '장착 중' : have ? '가지고 있어요' : '입어 보는 중';
   const snd = (it.sound ? ` · ${ic('volume')} 특별한 소리` : '') // 소리 이름은 보여 주지 않는다 (사용자 결정)
-    + (it.hatch ? ` · ${ic('sparkle')} 스매시 득점 시 특별한 효과` : ''); // 계란·드래곤 알: 깨지고 병아리·아기 용
-  $('spot-desc').innerHTML = status + snd;
+    + (it.hatch ? ` · ${ic('sparkle')} 스매시 득점 시 특별한 효과` : '') // 계란·드래곤 알: 깨지고 병아리·아기 용
+    + (it.cat === 'table' && it.grade === 'rare' ? ` · ${ic('sparkle')} 공이 튀면 반응해요` : '')
+    + (it.cat === 'table' && it.grade === 'legend' ? ` · ${ic('sparkle')} 스매시 득점·긴 랠리에 특별한 효과` : '');
+  $('spot-desc').innerHTML = status + snd + setInfo(it);
   let acts = '';
   if (isOn) acts += `<span class="pill">${ic('check')} 장착 중</span>`;
   else if (have) acts += `<button class="small primary" data-act="equip" ${shopBusy ? 'disabled' : ''}>장착하기</button>`;
@@ -215,7 +231,14 @@ async function doEquip(it) {
   // 기본 아이템은 '장착 해제'로 저장한다
   const r = await equipItem(it.cat, it.grade === 'default' ? null : it.id);
   shopBusy = false;
-  if (r.status === 'ok') { playUI('coin'); setMsg(`✔ ${esc(it.name)} 장착!`, true); }
+  if (r.status === 'ok') {
+    playUI('coin');
+    const st = setOf(myEquip());
+    if (st && setsWith(it.id).includes(st.set)) {
+      setMsg(`${ic('sparkle')} 세트 「${esc(st.set.name)}」${st.full ? ' 완전' : ''} 완성! ${setBonusText(st.set, st.full)}`, true);
+      runAchCheck(300); // 세트 칭호
+    } else setMsg(`✔ ${esc(it.name)} 장착!`, true);
+  }
   else setMsg(SHOP_MSG[r.status] || SHOP_MSG.error);
   select(null);
   renderDress();

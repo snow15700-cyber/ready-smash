@@ -1124,3 +1124,10 @@ html.lite-glass .break-banner { backdrop-filter: none; -webkit-backdrop-filter: 
 .gx .break-pill { color: #ffd9b0; background: rgba(255,138,31,.2); box-shadow: inset 0 0 0 1px rgba(255,190,110,.5); font-weight: 600; }
 .gx .break-pill b { color: #ffb066; }
 @media (max-width: 600px) { body.spectating #room-bg { display: none; } } /* 휴대폰 대기실 관전: 위 알약 두 개가 겹치지 않게 */
+
+/* 세트 (src/sets.js): 이름표·VS 소개의 '✨ 세트' 알약, 꾸미기 크게 보기 카드의 세트 안내 */
+.rl .it.set, .vi-card .it.set { color: #fff; background: linear-gradient(90deg, #ff7a3d, #ff4f9a); box-shadow: 0 2px 0 rgba(0,0,0,.15), 0 0 12px rgba(255,110,120,.55); font-weight: 700; }
+.rl .it.set .ic, .vi-card .it.set .ic { width: 14px; height: 14px; }
+.spot-set { margin-top: 6px; font-size: 12px; line-height: 1.5; color: #ffd9a8; }
+.spot-set b { font-weight: 600; color: #e9e3ff; }
+.spot-set b.on { color: #9effb0; }
