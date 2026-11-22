@@ -63,7 +63,7 @@ function url() {
 function caption() {
   const parts = [cur, curFace].filter((o) => o && o.id !== 'none');
   document.getElementById('nm').textContent = parts.map((o) => o.name).join(' + ') || '아무것도 안 씀';
-  const top = parts.some((o) => o.grade === 'rare') ? 'rare' : parts.length ? 'common' : '';
+  const top = ['legend', 'rare', 'common'].find((gr) => parts.some((o) => o.grade === gr)) || '';
   const gd = document.getElementById('gd');
   gd.textContent = top ? GRADE[top] : ''; gd.className = 'badge ' + top;
   document.querySelectorAll('.card').forEach((c) => c.classList.toggle('on', c.dataset.id === (c.dataset.kind === 'face' ? curFace?.id : cur.id)));
@@ -87,6 +87,22 @@ function dress(id) {
   if (params.has('op')) live.char.setOpacity(Number(params.get('op')), 0.9);
   document.querySelectorAll('.bodies button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
   if (cur) url();
+}
+// 전설 효과 시험: 경기 반응 버튼 (게임에서는 3단계에서 연결)
+let rally = 0;
+const reacts = document.getElementById('reacts');
+const fire = (kind) => {
+  if (kind === 'rally') { rally++; live.char.react('rally', rally); }
+  else { if (kind === 'end' || kind === 'miss' || kind === 'score') rally = 0; live.char.react(kind, rally); if (kind === 'score' || kind === 'miss') live.char.react('end', 0); }
+  const b = reacts.querySelector('[data-k="rally"]');
+  b.textContent = `🔁 랠리 +1 (${rally})`;
+};
+for (const [k, label] of [['perfect', '⭐ 퍼펙트'], ['smash', '💥 스매시'], ['score', '🏓 내 득점'], ['miss', '😵 실점'], ['rally', '🔁 랠리 +1 (0)'], ['end', '⏹ 랠리 끝']]) {
+  const b = document.createElement('button');
+  b.dataset.k = k;
+  b.textContent = label;
+  b.onclick = () => fire(k);
+  reacts.appendChild(b);
 }
 // 몸 고르기 (같이 입어 보기)
 const bodies = document.getElementById('bodies');
@@ -168,10 +184,11 @@ function section(title, kind, all, shot, pick) {
 }
 section('🎩 머리', 'hat', HATS, (id) => thumb(id, back), wear);
 section('👀 얼굴 (그리기)', 'face', FACE_LIST, faceThumb, wearFace);
+list.insertAdjacentHTML('beforeend', '<p class="hint">전설은 왼쪽 위 버튼(퍼펙트·스매시·득점·실점·랠리)으로 효과를 시험해 보세요.</p>');
 dress(body);
 wear(params.get('id') || 'band');
 wearFace(params.get('face') || 'none');
 document.body.dataset.ready = '1';
 loop();
 // 점검·스크린샷용
-window.__hats = { wear, wearFace, dress, view(y, z = 1) { yaw = y; auto = false; zoom = z; } };
+window.__hats = { wear, wearFace, dress, fire, view(y, z = 1) { yaw = y; auto = false; zoom = z; } };

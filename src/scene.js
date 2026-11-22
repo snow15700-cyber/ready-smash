@@ -575,6 +575,8 @@ export function makeCharacter(paddleColor) {
   faceAt.position.copy(head.position);
   body.add(faceAt);
   let face = null;
+  // 전설 머리·얼굴의 경기 반응 ('perfect' · 'score' · 'miss' · 'smash' · 'rally' n · 'end') — 보기만
+  const react = (kind, n) => { hat?.react?.(kind, n); face?.react?.(kind, n); };
   const setFace = (f) => {
     if (face) {
       faceAt.remove(face.group);
@@ -728,7 +730,7 @@ export function makeCharacter(paddleColor) {
     glow.material.color.set(color);
     glow.visible = true;
   };
-  const api = { group, body, arm, head, handle, blade, swingT: -1, paddleModel: null, setOpacity, setPaddleColor, setPaddle, setPaddleModel, setTag, setHold, setGlow, setOutfit, tickOutfit, setHat, hatAt, setFace };
+  const api = { group, body, arm, head, handle, blade, swingT: -1, paddleModel: null, setOpacity, setPaddleColor, setPaddle, setPaddleModel, setTag, setHold, setGlow, setOutfit, tickOutfit, setHat, hatAt, setFace, react };
   return api;
 }
 

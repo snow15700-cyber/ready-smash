@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { rng, canvasTex, envCube } from './outfits.js';
+import { rng, canvasTex, envCube, TOON } from './outfits.js';
 
 /* ───────────── 머리 꾸미기 (한 개씩) ─────────────
    좌표 = 캐릭터 머리 중심(scene.js makeCharacter의 head: y 1.17, 반지름 0.16). 앞 = -z, 오른쪽(탁구채 쪽) = +x.
@@ -1009,6 +1009,374 @@ BUILD.mask = (g) => {
   return (t) => { tails.forEach((tl, i) => { tl.rotation.x = 0.7 + Math.sin(t * 6 + i * 1.3) * 0.2; tl.rotation.z = (i ? 1 : -1) * 0.35 + Math.sin(t * 4.2 + i) * 0.1; }); };
 };
 
+
+/* ═════════════ 전설 (움직이는 효과 + 경기 반응) ═════════════
+   react(kind, n): 'perfect' 퍼펙트 · 'score' 내 득점 · 'miss' 실점 · 'smash' 스매시 · 'rally' 랠리 n번째 · 'end' 랠리 끝
+   효과용 그림(Sprite)·빛(userData.fx)은 캐릭터 반투명 설정을 받지 않는다 */
+const fxTex = {};
+export function fxSprite(kind, color = '#ffffff', size = 0.05) {
+  if (!fxTex[kind]) {
+    fxTex[kind] = canvasTex(128, 128, (c, w, h) => {
+      if (kind === 'glow') {
+        const gr = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+        gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+        c.fillStyle = gr; c.fillRect(0, 0, w, h);
+      } else if (kind === 'spark') {
+        // 네 갈래 반짝이
+        c.translate(64, 64);
+        for (const [l, wd] of [[62, 7], [34, 5]]) for (let i = 0; i < 4; i++) {
+          c.save(); c.rotate((i * Math.PI) / 2 + (l < 40 ? Math.PI / 4 : 0));
+          const gr = c.createLinearGradient(0, 0, 0, -l); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+          c.fillStyle = gr; c.beginPath(); c.moveTo(-wd, 0); c.lineTo(0, -l); c.lineTo(wd, 0); c.fill(); c.restore();
+        }
+        const gr = c.createRadialGradient(0, 0, 0, 0, 0, 16); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+        c.fillStyle = gr; c.fillRect(-16, -16, 32, 32);
+      } else if (kind === 'ring') {
+        c.strokeStyle = 'rgba(255,255,255,0.9)'; c.lineWidth = 8; c.beginPath(); c.arc(64, 64, 52, 0, Math.PI * 2); c.stroke();
+      } else if (kind === 'heart') {
+        c.fillStyle = '#ffffff'; c.beginPath(); c.moveTo(64, 108); c.bezierCurveTo(-10, 60, 20, 6, 64, 38); c.bezierCurveTo(108, 6, 138, 60, 64, 108); c.fill();
+      } else if (kind === 'drop') {
+        c.fillStyle = '#ffffff'; c.beginPath(); c.moveTo(64, 8); c.quadraticCurveTo(28, 76, 64, 112); c.quadraticCurveTo(100, 76, 64, 8); c.fill();
+      } else if (kind === 'ember') {
+        const gr = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+        gr.addColorStop(0, 'rgba(255,255,220,1)'); gr.addColorStop(0.3, 'rgba(255,170,40,0.9)'); gr.addColorStop(1, 'rgba(255,60,0,0)');
+        c.fillStyle = gr; c.fillRect(0, 0, w, h);
+      }
+    });
+  }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: fxTex[kind], color, transparent: true, depthWrite: false, blending: kind === 'heart' || kind === 'drop' ? THREE.NormalBlending : THREE.AdditiveBlending }));
+  sp.scale.setScalar(size);
+  sp.userData.fx = true;
+  return sp;
+}
+// 잠깐 터졌다 사라지는 효과 모음: add(sprite, {vel, life, grow, spin, gravity})
+export function bursts(parent) {
+  const list = [];
+  return {
+    add(sp, o = {}) {
+      sp.userData.b = { vel: o.vel || new THREE.Vector3(), life: o.life || 0.8, t: 0, s0: sp.scale.x, grow: o.grow ?? 0, op: sp.material.opacity, gravity: o.gravity || 0 };
+      parent.add(sp); list.push(sp);
+      return sp;
+    },
+    tick(dt) {
+      for (let i = list.length - 1; i >= 0; i--) {
+        const sp = list[i], b = sp.userData.b;
+        b.t += dt;
+        const k = b.t / b.life;
+        if (k >= 1) { parent.remove(sp); sp.material.dispose(); list.splice(i, 1); continue; }
+        b.vel.y -= b.gravity * dt;
+        sp.position.addScaledVector(b.vel, dt);
+        sp.scale.setScalar(b.s0 * (1 + b.grow * k));
+        sp.material.opacity = b.op * (k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85);
+      }
+    },
+  };
+}
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+// 👑 왕관: 금 테 + 다섯 뾰족(진주) + 보석 + 빨간 벨벳. 보석이 반짝이고 은은한 후광. 퍼펙트 때 빛줄기와 별이 솟음
+BUILD.crown = (g, char) => {
+  const gold = phong('#f5c443', { shininess: 110, specular: '#fff2b0', envMap: envCube('studio'), combine: THREE.MixOperation, reflectivity: 0.35 });
+  const crown = grp(g, 0, 0.1, 0.01);
+  crown.rotation.x = 0.18;
+  const R = 0.118;
+  mesh(new THREE.CylinderGeometry(R, R * 1.04, 0.045, 48, 1, true), new THREE.MeshPhongMaterial({ color: '#f5c443', shininess: 110, specular: '#fff2b0', envMap: envCube('studio'), combine: THREE.MixOperation, reflectivity: 0.35, side: THREE.DoubleSide }), 0, 0.022, 0, crown);
+  for (const y of [0.002, 0.044]) { const t = mesh(new THREE.TorusGeometry(R + (y < 0.01 ? 0.004 : 0), 0.006, 8, 48), gold, 0, y, 0, crown); t.rotation.x = Math.PI / 2; }
+  // 빨간 벨벳 (안쪽 위로 볼록)
+  const vel = mesh(new THREE.SphereGeometry(R * 0.96, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), lam('#c3203a'), 0, 0.03, 0, crown);
+  vel.scale.y = 0.75;
+  mesh(new THREE.SphereGeometry(0.018, 12, 10), gold, 0, 0.03 + R * 0.96 * 0.75 + 0.01, 0, crown);
+  const crossTop = mesh(new THREE.BoxGeometry(0.008, 0.035, 0.008), gold, 0, 0.03 + R * 0.72 + 0.035, 0, crown);
+  mesh(new THREE.BoxGeometry(0.024, 0.008, 0.008), gold, 0, 0.012, 0, crossTop);
+  const gemCols = ['#e0213b', '#2f6fe0', '#21b36a', '#9b3fe0', '#e0213b'];
+  const gems = [];
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI + (i / 5) * Math.PI * 2;
+    const x = Math.sin(a) * R, z = Math.cos(a) * R;
+    const sp = mesh(new THREE.ConeGeometry(0.022, 0.07, 4), gold, x, 0.08, z, crown);
+    sp.rotation.y = a;
+    mesh(new THREE.SphereGeometry(0.011, 12, 10), phong('#fffaf0', { shininess: 120, specular: '#ffffff' }), x, 0.118, z, crown);
+    // 테의 보석 (뾰족 사이)
+    const a2 = a + Math.PI / 5;
+    const gem = mesh(new THREE.OctahedronGeometry(0.014, 0), phong(gemCols[i], { shininess: 150, specular: '#ffffff', emissive: gemCols[i], emissiveIntensity: 0.25, flatShading: true }), Math.sin(a2) * (R + 0.006), 0.022, Math.cos(a2) * (R + 0.006), crown);
+    gem.scale.set(1, 1.3, 0.6);
+    gem.lookAt(Math.sin(a2) * 2, 0.022, Math.cos(a2) * 2);
+    gems.push(gem);
+  }
+  const aura = fxSprite('glow', '#ffd76a', 0.42);
+  aura.material.opacity = 0.35;
+  aura.position.set(0, 0.07, 0);
+  crown.add(aura);
+  const twinkles = gems.map((gm) => { const sp = fxSprite('spark', '#ffffff', 0.05); sp.position.copy(gm.position).multiplyScalar(1.08); crown.add(sp); return sp; });
+  const fx = bursts(g);
+  let beam = 0;
+  const beams = fxSprite('spark', '#fff3b0', 0.5);
+  beams.material.opacity = 0; beams.position.set(0, 0.2, 0);
+  g.add(beams);
+  return {
+    update(t, dt) {
+      twinkles.forEach((sp, i) => { const k = Math.max(0, Math.sin(t * 3 + i * 1.9)); sp.material.opacity = Math.pow(k, 6); sp.material.rotation = t + i; });
+      aura.material.opacity = 0.28 + Math.sin(t * 2) * 0.08;
+      if (beam > 0) { beam -= dt; const k = beam / 0.7; beams.material.opacity = k; beams.scale.setScalar(0.3 + (1 - k) * 0.6); beams.material.rotation += dt * 2; }
+      fx.tick(dt);
+    },
+    react(kind) {
+      if (kind !== 'perfect' && kind !== 'score' && kind !== 'smash') return;
+      beam = 0.7;
+      for (let i = 0; i < (kind === 'perfect' ? 10 : 5); i++) {
+        const sp = fxSprite('spark', i % 2 ? '#fff3b0' : '#ffffff', rnd(0.04, 0.08));
+        sp.position.set(rnd(-0.1, 0.1), 0.2, rnd(-0.1, 0.1));
+        fx.add(sp, { vel: new THREE.Vector3(rnd(-0.15, 0.15), rnd(0.3, 0.55), rnd(-0.15, 0.15)), life: rnd(0.6, 1), grow: -0.5 });
+      }
+    },
+  };
+};
+
+// 😇 천사 고리: 머리 위에 떠서 천천히 도는 빛 고리 + 작은 날개 두 쪽 (파닥). 퍼펙트 때 고리가 번쩍하며 빛 물결
+BUILD.halo = (g) => {
+  const root = grp(g, 0, 0.255, 0.01);
+  root.rotation.x = 0.25;
+  const haloM = new THREE.MeshBasicMaterial({ color: '#fff3b8' });
+  const halo = mesh(new THREE.TorusGeometry(0.105, 0.014, 14, 64), haloM, 0, 0, 0, root);
+  halo.rotation.x = Math.PI / 2;
+  halo.castShadow = false;
+  const rimGlow = mesh(new THREE.TorusGeometry(0.105, 0.03, 10, 64), new THREE.MeshBasicMaterial({ color: '#ffe27a', transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false }), 0, 0, 0, root);
+  rimGlow.rotation.x = Math.PI / 2;
+  rimGlow.userData.fx = true; rimGlow.castShadow = false;
+  const glow = fxSprite('glow', '#fff0a0', 0.34);
+  glow.material.opacity = 0.35;
+  root.add(glow);
+  // 날개 (머리 뒤 양옆): 깃털 세 장씩
+  const featherM = lam('#ffffff', { side: THREE.DoubleSide });
+  const wings = [];
+  for (const d of [-1, 1]) {
+    const w = grp(g, d * 0.1, 0.02, 0.12);
+    w.rotation.set(0, d * 0.5, d * 0.25);
+    for (let i = 0; i < 3; i++) {
+      const f = new THREE.Shape();
+      f.moveTo(0, 0); f.quadraticCurveTo(0.03, 0.02 + i * 0.004, 0.09 - i * 0.015, 0.035 - i * 0.012); f.quadraticCurveTo(0.04, -0.012, 0, 0);
+      const m = mesh(new THREE.ShapeGeometry(f, 10), featherM, 0, -i * 0.018, 0, w);
+      m.scale.x = d;
+      m.rotation.z = d * (0.25 - i * 0.22);
+    }
+    wings.push(w);
+  }
+  const fx = bursts(root);
+  let flash = 0;
+  return {
+    update(t, dt) {
+      root.position.y = 0.255 + Math.sin(t * 2) * 0.01;
+      halo.rotation.z = t * 0.6;
+      wings.forEach((w, i) => { w.rotation.y = (i ? 1 : -1) * (0.5 + Math.sin(t * 6) * 0.25); });
+      if (flash > 0) { flash -= dt; haloM.color.setRGB(1, 1, 1); glow.material.opacity = 0.35 + flash * 1.2; glow.scale.setScalar(0.34 + flash * 0.4); }
+      else { haloM.color.set('#fff3b8'); glow.material.opacity = 0.3 + Math.sin(t * 2.5) * 0.08; glow.scale.setScalar(0.34); }
+      fx.tick(dt);
+    },
+    react(kind) {
+      if (kind !== 'perfect' && kind !== 'score' && kind !== 'smash') return;
+      flash = 0.5;
+      const ring = fxSprite('ring', '#fff3b8', 0.2);
+      ring.material.rotation = 0;
+      fx.add(ring, { life: 0.7, grow: 3 });
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const sp = fxSprite('spark', '#ffffff', 0.05);
+        sp.position.set(Math.cos(a) * 0.1, 0, Math.sin(a) * 0.1);
+        fx.add(sp, { vel: new THREE.Vector3(Math.cos(a) * 0.25, 0.15, Math.sin(a) * 0.25), life: 0.7 });
+      }
+    },
+  };
+};
+
+// ☁️ 작은 구름: 머리 위에 둥실. 가끔 보슬비(머리에 떨어짐), 가끔 무지개. 퍼펙트 때 번개 '찌릿'
+BUILD.cloud = (g) => {
+  const root = grp(g, 0, 0.27, 0.02);
+  const cloudM = new THREE.MeshToonMaterial({ color: '#ffffff', gradientMap: TOON });
+  const puffs = [[0, 0, 0, 0.075], [0.07, -0.012, 0.01, 0.055], [-0.07, -0.01, 0, 0.058], [0.03, 0.035, -0.01, 0.055], [-0.035, 0.03, 0.02, 0.05], [0, -0.01, 0.05, 0.05], [0, -0.01, -0.05, 0.05]];
+  const body = grp(root);
+  for (const [x, y, z, r] of puffs) mesh(new THREE.SphereGeometry(r, 20, 14), cloudM, x, y, z, body);
+  // 볼 터치 + 웃는 눈 (구름 얼굴, 앞)
+  const ink = new THREE.MeshBasicMaterial({ color: '#4a5a78' });
+  for (const d of [-1, 1]) {
+    const e = mesh(new THREE.TorusGeometry(0.012, 0.0035, 6, 12, Math.PI), ink, d * 0.03, 0.005, -0.072, body);
+    e.castShadow = false;
+    const ch = mesh(new THREE.CircleGeometry(0.01, 12), new THREE.MeshBasicMaterial({ color: '#ffb3c6' }), d * 0.05, -0.012, -0.068, body);
+    ch.castShadow = false;
+  }
+  // 무지개 (구름 뒤 반원 7색)
+  const rainbow = grp(root, 0, -0.02, 0.02);
+  const cols = ['#ff4d4d', '#ff9a3d', '#ffd93d', '#5fd35f', '#4da6ff', '#5f5fff', '#b45fff'];
+  const rbMats = cols.map((c) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0, depthWrite: false }));
+  cols.forEach((c, i) => { const m = mesh(new THREE.TorusGeometry(0.13 - i * 0.008, 0.0045, 6, 40, Math.PI), rbMats[i], 0, 0, 0, rainbow); m.userData.fx = true; m.castShadow = false; });
+  const fx = bursts(root);
+  // 번개: 지그재그 노란 판
+  const bolt = new THREE.Shape();
+  bolt.moveTo(0.012, 0); bolt.lineTo(-0.018, -0.05); bolt.lineTo(0.004, -0.05); bolt.lineTo(-0.012, -0.1); bolt.lineTo(0.026, -0.04); bolt.lineTo(0.004, -0.04); bolt.lineTo(0.022, 0); bolt.closePath();
+  const boltM = new THREE.MeshBasicMaterial({ color: '#ffe23d', transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false });
+  const boltMesh = mesh(new THREE.ShapeGeometry(bolt), boltM, -0.015, -0.05, -0.08, root);
+  boltMesh.scale.setScalar(1.8);
+  boltMesh.userData.fx = true; boltMesh.castShadow = false;
+  const boltGlow = fxSprite('glow', '#fff27a', 0.25); boltGlow.material.opacity = 0; boltGlow.position.set(0, -0.08, -0.06); root.add(boltGlow);
+  let mode = 'rain', modeT = 4, zap = 0, rainAcc = 0;
+  return {
+    update(t, dt) {
+      root.position.y = 0.27 + Math.sin(t * 1.6) * 0.012;
+      body.scale.set(1 + Math.sin(t * 2.2) * 0.02, 1 - Math.sin(t * 2.2) * 0.02, 1);
+      modeT -= dt;
+      if (modeT <= 0) { mode = mode === 'rain' ? 'bow' : mode === 'bow' ? 'calm' : 'rain'; modeT = mode === 'calm' ? 2.5 : 4; }
+      const bowOn = mode === 'bow' ? Math.min(1, (4 - modeT) * 2, modeT * 2) : 0;
+      rbMats.forEach((m) => { m.opacity = bowOn * 0.85; });
+      if (mode === 'rain') {
+        rainAcc += dt * 9;
+        while (rainAcc > 1) {
+          rainAcc -= 1;
+          const sp = fxSprite('drop', '#7cc6ff', 0.025);
+          sp.position.set(rnd(-0.07, 0.07), -0.05, rnd(-0.05, 0.05));
+          fx.add(sp, { vel: new THREE.Vector3(0, -0.5, 0), life: 0.32 });
+        }
+      }
+      if (zap > 0) {
+        zap -= dt;
+        const on = Math.floor(zap * 20) % 2 ? 1 : 0.4;
+        boltM.opacity = on; boltGlow.material.opacity = on * 0.8;
+        cloudM.color.set(zap > 0 ? '#9aa3b8' : '#ffffff');
+      } else { boltM.opacity = 0; boltGlow.material.opacity = 0; cloudM.color.set('#ffffff'); }
+      fx.tick(dt);
+    },
+    react(kind) { if (kind === 'perfect' || kind === 'smash') zap = 0.6; },
+  };
+};
+
+// 🔥 불꽃 머리: 머리카락이 불꽃처럼 일렁. 랠리가 길어질수록 불이 커지고, 스매시·퍼펙트 때 확 타오름
+function flameTex() {
+  return canvasTex(64, 256, (c, w, h) => {
+    const gr = c.createLinearGradient(0, h, 0, 0);
+    gr.addColorStop(0, '#e8300c'); gr.addColorStop(0.4, '#ff7a12'); gr.addColorStop(0.75, '#ffb21e'); gr.addColorStop(1, '#ffd84a');
+    c.fillStyle = gr; c.fillRect(0, 0, w, h);
+  });
+}
+BUILD.flame = (g) => {
+  const root = grp(g, 0, 0.1, 0.02);
+  root.rotation.x = 0.2;
+  // 불꽃 한 가닥: 물방울 돌림체 (아래 둥글고 위 뾰족)
+  const prof = [[0.0001, 0], [0.03, 0.01], [0.04, 0.035], [0.034, 0.07], [0.018, 0.11], [0.0001, 0.15]].map(([r, y]) => new THREE.Vector2(r, y));
+  const geo = new THREE.LatheGeometry(prof, 14);
+  const tex = flameTex();
+  const outer = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.92, depthWrite: false });
+  const core = new THREE.MeshBasicMaterial({ color: '#ffe27a', transparent: true, opacity: 0.95, depthWrite: false });
+  const flames = [];
+  // 머리 위·옆·뒤에 둥글게 (앞 이마 아래는 비움)
+  const spots = [[0, 0.03, 0, 1.4], [0.06, 0.0, -0.04, 1.05], [-0.06, 0.0, -0.04, 1.05], [0.09, -0.01, 0.04, 1.0], [-0.09, -0.01, 0.04, 1.0], [0, -0.01, 0.08, 1.15], [0.04, 0.02, 0.045, 1.1], [-0.04, 0.02, 0.045, 1.1], [0, 0.0, -0.07, 0.9], [0.11, -0.05, -0.01, 0.8], [-0.11, -0.05, -0.01, 0.8]];
+  for (const [x, y, z, k] of spots) {
+    const f = grp(root, x, y, z);
+    const lean = new THREE.Vector3(x, 0.12, z).normalize();
+    f.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), lean);
+    const o = mesh(geo, outer, 0, 0, 0, f); o.userData.fx = true; o.castShadow = false;
+    const ci = mesh(geo, core, 0, 0.005, 0, f); ci.scale.setScalar(0.45); ci.userData.fx = true; ci.castShadow = false;
+    f.userData.k = k; f.userData.ph = Math.random() * 6;
+    flames.push(f);
+  }
+  // 바탕 (머리 위를 덮는 주황 머리)
+  const base = mesh(capGeo(0.168, Math.PI * 0.5), lam('#ff7a1a', { emissive: '#ff4a00', emissiveIntensity: 0.6 }), 0, -0.1, -0.02, root);
+  base.rotation.x = -0.2 + 0.4;
+  const glow = fxSprite('glow', '#ff9a3d', 0.5); glow.material.opacity = 0.35; glow.position.y = 0.08; root.add(glow);
+  const fx = bursts(g);
+  let size = 1, target = 1, boost = 0, emberAcc = 0;
+  return {
+    update(t, dt) {
+      size += (target + boost - size) * Math.min(1, dt * 4);
+      if (boost > 0) boost = Math.max(0, boost - dt * 1.2);
+      flames.forEach((f) => {
+        const k = f.userData.k, ph = f.userData.ph;
+        const flick = 1 + Math.sin(t * 11 + ph) * 0.1 + Math.sin(t * 17.3 + ph * 2) * 0.06;
+        f.scale.set(k * (1 - (flick - 1) * 0.5) * Math.sqrt(size), k * flick * size, k * (1 - (flick - 1) * 0.5) * Math.sqrt(size));
+      });
+      glow.material.opacity = 0.25 + (size - 1) * 0.25 + Math.sin(t * 9) * 0.05;
+      glow.scale.setScalar(0.45 * size);
+      emberAcc += dt * (3 + size * 4);
+      while (emberAcc > 1) {
+        emberAcc -= 1;
+        const sp = fxSprite('ember', '#ffffff', rnd(0.015, 0.03));
+        sp.position.set(rnd(-0.1, 0.1), 0.2, rnd(-0.08, 0.1));
+        fx.add(sp, { vel: new THREE.Vector3(rnd(-0.05, 0.05), rnd(0.2, 0.4) * size, rnd(-0.05, 0.05)), life: rnd(0.5, 0.9), grow: -0.6 });
+      }
+      fx.tick(dt);
+    },
+    react(kind, n = 0) {
+      if (kind === 'rally') target = 1 + Math.min(n, 20) * 0.035; // 20번이면 1.7배
+      else if (kind === 'end' || kind === 'miss') target = 1;
+      else if (kind === 'smash' || kind === 'perfect') boost = 0.6;
+    },
+  };
+};
+
+// 🐻 곰 인형 머리: 곰 인형탈과 짝. 복슬 갈색 머리 + 둥근 귀(분홍 속) + 크림색 주둥이 + 단추 눈 + 바느질. 귀 쫑긋, 칠 때 말랑, 퍼펙트 때 하트
+BUILD.bear = (g, char) => {
+  const FUR = '#a87244', CREAM = '#e8c49a', PINK = '#ff9fb5';
+  const furTex = canvasTex(512, 256, (c, w, h) => {
+    c.fillStyle = FUR; c.fillRect(0, 0, w, h);
+    const r = rng(71);
+    for (let i = 0; i < 6000; i++) { const x = r() * w, y = r() * h; c.strokeStyle = r() < 0.5 ? 'rgba(80,40,15,0.25)' : 'rgba(255,220,170,0.18)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x, y); c.lineTo(x + (r() - 0.5) * 6, y + 4 + r() * 4); c.stroke(); }
+  });
+  const fur = lam('#ffffff', { map: furTex });
+  const head = grp(g, 0, 0.01, 0);
+  mesh(fuzzGeo(0.19, 0.025, 24, 40), fur, 0, 0, 0, head);
+  // 귀
+  const ears = [];
+  for (const d of [-1, 1]) {
+    const e = grp(head, d * 0.13, 0.135, 0.01);
+    const o = mesh(new THREE.SphereGeometry(0.06, 20, 14), fur, 0, 0, 0, e); o.scale.z = 0.6;
+    const i = mesh(new THREE.SphereGeometry(0.036, 16, 12), lam(PINK), 0, -0.004, -0.026, e); i.scale.z = 0.4;
+    ears.push(e);
+  }
+  // 주둥이 + 코 + 입
+  const muzzle = mesh(new THREE.SphereGeometry(0.078, 24, 16), lam(CREAM), 0, -0.05, -0.15, head);
+  muzzle.scale.set(1.15, 0.8, 0.7);
+  const nose = mesh(new THREE.SphereGeometry(0.026, 16, 12), phong('#3a2418', { shininess: 90, specular: '#a08070' }), 0, -0.025, -0.205, head);
+  nose.scale.set(1.3, 0.85, 0.8);
+  const ink = lam('#3a2418');
+  surfTube([[-0.035, -0.07, -0.2], [-0.015, -0.085, -0.205], [0, -0.07, -0.21]], 0.21, 0.0035, ink, grp(head, 0, 0, 0.01));
+  surfTube([[0, -0.07, -0.21], [0.015, -0.085, -0.205], [0.035, -0.07, -0.2]], 0.21, 0.0035, ink, grp(head, 0, 0, 0.01));
+  // 단추 눈 (반짝 + 실)
+  for (const d of [-1, 1]) {
+    const b = grp(head, d * 0.068, 0.035, -0.172);
+    b.rotation.y = -d * 0.4;
+    mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.01, 20), phong('#1c1410', { shininess: 120, specular: '#ffffff' }), 0, 0, 0, b).rotation.x = Math.PI / 2;
+    mesh(new THREE.SphereGeometry(0.006, 10, 8), new THREE.MeshBasicMaterial({ color: '#ffffff' }), 0.008, 0.008, -0.006, b); // 반짝
+  }
+  // 정수리 바느질 선
+  const stitch = lam('#6b4426');
+  for (let i = 0; i < 9; i++) {
+    const a = -0.9 + i * 0.22;
+    const st = mesh(new THREE.BoxGeometry(0.012, 0.003, 0.003), stitch, 0, Math.cos(a) * 0.192, Math.sin(a) * 0.192, head);
+    st.rotation.set(-a, 0, Math.PI / 2);
+  }
+  const fx = bursts(g);
+  let squish = 0;
+  return {
+    update(t, dt) {
+      const h = sinceSwing(char);
+      const s = h < 0.4 ? Math.sin((h / 0.4) * Math.PI) * 0.06 : 0;
+      const q = squish > 0 ? Math.sin(squish * 18) * squish * 0.15 : 0;
+      if (squish > 0) squish -= dt;
+      head.scale.set(1 + s + q, 1 - s - q, 1 + s + q);
+      ears.forEach((e, i) => { e.rotation.z = (i ? -1 : 1) * (Math.max(0, Math.sin(t * 2.3 + i)) ** 8) * 0.4; });
+      fx.tick(dt);
+    },
+    react(kind) {
+      if (kind === 'perfect' || kind === 'score') {
+        squish = 0.5;
+        for (let i = 0; i < 6; i++) {
+          const sp = fxSprite('heart', i % 2 ? '#ff7aa0' : '#ffb3c6', rnd(0.04, 0.07));
+          sp.position.set(rnd(-0.12, 0.12), 0.18, rnd(-0.1, 0.05));
+          fx.add(sp, { vel: new THREE.Vector3(rnd(-0.08, 0.08), rnd(0.25, 0.4), 0), life: rnd(0.8, 1.2) });
+        }
+      }
+      if (kind === 'miss') squish = 0.35;
+    },
+  };
+};
+
 export const HATS = [
   ['band', '빨간 헤어밴드', 'common'],
   ['cap', '야구 모자', 'common'],
@@ -1033,15 +1401,21 @@ export const HATS = [
   ['nightcap', '나이트캡', 'rare'],
   ['helm', '기사 투구', 'rare'],
   ['mask', '영웅 가면', 'rare'],
+  ['crown', '왕관', 'legend'],
+  ['halo', '천사 고리', 'legend'],
+  ['cloud', '작은 구름', 'legend'],
+  ['flame', '불꽃 머리', 'legend'],
+  ['bear', '곰 인형 머리', 'legend'],
 ].map(([id, name, grade]) => ({ id, name, grade }));
 
 // 얼굴 아이템을 가리는 머리 (투구·가면)
-const HIDE_FACE = new Set(['helm', 'mask']);
+const HIDE_FACE = new Set(['helm', 'mask', 'bear']);
 
-// 머리 만들기: { group, update(t, dt) | null, hideFace }
+// 머리 만들기: { group, update(t, dt) | null, react(kind, n) | null, hideFace }
 export function makeHat(id, char) {
   if (!BUILD[id]) return null;
   const group = new THREE.Group();
-  const update = BUILD[id](group, char) || null;
-  return { group, update, hideFace: HIDE_FACE.has(id) };
+  const r = BUILD[id](group, char) || null;
+  const update = typeof r === 'function' ? r : r?.update || null;
+  return { group, update, react: r?.react || null, hideFace: HIDE_FACE.has(id) };
 }
