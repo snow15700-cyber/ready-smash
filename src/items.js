@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { fxTex } from './fx.js';
 import { OUTFITS, makeOutfit } from './outfits.js';
 import { BALLS, makeBall } from './balls.js';
+import { TABLES, makeTable } from './tables.js';
+import { HATS, makeHat } from './hats.js';
+import { FACE_LIST, makeFace } from './faces.js';
 
 // 상점 아이템 목록 (기획서 4장). 이름·모양은 여기, 뽑기·구매 규칙은 서버(supabase/06_shop.sql)가 정한다.
 // ⚠️ 아이템을 추가·변경하면 06_shop.sql의 pingpong_items 목록(insert)도 똑같이 고쳐야 한다.
@@ -10,7 +13,7 @@ import { BALLS, makeBall } from './balls.js';
 // grade: 'common' 일반 | 'rare' 고급 | 'legend' 전설.  기본 아이템(default)은 처음부터 가지고 있고 팔지 않는다.
 
 export const POOLS = {
-  char: { name: '캐릭터 뽑기', icon: '🎽', desc: '탁구채 · 머리 · 몸 · 궤적' },
+  char: { name: '캐릭터 뽑기', icon: '🎽', desc: '탁구채 · 머리 · 얼굴 · 몸 · 궤적' },
   arena: { name: '경기장 뽑기', icon: '🏟️', desc: '탁구대 · 배경 · 탁구공' },
 };
 export const GRADES = {
@@ -27,16 +30,17 @@ export const poolOpen = (pool) => ITEMS.some((i) => i.pool === pool && i.grade =
 // 카테고리. 순서대로 옷장 탭에 나온다. ready=false는 아직 아이템이 없음(곧 열림)
 export const CATS = {
   paddle: { name: '탁구채', pool: 'char', ready: true },
-  head: { name: '머리', pool: 'char' },
+  head: { name: '머리', pool: 'char', ready: true },
+  face: { name: '얼굴', pool: 'char', ready: true },
   body: { name: '몸', pool: 'char', ready: true },
   trail: { name: '궤적', pool: 'char' },
-  table: { name: '탁구대', pool: 'arena' },
+  table: { name: '탁구대', pool: 'arena', ready: true },
   bg: { name: '배경', pool: 'arena', ready: true },
   ball: { name: '탁구공', pool: 'arena', ready: true },
 };
 
 // 기본 아이템 (카테고리마다 하나, 장착 안 했을 때 이것)
-export const DEFAULTS = { paddle: 'paddle_red', body: 'body_none', bg: 'bg_gym', ball: 'ball_white' };
+export const DEFAULTS = { paddle: 'paddle_red', head: 'head_none', face: 'face_none', body: 'body_none', bg: 'bg_gym', ball: 'ball_white', table: 'table_blue' };
 
 // model: 모양이 다른 탁구채(아래 PADDLE_MODELS). 없으면 기본 탁구채에 color만 바꾼다
 const paddle = (id, name, grade, color, extra = {}) => ({ id, cat: 'paddle', name, grade, color, ...extra });
@@ -83,6 +87,11 @@ export const ITEMS = [
   // 몸 (한 벌씩 통째로, 모양은 outfits.js). 기본 = 흰 몸
   { id: 'body_none', cat: 'body', name: '기본 (흰 몸)', grade: 'default' },
   ...OUTFITS.map((o) => ({ id: 'body_' + o.id, cat: 'body', name: o.name, grade: o.grade, outfit: o.id })),
+  // 머리 (모양은 hats.js) · 얼굴 (그림은 faces.js, 얼굴에 직접 그리는 것만). 기본 = 없음
+  { id: 'head_none', cat: 'head', name: '없음', grade: 'default' },
+  ...HATS.map((h) => ({ id: 'head_' + h.id, cat: 'head', name: h.name, grade: h.grade, hat: h.id })),
+  { id: 'face_none', cat: 'face', name: '없음', grade: 'default' },
+  ...FACE_LIST.map((f) => ({ id: 'face_' + f.id, cat: 'face', name: f.name, grade: f.grade, face: f.id })),
   // 배경 (경기장 뽑기). arena = scene.js의 setArena / arenas.js의 ARENAS 이름. 방에서는 방장 것이 모두에게 보인다
   { id: 'bg_gym', cat: 'bg', name: '체육관·강당', grade: 'default', arena: 'gym' },
   { id: 'bg_classroom', cat: 'bg', name: '교실', grade: 'common', arena: 'classroom' },
@@ -96,6 +105,8 @@ export const ITEMS = [
   // 탁구공 (경기장 뽑기). ball = balls.js의 BALLS id, sound = 바운드음(audio.js의 BOUNCE_SKINS). 방에서는 방장 것이 모두에게 보인다
   { id: 'ball_white', cat: 'ball', name: '흰색', grade: 'default', ball: 'white' },
   ...BALLS.map((b) => ({ id: 'ball_' + b.id, cat: 'ball', name: b.name, grade: b.grade, ball: b.id, ...(b.sound ? { sound: b.sound } : {}), ...(b.hatch ? { hatch: b.hatch } : {}) })),
+  // 탁구대 (경기장 뽑기). table = tables.js의 TABLES id. 방에서는 방장 것이 모두에게 보인다. 공 튀는 소리는 안 바뀜(공이 정함)
+  ...TABLES.map((t) => ({ id: 'table_' + t.id, cat: 'table', name: t.grade === 'default' ? '파랑' : t.name, grade: t.grade, table: t.id })),
 ];
 for (const it of ITEMS) it.pool = CATS[it.cat].pool;
 export const ITEM = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
@@ -109,6 +120,16 @@ export function applyLook(char, equip) {
   if (char.userData?.body !== b.id) {
     char.userData = { ...char.userData, body: b.id };
     char.setOutfit(b.outfit ? makeOutfit(b.outfit, char) : null);
+  }
+  const h = equipped(equip, 'head');
+  if (char.userData?.head !== h.id) {
+    char.userData = { ...char.userData, head: h.id };
+    char.setHat(h.hat ? makeHat(h.hat, char) : null);
+  }
+  const f = equipped(equip, 'face');
+  if (char.userData?.face !== f.id) {
+    char.userData = { ...char.userData, face: f.id };
+    char.setFace(f.face ? makeFace(f.face) : null);
   }
   const p = equipped(equip, 'paddle');
   if (char.userData?.paddle === p.id) return;
@@ -1221,13 +1242,14 @@ function snap(obj, px, lookY, dist) {
   } else {
     // 크기는 실제 부품만 잰다 (전설 탁구채의 효과용 그림은 빼고)
     const box = new THREE.Box3(), bb = new THREE.Box3();
-    obj.traverse((o) => {
+    obj.traverseVisible((o) => { // 숨겨 둔 것(전설 탁구대의 지니 등)은 크기에서 뺀다
       if (!o.isMesh || o.userData.fxKeep) return;
       if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
       box.union(bb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld));
     });
     const c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3()).length();
     camera.position.set(c.x, c.y, c.z + size * 1.9);
+    camera.far = Math.max(10, size * 4); camera.updateProjectionMatrix(); // 큰 물건(탁구대)도 안 잘리게
     camera.lookAt(c);
   }
   renderer.setClearColor(0x000000, 0);
@@ -1271,6 +1293,43 @@ export function outfitImage(it, px = 128) {
   return thumbs[key];
 }
 
+// 머리 아이템: 흰 머리 + 모자를 비스듬히 앞에서 (전설 효과 그림은 빼고)
+const headBall = (g) => mesh(new THREE.SphereGeometry(0.16, 24, 18), lam('#f6f5f1'), 0, 0, 0, g);
+export function headImage(it, px = 128) {
+  const key = it.id + '/' + px;
+  if (thumbs[key] != null) return thumbs[key];
+  try {
+    const g = new THREE.Group();
+    headBall(g);
+    const h = it.hat ? makeHat(it.hat, { swingT: -1 }) : null;
+    if (h) { g.add(h.group); if (h.update) for (let i = 0; i < 10; i++) h.update(1 + i / 30, 1 / 30); }
+    g.traverse((o) => { if (o.isSprite || o.userData.fx) o.visible = false; });
+    // 불꽃 머리는 불꽃이 곧 모양이라 보이게 둔다
+    if (it.hat === 'flame') g.traverse((o) => { if (o.isMesh && o.userData.fx) o.visible = true; });
+    g.rotation.set(0.18, Math.PI + 0.45, 0);
+    thumbs[key] = snap(g, px);
+  } catch {
+    thumbs[key] = '';
+  }
+  return thumbs[key];
+}
+// 얼굴: 흰 머리 정면 (얼굴 그림)
+export function faceImage(it, px = 128) {
+  const key = it.id + '/' + px;
+  if (thumbs[key] != null) return thumbs[key];
+  try {
+    const g = new THREE.Group();
+    headBall(g);
+    const f = it.face ? makeFace(it.face) : null;
+    if (f) { g.add(f.group); f.group.traverse((o) => { if (o.isSprite || (o.userData.fx)) o.visible = false; }); }
+    g.rotation.set(0.08, Math.PI + 0.15, 0);
+    thumbs[key] = snap(g, px);
+  } catch {
+    thumbs[key] = '';
+  }
+  return thumbs[key];
+}
+
 // 탁구공은 비스듬히 내려다본 3D 모양 (전설의 반짝이 그림은 빼고 공만)
 export function ballImage(it, px = 128) {
   const key = it.id + '/' + px;
@@ -1292,6 +1351,25 @@ export function ballImage(it, px = 128) {
 const ARENA_IMG = (import.meta.env?.BASE_URL || '/') + 'arenas/';
 export const arenaOf = (look) => equipped(look, 'bg').arena;
 export const ballOf = (look) => equipped(look, 'ball').ball;
+export const tableOf = (look) => equipped(look, 'table').table;
+
+// 탁구대는 비스듬히 내려다본 모양 (옆 소품까지)
+export function tableImage(it, px = 128) {
+  const key = it.id + '/' + px;
+  if (thumbs[key] != null) return thumbs[key];
+  try {
+    const t = makeTable(it.table);
+    for (let i = 0; i < 4; i++) t.userData.tick?.(1 + i * 0.04, 0.04, null, {}); // 움직이는 탁구대: 한 번 그려 둠
+    t.rotation.y = -0.65;
+    const g = new THREE.Group();
+    g.add(t);
+    g.rotation.x = 0.62;
+    thumbs[key] = snap(g, px);
+  } catch {
+    thumbs[key] = '';
+  }
+  return thumbs[key];
+}
 
 // 미리 찍어 둔 목록 그림 (npm run thumbs → src/thumbs/<id>.webp). 있으면 바로 쓰고, 없으면 그 자리에서 3D로 찍는다
 // (예전엔 카테고리를 처음 누를 때 수십 개를 한꺼번에 찍느라 화면이 1초쯤 멈췄다)
@@ -1304,6 +1382,14 @@ export function swatch(it) {
   if (file) return `<img class="sw img" src="${file}" alt="" />`;
   if (it.cat === 'ball') {
     const src = ballImage(it);
+    if (src) return `<img class="sw img" src="${src}" alt="" />`;
+  }
+  if (it.cat === 'table') {
+    const src = tableImage(it);
+    if (src) return `<img class="sw img" src="${src}" alt="" />`;
+  }
+  if (it.cat === 'head' || it.cat === 'face') {
+    const src = (it.cat === 'head' ? headImage : faceImage)(it);
     if (src) return `<img class="sw img" src="${src}" alt="" />`;
   }
   if (it.cat === 'body') {

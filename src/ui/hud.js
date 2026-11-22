@@ -1,5 +1,6 @@
 import { ic } from '../icons.js';
-import { account } from '../account.js';
+import { account, myEquip } from '../account.js';
+import { setOf, setAmount } from '../sets.js';
 import { tierOf } from '../physics.js';
 import { breakAt } from '../breaks.js';
 import { aiCoins } from './ai.js';
@@ -34,7 +35,8 @@ export const hud = {
     const fire = hot ? ic('flame').repeat(Math.max(1, lv)) + ' ' : '';
     let html = `<div class="st-rally${hot}${lv ? ` lv${lv}` : ''}"><span>${fire}랠리</span><b>${st.rally}</b></div>`;
     if (game.mode === 'ai') {
-      html += `<div class="st-sub"><span>${ic('trophy')} 최고 ${st.best}</span><span>${ic('sparkle')} Perfect ${st.perfects}</span>${account.loggedIn ? `<span class="coin"><i class="coin-dot"></i> +${aiCoins}</span>` : ''}${account.loggedIn && breakAt() ? `<span class="brk">${ic('coffee')} 쉬는 시간 +50%</span>` : ''}</div>`;
+      const aiSet = setOf(myEquip()); // 24: 세트 보너스 (꿀잠 = 혼자 하기 +15%, 휴가 중 = 쉬는 시간 +75%)
+      html += `<div class="st-sub"><span>${ic('trophy')} 최고 ${st.best}</span><span>${ic('sparkle')} Perfect ${st.perfects}</span>${account.loggedIn ? `<span class="coin"><i class="coin-dot"></i> +${aiCoins}</span>` : ''}${account.loggedIn && breakAt() ? `<span class="brk">${ic('coffee')} 쉬는 시간 +${aiSet?.set.kind === 'break' ? 50 + setAmount(aiSet.set, aiSet.full) : 50}%</span>` : ''}${account.loggedIn && aiSet?.set.kind === 'ai' ? `<span class="brk">${ic('sparkle')} ${esc(aiSet.set.name)} +${setAmount(aiSet.set, aiSet.full)}%</span>` : ''}</div>`;
     }
     $('stats').innerHTML = html;
   },

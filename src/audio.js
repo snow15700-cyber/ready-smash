@@ -713,6 +713,52 @@ export function playUI(kind = 'click') {
   }
 }
 
+// ── 뽑기 연출 소리 (src/gachaShow.js) ──
+// 길게 차오르는 음 (부드럽게 시작해서 사라짐)
+function swell(dest, when, f, dur, { type = 'sine', amp = 0.1, a = 0.01, f2 = null } = {}) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, when);
+  if (f2) o.frequency.exponentialRampToValueAtTime(f2, when + dur);
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.exponentialRampToValueAtTime(amp, when + a);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+  o.connect(g).connect(dest); o.start(when); o.stop(when + dur + 0.05);
+}
+// 걸러 낸 노이즈 (휘이익·쉬익)
+function hiss(dest, when, dur, { f = 2000, f2 = null, q = 1, amp = 0.2, a = 0.005, type = 'bandpass' } = {}) {
+  const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+  const bf = ctx.createBiquadFilter(); bf.type = type; bf.Q.value = q; bf.frequency.setValueAtTime(f, when);
+  if (f2) bf.frequency.exponentialRampToValueAtTime(f2, when + dur);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(amp, when + a); g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+  s.connect(bf).connect(g).connect(dest); s.start(when, Math.random() * 0.5); s.stop(when + dur + 0.05);
+}
+// kind: tap 두드림 | pop 공이 깨짐 | ting 고급 공 | upRare 보라로 바뀜 | upLegend 금빛으로 바뀜 | riser 날아옴
+//       shine 전설 섬광 | choir 전설 화음 | launch 폭죽 올라감 | firework 폭죽 터짐
+export function playGacha(kind) {
+  if (!ctx) return;
+  const t = at();
+  const out = chain(t, null, 0.7);
+  if (kind === 'tap') { hiss(out, t, 0.05, { f: 3200, q: 2, amp: 0.25 }); swell(out, t, 1800, 0.05, { amp: 0.05 }); }
+  else if (kind === 'pop') { hiss(out, t, 0.12, { f: 1800, f2: 500, q: 0.8, amp: 0.4 }); swell(out, t, 660, 0.12, { type: 'triangle', amp: 0.12, f2: 1320 }); }
+  else if (kind === 'ting') { swell(out, t, 1568, 0.5, { amp: 0.08 }); swell(out, t + 0.06, 2349, 0.6, { amp: 0.06 }); }
+  else if (kind === 'upRare') { [1047, 1319, 1568, 2093].forEach((f, i) => swell(out, t + i * 0.05, f, 0.5, { amp: 0.07 })); hiss(out, t, 0.4, { f: 4000, f2: 9000, q: 3, amp: 0.05 }); }
+  else if (kind === 'upLegend') {
+    hiss(out, t, 1.1, { f: 300, f2: 5000, q: 1.4, amp: 0.16, a: 0.9 });
+    swell(out, t, 110, 1.4, { type: 'triangle', amp: 0.12, a: 0.6 });
+    [784, 988, 1175, 1568].forEach((f, i) => swell(out, t + 0.75 + i * 0.07, f, 0.7, { amp: 0.07 }));
+  }
+  else if (kind === 'riser') hiss(out, t, 0.9, { f: 400, f2: 6000, q: 2, amp: 0.12, a: 0.8 });
+  else if (kind === 'shine') { hiss(out, t, 0.25, { f: 6000, q: 0.7, amp: 0.15 }); swell(out, t, 2093, 1.2, { amp: 0.06 }); }
+  else if (kind === 'choir') {
+    // 따뜻한 화음(합창 느낌, 살짝 어긋난 두 음씩) + 맑은 종소리
+    for (const f of [261.6, 329.6, 392, 523.3, 659.3]) for (const dt of [-0.006, 0.006]) swell(out, t, f * (1 + dt), 3.2, { type: 'triangle', amp: 0.035, a: 0.5 });
+    [1047, 1319, 1568, 2093, 2637, 3136].forEach((f, i) => swell(out, t + 0.1 + i * 0.09, f, 1.4, { amp: 0.05 }));
+  }
+  else if (kind === 'launch') hiss(out, t, 0.35, { f: 800, f2: 3000, q: 4, amp: 0.05 });
+  else if (kind === 'firework') { hiss(out, t, 0.6, { f: 900, f2: 200, q: 0.5, amp: 0.25 }); hiss(out, t + 0.05, 0.5, { f: 5000, q: 1, amp: 0.05 }); }
+}
+
 // 관중 소리 (관전 4단계). kind: clap(박수) | fire(함성) | go(화이팅) | roar(점수 났을 때 다 같이)
 // vol: 0~1 (랠리 중에는 main.js가 아주 작게 — 찬스볼 신호음·타구음을 가리지 않게). n: 관중 수(roar 크기)
 // clap: false면 roar에서 박수를 뺀다 (경기 전 연출의 '스매시!' 함성)

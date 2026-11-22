@@ -108,6 +108,24 @@ const DRAW = {
   // 탁구공 효과 (balls.js)
   nyang(c) { text(c, '냥', 92, '#ffffff', '#ff6fa3', 14); },
   pyo(c) { text(c, '삐약', 60, '#fff3a0', '#e39a1c', 11); },
+  // 탁구대 효과 (tables-rare.js)
+  sticky(c) { // 포스트잇 (끝이 살짝 접힘)
+    c.fillStyle = '#fff'; c.fillRect(18, 18, 92, 92);
+    c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(18, 18, 92, 16);
+    c.fillStyle = 'rgba(150,150,150,0.9)'; c.beginPath(); c.moveTo(110, 82); c.lineTo(82, 110); c.lineTo(110, 110); c.fill();
+    c.strokeStyle = 'rgba(0,0,0,0.25)'; c.lineWidth = 4;
+    for (const y of [54, 70, 86]) { c.beginPath(); c.moveTo(30, y); c.lineTo(y === 86 ? 70 : 96, y); c.stroke(); }
+  },
+  crumb(c) { // 빵가루·종이 부스러기
+    c.beginPath();
+    for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2, r = 30 + ((i * 29) % 19); c.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r); }
+    c.closePath(); c.fillStyle = '#fff'; c.fill();
+    c.fillStyle = 'rgba(0,0,0,0.18)'; c.beginPath(); c.arc(72, 74, 14, 0, Math.PI * 2); c.fill();
+  },
+  zz(c) { text(c, 'Z', 96, '#ffffff', '#5a6aa8', 12); },
+  tada(c) { text(c, '짜잔!', 50, '#fff3a0', '#7a3cff', 11); },
+  excl(c) { text(c, '!', 110, '#ffe14d', '#d23a2a', 14); },
+  pix(c) { c.fillStyle = '#fff'; c.fillRect(24, 24, 80, 80); }, // 네모 조각 (색종이·픽셀)
   rock(c) { // 울퉁불퉁 돌 조각
     c.beginPath();
     const n = 9;

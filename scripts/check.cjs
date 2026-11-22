@@ -100,6 +100,11 @@ async function sqlCheck() {
   psql(DB, `update public.pingpong_players set coins = 5000 where nick = '점검봇';`);
   const g = json(`public.pingpong_gacha(${tk}, 'char', 10)`);
   must(g.status === 'ok', '캐릭터 뽑기 10회 실패: ' + JSON.stringify(g).slice(0, 200));
+  // 25 무료 뽑기 50회: 무료 횟수부터 쓰고(코인 그대로), 다 쓰면 코인
+  must(g.free === 40 && g.player.coins === 5000 && g.used_free === true, '무료 뽑기가 이상해요: ' + JSON.stringify({ free: g.free, coins: g.player.coins }));
+  psql(DB, `update public.pingpong_players set free_pulls = 0 where nick = '점검봇';`);
+  const g2 = json(`public.pingpong_gacha(${tk}, 'arena', 1)`);
+  must(g2.status === 'ok' && g2.free === 0 && g2.player.coins === 4900, '무료를 다 쓴 뒤 코인 뽑기가 이상해요: ' + JSON.stringify({ s: g2.status, free: g2.free, coins: g2.player?.coins }));
   const b = json(`public.pingpong_buy(${tk}, 'paddle_gold', 'coins')`);
   must(['ok', 'owned'].includes(b.status), '직접 구매 실패: ' + JSON.stringify(b).slice(0, 200));
   must(json(`public.pingpong_equip(${tk}, 'paddle', 'paddle_gold')`).status === 'ok', '장착 실패');
@@ -161,13 +166,23 @@ async function sqlCheck() {
   const c3 = cheer();
   must(c3.new.join() === 'cheer3' && c3.all === true && c3.coins === 80, '응원 3번 → 미션 + 모두 달성 +50이 이상해요: ' + JSON.stringify(c3).slice(0, 300));
   psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '21_missions.sql'), 'utf8'));
+  // 24 세트: 위에서 19·21을 다시 실행해 세트가 빠진 함수로 돌아갔으니 24를 다시 → 세트 칭호·코인
+  psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '24_sets.sql'), 'utf8'));
+  psql(DB, `insert into public.pingpong_inventory(player_id, item_id) select id, x from public.pingpong_players, unnest(array['head_nightcap', 'body_starpj', 'face_sleepy']) x where nick = '점검봇' on conflict do nothing;`);
+  for (const [c, i] of [['head', 'head_nightcap'], ['body', 'body_starpj'], ['face', 'face_sleepy']]) json(`public.pingpong_equip(${tk}, '${c}', '${i}')`);
+  const setAch = json(`public.pingpong_achievements(${tk})`).new.map((n) => n.id);
+  must(setAch.includes('set_sleepy') && setAch.includes('setfull_sleepy'), '세트 칭호가 안 나와요: ' + setAch.join());
+  json(`public.pingpong_ai_start(${tk})`);
+  psql(DB, `update public.pingpong_players set ai_at = now() - interval '100 seconds', ai_rem = 0 where nick = '점검봇';`);
+  const setAi = json(`public.pingpong_ai_rally(${tk}, 40)`);
+  must(setAi.set_coins === 3 && /꿀잠/.test(setAi.set), '꿀잠 완전 세트 혼자 하기 +30%가 이상해요: ' + JSON.stringify(setAi).slice(0, 200));
   // 표는 브라우저가 직접 못 읽어야 한다 (RLS·권한)
   for (const t of ['pingpong_players', 'pingpong_sessions', 'pingpong_inventory', 'pingpong_matches']) {
     let leaked = true;
     try { q(`select count(*) from public.${t};`); } catch { leaked = false; }
     must(!leaked, `브라우저(anon)가 표 ${t}를 직접 읽을 수 있어요`);
   }
-  return `${SQL_FILES.length}개 파일 × 2번 실행, 가입·로그인·상점·뽑기·구매·장착·업적·랭킹·쉬는 시간 보너스·오늘의 미션, 표 잠금 확인`;
+  return `${SQL_FILES.length}개 파일 × 2번 실행, 가입·로그인·상점·뽑기·구매·장착·업적·랭킹·쉬는 시간 보너스·오늘의 미션·세트, 표 잠금 확인`;
 }
 
 /* ───────── 3. 목록 맞추기 (서버 ↔ 화면) ───────── */
@@ -268,7 +283,7 @@ async function browserChecks() {
       // 목록 그림
       const thumbs = new Set(fs.readdirSync(path.join(ROOT, 'src', 'thumbs')).map((f) => f.replace(/\.webp$/, '')));
       for (const it of [...web.items.map((i) => i.id), ...web.defaults]) {
-        if (/^(paddle|body|ball)_/.test(it) && !thumbs.has(it)) probs.push(`${it}: 목록 그림 없음 → npm run thumbs`);
+        if (/^(paddle|body|ball|table)_/.test(it) && !thumbs.has(it)) probs.push(`${it}: 목록 그림 없음 → npm run thumbs`);
       }
       for (const it of web.items.filter((i) => i.cat === 'bg')) if (!fs.existsSync(path.join(ROOT, 'public', 'arenas', `${it.arena}.jpg`))) probs.push(`${it.id}: public/arenas/${it.arena}.jpg 없음`);
       must(!probs.length, probs.join('\n'));
@@ -368,13 +383,21 @@ async function browserChecks() {
       await click('#btn-test-coins');
       await waitFor(page, () => !document.querySelector('#btn-gacha-10').disabled, null, 10000, '뽑기 버튼 (시험 코인)');
       await click('#btn-gacha-10');
+      // 뽑기 연출 화면: 공 10개가 다 떨어지면 '모두 깨기' → (금빛 공은 직접 깨야 하니) 점검용으로 바로 결과 → 나가기
+      await waitFor(page, () => window.__gachaTest?.mode === 'tap', null, 30000, '뽑기 연출: 공 10개');
+      await page.evaluate(() => [...document.querySelectorAll('#gacha-show .gs-btns button')].find((b) => b.dataset.act === 'all')?.click());
+      await page.waitForTimeout(800);
+      await page.evaluate(() => window.__gachaTest.finishNow());
+      await waitFor(page, () => !!document.querySelector('#gacha-exit:not(.gs-hide)'), null, 10000, '뽑기 연출: 나가기 버튼');
+      await click('#gacha-exit');
+      must(!(await page.evaluate(() => window.__gachaTest.active)), '나가기를 눌러도 뽑기 연출 화면이 안 닫혀요');
       await waitFor(page, () => document.querySelectorAll('#gacha-result > li').length === 10, null, 15000, '뽑기 10장');
       await waitFor(page, () => !document.querySelector('#btn-gacha-1').disabled, null, 15000, '뽑기 끝');
       await click('#tab-closet');
       const before = await page.evaluate(() => JSON.stringify(window.__smash.shop.myEquip()));
       // 가진 것 중 장착 안 한 카드 하나 누르기 (카테고리를 돌며 찾음)
       let equippedOne = false;
-      for (const cat of ['paddle', 'body', 'ball', 'bg']) {
+      for (const cat of ['paddle', 'head', 'face', 'body', 'ball', 'bg']) {
         await page.evaluate((c) => document.querySelector(`#cat-chips [data-cat="${c}"]`)?.click(), cat);
         await page.waitForTimeout(150);
         const ok = await page.evaluate(() => { const li = document.querySelector('#item-grid li.card:not(.locked):not(.on)'); if (li) li.click(); return !!li; });
@@ -476,6 +499,33 @@ async function browserChecks() {
       return `방 코드 ${code}, 관전 확인`;
     });
 
+    await step('화면: 탁구대 19종 짓기·바꾸기 (튀기·득점 연출)', async () => {
+      const r = await page.evaluate(async () => {
+        const w = window.__smash.world, out = [];
+        const I = await import('/src/tables.js');
+        const orig = w.setTable; let want = 'blue';
+        w.setTable = () => orig(want); // 루프가 내 장착으로 되돌리지 않게
+        try {
+          for (const t of I.TABLES) {
+            want = t.id;
+            const t0 = performance.now();
+            while (w.table?.name !== 'table:' + t.id && performance.now() - t0 < 20000) await new Promise((r) => setTimeout(r, 50));
+            if (w.table?.name !== 'table:' + t.id) return { fail: t.id };
+            w.table.userData.bounce?.([0.2, 0.76, -0.5], true, null);
+            w.tableScore({ x: 0.1, z: -1.37, smash: true });
+            await new Promise((r) => setTimeout(r, 150));
+            out.push(t.id);
+          }
+          want = 'blue';
+          await new Promise((r) => setTimeout(r, 200));
+        } finally { w.setTable = orig; }
+        return { out };
+      });
+      must(!r.fail, `탁구대 ${r.fail}이(가) 안 바뀌어요` + (errs.length ? '\n' + [...new Set(errs.splice(0))].slice(0, 4).join('\n') : ''));
+      flush();
+      return `${r.out.length}종`;
+    });
+
     await step('화면: 배경 9종 짓기·바꾸기', async () => {
       const r = await page.evaluate(async () => {
         const w = window.__smash.world, out = [];
@@ -498,11 +548,11 @@ async function browserChecks() {
       return '합친 물건 ' + r.out.join(', ');
     });
 
-    for (const [file, ready] of [['outfits.html', '몸 꾸미기 시안'], ['balls.html', '탁구공 시안']]) {
+    for (const [file, ready] of [['outfits.html', '몸 꾸미기 시안'], ['balls.html', '탁구공 시안'], ['tables.html', '탁구대 시안'], ['hats.html', '머리·얼굴 꾸미기 시안'], ['gacha.html', '뽑기 시안']]) {
       await step(`화면: ${ready} 페이지 (${file})`, async () => {
         const p = await ctx.newPage();
         watch(p, file, errs);
-        await p.goto(`${URL}/${file}`);
+        await p.goto(`${URL}/${file}`, { timeout: 90000 }); // 시안 페이지는 3D 모형을 많이 지어서 느린 PC(CI)에선 오래 걸린다
         await p.waitForLoadState('load');
         await p.waitForTimeout(2500);
         await p.close();

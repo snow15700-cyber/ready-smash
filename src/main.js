@@ -9,9 +9,10 @@ import './ui/titles.js';
 import './ui/lobbyList.js';
 import './ui/breakPill.js';
 import './ui/missions.js';
-import { autoLogin, equipItem, gacha, myEquip, testCoins } from './account.js';
+import './ui/freeGacha.js';
+import { autoLogin, buyItem, equipItem, gacha, myEquip, testCoins } from './account.js';
 import { initAudio, playUI, setEcho, setListener, setQuiet } from './audio.js';
-import { applyLook, arenaOf, ballOf } from './items.js';
+import { applyLook, arenaOf, ballOf, tableOf } from './items.js';
 import { LOBBY_CAM, createLobbyDemo } from './lobbyDemo.js';
 import { IS_TEST, ONLINE, makeCode } from './net.js';
 import { CHAR_Z } from './scene.js';
@@ -63,7 +64,9 @@ window.addEventListener('keydown', (e) => {
 // 꾸미기 카메라: 랠리하는 내 캐릭터의 등 뒤 가까이 (x: 패널을 피해 캐릭터를 화면 왼쪽으로 비키는 정도)
 // follow: 캐릭터가 좌우로 움직일 때 카메라가 따라가는 빠르기, blend: 로비↔꾸미기 카메라가 옮겨 가는 시간(초)
 const PV = { x: 0.75, y: 1.45, back: 2.7, lookY: 0.85, follow: 2.5, blend: 1.1 };
-const camBlend = { p: 0, x: 0, last: 0 }; // p: 0 = 로비 카메라, 1 = 꾸미기 카메라
+// 얼굴 고르기: 카메라가 캐릭터 둘레를 돌아 앞으로 가서 얼굴을 가까이 비춘다 (사용자 확정)
+const PV_FRONT = { y: 1.32, dist: 1.85, lookY: 0.98, x: 0.5, turn: 0.9 };
+const camBlend = { p: 0, f: 0, x: 0, last: 0 }; // p: 0 = 로비 카메라, 1 = 꾸미기 카메라 · f: 0 = 등 뒤, 1 = 앞(얼굴)
 // 처음 열면: 기억해 둔 열쇠가 있으면 자동 로그인, 없으면 로그인 화면
 (async () => {
   const r = await autoLogin();
@@ -72,6 +75,8 @@ const camBlend = { p: 0, x: 0, last: 0 }; // p: 0 = 로비 카메라, 1 = 꾸미
 })();
 /* ───────── 매 프레임 ───────── */
 function loop() {
+  // 뽑기 연출 화면(src/gachaShow.js)이 화면을 다 덮는 동안에는 뒤의 3D 장면을 쉬게 한다 (느린 PC)
+  if (!game && !match && document.body.classList.contains('gacha-on')) { requestAnimationFrame(loop); return; }
   const now = performance.now() / 1000;
   // 내 스윙 판단을 먼저 끝내고 나서 경기 판정 (느린 PC에서도 늦게 친 공이 버려지지 않게)
   if (game) game.decideHit(now + game.offset);
@@ -104,9 +109,15 @@ function loop() {
     // 꾸미기 카메라: 내 캐릭터를 부드럽게 따라간다
     const me = world.team[0][0];
     camBlend.x += (me.group.position.x - camBlend.x) * (1 - Math.exp(-dt * PV.follow));
-    const ox = camBlend.x + (innerWidth < 760 ? 0.1 : PV.x);
-    const camD = [ox, PV.y, CHAR_Z + PV.back];
-    const lookD = [ox, PV.lookY, CHAR_Z];
+    // 등 뒤(θ = 0) ↔ 앞(θ = π): 캐릭터 둘레를 돌아서 간다 (몸을 뚫고 지나가지 않게)
+    camBlend.f += Math.sign((preview?.front ? 1 : 0) - camBlend.f) * Math.min(Math.abs((preview?.front ? 1 : 0) - camBlend.f), dt / PV_FRONT.turn);
+    const fk = ease(camBlend.f), th = fk * Math.PI;
+    const R = PV.back + (PV_FRONT.dist - PV.back) * fk;
+    const side = (innerWidth < 760 ? 0.1 : PV.x + (PV_FRONT.x - PV.x) * fk); // 패널을 피해 캐릭터를 화면 왼쪽으로
+    const rx = Math.cos(th), rz = -Math.sin(th); // 카메라 오른쪽 방향
+    const cx = camBlend.x + rx * side, cz = CHAR_Z + rz * side; // 보는 점 (캐릭터에서 화면 오른쪽으로 비킴)
+    const lookD = [cx, PV.lookY + (PV_FRONT.lookY - PV.lookY) * fk, cz];
+    const camD = [cx + Math.sin(th) * R, PV.y + (PV_FRONT.y - PV.y) * fk, cz + Math.cos(th) * R];
     const target = preview ? 1 : 0;
     camBlend.p += Math.sign(target - camBlend.p) * Math.min(Math.abs(target - camBlend.p), dt / PV.blend);
     const t = ease(camBlend.p);
@@ -139,6 +150,7 @@ function loop() {
   const arenaLook = room ? room.hostM?.look : watch ? watch.hostM?.look : preview && !game ? preview.look : myEquip();
   world.setArena(arenaOf(arenaLook));
   world.setBallSkin(ballOf(arenaLook)); // 탁구공도 배경처럼: 방에서는 방장 것
+  world.setTable(tableOf(arenaLook)); // 탁구대도 (방장 것)
 
   world.crowd.setShown(!!game); // 관중석은 경기 화면에서만 (대기실 무대엔 안 세움)
   world.crowd.update(now); // 관중석 (관중이 없으면 바로 끝남)
@@ -198,4 +210,4 @@ const perf = new URLSearchParams(location.search).has('fps') ? (() => {
   };
 })() : null;
 requestAnimationFrame(loop);
-window.__smash = { PV, STAGE, INTRO, world, shop: { testCoins, gacha, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; }, get crowd() { return crowd; } };
+window.__smash = { PV, STAGE, INTRO, world, shop: { testCoins, gacha, buyItem, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; }, get crowd() { return crowd; } };

@@ -4,8 +4,9 @@
 import { ONLINE, getClient } from './net.js';
 import { ITEMS, ITEM, GRADES, GACHA_PRICE, PITY, poolOpen } from './items.js';
 import { ACH, REWARD, GAG_PADDLES } from './achievements.js';
-import { breakAt, breakBonus, BREAK_LABEL, nowMs } from './breaks.js';
+import { breakAt, nowMs } from './breaks.js';
 import { koreaDay, missionsOf, MISSION_ALL, MISSION_COIN } from './missions.js';
+import { setOf, setAmount, setLabel } from './sets.js';
 
 // ?acct=2 처럼 주소에 붙이면 열쇠를 따로 보관한다 (한 브라우저에서 탭마다 다른 계정으로 테스트할 때)
 const ACCT = new URLSearchParams(location.search).get('acct');
@@ -184,12 +185,12 @@ export async function aiRally(hits) {
 }
 
 /* ───────── 상점·옷장 (supabase/06_shop.sql) ───────── */
-// account.shop = { owned: Set(아이템 id), pity: { char, arena } }  (상점을 열 때 불러온다)
+// account.shop = { owned: Set(아이템 id), pity: { char, arena }, free: 남은 무료 뽑기 횟수(25) }  (상점을 열 때 불러온다)
 account.shop = null;
 function takeShop(r) {
   if (r.status !== 'ok') return r;
   account.player = { ...EMPTY_STATS, ...r.player };
-  account.shop = { owned: new Set(r.owned || []), pity: r.pity || { char: 0, arena: 0 } };
+  account.shop = { owned: new Set(r.owned || []), pity: r.pity || { char: 0, arena: 0 }, free: r.free ?? 0 };
   return r;
 }
 // 상점 정보 불러오기
@@ -350,7 +351,7 @@ function localServer(fn, a) {
   db.h2h ||= {};
   const me = () => db.players[db.sessions[a.p_token]];
   const pj = (p) => ({ id: p.id, nick: p.nick, wins_1v1: p.w1 || 0, losses_1v1: p.l1 || 0, wins_2v2: p.w2 || 0, losses_2v2: p.l2 || 0, best_rally: p.best || 0, coins: p.coins || 0, win_streak: p.streak || 0, pieces: p.pieces || 0, equip: p.equip || {}, title: p.title || null, nemesis: p.achN?.nemesis || null });
-  const shopOut = (p, extra = {}) => ({ status: 'ok', player: pj(p), owned: p.owned || [], pity: { char: p.pityChar || 0, arena: p.pityArena || 0 }, ...extra });
+  const shopOut = (p, extra = {}) => ({ status: 'ok', player: pj(p), owned: p.owned || [], pity: { char: p.pityChar || 0, arena: p.pityArena || 0 }, free: p.free ?? 50, ...extra }); // free: 무료 뽑기 50회(25)
   const onSale = (pool, grade) => ITEMS.filter((i) => i.pool === pool && i.grade !== 'default' && (!grade || i.grade === grade));
   const h2h = (p, opp) => { const h = db.h2h[p.id + '>' + opp] || [0, 0]; return { wins: h[0], losses: h[1] }; };
   // 13의 경기 업적 함수 → 11·12의 규칙 (입장해서 결과를 낸 경기에 한 번씩만)
@@ -460,9 +461,24 @@ function localServer(fn, a) {
       else items.push({ label: hasOpp ? '같은 상대와는 하루 10판까지만 코인' : '손님 상대는 하루 5판까지만 코인', coins: 0 });
       if (!hasOpp) items.push({ label: '손님 상대 경기는 승수에 안 들어가요', coins: 0 });
       // 19: 쉬는 시간 보너스 (경기 시작이나 끝이 평일 쉬는 시간이면 +50%, 올림). 가짜 서버는 ?clock= 시각을 따른다
+      // 24: 세트 보너스 (supabase/24_sets.sql과 같은 규칙: 퍼센트는 이 판 코인 합에 붙고 올림, 완전 세트 = 2배)
+      const st = setOf(p.equip);
+      let brkPct = 50;
+      if (st) {
+        const k = st.set.kind, amt = setAmount(st.set, st.full), sum = items.reduce((s, i) => s + i.coins, 0);
+        const pctOf = (n) => Math.ceil((n * amt) / 100);
+        let sb = 0;
+        if (k === 'win' && a.p_won && sum > 0) sb = pctOf(sum);
+        else if (k === 'perfect' && full && nPerf > 0 && sum > 0) sb = pctOf(sum);
+        else if (k === 'rally' && full && nRally > 0 && sum > 0) sb = pctOf(sum);
+        else if (k === 'lose' && !a.p_won && join) sb = amt;
+        else if (k === 'streak' && full && hasOpp && a.p_won && p.streak % 3 === 0) sb = amt;
+        else if (k === 'break') brkPct = 50 + amt;
+        if (sb > 0) items.push({ label: setLabel(st.set, st.full) + (k === 'lose' || k === 'streak' ? '' : ` +${amt}%`), coins: sb });
+      }
       const base = items.reduce((s, i) => s + i.coins, 0);
       const clk = nowMs() - Date.now();
-      if (base > 0 && (breakAt(m.at + clk) || breakAt(now + clk))) items.push({ label: BREAK_LABEL, coins: breakBonus(base) });
+      if (base > 0 && (breakAt(m.at + clk) || breakAt(now + clk))) items.push({ label: `☕ 쉬는 시간 +${brkPct}%`, coins: Math.ceil((base * brkPct) / 100) });
       const total = items.reduce((s, i) => s + i.coins, 0);
       p.coins = (p.coins || 0) + total;
       Object.assign(mp, { at: now, won: a.p_won, okey });
@@ -478,15 +494,18 @@ function localServer(fn, a) {
     if (!p) out = { status: 'no_session' };
     else {
       const today = new Date(now + 9 * 3600e3).toISOString().slice(0, 10); // 한국 시간 날짜
-      let got = 0;
+      let got = 0, extra = {};
       if (p.daily !== today) {
         const yest = new Date(now + 9 * 3600e3 - 86400e3).toISOString().slice(0, 10);
         p.achN ||= {};
         p.achN.days = (p.achN.days || 0) + 1;
         p.achN.days_run = p.daily === yest ? (p.achN.days_run || 0) + 1 : 1;
         p.daily = today; p.coins = (p.coins || 0) + 20; got = 20;
+        // 24: '동네 할매' 세트 = 하루 첫 접속 +15 (완전 +30)
+        const st = setOf(p.equip);
+        if (st?.set.kind === 'daily') { const sb = setAmount(st.set, st.full); p.coins += sb; got += sb; extra = { set: setLabel(st.set, st.full), set_coins: sb }; }
       }
-      out = { status: 'ok', coins: got, player: pj(p) };
+      out = { status: 'ok', coins: got, ...extra, player: pj(p) };
     }
   } else if (fn === 'pingpong_missions' || fn === 'pingpong_mission_match' || fn === 'pingpong_mission_cheer') {
     // 21: 오늘의 미션 (서버와 같은 규칙)
@@ -503,9 +522,13 @@ function localServer(fn, a) {
         const fresh = [...new Set(ids)].filter((id) => today.includes(id) && !ms.done.includes(id));
         ms.done.push(...fresh);
         const all = fresh.length > 0 && ms.done.length >= today.length;
-        const coins = fresh.length * MISSION_COIN + (all ? MISSION_ALL : 0);
+        let coins = fresh.length * MISSION_COIN + (all ? MISSION_ALL : 0);
+        // 24: '곰돌이' 세트 = 미션 코인 +15% (완전 +30%), 올림
+        const st = setOf(p.equip);
+        const setCoins = coins > 0 && st?.set.kind === 'mission' ? Math.ceil((coins * setAmount(st.set, st.full)) / 100) : 0;
+        coins += setCoins;
         p.coins = (p.coins || 0) + coins;
-        return { new: fresh, all, coins };
+        return { new: fresh, all, coins, set_coins: setCoins };
       };
       if (fn === 'pingpong_missions') out = { status: 'ok', missions: mj() };
       else if (fn === 'pingpong_mission_cheer') {
@@ -558,9 +581,13 @@ function localServer(fn, a) {
       const got = Math.floor(total / AI_HITS_PER_COIN);
       p.aiRem = total % AI_HITS_PER_COIN;
       p.aiAt = now;
-      const brk = got > 0 && breakAt(nowMs()) ? breakBonus(got) : 0; // 19: 쉬는 시간 +50%
-      p.coins = (p.coins || 0) + got + brk;
-      out = { status: 'ok', coins: got + brk, bonus: brk, player: pj(p) };
+      // 24: '꿀잠' 세트 = 혼자 하기 코인 +15% (완전 +30%) / '휴가 중' = 쉬는 시간 +75% (완전 +100%)
+      const st = setOf(p.equip);
+      const sb = st?.set.kind === 'ai' && got > 0 ? Math.ceil((got * setAmount(st.set, st.full)) / 100) : 0;
+      const brkPct = st?.set.kind === 'break' ? 50 + setAmount(st.set, st.full) : 50;
+      const brk = got > 0 && breakAt(nowMs()) ? Math.ceil(((got + sb) * brkPct) / 100) : 0; // 19: 쉬는 시간 +50%
+      p.coins = (p.coins || 0) + got + sb + brk;
+      out = { status: 'ok', coins: got + sb + brk, bonus: brk, bonus_pct: brkPct, set: sb ? setLabel(st.set, st.full) : null, set_coins: sb, player: pj(p) };
     }
   } else if (fn === 'local_test_coins') {
     const p = me();
@@ -576,8 +603,11 @@ function localServer(fn, a) {
     else if (!cost || !['char', 'arena'].includes(a.p_pool)) out = { status: 'bad' };
     else if (!onSale(a.p_pool).length) out = { status: 'empty' };
     else if (!poolOpen(a.p_pool)) out = { status: 'closed' }; // 일반 아이템이 들어오기 전엔 잠시 닫힘 (16_gacha_open.sql)
-    else if ((p.coins || 0) < cost) out = { status: 'no_coins' };
+    else if ((p.free ?? 50) < a.p_count && (p.coins || 0) < cost) out = { status: 'no_coins' };
     else {
+      // 무료 뽑기(25): 남은 무료 횟수가 뽑을 횟수만큼 있으면 코인 대신
+      const useFree = (p.free ?? 50) >= a.p_count;
+      p.free = (p.free ?? 50) - (useFree ? a.p_count : 0);
       p.owned ||= [];
       const key = a.p_pool === 'char' ? 'pityChar' : 'pityArena';
       let pity = p[key] || 0;
@@ -596,10 +626,10 @@ function localServer(fn, a) {
         results.push({ item: it, grade: g, dup, pieces: got });
       }
       p[key] = pity;
-      p.coins -= cost;
+      if (!useFree) p.coins -= cost;
       p.achN ||= {};
       p.achN.gacha = (p.achN.gacha || 0) + a.p_count;
-      out = shopOut(p, { results });
+      out = shopOut(p, { results, used_free: useFree });
     }
   } else if (fn === 'pingpong_buy') {
     const p = me();
@@ -668,6 +698,9 @@ function localServer(fn, a) {
           early: N('dt_n') >= 50 && N('dt_sum') / N('dt_n') < -50, late: N('dt_n') >= 50 && N('dt_sum') / N('dt_n') > 50,
         };
         grant(Object.keys(ok).filter((id) => ok[id]));
+        // 24: 세트 칭호 (지금 입은 세트 / 완전 세트)
+        const st = setOf(p.equip);
+        if (st) grant(['set_' + st.set.id, ...(st.full ? ['setfull_' + st.set.id] : [])]);
         out = { status: 'ok' };
       } else if (a.p_ach != null && !p.ach[a.p_ach]) out = { status: 'not_owned' };
       else { p.title = a.p_ach; out = { status: 'ok' }; }

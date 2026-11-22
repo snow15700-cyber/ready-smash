@@ -27,7 +27,7 @@ function mesh(geo, m, x = 0, y = 0, z = 0, parent) {
   if (parent) parent.add(o);
   return o;
 }
-function rng(seed) {
+export function rng(seed) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -37,7 +37,7 @@ function rng(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-function canvasTex(w, h, draw) {
+export function canvasTex(w, h, draw) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   draw(c.getContext('2d'), w, h);
@@ -194,7 +194,7 @@ function shoes(g, color, sole = '#f4f1ea', top = 0.07) {
 }
 
 // 만화 음영 (3단계 밝기)
-const TOON = (() => {
+export const TOON = (() => {
   const t = new THREE.DataTexture(new Uint8Array([150, 210, 255]), 3, 1, THREE.RedFormat);
   t.minFilter = t.magFilter = THREE.NearestFilter;
   t.needsUpdate = true;
@@ -206,7 +206,7 @@ const TOON = (() => {
    steel: 차가운 회색 하늘·창·어두운 바닥 (갑옷 쇠)
    disco: 어두운 무대에 색색 조명 점 (미러볼) */
 const envCache = {};
-function envCube(kind) {
+export function envCube(kind) {
   if (envCache[kind]) return envCache[kind];
   const S = 128;
   const r = rng(kind === 'disco' ? 41 : kind === 'steel' ? 43 : 42);
@@ -356,7 +356,7 @@ function lathe(pts, seg = 40) {
   return geo;
 }
 // 부드러운 돌림체: 몇 개의 점을 곡선으로 이어서 촘촘하게
-function smoothPts(pts, n = 40) {
+export function smoothPts(pts, n = 40) {
   const curve = new THREE.SplineCurve(pts.map(([r, y]) => new THREE.Vector2(r, y)));
   return curve.getPoints(n).map((p) => [Math.max(0.0001, p.x), p.y]);
 }
@@ -1261,6 +1261,7 @@ function chick(root, char, headless) {
   add(new THREE.TubeGeometry(curve, 20, 0.014, 8, false), tuftM, 0, 0, 0, tuft, 0.006);
   add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(0, 0, 0), V(-0.03, 0.05, 0), V(-0.06, 0.06, 0)]), 12, 0.011, 8, false), tuftM, 0, 0, 0, tuft, 0.006);
   tuft.rotation.y = headless ? 0.3 : 0.9;
+  root.userData.hatHide = [tuft]; // 머리 아이템을 쓰면 삐침 털은 숨긴다 (모자를 뚫고 나오지 않게)
   // 발: 짧고 동그란 주황 발
   for (const s of [-1, 1]) {
     const f = add(new THREE.SphereGeometry(0.05, 14, 10), toon('#f3a04a'), s * 0.1, 0.025, -W * 0.55, shape, 0.008);
@@ -1286,6 +1287,8 @@ function chick(root, char, headless) {
 // 사용자 확정: B안(흰 머리를 숨기고 병아리 한 마리). A안은 chick(root, char, false)
 BUILD.chick = (root, char) => chick(root, char, true);
 const HIDE_HEAD = new Set(['chick']);
+// 머리 아이템 자리 (흰 머리 대신 다른 머리가 있는 옷): 머리 중심 y·크기 s(가로)·sy(세로) (사용자 확정: 병아리 위에 그대로 얹기)
+const HAT_AT = { chick: { y: 0.94, s: 1.45, sy: 1.05 } };
 
 // 곰젤리: 반투명 빨간 젤리 곰 몸 (배·팔·다리), 설탕 반짝
 BUILD.gummy = (root) => {
@@ -2187,5 +2190,5 @@ export function makeOutfit(id, char) {
   else if (PAINT[id]) skin(group, PAINT[id]);
   else return null;
   group.traverse((o) => { if (o.isMesh && o.userData.fx) o.castShadow = false; });
-  return { group, update, hideHead: HIDE_HEAD.has(id) };
+  return { group, update, hideHead: HIDE_HEAD.has(id), hatAt: HAT_AT[id] || null, hatHide: group.userData.hatHide || [] };
 }

@@ -6,6 +6,7 @@ import { HOWTO_KEY, show } from './screen.js';
 import { $, esc } from './state.js';
 import { runAchCheck } from './titles.js';
 import { renderMissions } from './missions.js';
+import { renderFreeGacha } from './freeGacha.js';
 
 /* ───────── 로그인 (PIN 계정 / 손님) ───────── */
 const LOGIN_MSG = {
@@ -31,6 +32,7 @@ export function renderMe() {
     : '<span class="guest">손님은 전적·코인이 저장되지 않아요</span>';
   $('me-menu').classList.add('hidden');
   renderMissions();
+  renderFreeGacha();
 }
 
 // 로비: ⚙️ 내 계정 메뉴 (PIN 바꾸기·로그아웃), ❓ 치는 방법 창

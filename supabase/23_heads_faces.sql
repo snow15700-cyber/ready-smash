@@ -1,0 +1,52 @@
+-- 준비하시고, 스매시! — 23단계: 머리 28종 · 얼굴 16종 (캐릭터 뽑기) (22_tables.sql 다음)
+-- Supabase 대시보드 → SQL Editor에 붙여 넣고 Run. 여러 번 실행해도 괜찮다.
+-- (src/items.js의 head_·face_ 아이템 = src/hats.js의 HATS · src/faces.js의 FACE_LIST와 같게 유지)
+-- 기본(head_none·face_none = 없음)은 표에 넣지 않는다 (장착 해제 = 기본). 장착은 기존 pingpong_equip(cat = 'head' | 'face')이 그대로 처리.
+-- 보기만 다르다 (판정·네트워크 메시지 그대로).
+
+insert into public.pingpong_items(id, pool, cat, grade) values
+  ('head_band',         'char', 'head', 'common'),
+  ('head_cap',          'char', 'head', 'common'),
+  ('head_beanie',       'char', 'head', 'common'),
+  ('head_sprout',       'char', 'head', 'common'),
+  ('head_cat',          'char', 'head', 'common'),
+  ('head_party',        'char', 'head', 'common'),
+  ('head_towel',        'char', 'head', 'common'),
+  ('head_ribbon',       'char', 'head', 'common'),
+  ('head_bunny',        'char', 'head', 'rare'),
+  ('head_chef',         'char', 'head', 'rare'),
+  ('head_bowl',         'char', 'head', 'rare'),
+  ('head_gat',          'char', 'head', 'rare'),
+  ('head_hardhat',      'char', 'head', 'rare'),
+  ('head_frog',         'char', 'head', 'rare'),
+  ('head_straw',        'char', 'head', 'rare'),
+  ('head_tangerine',    'char', 'head', 'rare'),
+  ('head_headset',      'char', 'head', 'rare'),
+  ('head_pass',         'char', 'head', 'rare'),
+  ('head_hiking',       'char', 'head', 'rare'),
+  ('head_scarf',        'char', 'head', 'rare'),
+  ('head_nightcap',     'char', 'head', 'rare'),
+  ('head_helm',         'char', 'head', 'rare'),
+  ('head_mask',         'char', 'head', 'rare'),
+  ('head_crown',        'char', 'head', 'legend'),
+  ('head_halo',         'char', 'head', 'legend'),
+  ('head_cloud',        'char', 'head', 'legend'),
+  ('head_flame',        'char', 'head', 'legend'),
+  ('head_bear',         'char', 'head', 'legend'),
+  ('face_dots',         'char', 'face', 'common'),
+  ('face_glare',        'char', 'face', 'common'),
+  ('face_sleepy',       'char', 'face', 'common'),
+  ('face_happy',        'char', 'face', 'common'),
+  ('face_wink',         'char', 'face', 'common'),
+  ('face_sparkle',      'char', 'face', 'rare'),
+  ('face_heart',        'char', 'face', 'rare'),
+  ('face_star',         'char', 'face', 'rare'),
+  ('face_swirl',        'char', 'face', 'rare'),
+  ('face_teary',        'char', 'face', 'rare'),
+  ('face_sweat',        'char', 'face', 'rare'),
+  ('face_mustache',     'char', 'face', 'rare'),
+  ('face_blush',        'char', 'face', 'rare'),
+  ('face_mood',         'char', 'face', 'legend'),
+  ('face_laser',        'char', 'face', 'legend'),
+  ('face_fire',         'char', 'face', 'legend')
+on conflict (id) do update set pool = excluded.pool, cat = excluded.cat, grade = excluded.grade;
