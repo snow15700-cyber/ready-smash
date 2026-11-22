@@ -2,14 +2,15 @@
 // 실제 게임에서는 결과를 서버가 먼저 정하고(지금처럼), 화면은 그 결과를 보여 주는 연출만 한다.
 // 1번: 공이 떨어져 통통 → 3번 두드리기(금 → 색이 바뀌며 등급 예고 → 팡). 전설은 가운데로 떠올라 깨진다.
 // 10번: 공 10개가 떨어져 줄 서고, 고급·전설 공은 색이 바뀐다 → 하나씩 눌러 깨기(전설 공은 가운데로 날아와 깨짐).
-// 주소 옵션: ?force=legend&leg=B&auto=1 (스크린샷용: 저절로 진행)
+// 전설 연출 = 금빛 성스러운 + 마지막에 폭죽 (사용자 확정 11/22). 건너뛰기 없음, '모두 깨기'는 금빛 공만 남긴다(사용자 확정)
+// 주소 옵션: ?force=legend&go=1&auto=1 (스크린샷용: 저절로 진행)
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 import * as THREE from 'three';
 import { ITEMS, GRADES, PITY, makePaddle, outfitImage, swatch } from './items.js';
 import * as A from './audio.js';
 
 const params = new URLSearchParams(location.search);
-const opt = { force: params.get('force') || 'random', leg: params.get('leg') || 'A' };
+const opt = { force: params.get('force') || 'random' };
 const AUTO = params.has('auto');
 
 /* ───────── 화면 ───────── */
@@ -24,7 +25,7 @@ function resize() {
   layout();
 }
 const $ = (id) => document.getElementById(id);
-const hintEl = $('hint'), btnsEl = $('btns'), revealEl = $('reveal'), sumEl = $('sum');
+const exitEl = $('exit'), hintEl = $('hint'), btnsEl = $('btns'), revealEl = $('reveal'), sumEl = $('sum');
 
 /* ───────── 아이템 (캐릭터 뽑기 통) ───────── */
 const POOL = ITEMS.filter((i) => i.pool === 'char' && i.grade !== 'default');
@@ -161,11 +162,11 @@ function setButtons(kind) {
     btnsEl.innerHTML = '<button class="big" data-go="1">1번 뽑기 <small>🪙 100</small></button><button class="big" data-go="10">10번 뽑기 <small>🪙 900</small></button>';
   } else if (kind === 'again') {
     btnsEl.innerHTML = `<button class="big" data-go="${count}">한 번 더! <small>🪙 ${count === 1 ? 100 : 900}</small></button><button data-go="${count === 1 ? 10 : 1}">${count === 1 ? '10번 뽑기' : '1번 뽑기'} <small>🪙 ${count === 1 ? 900 : 100}</small></button>`;
-  } else if (kind === 'skip') {
-    btnsEl.innerHTML = '<button class="ghost" data-act="skip">건너뛰기 ⏭</button>';
   } else if (kind === 'ten') {
-    btnsEl.innerHTML = '<button data-act="all">모두 깨기</button><button class="ghost" data-act="skip">건너뛰기 ⏭</button>';
+    btnsEl.innerHTML = '<button data-act="all">모두 깨기</button>';
   } else btnsEl.innerHTML = '';
+  // 나가기: 처음 화면·결과 화면에서만 (깨는 중에는 숨김 — 결과는 이미 저장돼 있어도 연출을 실수로 끊지 않게)
+  exitEl.classList.toggle('hidden', !(kind === 'start' || kind === 'again'));
 }
 
 function reset() {
@@ -196,7 +197,7 @@ function start(n) {
     balls.push(b);
   });
   mode = 'drop';
-  setButtons('skip');
+  setButtons('');
   hint(n === 1 ? '' : '');
 }
 
@@ -264,7 +265,7 @@ function breakAll() {
 }
 
 /* ───────── 깨지기 + 아이템 등장 ───────── */
-function breakBall(b, fast = false) {
+function breakBall(b) {
   if (b.broken) return;
   b.broken = true;
   const g = b.res.grade, c = COL[g];
@@ -280,7 +281,7 @@ function breakBall(b, fast = false) {
     checkDone();
     return;
   }
-  if (g === 'legend') return legendReveal(b, fast);
+  if (g === 'legend') return legendReveal(b);
   // 1번: 일반·고급
   SND.pop();
   A.playUI(g === 'common' ? 'card' : 'rare');
@@ -298,8 +299,6 @@ function showReveal(res, cls) {
   const sub = res.dup ? `중복 · 🧩 조각 +${res.pieces}` : '<span class="new">NEW!</span> 옷장에 넣었어요';
   if (cls === 'legA') {
     revealEl.innerHTML = `<div class="pic"></div><div class="big">전 설</div><div class="nm">${it.name}</div><div class="sub">${sub}</div>`;
-  } else if (cls === 'legB') {
-    revealEl.innerHTML = `<div class="pic"></div><div class="big">전설!!</div><div class="nm">${it.name}</div><div class="sub">${sub}</div>`;
   } else {
     revealEl.innerHTML = `${pic}<div class="gd" style="--gc:${gc}">${GRADES[g].name}</div><div class="nm">${it.name}</div><div class="sub">${sub}</div>`;
   }
@@ -307,40 +306,34 @@ function showReveal(res, cls) {
   revealEl.style.setProperty('--gc', gc);
 }
 
-function legendReveal(b, fast) {
+function legendReveal(b) {
   mode = 'legend';
-  const style = opt.leg;
   const res = b.res;
   setButtons('');
   hint('');
   const x = CX, y = CY;
   icons.push({ b, t: 0, hidden: true });
-  if (style === 'A') {
-    // 금빛 성스러운: 하얀 섬광 → 잠깐 고요 → 빛기둥·빛살 속에서 탁구채가 천천히 내려와 돈다
-    fx.flash = 1; fx.dimT = 0.82; fx.raysT = 0; fx.pillarT = 0; fx.tint = [255, 200, 70];
-    noise(0, 0.25, { f: 6000, q: 0.7, amp: 0.15 });
-    tone(2093, 0, 1.2, { amp: 0.06 });
-    sparkle(x, y, COL.legend.glow, 30, 30);
-    const d = fast ? 0 : 0.55; // 고요한 순간
-    later(d, () => {
-      fx.raysT = 1; fx.pillarT = 1; fx.haloT = 1; fx.dust = 1;
-      SND.choir();
-      showReveal(res, 'legA');
-      three.show(res.it, 'A');
-    });
-    later(d + 1.7, () => { three.swing(); A.playHit('perfect', null, null, res.it.sound); ring(x, y, COL.legend.glow, 260, 3); sparkle(x, y, [255, 255, 255], 24, 80); });
-    later(d + 2.6, () => { mode = 'legendWait'; hint('화면을 눌러 계속', true); if (AUTO) later(2, legendClose); });
-  } else {
-    // 불꽃놀이: 쾅! 색종이가 터지고, 폭죽이 연달아 올라간다
-    fx.flash = 1; fx.dimT = 0.5; fx.shake = 0.5; fx.raysT = 0.5; fx.tint = [255, 170, 80]; fx.haloT = 0.7;
-    SND.boom();
-    confetti(x, y, 180);
-    showReveal(res, 'legB');
-    three.show(res.it, 'B');
-    fx.fireworks = 3.2;
-    later(1.2, () => { three.swing(); A.playHit('perfect', null, null, res.it.sound); confetti(x, y, 60); });
-    later(2.2, () => { mode = 'legendWait'; hint('화면을 눌러 계속', true); if (AUTO) later(2, legendClose); });
-  }
+  // 하얀 섬광 → 잠깐 고요 → 빛기둥·빛살 속에서 탁구채가 천천히 내려와 돈다 → 휘익! 전용 타구음 → 폭죽
+  fx.flash = 1; fx.dimT = 0.82; fx.raysT = 0; fx.pillarT = 0; fx.tint = [255, 200, 70];
+  noise(0, 0.25, { f: 6000, q: 0.7, amp: 0.15 });
+  tone(2093, 0, 1.2, { amp: 0.06 });
+  sparkle(x, y, COL.legend.glow, 30, 30);
+  const d = 0.55; // 고요한 순간
+  later(d, () => {
+    fx.raysT = 1; fx.pillarT = 1; fx.haloT = 1; fx.dust = 1;
+    SND.choir();
+    showReveal(res, 'legA');
+    three.show(res.it);
+  });
+  later(d + 1.7, () => { three.swing(); A.playHit('perfect', null, null, res.it.sound); ring(x, y, COL.legend.glow, 260, 3); sparkle(x, y, [255, 255, 255], 24, 80); });
+  // 마지막: 폭죽이 연달아 터지고 색종이가 흩날린다
+  later(d + 2.4, () => {
+    for (let i = 0; i < 3; i++) later(i * 0.18, firework);
+    fx.fireworks = 3.5;
+    A.playCrowd('roar', 0.6, null, 10);
+  });
+  later(d + 3.1, () => confetti(x, y - 40, 110));
+  later(d + 3.4, () => { mode = 'legendWait'; hint('화면을 눌러 계속', true); if (AUTO) later(2.5, legendClose); });
 }
 function legendClose() {
   if (mode !== 'legendWait') return;
@@ -377,21 +370,6 @@ function finish() {
   }
   setButtons('again');
   hint('');
-}
-
-function skip() {
-  if (count === 1) {
-    const b = balls[0];
-    if (!b || b.broken) return;
-    if (b.res.grade === 'legend') { b.floating = true; b.lift = tableY + tableD * 0.5 - CY; b.y = b.ty; b.state = 'rest'; b.col = COL.legend; b.colK = 1; }
-    mode = 'tap';
-    breakBall(b, true);
-  } else {
-    gen++; timers.length = 0;
-    fx.dimT = 0; fx.raysT = 0; fx.pillarT = 0; fx.haloT = 0; fx.dust = 0; fx.fireworks = 0;
-    three.hide();
-    finish();
-  }
 }
 
 /* ───────── 효과 만들기 ───────── */
@@ -432,7 +410,7 @@ function firework() {
   SND.launch();
 }
 function explode(x, y) {
-  const hue = Math.floor(rand(0, 360));
+  const hue = Math.random() < 0.5 ? rand(38, 50) : Math.floor(rand(0, 360)); // 절반은 금빛
   const n = 70;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + rand(-0.05, 0.05), s = rand(180, 330);
@@ -444,7 +422,7 @@ function explode(x, y) {
 /* ───────── 3D 탁구채 (전설 등장) ───────── */
 const three = (() => {
   const canvas = $('three');
-  let R = null, scene, cam, holder, model, t0 = 0, style = 'A', swingT = -1, on = false;
+  let R = null, scene, cam, holder, model, t0 = 0, swingT = -1, on = false;
   function init() {
     R = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     R.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -456,11 +434,11 @@ const three = (() => {
     cam = new THREE.PerspectiveCamera(30, 1, 0.01, 10);
     holder = new THREE.Group(); scene.add(holder);
   }
-  function show(it, st) {
+  function show(it) {
     if (it.cat !== 'paddle') { // 탁구채가 아니면(몸 등) 크게 찍은 그림이 둥실 돌며 나온다
       const pic = revealEl.querySelector('.pic');
       const src = it.cat === 'body' ? outfitImage(it, 512) : IMG[it.id]?.src;
-      if (pic && src) pic.innerHTML = `<img class="float ${st}" src="${src}" alt="">`;
+      if (pic && src) pic.innerHTML = `<img class="float" src="${src}" alt="">`;
       return;
     }
     if (!R) init();
@@ -475,7 +453,7 @@ const three = (() => {
     model.position.sub(c);
     holder.add(model);
     cam.position.set(0, 0, size * 2.75); cam.lookAt(0, 0, 0);
-    style = st; t0 = nowT; swingT = -1; on = true;
+    t0 = nowT; swingT = -1; on = true;
     canvas.classList.add('on');
   }
   function hide() { on = false; canvas.classList.remove('on'); }
@@ -483,22 +461,12 @@ const three = (() => {
   function tick() {
     if (!R || !on) return;
     const t = nowT - t0;
-    if (style === 'A') {
-      // 위에서 천천히 내려오며 빠르게 돌다가 점점 느려져 앞을 본다
-      const k = ease(t / 2.2);
-      holder.position.y = (1 - k) * 0.12;
-      holder.scale.setScalar(0.6 + 0.4 * k);
-      holder.rotation.y = (1 - k) * Math.PI * 5 + Math.sin(t * 0.9) * 0.35 * k;
-      holder.rotation.x = -0.12; holder.rotation.z = 0.3 + Math.sin(t * 1.3) * 0.04;
-    } else {
-      // 통! 튀어나와 크게 출렁
-      const k = clamp(t / 0.5, 0, 1);
-      const pop = k < 1 ? ease(k) * (1 + Math.sin(k * Math.PI) * 0.35) : 1 + Math.sin(t * 3) * 0.03;
-      holder.position.y = Math.abs(Math.sin(t * 2.6)) * 0.01;
-      holder.scale.setScalar(pop);
-      holder.rotation.y = (1 - ease(t / 1.2)) * Math.PI * 4 + Math.sin(t * 2) * 0.5;
-      holder.rotation.x = -0.12; holder.rotation.z = 0.3 + Math.sin(t * 3.1) * 0.12;
-    }
+    // 위에서 천천히 내려오며 빠르게 돌다가 점점 느려져 앞을 본다
+    const k = ease(t / 2.2);
+    holder.position.y = (1 - k) * 0.12;
+    holder.scale.setScalar(0.6 + 0.4 * k);
+    holder.rotation.y = (1 - k) * Math.PI * 5 + Math.sin(t * 0.9) * 0.35 * k;
+    holder.rotation.x = -0.12; holder.rotation.z = 0.3 + Math.sin(t * 1.3) * 0.04;
     if (swingT >= 0) { // '휘익' 한 번 휘두르기
       const s = (nowT - swingT) / 0.45;
       if (s < 1) holder.rotation.z += Math.sin(s * Math.PI) * -0.9, holder.rotation.x += Math.sin(s * Math.PI) * 0.5;
@@ -868,11 +836,17 @@ cv.addEventListener('pointerdown', (e) => {
 });
 revealEl.style.pointerEvents = 'none';
 document.addEventListener('pointerdown', (e) => { if (mode === 'legendWait' && e.target !== cv && !e.target.closest('.bar')) legendClose(); });
+exitEl.addEventListener('click', () => {
+  // 시안에서는 처음 화면으로. 실제 게임에서는 꾸미기 화면(뽑기 탭)으로 돌아간다
+  audioOn(); A.playUI('click');
+  reset(); mode = 'idle'; fx.dimT = 0; fx.raysT = 0; fx.haloT = 0;
+  setButtons('start');
+  hint('나가기 — 게임에서는 꾸미기 화면으로 돌아가요');
+});
 btnsEl.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   audioOn();
   if (b.dataset.go) { A.playUI('click'); start(+b.dataset.go); }
-  else if (b.dataset.act === 'skip') skip();
   else if (b.dataset.act === 'all') breakAll();
 });
 for (const b of document.querySelectorAll('.bar button')) {
@@ -897,6 +871,6 @@ resize();
 renderPity();
 setButtons('start');
 hint('뽑기 통에서 탁구공이 나와요 🏓');
-window.__gacha = { start, opt, get mode() { return mode; }, skip };
+window.__gacha = { start, opt, get mode() { return mode; } };
 if (params.has('go')) start(+params.get('go') || 1);
 requestAnimationFrame(frame);
