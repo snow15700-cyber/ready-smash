@@ -130,6 +130,12 @@ export function simulate(p, v, t0, ev, extra = {}, maxDur = 4) {
     let speed = Math.hypot(nv[0], nv[1], nv[2]);
     if (best.type === 'table') {
       np[1] = TY + R;
+      // 서브의 첫 바운드(친 사람 쪽): 미리 정한 속도로 튀어 나간다 (planServe)
+      const sv = segs[0].serve;
+      if (sv && !segs.some((g) => g.ev === 'table') && Math.sign(np[2]) === sideSign(segs[0].side)) {
+        segs.push({ t0: t, p: np, v: [...sv], ev: 'table', speed });
+        continue;
+      }
       const e = segs[0].smash && !segs.some((g) => g.ev === 'table') ? E_SMASH : E_TABLE;
       segs.push({ t0: t, p: np, v: [nv[0] * 0.98, -nv[1] * e, nv[2] * 0.98], ev: 'table', speed });
     } else if (best.type === 'net') {
@@ -149,14 +155,20 @@ export function simulate(p, v, t0, ev, extra = {}, maxDur = 4) {
 }
 
 // 받는 쪽(side)의 이상적인 타격 시각과 위치. 받는 쪽 테이블에 바운드하지 않으면 null
+// 서브(segs[0].serve)는 친 사람 쪽 탁구대에 한 번 먼저 튀어야 한다
 export function findIdealHit(segs, side) {
   const sg = sideSign(side);
+  let own = segs[0].serve ? 1 : 0; // 서브: 친 사람 쪽 첫 바운드 1번은 정상
   for (let i = 1; i < segs.length; i++) {
     const s = segs[i];
     if (s.ev === 'net') return null;
     if (s.ev === 'floor') return null;
     if (s.ev === 'table') {
-      if (Math.sign(s.p[2]) !== sg) return null; // 자기 쪽에 떨어짐 = 실패
+      if (Math.sign(s.p[2]) !== sg) { // 친 사람 쪽에 떨어짐
+        if (own-- > 0) continue;
+        return null; // 실패
+      }
+      if (own > 0) return null; // 서브가 내 쪽에 안 튀고 바로 넘어감 = 실패
       const planeZ = sg * HIT_Z;
       let d = null;
       if (Math.abs(s.v[2]) > 1e-4) {
@@ -229,6 +241,44 @@ export function planShot(from, hitter, grade, dir, seed, serve = false, speed = 
     T += 0.04;
   }
   return v;
+}
+
+// 서브: 실제 탁구처럼 친 사람 쪽 탁구대에 먼저 한 번 튄 뒤 네트를 넘어 상대 탁구대에 떨어진다.
+// 낮게 친 서브도 상대 쪽까지 가도록, 첫 바운드에서 튀어 나가는 속도(sv)를 미리 정해 둔다 (게임용 물리).
+// sv는 'shot' 이벤트에 실려 모든 PC가 같은 궤적을 만든다 (simulate의 extra.serve).
+// SERVE_T2: 첫 바운드 → 상대 탁구대까지 걸리는 시간 (등급별, 짧을수록 낮고 빠름)
+const SERVE_Z1 = 1.0; // 첫 바운드 자리 (친 사람 쪽 네트에서 거리)
+const SERVE_T2 = { perfect: 0.46, good: 0.55, bad: 0.8, block: 0.7 };
+export function planServe(from, hitter, grade, dir, seed) {
+  const r = rng(seed);
+  const cfg = SHOT[grade] || SHOT.good;
+  const rs = sideSign(1 - hitter);
+  const mirror = hitter === 0 ? 1 : -1;
+  let x = dir * cfg.aim * mirror + (r() * 2 - 1) * cfg.jit;
+  x = Math.max(-0.66, Math.min(0.66, x));
+  const tz = rs * cfg.depth;
+  const y1 = TY + R;
+  const z1 = -rs * SERVE_Z1;
+  const k = (z1 - from[2]) / (tz - from[2]); // 위에서 본 직선 위에 첫 바운드
+  const x1 = from[0] + (x - from[0]) * k;
+  // 두 번째 구간: 네트를 넉넉히 넘을 때까지 시간을 늘린다
+  let T2 = SERVE_T2[grade] || SERVE_T2.good;
+  for (let i = 0; i < 20; i++) {
+    const tn = T2 * (-z1) / (tz - z1); // 네트 지나는 때
+    if (0.5 * G * tn * (T2 - tn) > NET_H + 0.05) break;
+    T2 += 0.02;
+  }
+  const sv = [(x - x1) / T2, 0.5 * G * T2, (tz - z1) / T2];
+  // 첫 구간: 같은 가로 속도로. 탁구대 아래에서 친 공은 탁구대 끝을 넘을 만큼 천천히(높이) 보낸다
+  let T1 = Math.abs((z1 - from[2]) / (sv[2] / 0.98));
+  let v;
+  for (let i = 0; i < 30; i++) {
+    v = [(x1 - from[0]) / T1, (y1 - from[1] + 0.5 * G * T1 * T1) / T1, (z1 - from[2]) / T1];
+    const de = (sideSign(hitter) * HALF_L - from[2]) / v[2]; // 탁구대 끝 지나는 때
+    if (de <= 0 || from[1] + v[1] * de - 0.5 * G * de * de > y1 + 0.02) break;
+    T1 += 0.02;
+  }
+  return { v, sv };
 }
 
 export function judge(dt, isSwing, tier = 0) {
