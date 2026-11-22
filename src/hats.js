@@ -1256,29 +1256,37 @@ function flameTex() {
   });
 }
 BUILD.flame = (g) => {
-  const root = grp(g, 0, 0.1, 0.02);
-  root.rotation.x = 0.2;
+  const root = grp(g);
   // 불꽃 한 가닥: 물방울 돌림체 (아래 둥글고 위 뾰족)
   const prof = [[0.0001, 0], [0.03, 0.01], [0.04, 0.035], [0.034, 0.07], [0.018, 0.11], [0.0001, 0.15]].map(([r, y]) => new THREE.Vector2(r, y));
   const geo = new THREE.LatheGeometry(prof, 14);
   const tex = flameTex();
-  const outer = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.92, depthWrite: false });
-  const core = new THREE.MeshBasicMaterial({ color: '#ffe27a', transparent: true, opacity: 0.95, depthWrite: false });
+  // 겉불(주황, 반투명) 안에 속불(노랑)과 가장 밝은 심지(연노랑). 속불을 먼저 그려 겉불 너머로 비쳐 보이게
+  const outer = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.72, depthWrite: false });
+  const core = new THREE.MeshBasicMaterial({ color: '#ffd21f' });
+  const heart = new THREE.MeshBasicMaterial({ color: '#fff6b8' });
   const flames = [];
-  // 머리 위·옆·뒤에 둥글게 (앞 이마 아래는 비움)
-  const spots = [[0, 0.03, 0, 1.4], [0.06, 0.0, -0.04, 1.05], [-0.06, 0.0, -0.04, 1.05], [0.09, -0.01, 0.04, 1.0], [-0.09, -0.01, 0.04, 1.0], [0, -0.01, 0.08, 1.15], [0.04, 0.02, 0.045, 1.1], [-0.04, 0.02, 0.045, 1.1], [0, 0.0, -0.07, 0.9], [0.11, -0.05, -0.01, 0.8], [-0.11, -0.05, -0.01, 0.8]];
-  for (const [x, y, z, k] of spots) {
-    const f = grp(root, x, y, z);
-    const lean = new THREE.Vector3(x, 0.12, z).normalize();
-    f.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), lean);
-    const o = mesh(geo, outer, 0, 0, 0, f); o.userData.fx = true; o.castShadow = false;
-    const ci = mesh(geo, core, 0, 0.005, 0, f); ci.scale.setScalar(0.45); ci.userData.fx = true; ci.castShadow = false;
+  // 머리 표면 위에 둥글게: [정수리에서 기운 각도, 둘레 각도(0 = 앞), 크기]. 앞은 이마 위까지만 (얼굴 자리)
+  const spots = [[0, 0, 1.45]];
+  for (let i = 0; i < 6; i++) spots.push([0.55, (i / 6) * Math.PI * 2 + 0.3, 1.2]);
+  for (let i = 0; i < 9; i++) { const ph = Math.PI * 0.35 + (i / 8) * Math.PI * 1.3; spots.push([1.05, ph, 1.0]); } // 옆·뒤 (앞쪽 ±63°는 비움)
+  for (let i = 0; i < 5; i++) { const ph = Math.PI * 0.6 + (i / 4) * Math.PI * 0.8; spots.push([1.45, ph, 0.8]); } // 뒤통수 아래
+  for (const [th, ph, k] of spots) {
+    const dir = new THREE.Vector3(Math.sin(th) * Math.sin(ph), Math.cos(th), -Math.sin(th) * Math.cos(ph));
+    const f = grp(root);
+    f.position.copy(dir).multiplyScalar(0.15);
+    // 바깥쪽 + 위쪽 사이로 기울여 위로 타오르게
+    f.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().multiplyScalar(0.55).add(new THREE.Vector3(0, 0.75, 0)).normalize());
+    const ci = mesh(geo, core, 0, 0.004, 0, f); ci.scale.set(0.6, 0.72, 0.6); ci.renderOrder = 1;
+    const hi = mesh(geo, heart, 0, 0.002, 0, f); hi.scale.set(0.32, 0.42, 0.32); hi.renderOrder = 1;
+    const o = mesh(geo, outer, 0, 0, 0, f); o.renderOrder = 2;
+    for (const m of [o, ci, hi]) { m.userData.fx = true; m.castShadow = false; }
     f.userData.k = k; f.userData.ph = Math.random() * 6;
     flames.push(f);
   }
-  // 바탕 (머리 위를 덮는 주황 머리)
-  const base = mesh(capGeo(0.168, Math.PI * 0.5), lam('#ff7a1a', { emissive: '#ff4a00', emissiveIntensity: 0.6 }), 0, -0.1, -0.02, root);
-  base.rotation.x = -0.2 + 0.4;
+  // 바탕 (머리 위·옆·뒤를 덮는 주황 머리, 앞은 이마 위까지)
+  const base = mesh(capGeo(0.164, Math.PI * 0.6), lam('#ff7a1a', { emissive: '#ff4a00', emissiveIntensity: 0.6 }), 0, 0, 0, root);
+  base.rotation.x = 0.68; // 앞 가장자리 y ≈ 0.06 (얼굴 자리)
   const glow = fxSprite('glow', '#ff9a3d', 0.5); glow.material.opacity = 0.35; glow.position.y = 0.08; root.add(glow);
   const fx = bursts(g);
   let size = 1, target = 1, boost = 0, emberAcc = 0;
