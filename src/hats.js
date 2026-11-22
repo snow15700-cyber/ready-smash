@@ -128,7 +128,7 @@ BUILD.band = (g) => {
 // 야구 모자: 남색 6쪽 모자 + 앞 흰 로고 + 챙(살짝 휘고 앞으로 숙임) + 꼭지 단추
 BUILD.cap = (g) => {
   const cap = grp(g);
-  cap.rotation.x = 0.42; // 살짝 뒤로 젖혀 쓴 모자 (챙이 눈을 안 가림)
+  cap.rotation.x = 0.5; // 살짝 뒤로 젖혀 쓴 모자 (챙이 눈을 안 가림)
   const NAVY = '#24407a';
   const tex = canvasTex(1024, 256, (c, w, h) => {
     c.fillStyle = NAVY; c.fillRect(0, 0, w, h);
@@ -161,21 +161,21 @@ BUILD.cap = (g) => {
   // 챙: 앞 반달 모양 (모양 y = 앞으로 나온 거리)
   const s = new THREE.Shape();
   const N = 24;
-  for (let i = 0; i <= N; i++) { const a = (i / N) * Math.PI; s.lineTo(Math.cos(a) * 0.155, Math.sin(a) * 0.13 + 0.115); }
-  for (let i = N; i >= 0; i--) { const a = (i / N) * Math.PI; const x = Math.cos(a) * 0.15; s.lineTo(x, Math.sqrt(Math.max(0, 0.165 * 0.165 - x * x)) - 0.02); }
+  for (let i = 0; i <= N; i++) { const a = (i / N) * Math.PI; s.lineTo(Math.cos(a) * 0.13, Math.sin(a) * 0.175 + 0.1); }
+  for (let i = N; i >= 0; i--) { const a = (i / N) * Math.PI; const x = Math.cos(a) * 0.122; s.lineTo(x, Math.sqrt(Math.max(0, 0.165 * 0.165 - x * x)) - 0.05); } // 안쪽 끝은 모자 속으로 깊이 (틈이 안 보이게)
   const brimGeo = new THREE.ExtrudeGeometry(s, { depth: 0.008, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2, curveSegments: 4 });
   brimGeo.rotateX(Math.PI / 2); // 모양 (x, y, 두께) → (x, -두께, y)
   const p = brimGeo.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), f = p.getZ(i), y = p.getY(i); // f = 앞으로 나온 거리
     // 앞으로 나온 만큼 아래로 숙이고, 양옆은 아래로 휜다
-    p.setXYZ(i, x, y - Math.max(0, f - 0.12) * 0.12 - x * x * 1.1, -f);
+    p.setXYZ(i, x, y - x * x * 2.4 - Math.max(0, f - 0.16) * 0.1, -f); // 양옆이 아래로 휜 둥근 챙
   }
   brimGeo.computeVertexNormals();
   // 챙은 모자 앞 가장자리를 축으로 아래로 돌려 거의 수평 (모자를 뒤로 젖혀도 챙이 하늘을 안 보게)
   const PIV = 0.15;
   brimGeo.translate(0, 0, PIV);
-  const brimAt = grp(cap, 0, 0.016, -PIV);
+  const brimAt = grp(cap, 0, 0.03, -PIV);
   brimAt.rotation.x = -0.36;
   mesh(brimGeo, [lam(NAVY), lam('#1b3264')], 0, 0, 0, brimAt);
   // 챙 아래 초록 (옛날 야구 모자처럼)

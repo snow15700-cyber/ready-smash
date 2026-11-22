@@ -525,7 +525,7 @@ async function browserChecks() {
       return '합친 물건 ' + r.out.join(', ');
     });
 
-    for (const [file, ready] of [['outfits.html', '몸 꾸미기 시안'], ['balls.html', '탁구공 시안'], ['tables.html', '탁구대 시안'], ['hats.html', '머리 꾸미기 시안']]) {
+    for (const [file, ready] of [['outfits.html', '몸 꾸미기 시안'], ['balls.html', '탁구공 시안'], ['tables.html', '탁구대 시안'], ['hats.html', '머리·얼굴 꾸미기 시안']]) {
       await step(`화면: ${ready} 페이지 (${file})`, async () => {
         const p = await ctx.newPage();
         watch(p, file, errs);

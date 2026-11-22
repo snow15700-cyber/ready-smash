@@ -1,9 +1,10 @@
 // 머리 꾸미기 시안 보기 (hats.html): 저장·구매 없음. 큰 화면 = 살아 있는 캐릭터, 오른쪽 = 전체 목록 그림
-// 주소 옵션: ?id=cap&body=chick&yaw=3.6&t=2 (각도·시각 고정), &op=0.38 (경기 중 내 캐릭터처럼 반투명)
+// 주소 옵션: ?id=cap&face=heart&body=chick (id·face = none이면 없음)&yaw=3.6&t=2 (각도·시각 고정), &op=0.38 (경기 중 내 캐릭터처럼 반투명)
 import * as THREE from 'three';
 import { makeCharacter } from './scene.js';
 import { OUTFITS, makeOutfit } from './outfits.js';
 import { HATS, makeHat } from './hats.js';
+import { FACE_LIST, makeFace } from './faces.js';
 import { armPose } from './game.js';
 
 const GRADE = { common: '일반', rare: '고급', legend: '전설' };
@@ -51,22 +52,34 @@ canvas.addEventListener('pointerdown', (e) => { drag = e.clientX; auto = false; 
 canvas.addEventListener('pointermove', (e) => { if (drag != null) { yaw -= (e.clientX - drag) * 0.01; drag = e.clientX; } });
 canvas.addEventListener('pointerup', () => { drag = null; });
 canvas.addEventListener('dblclick', () => { zoom = 1 - zoom; });
-let cur = null, body = params.get('body') || '';
+let cur = null, curFace = null, body = params.get('body') || '';
+const NONE = { id: 'none', name: '없음', grade: 'common' };
 function url() {
-  const q = new URLSearchParams({ id: cur.id });
+  const q = new URLSearchParams({ id: cur.id, face: curFace?.id || 'none' });
   if (body) q.set('body', body);
   for (const k of ['t', 'op', 'yaw', 'zoom']) if (params.has(k)) q.set(k, params.get(k));
   history.replaceState(null, '', '?' + q);
 }
-function wear(id) {
-  cur = HATS.find((o) => o.id === id) || HATS[0];
-  live.char.setHat(makeHat(cur.id, live.char));
-  if (params.has('op')) live.char.setOpacity(Number(params.get('op')), 0.9);
-  document.getElementById('nm').textContent = cur.name;
+function caption() {
+  const parts = [cur, curFace].filter((o) => o && o.id !== 'none');
+  document.getElementById('nm').textContent = parts.map((o) => o.name).join(' + ') || '아무것도 안 씀';
+  const top = parts.some((o) => o.grade === 'rare') ? 'rare' : parts.length ? 'common' : '';
   const gd = document.getElementById('gd');
-  gd.textContent = GRADE[cur.grade]; gd.className = 'badge ' + cur.grade;
-  document.querySelectorAll('.card').forEach((c) => c.classList.toggle('on', c.dataset.id === cur.id));
+  gd.textContent = top ? GRADE[top] : ''; gd.className = 'badge ' + top;
+  document.querySelectorAll('.card').forEach((c) => c.classList.toggle('on', c.dataset.id === (c.dataset.kind === 'face' ? curFace?.id : cur.id)));
   url();
+}
+function wear(id) {
+  cur = HATS.find((o) => o.id === id) || NONE;
+  live.char.setHat(cur.id === 'none' ? null : makeHat(cur.id, live.char));
+  if (params.has('op')) live.char.setOpacity(Number(params.get('op')), 0.9);
+  caption();
+}
+function wearFace(id) {
+  curFace = FACE_LIST.find((o) => o.id === id) || NONE;
+  live.char.setFace(curFace.id === 'none' ? null : makeFace(curFace.id));
+  if (params.has('op')) live.char.setOpacity(Number(params.get('op')), 0.9);
+  caption();
 }
 function dress(id) {
   body = id;
@@ -92,7 +105,7 @@ function loop() {
   last = now;
   const t = params.has('t') ? Number(params.get('t')) + (now - t0) : now - t0;
   const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (canvas.width !== Math.round(w * big.getPixelRatio())) { big.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+  if (canvas.width !== Math.round(w * big.getPixelRatio()) || canvas.height !== Math.round(h * big.getPixelRatio())) { big.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
   if (auto) yaw += dt * 0.35;
   const d = zoom ? 1.15 : 2.3, ly = zoom ? 1.2 : 0.66;
   cam.position.set(Math.sin(yaw) * d, ly + (zoom ? 0.18 : 0.25), Math.cos(yaw) * d);
@@ -108,12 +121,13 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// ── 목록 그림 (머리 가까이, 비스듬히 앞에서) ──
+// ── 목록 그림 (머리 가까이, 비스듬히 앞에서 / 얼굴은 정면) ──
 const thumbR = renderer(document.createElement('canvas'), 240, 240);
 const ts = stage();
 const tcam = new THREE.PerspectiveCamera(30, 1, 0.02, 50);
 function thumb(id, back) {
-  ts.char.setHat(makeHat(id, ts.char));
+  ts.char.setHat(id === 'none' ? null : makeHat(id, ts.char));
+  ts.char.setFace(null);
   ts.char.arm.rotation.set(0, -0.35, 0);
   for (let i = 0; i < 20; i++) ts.char.tickOutfit(1 + i / 30, 1 / 30);
   const a = back ? 0.6 : Math.PI + 0.45;
@@ -122,25 +136,42 @@ function thumb(id, back) {
   thumbR.render(ts.scene, tcam);
   return thumbR.domElement.toDataURL();
 }
+function faceThumb(id) {
+  ts.char.setHat(null);
+  ts.char.setFace(id === 'none' ? null : makeFace(id));
+  ts.char.arm.rotation.set(0, -0.35, 0);
+  const a = Math.PI + 0.2;
+  tcam.position.set(Math.sin(a) * 0.9, 1.25, Math.cos(a) * 0.9);
+  tcam.lookAt(0, 1.17, 0);
+  thumbR.render(ts.scene, tcam);
+  return thumbR.domElement.toDataURL();
+}
 const list = document.getElementById('list');
 const back = params.get('back') === '1';
-for (const g of ['common', 'rare', 'legend']) {
-  const items = HATS.filter((o) => o.grade === g);
-  if (!items.length) continue;
-  list.insertAdjacentHTML('beforeend', `<h2><span class="badge ${g}">${GRADE[g]}</span> ${items.length}종</h2><div class="grid" id="g-${g}"></div>`);
-  const grid = document.getElementById('g-' + g);
-  for (const o of items) {
-    const d = document.createElement('div');
-    d.className = 'card g-' + g;
-    d.dataset.id = o.id;
-    d.innerHTML = `<img src="${thumb(o.id, back)}" alt=""><div class="n">${o.name}</div>`;
-    d.onclick = () => { wear(o.id); auto = true; };
-    grid.appendChild(d);
+function section(title, kind, all, shot, pick) {
+  list.insertAdjacentHTML('beforeend', `<h1 class="sec">${title}</h1>`);
+  for (const g of ['common', 'rare', 'legend']) {
+    const items = all.filter((o) => o.grade === g);
+    if (!items.length) continue;
+    list.insertAdjacentHTML('beforeend', `<h2><span class="badge ${g}">${GRADE[g]}</span> ${items.length}종</h2><div class="grid" id="g-${kind}-${g}"></div>`);
+    const grid = document.getElementById(`g-${kind}-${g}`);
+    for (const o of g === 'common' ? [NONE, ...items] : items) {
+      const d = document.createElement('div');
+      d.className = 'card g-' + g;
+      d.dataset.id = o.id;
+      d.dataset.kind = kind;
+      d.innerHTML = `<img src="${shot(o.id)}" alt=""><div class="n">${o.name}</div>`;
+      d.onclick = () => { pick(o.id); auto = true; };
+      grid.appendChild(d);
+    }
   }
 }
+section('🎩 머리', 'hat', HATS, (id) => thumb(id, back), wear);
+section('👀 얼굴 (그리기)', 'face', FACE_LIST, faceThumb, wearFace);
 dress(body);
 wear(params.get('id') || 'band');
+wearFace(params.get('face') || 'none');
 document.body.dataset.ready = '1';
 loop();
 // 점검·스크린샷용
-window.__hats = { wear, dress, view(y, z = 1) { yaw = y; auto = false; zoom = z; } };
+window.__hats = { wear, wearFace, dress, view(y, z = 1) { yaw = y; auto = false; zoom = z; } };

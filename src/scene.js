@@ -558,15 +558,34 @@ export function makeCharacter(paddleColor) {
     if (lastOp) { group.userData.op = null; setOpacity(...lastOp); }
   };
   // 움직이는 옷(전설)·머리 아이템의 효과: 매 프레임 불러 준다
-  const tickOutfit = (t, dt) => { if (outfit?.update) outfit.update(t, dt); if (hat?.update) hat.update(t, dt); };
+  const tickOutfit = (t, dt) => { if (outfit?.update) outfit.update(t, dt); if (hat?.update) hat.update(t, dt); if (face?.update) face.update(t, dt); };
   const head = add(new THREE.SphereGeometry(0.16, 20, 14), white, 0, 1.17, 0);
   // 머리 꾸미기 (hats.js의 makeHat): 머리 중심에 붙는 그룹. null이면 없음
   const hatAt = new THREE.Group();
   hatAt.position.copy(head.position);
   body.add(hatAt);
   let hat = null;
-  // 머리 아이템을 쓰면 옷의 일부(병아리 삐침 털 등)를 숨긴다
-  const syncHat = () => { for (const m of outfit?.hatHide || []) m.visible = !hat; };
+  // 머리 아이템을 쓰면 옷의 일부(병아리 삐침 털 등)를 숨긴다. 얼굴은 얼굴을 덮는 몸(병아리)·머리(투구·가면)면 숨긴다 (사용자 확정)
+  const syncHat = () => {
+    for (const m of outfit?.hatHide || []) m.visible = !hat;
+    if (face) face.group.visible = !outfit?.hideHead && !hat?.hideFace;
+  };
+  // 얼굴 꾸미기 (faces.js의 makeFace): 흰 머리 앞면에 그린 그림. null이면 얼굴 없음(기본)
+  const faceAt = new THREE.Group();
+  faceAt.position.copy(head.position);
+  body.add(faceAt);
+  let face = null;
+  const setFace = (f) => {
+    if (face) {
+      faceAt.remove(face.group);
+      face.group.traverse((m) => { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); });
+      for (const t of face.group.userData.maps || []) t.dispose();
+    }
+    face = f || null;
+    if (face) faceAt.add(face.group);
+    syncHat();
+    if (lastOp) { group.userData.op = null; setOpacity(...lastOp); }
+  };
   const setHat = (h) => {
     if (hat) {
       hatAt.remove(hat.group);
@@ -709,7 +728,7 @@ export function makeCharacter(paddleColor) {
     glow.material.color.set(color);
     glow.visible = true;
   };
-  const api = { group, body, arm, head, handle, blade, swingT: -1, paddleModel: null, setOpacity, setPaddleColor, setPaddle, setPaddleModel, setTag, setHold, setGlow, setOutfit, tickOutfit, setHat, hatAt };
+  const api = { group, body, arm, head, handle, blade, swingT: -1, paddleModel: null, setOpacity, setPaddleColor, setPaddle, setPaddleModel, setTag, setHold, setGlow, setOutfit, tickOutfit, setHat, hatAt, setFace };
   return api;
 }
 
