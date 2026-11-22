@@ -559,7 +559,7 @@ export function makeCharacter(paddleColor) {
   };
   // 움직이는 옷(전설)·머리 아이템의 효과: 매 프레임 불러 준다
   const tickOutfit = (t, dt) => { if (outfit?.update) outfit.update(t, dt); if (hat?.update) hat.update(t, dt); if (face?.update) face.update(t, dt); };
-  const head = add(new THREE.SphereGeometry(0.16, 20, 14), white, 0, 1.17, 0);
+  const head = add(new THREE.SphereGeometry(0.16, 32, 24), white, 0, 1.17, 0);
   // 머리 꾸미기 (hats.js의 makeHat): 머리 중심에 붙는 그룹. null이면 없음
   const hatAt = new THREE.Group();
   hatAt.position.copy(head.position);
@@ -597,7 +597,15 @@ export function makeCharacter(paddleColor) {
       });
     }
     hat = h || null;
-    if (hat) hatAt.add(hat.group);
+    if (hat) {
+      hatAt.add(hat.group);
+      // 효과 부품은 setOpacity를 안 받으므로, 그릴 때만 밝기 배수를 곱했다가 되돌린다 (매 프레임 바꾸는 값과 안 섞이게)
+      hat.group.traverse((o) => {
+        if (!(o.isSprite || (o.isMesh && o.userData.fx))) return;
+        o.onBeforeRender = () => { if (hatFxK < 1) { o.userData.op0 = o.material.opacity; o.material.opacity *= hatFxK; if (!o.material.transparent) { o.material.transparent = true; o.userData.tr0 = true; } } };
+        o.onAfterRender = () => { if (o.userData.op0 != null) { o.material.opacity = o.userData.op0; o.userData.op0 = null; if (o.userData.tr0) { o.material.transparent = false; o.userData.tr0 = false; } } };
+      });
+    }
     syncHat();
     if (lastOp) { group.userData.op = null; setOpacity(...lastOp); }
   };
@@ -637,12 +645,17 @@ export function makeCharacter(paddleColor) {
     handle.visible = blade.visible = !model;
     if (lastOp) { group.userData.op = null; setOpacity(...lastOp); }
   };
+  // 머리 아이템 부품인가 (경기 중 내 캐릭터는 머리를 더 투명하게 — 사용자 확정 '가': 큰 모자가 탁구대를 가리지 않게)
+  const isHatPart = (o) => { for (let p = o; p; p = p.parent) if (p === hatAt) return true; return false; };
+  const HAT_FADE = 0.4; // 몸이 반투명일 때 머리 아이템은 몸 투명도 × 이만큼
+  let hatFxK = 1; // 머리 효과(불꽃·후광 등)의 밝기 배수 — 몸이 반투명이면 같이 흐리게
   const isPaddlePart = (o) => {
     for (let p = o; p; p = p.parent) if (p === custom) return true;
     return o === handle || o === blade;
   };
   const setOpacity = (bodyOp, paddleOp) => {
     lastOp = [bodyOp, paddleOp];
+    hatFxK = bodyOp < 1 ? 0.08 : 1; // 경기 중 내 캐릭터: 불꽃·후광 같은 효과도 거의 안 보이게 (탁구대를 가리지 않게)
     const key = bodyOp + '/' + paddleOp;
     if (group.userData.op === key) return;
     group.userData.op = key;
@@ -650,7 +663,7 @@ export function makeCharacter(paddleColor) {
       // keepOp: 대기실 빛 고리, fx: 옷 효과(반짝이 등), fxKeep: 전설 탁구채 효과 부품 — 스스로 투명도를 정한다
       if (!o.isMesh || o.userData.keepOp || o.userData.fx || o.userData.fxKeep) return;
       const isPaddle = isPaddlePart(o);
-      const op = isPaddle ? paddleOp : bodyOp;
+      const op = isPaddle ? paddleOp : bodyOp < 1 && isHatPart(o) ? bodyOp * HAT_FADE : bodyOp;
       for (const m of [].concat(o.material)) {
         const base = m.userData.baseOp ?? 1; // 원래 반투명한 재질(곰젤리 등)
         m.transparent = op * base < 1;

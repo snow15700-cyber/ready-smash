@@ -374,7 +374,7 @@ async function browserChecks() {
       const before = await page.evaluate(() => JSON.stringify(window.__smash.shop.myEquip()));
       // 가진 것 중 장착 안 한 카드 하나 누르기 (카테고리를 돌며 찾음)
       let equippedOne = false;
-      for (const cat of ['paddle', 'body', 'ball', 'bg']) {
+      for (const cat of ['paddle', 'head', 'face', 'body', 'ball', 'bg']) {
         await page.evaluate((c) => document.querySelector(`#cat-chips [data-cat="${c}"]`)?.click(), cat);
         await page.waitForTimeout(150);
         const ok = await page.evaluate(() => { const li = document.querySelector('#item-grid li.card:not(.locked):not(.on)'); if (li) li.click(); return !!li; });

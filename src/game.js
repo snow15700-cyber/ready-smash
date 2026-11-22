@@ -386,6 +386,11 @@ export class Game {
         if (mine && Math.abs(this.localHitT - ev.t) < 0.001) this.played.add(0);
         if (!mine) this.charOf(ev.side, ev.slot ?? 0).swingT = performance.now() / 1000;
         this.turn = ev.turn ?? (this.turn + 1) % this.order.length;
+        // 전설 머리·얼굴 반응 (보기만): 친 사람은 스매시·퍼펙트, 모두 랠리 횟수(불꽃이 커짐)
+        const hitter = this.charOf(ev.side, ev.slot ?? 0);
+        if (ev.kind === 'smash') hitter.react?.('smash');
+        else if (ev.grade === 'perfect') hitter.react?.('perfect');
+        for (const sd of [0, 1]) for (const sl of [0, 1]) this.w.team[sd][sl].react?.('rally', ev.rally);
         const next = findIdealHit(this.segs, 1 - ev.side);
         if (this.hatched) { this.w.clearHatch(); this.hatched = null; } // 알이 깨진 뒤에 받아쳤다는 결과가 옴 → 되돌림
         this.smashWatch = ev.kind === 'smash' && next ? { segs: this.segs, t: next.t } : null;
@@ -465,6 +470,8 @@ export class Game {
         // 전설 탁구대 득점 연출 (보기만): 공이 빠져나간 쪽 끝 = 진 쪽
         this.w.tableScore?.({ x: this.w.ball.position.x, z: sideSign(1 - ev.winner) * HALF_L, smash: this.lastShot?.kind === 'smash' });
         this.w.tableRally = 0;
+        // 전설 머리·얼굴 반응: 득점한 쪽 'score', 잃은 쪽 'miss', 그리고 랠리 끝
+        for (const sd of [0, 1]) for (const sl of [0, 1]) { const c = this.w.team[sd][sl]; c.react?.(sd === ev.winner ? 'score' : 'miss'); c.react?.('end'); }
         this.score = ev.score;
         this.hud.score(this.score, ev.deuce);
         A.playUI(this.spectator || ev.winner === me ? 'point' : 'lose');

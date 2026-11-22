@@ -25,6 +25,7 @@ export const ICONS = {
   shirt: S('<path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/>'),
   gift: S('<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/>'),
   medal: S('<circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/>'),
+  smile: S('<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/>'),
   hat: S('<path d="M3 18h18"/><path d="M6 18V9a6 6 0 0 1 12 0v9"/><path d="M6 13h12"/>'),
   trail: S('<path d="M3 17c4 0 5-10 9-10s5 6 9 6"/><circle cx="21" cy="13" r="1" fill="currentColor"/>'),
   table: S('<rect x="2" y="7" width="20" height="8" rx="1"/><path d="M12 7v8"/><path d="M5 15v5M19 15v5"/>'),

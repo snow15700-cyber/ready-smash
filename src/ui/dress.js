@@ -30,7 +30,7 @@ export const SHOP_MSG = {
   not_owned: '가지고 있지 않은 아이템이에요',
   no_session: '로그인이 풀렸어요. 다시 로그인해 주세요',
 };
-const CAT_ICON = { paddle: ic('paddle'), head: ic('hat'), body: ic('shirt'), trail: ic('trail'), table: ic('table'), bg: ic('image'), ball: ic('ball') };
+const CAT_ICON = { paddle: ic('paddle'), head: ic('hat'), face: ic('smile'), body: ic('shirt'), trail: ic('trail'), table: ic('table'), bg: ic('image'), ball: ic('ball') };
 
 function needLogin() {
   if (account.loggedIn) return false;
@@ -43,7 +43,9 @@ export const setMsg = (html, ok = false) => { $('dress-msg').innerHTML = html; $
 // 아이템 고르기 = 캐릭터에 입혀 보기
 function select(id) {
   selId = id;
-  setPreview({ look: id ? { ...myEquip(), [ITEM[id].cat]: id } : myEquip() });
+  // 얼굴을 고르는 중이면 카메라가 앞으로 돌아가 얼굴을 비춘다 (사용자 확정, main.js의 PV_FRONT)
+  const front = id ? ITEM[id].cat === 'face' : dressTab === 'closet' && closetCat === 'face';
+  setPreview({ look: id ? { ...myEquip(), [ITEM[id].cat]: id } : myEquip(), front });
 }
 
 async function openDress(tab) {
@@ -86,7 +88,7 @@ export function renderDress() {
 
 // 카테고리 칩: 첫 줄 = 캐릭터(탁구채·몸·머리·궤적), 둘째 줄 = 경기장(배경·탁구공·탁구대) (사용자 확정)
 // 아이템이 아직 없는 카테고리는 흐리게 잠금 (글자 '곧'은 안 씀)
-const CHIP_ROWS = [['paddle', 'body', 'head', 'trail'], ['bg', 'ball', 'table']];
+const CHIP_ROWS = [['paddle', 'head', 'face', 'body', 'trail'], ['bg', 'ball', 'table']];
 function renderChips() {
   const has = (cat) => ITEMS.some((i) => i.cat === cat);
   $('cat-chips').innerHTML = CHIP_ROWS.map((row) => '<div class="chip-row">' + row.map((cat) => {

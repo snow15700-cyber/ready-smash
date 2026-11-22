@@ -67,4 +67,10 @@
   - **얼굴 크기(사용자 요청: 상대 테이블에서 보이게)**: `SPAN` 2.6라디안(그림이 머리 앞을 넓게 덮음 = 눈·입이 크게), 그림 전체를 `DOWN` 45px 내려 눈이 머리 중심 높이. ※ SPAN을 줄이면 얼굴이 **작아진다**(그림이 덮는 각도).
   - **2단계 전설 (시안)**: 머리 = 왕관(보석 반짝·후광 / 퍼펙트·득점·스매시 때 빛·별) · 천사 고리(둥실·빙글·작은 날개 / 빛 물결) · 작은 구름(보슬비 ↔ 무지개 / 퍼펙트·스매시 때 번개) · 불꽃 머리(일렁·불씨 / 랠리가 길수록 커짐, 스매시·퍼펙트 때 확) · 곰 인형 머리(곰 인형탈 짝, 얼굴 숨김, 귀 쫑긋·칠 때 말랑 / 퍼펙트·득점 때 하트). 얼굴 = 표정 바뀌는 얼굴(평소 → 퍼펙트·스매시 >▽< / 득점 의기양양 / 실점 X_X, 1.4초) · 레이저 눈(빛나는 눈 / 스매시·퍼펙트 때 레이저 빔) · 불타는 눈(불꽃 눈동자 / 랠리가 길수록 눈 위 불씨가 커짐).
     - 반응 API: `char.react(kind, n)` → 머리·얼굴의 `react`. kind = 'perfect' · 'score'(내 득점) · 'miss'(실점) · 'smash' · 'rally'(n = 랠리 친 횟수) · 'end'(랠리 끝). **게임 연결은 3단계**(지금은 시안 페이지 버튼). 효과 그림 `fxSprite`·`bursts`(hats.js, 얼굴도 씀), 효과 메시는 `userData.fx`.
+  - 불꽃 머리 수정(사용자 요청): 불꽃을 머리 표면 위(정수리·옆·뒤통수)에 두어 흰 머리에 안 가림, 겉불(주황 반투명) 안에 속불(노랑)·심지(연노랑).
+  - **3단계 상점·게임 연결**: `supabase/23_heads_faces.sql`(머리 28·얼굴 16, insert만 — 장착은 기존 `pingpong_equip`이 cat 'head'·'face'로 처리). `items.js`에 `head_<id>`(`hat`)·`face_<id>`(`face`), 기본 `head_none`·`face_none`(DEFAULTS), `CATS.head`·`CATS.face`, `applyLook`이 머리·얼굴도 입힘, 목록 그림 `headImage`·`faceImage`(+ `npm run thumbs`).
+    - 꾸미기: 옷장 칩 줄 [탁구채·머리·얼굴·몸·궤적]. **얼굴을 고르면 카메라가 캐릭터 둘레를 돌아 앞으로**(`setPreview({look, front})` → `main.js`의 `PV_FRONT`·`camBlend.f`, 등 뒤 θ=0 ↔ 앞 θ=π로 돌아서 감).
+    - 경기 중 내 머리 아이템 더 투명(사용자 확정 '가'): `scene.js` `setOpacity`에서 몸이 반투명이면 머리 부품은 × `HAT_FADE` 0.4, 머리 효과(Sprite·`userData.fx`)는 그릴 때만 × `hatFxK` 0.08(onBeforeRender/onAfterRender로 곱했다 되돌림 — 매 프레임 바꾸는 값과 안 섞이게). 효과 재질은 처음부터 `transparent: true`여야 흐려진다.
+    - 경기 반응: `game.js`의 'shot'(친 사람: 스매시 → 'smash', 퍼펙트 → 'perfect' / 모두: 'rally' ev.rally) · 'point'(이긴 쪽 'score', 진 쪽 'miss', 모두 'end'). 보기만, 네트워크 메시지 그대로. 대기실 이름표 알약·발밑 빛 고리에 머리·얼굴 포함(`stage.js` `LOOK_CATS`).
+    - 흰 머리 구를 32×24로 (얼굴 그림·실루엣이 매끈하게).
   - 시안 페이지 `hats.html`(`src/hats-page.js`, vite 입력·`npm run check`에 포함). 주소 옵션 `?id=cap&face=heart&body=chick&yaw=3.6&t=1&op=0.38`(none = 없음), 두 번 클릭 = 가까이/멀리. 몸 버튼으로 같이 입어 보기. 점검용 `window.__hats.{wear, wearFace, dress, view, fire}`. 왼쪽 위 반응 버튼(퍼펙트·스매시·득점·실점·랠리 +1·랠리 끝).

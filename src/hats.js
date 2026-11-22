@@ -1263,8 +1263,9 @@ BUILD.flame = (g) => {
   const tex = flameTex();
   // 겉불(주황, 반투명) 안에 속불(노랑)과 가장 밝은 심지(연노랑). 속불을 먼저 그려 겉불 너머로 비쳐 보이게
   const outer = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.72, depthWrite: false });
-  const core = new THREE.MeshBasicMaterial({ color: '#ffd21f' });
-  const heart = new THREE.MeshBasicMaterial({ color: '#fff6b8' });
+  // transparent: true여도 opacity 1이면 불투명처럼 보인다 (경기 중 내 캐릭터에서 흐리게 할 수 있게 처음부터 켜 둠)
+  const core = new THREE.MeshBasicMaterial({ color: '#ffd21f', transparent: true });
+  const heart = new THREE.MeshBasicMaterial({ color: '#fff6b8', transparent: true });
   const flames = [];
   // 머리 표면 위에 둥글게: [정수리에서 기운 각도, 둘레 각도(0 = 앞), 크기]. 앞은 이마 위까지만 (얼굴 자리)
   const spots = [[0, 0, 1.45]];

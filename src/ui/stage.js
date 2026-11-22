@@ -10,13 +10,14 @@ import { $, esc, tpill, world } from './state.js';
    머리 위에는 닉네임 + 아이템 이름 (등급은 색·빛으로만). 빈자리는 흐린 실루엣 */
 export const STAGE = { cam: [0, 1.0, 5.0], look: [0, 1.05, 0], fov: 46, z: 1.3, cardAt: 0.73, headY: 1.45 };
 const GLOW = { legend: '#ffb020', rare: '#b07cff' };
-// 발밑 빛 고리는 장착한 것(탁구채·몸) 중 가장 높은 등급 색
-const topGrade = (look) => ['legend', 'rare'].find((g) => ['paddle', 'body'].some((c) => equipped(look, c)?.grade === g)) || null;
+// 발밑 빛 고리는 장착한 것(탁구채·머리·얼굴·몸) 중 가장 높은 등급 색
+const LOOK_CATS = ['paddle', 'head', 'face', 'body'];
+const topGrade = (look) => ['legend', 'rare'].find((g) => LOOK_CATS.some((c) => equipped(look, c)?.grade === g)) || null;
 export const stage = { seats: [], els: [], on: false, fov: 50 };
 
-// 장착한 탁구채 + 몸(기본이 아닐 때만) 알약
+// 장착한 탁구채 + 머리·얼굴·몸(기본이 아닐 때만) 알약
 export function lookPills(look) {
-  return ['paddle', 'body'].map((c) => equipped(look, c)).filter((it, i) => i === 0 || it.grade !== 'default')
+  return LOOK_CATS.map((c) => equipped(look, c)).filter((it, i) => i === 0 || it.grade !== 'default')
     .map((it) => `<div class="it g-${it.grade}">${swatch(it)}${esc(it.name)}</div>`).join('');
 }
 export function renderStageLabels() {

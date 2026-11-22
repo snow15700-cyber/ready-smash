@@ -20,7 +20,7 @@ const only = process.argv.slice(2); // 아이템 id를 주면 그것만
     await page.evaluate(() => document.fonts.load('20px Jua')); // 탁구대 그림 속 글씨
     const shots = await page.evaluate(async (only) => {
       const I = await import('/src/items.js');
-      const make = { paddle: I.paddleImage, body: I.outfitImage, ball: I.ballImage, table: I.tableImage };
+      const make = { paddle: I.paddleImage, body: I.outfitImage, head: I.headImage, face: I.faceImage, ball: I.ballImage, table: I.tableImage };
       const toWebp = (url) => new Promise((res) => {
         const img = new Image();
         img.onload = () => {
