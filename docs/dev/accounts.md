@@ -35,6 +35,9 @@
 - ③ `supabase/12_ach_people.sql`(11 다음): `pingpong_ach_people(token, mode, won, opp, mate)` — `achMatch` 다음에 부름(같은 경기 한 번만, `ach_n.people_at`). 천적 = h2h `lose_run` 5 → 칭호 「(상대 닉네임) 공포증」(`ach_n.nemesis`, 처음 깬 상대로 고정, `titleText(id, x)`·presence `titleX`·랭킹 `title_x`·player json `nemesis`). 복수 = 그 상대에게 3패 이상인데 이김. 짝꿍 = `ach_n.duo{팀원 번호: 승수}`. 뽑기 횟수 = 트리거 `pingpong_count_gacha`(코인이 100·900 줄면 `ach_n.gacha`). 출석 = `pingpong_daily`가 `ach_n.days`·`days_run`(이 SQL 넣은 날부터).
 - 이제 58개 모두 깰 수 있음. 다음 후보 ④: 연출 다듬기(승리 세리머니 등, 기획서 11장).
 
+## 세트 보너스 (24, docs/dev/shop.md '4단계 세트 보너스')
+- `24_sets.sql`이 `match_finish`·`ai_rally`·`daily`·`__mission_grant`·`achievements`를 다시 정의한다. **이 함수들을 또 고칠 때는 24의 정의에서 시작**(세트 보너스가 빠지지 않게).
+
 ## 쉬는 시간 보너스 (사용자 확정 11/18, main 배포됨·19 실행됨)
 - 1대1·2대2 경기의 **시작이나 끝**이 쉬는 시간이면 그 판 코인 전부(참여·승리·퍼펙트·랠리·연승) **+50%(올림)**, 내역에 '☕ 쉬는 시간 +50%'.
 - **혼자 하기도**(사용자 확정): 랠리가 끝난 시각이 쉬는 시간이면 그 랠리 코인 +50%(올림, 코인이 0이면 없음). 경기 화면 랠리 카드 아래 '☕ 쉬는 시간 +50%'. 업적·출석 코인에는 없음.

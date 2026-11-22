@@ -1,6 +1,7 @@
 import { ic } from '../icons.js';
 import { initAudio, playHit, setEcho, setListener } from '../audio.js';
 import { applyLook, equipped, swatch } from '../items.js';
+import { setOf } from '../sets.js';
 import { hud } from './hud.js';
 import { myId, room } from './room.js';
 import { $, esc, tpill, world } from './state.js';
@@ -17,7 +18,9 @@ export const stage = { seats: [], els: [], on: false, fov: 50 };
 
 // 장착한 탁구채 + 머리·얼굴·몸(기본이 아닐 때만) 알약
 export function lookPills(look) {
-  return LOOK_CATS.map((c) => equipped(look, c)).filter((it, i) => i === 0 || it.grade !== 'default')
+  const st = setOf(look);
+  return (st ? `<div class="it set">${ic('sparkle')} 세트 「${esc(st.set.name)}」${st.full ? ' 완전' : ''}</div>` : '')
+    + LOOK_CATS.map((c) => equipped(look, c)).filter((it, i) => i === 0 || it.grade !== 'default')
     .map((it) => `<div class="it g-${it.grade}">${swatch(it)}${esc(it.name)}</div>`).join('');
 }
 export function renderStageLabels() {
