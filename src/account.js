@@ -171,8 +171,8 @@ export async function missionCheer() {
 }
 
 // 혼자 하기 코인 (supabase/05_ai_coins.sql): 시작할 때 aiStart, 랠리가 끝날 때마다 aiRally(내가 친 횟수)
-// 4번 칠 때마다 1코인. 결과 이번에 받은 코인 수
-export const AI_HITS_PER_COIN = 4;
+// 3번 칠 때마다 1코인(26). 결과 이번에 받은 코인 수
+export const AI_HITS_PER_COIN = 3; // 26: 4 → 3
 export async function aiStart() {
   if (account.loggedIn) await call('pingpong_ai_start', { p_token: token() });
 }

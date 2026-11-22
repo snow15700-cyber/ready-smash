@@ -400,7 +400,7 @@ export class Game {
         const mine = this.isMe(ev.side, ev.slot ?? 0);
         const wasPredicted = this.predicted && mine && Math.abs(this.predicted.t - ev.t) < 1e-6;
         this.predicted = null;
-        this.segs = simulate(ev.p, ev.v, ev.t0, 'hit', { side: ev.side, grade: ev.grade, smash: ev.kind === 'smash', sound: this.charOf(ev.side, ev.slot ?? 0).sound, by: this.charOf(ev.side, ev.slot ?? 0) });
+        this.segs = simulate(ev.p, ev.v, ev.t0, 'hit', { side: ev.side, grade: ev.grade, smash: ev.kind === 'smash', serve: ev.sv || null, sound: this.charOf(ev.side, ev.slot ?? 0).sound, by: this.charOf(ev.side, ev.slot ?? 0) });
         this.holdPos = null;
         if (!wasPredicted) this.played = new Set();
         if (mine && Math.abs(this.localHitT - ev.t) < 0.001) this.played.add(0);

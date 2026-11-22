@@ -1,6 +1,6 @@
 // 경기 진행 (방장 PC 또는 혼자 모드에서만 실행되는 '기준' 로직)
 // 모든 결과는 emit(event)으로 알리고, 화면 쪽은 이벤트만 보고 그린다.
-import { simulate, findIdealHit, tossSegs, planShot, judge, ballPos, rng, WIN, WIN_LATE, winFor, rallyTier, HOLD } from './physics.js';
+import { simulate, findIdealHit, tossSegs, planShot, planServe, judge, ballPos, rng, WIN, WIN_LATE, winFor, rallyTier, HOLD } from './physics.js';
 
 export const WIN_SCORE = 5;
 // 랠리 3회마다 공 속도 4%씩 증가 (최대 10단계 = 40%)
@@ -49,10 +49,12 @@ export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, 
   }
   const smashK = kind === 'smash' ? SMASH_SPEED[0] + rng((s ^ 0x5bd1e995) >>> 0)() * (SMASH_SPEED[1] - SMASH_SPEED[0]) : 1;
   const speed = (1 + speedLv * SPEED_STEP) * smashK;
-  const v = planShot(from, side, kind === 'out' ? 'out' : grade, dir, s, serve, speed);
+  const sp = serve ? planServe(from, side, grade, dir, s) : null; // 서브: 내 쪽에 한 번 튀고 넘어감
+  const v = sp ? sp.v : planShot(from, side, kind === 'out' ? 'out' : grade, dir, s, false, speed);
+  const sv = sp ? sp.sv : null;
   const t0 = t + hold;
-  const out = simulate(from, v, t0, 'hit', { side, grade, smash: kind === 'smash' });
-  return { from, v, t0, segs: out, speedLv, shotIdx, kind, next: findIdealHit(out, 1 - side) };
+  const out = simulate(from, v, t0, 'hit', { side, grade, smash: kind === 'smash', serve: sv });
+  return { from, v, sv, t0, segs: out, speedLv, shotIdx, kind, next: findIdealHit(out, 1 - side) };
 }
 
 // AI(탁구왕 김제빵): 연습 상대라서 절대 실수하지 않는다 (헛스윙·아웃 없음, 스매시도 다 받아냄)
@@ -180,7 +182,7 @@ export class Match {
     this.expect = shot.next ? { ...shot.next, slot: nextSlot, whiffed: false } : null;
     // AI 차례면 이번 공을 어떻게 칠지 미리 정해 둔다
     if (this.mode === 'ai' && this.expect && this.expect.side === 1) this.expect.ai = aiPlan(this.incoming);
-    this.emit({ type: 'shot', side, slot, turn: this.turn, t, t0: shot.t0, p: shot.from, v: shot.v, grade, rally: this.rally, speedLv: shot.speedLv, idx: shot.shotIdx, kind: shot.kind });
+    this.emit({ type: 'shot', side, slot, turn: this.turn, t, t0: shot.t0, p: shot.from, v: shot.v, sv: shot.sv, grade, rally: this.rally, speedLv: shot.speedLv, idx: shot.shotIdx, kind: shot.kind });
     if (!shot.next) this.pointTo(1 - side, shot.t0 + 0.8, 'fault');
   }
 

@@ -1,6 +1,6 @@
 // 로비 배경: 두 캐릭터가 끝없이 랠리를 주고받는 연출 (로비 화면에서만 작은 타구음·바운드음)
 // 실제 경기와 같은 물리(planShot·simulate)를 써서 공이 진짜처럼 날아간다
-import { planShot, simulate, findIdealHit, ballPos, sideSign, rng, HIT_Z, TY } from './physics.js';
+import { planShot, planServe, simulate, findIdealHit, ballPos, sideSign, rng, HIT_Z, TY } from './physics.js';
 import { PADDLE_OFFSET, CHAR_Z } from './scene.js';
 import { armPose } from './game.js';
 import * as A from './audio.js';
@@ -29,8 +29,10 @@ export function createLobbyDemo() {
   function shoot(side, from, t, serve, chars) {
     const grade = serve ? 'good' : pickGrade();
     const dir = [-1, 0, 1][Math.floor(r() * 3)];
-    const v = planShot(from, side, grade, dir, (r() * 1e9) >>> 0, serve);
-    segs = simulate(from, v, t, 'hit', { side, grade, sound: chars[side].sound });
+    const seed = (r() * 1e9) >>> 0;
+    const sp = serve ? planServe(from, side, grade, dir, seed) : null; // 서브는 내 쪽에 한 번 튀고 넘어감
+    const v = sp ? sp.v : planShot(from, side, grade, dir, seed);
+    segs = simulate(from, v, t, 'hit', { side, grade, serve: sp?.sv || null, sound: chars[side].sound });
     played = 0;
     next = findIdealHit(segs, 1 - side);
     const c = chars[side];
