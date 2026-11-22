@@ -489,6 +489,8 @@ async function browserChecks() {
       await page.click('#btn-start');
       await waitFor(viewer, () => window.__smash.game?.spectator && window.__smash.intro && document.querySelector('#vi-skip-btn').classList.contains('hidden'), null, 20000, '관중도 VS 소개 (건너뛰기 버튼 없음)');
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.intro && window.__smash.intro.seg && window.__smash.intro.seg !== 'dim', null, 30000, '선수 VS 소개');
+      // 대기실 이름표·VS 소개 이름 카드는 칭호 + 닉네임만 (아이템·세트 알약 없음, 사용자 확정 11/22)
+      for (const p of [page, guest, viewer]) must(await p.evaluate(() => document.querySelectorAll('#room-labels .it, #vs-intro .it').length === 0 && document.querySelectorAll('#vs-intro .vi-card').length === 2), '이름표에 아이템 알약이 보여요');
       for (const p of [page, guest]) await p.evaluate(() => document.querySelector('#vi-skip-btn').click());
       await waitFor(viewer, () => !window.__smash.intro && window.__smash.game?.spectator && !window.__smash.game.paused, null, 20000, '선수 모두 건너뛰기 → 관중도 중계');
       await page.waitForTimeout(1500);

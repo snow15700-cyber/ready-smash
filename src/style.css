@@ -515,11 +515,6 @@ button.leave-pill:hover:not(:disabled) { border-color: #ffbf8f; }
 .rl .nm { font-size: 18px; color: #fff; padding: 2px 12px; border-radius: 999px; box-shadow: 0 3px 0 rgba(0,0,0,.18); }
 .rl .nm.t0 { background: var(--orange); } .rl .nm.t1 { background: var(--blue); }
 .rl .nm small { font-size: 12px; background: rgba(255,255,255,.3); border-radius: 6px; padding: 1px 5px; margin-left: 5px; vertical-align: 2px; }
-.rl .it { display: flex; align-items: center; gap: 4px; font-size: 14px; padding: 2px 10px 2px 4px; border-radius: 999px; background: #fffaf0; color: #5d6e80; box-shadow: 0 2px 0 rgba(0,0,0,.12); }
-.rl .it .sw { width: 20px; height: 20px; border-radius: 50%; flex: none; }
-.rl .it.g-default { color: var(--muted); }
-.rl .it.g-rare { color: #7a3fc4; box-shadow: inset 0 0 0 2px #b98cf0, 0 2px 0 rgba(0,0,0,.12); }
-.rl .it.g-legend { color: #9a5b00; background: linear-gradient(90deg, #fff3c4, #ffe08a, #fff3c4); background-size: 200% 100%; box-shadow: inset 0 0 0 2px #f2a20c, 0 0 14px #ffc23d; animation: shine 2.4s linear infinite; }
 .rl.ghost .nm { background: rgba(255,250,240,.8); color: var(--muted); border: 2px dashed #b3a48e; box-shadow: none; font-size: 15px; }
 @keyframes shine { to { background-position: -200% 0; } }
 @media (max-width: 760px) {
@@ -628,7 +623,6 @@ button.leave-pill:hover:not(:disabled) { border-color: #ffbf8f; }
 .gx .h2h b { color: #fff; } .gx .h2h em { color: var(--tt-ball); font-weight: 700; }
 .gx .rl .nm { font-weight: 700; font-size: 17px; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
 .gx .rl .nm.t0 { background: var(--tt-red); } .gx .rl .nm.t1 { background: var(--tt-blue-hi); }
-.gx .rl .it { font-weight: 600; }
 .gx .rl .nm small .ic { vertical-align: -0.1em; }
 .gx .rl.ghost .nm { color: rgba(255,255,255,.8); background: rgba(18,24,44,.5); border: 1px dashed rgba(255,255,255,.45); font-weight: 600; }
 .gx.screen.left { background: linear-gradient(90deg, var(--night-62) 0%, var(--night-30) 38%, var(--night-08) 60%), linear-gradient(0deg, rgba(14,26,58,.4), rgba(14,26,58,0) 35%); }
@@ -913,11 +907,6 @@ body.intro #hud { visibility: hidden; }
 .vi-card .nm { font-size: clamp(30px, 5vw, 52px); line-height: 1.15; color: #fff; padding: 4px 24px; border-radius: 18px; box-shadow: 0 6px 0 rgba(0,0,0,.25), 0 10px 30px rgba(0,0,0,.25); }
 .vi-card .nm.t0 { background: var(--orange); } .vi-card .nm.t1 { background: var(--blue); }
 .vi-card .nm small { font-size: .4em; background: rgba(255,255,255,.3); border-radius: 8px; padding: 2px 8px; margin-left: 10px; vertical-align: .4em; }
-.vi-card .it { display: flex; align-items: center; gap: 6px; font-size: 20px; padding: 4px 16px 4px 6px; border-radius: 999px; background: #fffaf0; color: #5d6e80; box-shadow: 0 3px 0 rgba(0,0,0,.18); }
-.vi-card .it .sw { width: 30px; height: 30px; border-radius: 50%; flex: none; }
-.vi-card .it.g-default { color: var(--muted); }
-.vi-card .it.g-rare { color: #7a3fc4; box-shadow: inset 0 0 0 3px #b98cf0, 0 3px 0 rgba(0,0,0,.18), 0 0 18px rgba(176,124,255,.6); }
-.vi-card .it.g-legend { color: #9a5b00; background: linear-gradient(90deg, #fff3c4, #ffe08a, #fff3c4); background-size: 200% 100%; box-shadow: inset 0 0 0 3px #f2a20c, 0 0 22px #ffc23d; animation: shine 1.6s linear infinite; }
 /* VS · 3·2·1 = '빛 글자'(사용자 확정 11/18): 가늘고 큰 흰 Pretendard + 은은한 빛 (애플 발표 화면 느낌) */
 .vi-vs { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); opacity: 0; font-size: 130px; font-weight: 300; letter-spacing: .06em; color: #fff;
   text-shadow: 0 0 20px rgba(255,255,255,.7), 0 0 60px rgba(255,59,66,.55), 0 0 100px rgba(47,102,194,.5); }
@@ -1129,10 +1118,6 @@ body.spectating .spec-acts { display: flex; }
 .vi-card .nm { font-weight: 800; box-shadow: 0 10px 30px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.3); }
 .vi-card .nm.t0 { background: linear-gradient(135deg, var(--tt-red-hi), #B81E25); }
 .vi-card .nm.t1 { background: linear-gradient(135deg, #2F66C2, var(--tt-blue-lo)); }
-.vi-card .it { font-weight: 600; color: #fff; background: rgba(16,22,40,.78); box-shadow: inset 0 0 0 1px var(--hud-line), 0 6px 16px rgba(0,0,0,.25); }
-.vi-card .it.g-default { color: rgba(255,255,255,.75); }
-.vi-card .it.g-rare { color: #e2c9ff; box-shadow: inset 0 0 0 2px #b98cf0, 0 0 18px rgba(176,124,255,.6); }
-.vi-card .it.g-legend { color: #ffe08a; background: linear-gradient(90deg, rgba(70,45,0,.85), rgba(130,88,0,.9), rgba(70,45,0,.85)); background-size: 200% 100%; box-shadow: inset 0 0 0 2px #f2a20c, 0 0 22px rgba(255,194,61,.8); }
 .vi-go b { color: var(--tt-red-glow); text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 24px rgba(255,59,66,.6); }
 /* 관전 막대·응원·다음 판 */
 .watch-bar, .crowd-pill { background: var(--hud-bg); border: 1px solid var(--hud-line); }
@@ -1163,8 +1148,6 @@ html.lite-glass .break-banner { backdrop-filter: none; -webkit-backdrop-filter: 
 @media (max-width: 600px) { body.spectating #room-bg { display: none; } } /* 휴대폰 대기실 관전: 위 알약 두 개가 겹치지 않게 */
 
 /* 세트 (src/sets.js): 이름표·VS 소개의 '✨ 세트' 알약, 꾸미기 크게 보기 카드의 세트 안내 */
-.rl .it.set, .vi-card .it.set { color: #fff; background: linear-gradient(90deg, #ff7a3d, #ff4f9a); box-shadow: 0 2px 0 rgba(0,0,0,.15), 0 0 12px rgba(255,110,120,.55); font-weight: 700; }
-.rl .it.set .ic, .vi-card .it.set .ic { width: 14px; height: 14px; }
 .spot-set { margin-top: 6px; font-size: 12px; line-height: 1.5; color: #ffd9a8; }
 .spot-set b { font-weight: 600; color: #e9e3ff; }
 .spot-set b.on { color: #9effb0; }
