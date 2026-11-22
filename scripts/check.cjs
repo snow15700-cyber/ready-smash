@@ -475,6 +475,8 @@ async function browserChecks() {
       await page.evaluate(() => window.__smash.match.emit({ type: 'gameOver', winner: 0, score: [5, 0] }));
       // 6단계: 경기가 끝나면 관중은 대기실 관전으로 (자리가 꽉 찼으니 '자리 나면 알려 줘요'), 선수 대기실엔 '관중 1명'
       await waitFor(viewer, () => window.__smash.room?.spectate && !document.querySelector('#room').classList.contains('hidden') && document.querySelector('#btn-spec-join').textContent.includes('알려'), null, 20000, "경기 끝 → 관중은 대기실 관전 ('알려 줘요')");
+      // 관전이 끝나면 응원 막대도 숨김 (안 그러면 그 사람이 참가해 경기할 때 응원 막대가 남아 보였다)
+      must(await viewer.evaluate(() => document.querySelector('#cheer-bar').classList.contains('hidden')), '관전이 끝났는데 응원 막대가 남아 있어요');
       await waitFor(page, () => !document.querySelector('#room').classList.contains('hidden') && document.querySelector('#room-eyes').textContent.includes('관중 1명'), null, 20000, "선수 대기실에 '관중 1명'");
       await waitFor(viewer, () => document.querySelector('#team-0').textContent.includes('점검') || document.querySelectorAll('#team-0 .slot').length > 0, null, 5000, '대기실 관전 자리 칸');
       // 6단계: 대기실 관전 중 다음 경기 시작 → 관중도 VS 소개 (건너뛰기 버튼 없음), 선수 모두 건너뛰면 같이 넘어가 중계
