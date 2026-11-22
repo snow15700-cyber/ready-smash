@@ -166,7 +166,7 @@ export function createWorld(canvas) {
   const trailHist = []; // [x, y, z, 초]
   const TRAIL_GAP = 2 / 60; // 잔상 하나당 간격(초) — 예전 60fps에서 2장 간격과 같음
   const tv1 = new THREE.Vector3(), tv2 = new THREE.Vector3();
-  // 찬스볼 물결 잔상 (gameplay.md 찬스볼): 친 순간 ~ 처음 튈 때까지 하얀 줄이 살랑살랑. 튀면 사라지고 상대가 칠 때까지 잔상 없음.
+  // 찬스볼 물결 잔상 (gameplay.md 찬스볼): 친 순간 ~ 공이 가장 높이 올라갈 때(정점, c.tb)까지 하얀 줄이 살랑살랑. 그 뒤 사라지고 상대가 칠 때까지 잔상 없음.
   // 색은 안 쓴다(나중에 궤적 아이템이 색을 바꿔도 모양으로 알아보게). '똑 똑 똑 띵' 박자에 맞춰 튀기 전엔 물결이, 튄 뒤엔 공이 반짝
   const WAVE = { amp: 0.045, freq: 20, speed: 9, w: 0.022, alpha: 0.75, fade: 0.12, max: 240 };
   const wave = (() => {
@@ -187,7 +187,7 @@ export function createWorld(canvas) {
     scene.add(m);
     return m;
   })();
-  // 튄 뒤 박자 반짝임: 공 둘레의 하얀 빛
+  // 정점 뒤 박자 반짝임: 공 둘레의 하얀 빛
   const ballGlow = new THREE.Sprite(new THREE.SpriteMaterial({
     map: canvasTex(64, 64, (g, w, h) => {
       const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
@@ -205,7 +205,7 @@ export function createWorld(canvas) {
     const c = chance;
     const fade = !c ? 0 : c.now < c.tb ? 1 : Math.max(0, 1 - (c.now - c.tb) / WAVE.fade);
     const bounced = c && c.now >= c.tb;
-    // 공 반짝임 (튄 뒤)
+    // 공 반짝임 (정점 뒤)
     const bf = c && bounced && ball.visible ? c.flash : 0;
     ballGlow.visible = bf > 0.01;
     ballGlow.material.opacity = bf * 0.9;
@@ -218,7 +218,7 @@ export function createWorld(canvas) {
     if (bounced) wPts[n++].fromArray(ballPos(c.segs, c.tb));
     for (let t = end; t > c.t0 && n < WAVE.max - 1; t -= 1 / 240) wPts[n++].fromArray(ballPos(c.segs, t));
     wPts[n++].fromArray(ballPos(c.segs, c.t0));
-    const wf = bounced ? 0 : c.flash; // 튀기 전 박자 반짝임: 더 진하고 굵게
+    const wf = bounced ? 0 : c.flash; // 정점 전 박자 반짝임: 더 진하고 굵게
     const pos = wave.geometry.attributes.position.array, al = wave.geometry.attributes.alpha.array;
     let s = 0;
     for (let i = 0; i < WAVE.max; i++) {

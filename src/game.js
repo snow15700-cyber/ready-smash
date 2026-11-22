@@ -1,5 +1,5 @@
 // 화면 쪽 게임: 이벤트를 받아 공·캐릭터·소리·링을 그리고, 내 입력을 판정해 보낸다
-import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, HALF_L, WIN, WIN_LATE, winFor, rallyTier, HOLD } from './physics.js';
+import { simulate, findIdealHit, tossSegs, ballPos, judge, sideSign, HIT_Z, TY, HALF_L, WIN, WIN_LATE, winFor, rallyTier, HOLD, G } from './physics.js';
 import { PADDLE_OFFSET, CHAR_Z } from './scene.js';
 import { applyLook } from './items.js';
 import { computeShot, hitOrder, LET_LATE } from './match.js';
@@ -234,8 +234,12 @@ export class Game {
   }
 
   // 찬스볼 물결 잔상: 지금 공(this.segs)이 찬스볼이면 기억. 모든 화면(선수·팀원·관전)에 보임
+  // tb = 물결이 끝나는 때: 공이 가장 높이 올라간 순간(정점). 그 전에 무언가에 닿으면 그때
   markChance(kind, next) {
-    this.chance = kind === 'chance' ? { segs: this.segs, tb: this.segs[1]?.t0 ?? Infinity, hitT: next?.t ?? null } : null;
+    if (kind !== 'chance') { this.chance = null; return; }
+    const s0 = this.segs[0];
+    const apex = s0.t0 + Math.max(0, s0.v[1]) / G;
+    this.chance = { segs: this.segs, tb: Math.min(apex, this.segs[1]?.t0 ?? Infinity), hitT: next?.t ?? null };
   }
 
   // 매 프레임: 물결 잔상 + '똑 똑 똑 띵'(playCue와 같은 박자)에 맞춘 반짝임. 마지막 '띵'이 가장 밝음
