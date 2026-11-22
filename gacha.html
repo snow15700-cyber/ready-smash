@@ -4,122 +4,22 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>뽑기 시안</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
   <style>
-    :root {
-      --tt-red-hi: #E5343B; --tt-red-lo: #C81F27; --tt-ball: #FF8A1F;
-      --glass: rgba(255,255,255,.12); --glass-line: rgba(255,255,255,.32);
-      --font-ui: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif;
-      --c-common: #b9c6d4; --c-rare: #b07cff; --c-legend: #ffc93c;
-    }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; overflow: hidden; user-select: none; -webkit-user-select: none; }
-    body { font-family: var(--font-ui); color: #fff; background: radial-gradient(ellipse at 50% 30%, #23407e 0%, #142a5a 45%, #0b1633 100%); }
-    #stage { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: manipulation; }
-    #three { position: fixed; left: 50%; top: calc(42% - 60px); width: min(380px, 80vw); height: min(380px, 80vw); transform: translate(-50%, -50%); pointer-events: none; opacity: 0; transition: opacity .5s; }
-    #three.on { opacity: 1; }
-
-    /* 위: 시험용 버튼 (실제 게임에는 없음) */
-    .bar { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; padding: 8px 12px; border-radius: 18px;
-      background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.14); max-width: calc(100vw - 20px); z-index: 5; font-size: 13px; }
-    .bar .grp { display: flex; align-items: center; gap: 5px; }
-    .bar .lb { color: rgba(255,255,255,.6); margin-right: 2px; white-space: nowrap; }
-    .bar button { white-space: nowrap; }
-    @media (max-width: 560px) { .bar { gap: 5px; padding: 6px 8px; font-size: 12px; } .bar button { font-size: 12px; padding: 4px 8px; } }
-    .bar button { font: 600 13px var(--font-ui); color: #fff; border: 0; border-radius: 99px; padding: 5px 11px; cursor: pointer; background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
-    .bar button.on { background: var(--tt-ball); box-shadow: none; }
-
-    /* 나가기 (왼쪽 위, 게임의 꾸미기 화면 '뒤로'와 같은 자리) */
-    .exit { position: fixed; top: 12px; left: 12px; z-index: 6; font: 700 15px var(--font-ui); color: #fff; border: 0; border-radius: 14px; padding: 9px 14px; cursor: pointer;
-      background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-    .exit:hover { background: rgba(255,255,255,.24); }
-    @media (max-width: 560px) { .bar { top: 58px; } }
-    /* 아래: 뽑기 버튼 · 안내 */
-    .dock { position: fixed; left: 0; right: 0; bottom: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 4; pointer-events: none; }
-    .dock > * { pointer-events: auto; }
-    .hint { font-size: 17px; font-weight: 700; color: rgba(255,255,255,.92); text-shadow: 0 2px 10px rgba(0,0,0,.4); min-height: 24px; text-align: center; padding: 0 16px; }
-    .hint.pulse { animation: pulse 1.1s ease-in-out infinite; }
-    @keyframes pulse { 50% { opacity: .45; transform: scale(.97); } }
-    .btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; padding: 0 16px; }
-    .btns button { font: 700 17px var(--font-ui); color: #fff; border: 0; border-radius: 16px; padding: 13px 22px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
-      background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); transition: transform .15s; }
-    .btns button:hover { transform: translateY(-1px); }
-    .btns button:active { transform: scale(.97); }
-    .btns button.big { background: linear-gradient(180deg, var(--tt-red-hi), var(--tt-red-lo)); box-shadow: 0 10px 26px rgba(215,38,46,.4), inset 0 1px 0 rgba(255,255,255,.35); }
-    .btns button small { font-weight: 600; font-size: 13px; opacity: .8; }
-    .btns button.ghost { font-size: 14px; padding: 8px 14px; background: rgba(0,0,0,.25); }
-    .pity { font-size: 13px; color: rgba(255,255,255,.7); display: flex; align-items: center; gap: 8px; }
-    .pity .gauge { width: 140px; height: 7px; border-radius: 99px; background: rgba(255,255,255,.15); overflow: hidden; }
-    .pity .gauge i { display: block; height: 100%; background: linear-gradient(90deg, #ffb13c, #ffe27a); border-radius: 99px; transition: width .6s; }
-
-    /* 아이템 등장 (가운데) */
-    .reveal { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; z-index: 3; }
-    .reveal .pic { width: 150px; height: 150px; display: grid; place-items: center; }
-    .reveal .pic img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 10px 24px rgba(0,0,0,.35)); }
-    .reveal .pic.bg img { width: 220px; height: 136px; border-radius: 14px; object-fit: cover; }
-    .reveal .gd { margin-top: 10px; font-size: 14px; font-weight: 700; padding: 3px 12px; border-radius: 99px; background: var(--gc); color: #1b1630; }
-    .reveal .nm { margin-top: 6px; font-size: 30px; font-weight: 800; letter-spacing: -.02em; text-shadow: 0 3px 16px rgba(0,0,0,.45); }
-    .reveal .sub { margin-top: 4px; font-size: 14px; color: rgba(255,255,255,.75); }
-    .reveal .new { color: #ff5d7a; font-weight: 800; }
-    .reveal.pop { animation: popIn .5s cubic-bezier(.2,1.6,.4,1) both; }
-    @keyframes popIn { 0% { transform: translate(-50%, -50%) scale(.3); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
-
-    /* 전설 A: 금빛 글자 */
-    .reveal.legA .pic { width: 380px; height: 300px; }
-    .reveal.legA .big { font-family: var(--font-ui); font-weight: 200; font-size: 22px; letter-spacing: .6em; color: #fff3cf; text-shadow: 0 0 18px #ffcf5a, 0 0 40px #ff9d2a; margin-right: -.6em; animation: fadeUp 1.2s .1s both; }
-    .reveal.legA .nm { font-size: 40px; font-weight: 800; background: linear-gradient(100deg, #fff6d8 0%, #ffd25a 30%, #fff 45%, #ffd25a 60%, #e39b12 100%); background-size: 250% 100%;
-      -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 0 14px rgba(255,190,60,.7)); animation: fadeUp 1s .45s both, shimmer 2.8s 1.4s linear infinite; }
-    .reveal.legA .sub { animation: fadeUp 1s .8s both; }
-    @keyframes fadeUp { 0% { opacity: 0; transform: translateY(14px); filter: blur(6px); } 100% { opacity: 1; transform: none; } }
-    @keyframes shimmer { 0% { background-position: 120% 0; } 100% { background-position: -130% 0; } }
-
-    .reveal .pic img.float { width: 78%; height: 78%; }
-    .reveal .pic img.float { animation: floatA 2.2s cubic-bezier(.2,.8,.3,1) both, bob 3s 2.2s ease-in-out infinite; }
-    @keyframes floatA { 0% { transform: translateY(-40px) scale(.6) rotateY(900deg); opacity: 0; filter: brightness(3) blur(4px); } 100% { transform: none; opacity: 1; } }
-    @keyframes bob { 50% { transform: translateY(-8px) rotate(2deg); } }
-
-    /* 결과 정리 (10번) */
-    .sum { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -54%); width: min(620px, calc(100vw - 32px)); z-index: 3; padding: 16px; border-radius: 22px;
-      background: var(--glass); backdrop-filter: blur(22px) saturate(170%); -webkit-backdrop-filter: blur(22px) saturate(170%); border: 1px solid var(--glass-line); box-shadow: 0 16px 40px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.35);
-      animation: sumIn .4s ease-out both; }
-    @keyframes sumIn { from { opacity: 0; transform: translate(-50%, -48%) scale(.96); } }
-    .sum h3 { margin: 0 0 12px; text-align: center; font-size: 19px; }
-    .sum ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
-    .sum li { position: relative; border-radius: 14px; padding: 8px 3px 6px; text-align: center; background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); animation: sumIn .3s both; }
-    .sum li img { width: 52px; height: 52px; object-fit: contain; display: block; margin: 0 auto; }
-    .sum li .n { display: block; font-size: 12px; font-weight: 600; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .sum li .t { display: block; font-size: 11px; color: rgba(255,255,255,.6); }
-    .sum li .new { position: absolute; top: 4px; left: 5px; font-size: 10px; font-weight: 800; background: #ff4d6d; border-radius: 6px; padding: 0 4px; }
-    .sum li.g-rare { background: linear-gradient(180deg, rgba(176,124,255,.35), rgba(176,124,255,.1)); box-shadow: inset 0 0 0 1px rgba(196,160,255,.6); }
-    .sum li.g-legend { background: linear-gradient(180deg, rgba(255,201,60,.45), rgba(255,160,40,.12)); box-shadow: inset 0 0 0 2px #ffc93c, 0 0 18px rgba(255,190,60,.55); }
-    @media (max-width: 560px) { .sum ul { grid-template-columns: repeat(5, 1fr); gap: 5px; } .sum li img { width: 40px; height: 40px; } .reveal.legA .pic { width: 280px; height: 260px; } }
-    .hidden { display: none !important; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1633; }
+    /* 위: 시험용 버튼 (실제 게임에는 없음). 연출 화면(z-index 15)보다 위에 */
+    .bar { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 18px; z-index: 30;
+      background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.14); font: 13px 'Pretendard Variable', system-ui, sans-serif; color: rgba(255,255,255,.6); white-space: nowrap; }
+    .bar button { font: 600 13px 'Pretendard Variable', system-ui, sans-serif; color: #fff; border: 0; border-radius: 99px; padding: 5px 10px; cursor: pointer; background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
+    .bar button.on { background: #FF8A1F; box-shadow: none; }
+    @media (max-width: 560px) { .bar { top: 58px; font-size: 12px; } .bar button { font-size: 12px; padding: 4px 8px; } }
   </style>
 </head>
 <body>
-  <canvas id="stage"></canvas>
-  <canvas id="three"></canvas>
-  <div id="reveal" class="reveal hidden"></div>
-  <div id="sum" class="sum hidden"></div>
-
-  <button id="exit" class="exit">← 나가기</button>
-  <div class="bar">
-    <div class="grp"><span class="lb">시험용 등급</span>
-      <button data-k="force" data-v="random" class="on">진짜 확률</button>
-      <button data-k="force" data-v="common">일반</button>
-      <button data-k="force" data-v="rare">고급</button>
-      <button data-k="force" data-v="legend">전설</button>
-    </div>
-  </div>
-
-  <div class="dock">
-    <div id="hint" class="hint"></div>
-    <div id="btns" class="btns">
-      <button class="big" data-go="1">1번 뽑기 <small>🪙 100</small></button>
-      <button class="big" data-go="10">10번 뽑기 <small>🪙 900</small></button>
-    </div>
-    <div class="pity"><span id="pityTxt"></span><span class="gauge"><i id="pityBar"></i></span></div>
+  <div class="bar">시험용 등급
+    <button data-k="force" data-v="random">진짜 확률</button>
+    <button data-k="force" data-v="common">일반</button>
+    <button data-k="force" data-v="rare">고급</button>
+    <button data-k="force" data-v="legend">전설</button>
   </div>
   <script type="module" src="/src/gacha-page.js"></script>
 </body>

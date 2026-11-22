@@ -8,6 +8,7 @@ import { show } from './screen.js';
 import { $, esc, setPreview, world } from './state.js';
 import { setOf, setsWith, setBonusText } from '../sets.js';
 import { renderTitles, runAchCheck } from './titles.js';
+import { closeGacha, gachaFinishNow, gachaError, gachaState, openGacha, playGacha } from '../gachaShow.js';
 
 /* ───────── 꾸미기 (옷장 · 뽑기 · 칭호를 한 화면에) ─────────
    뽑기·구매·장착은 서버(supabase/06_shop.sql)가 정하고, 화면은 결과만 보여 준다.
@@ -186,43 +187,57 @@ function renderGacha() {
   $('btn-gacha-10').disabled = shopBusy || !ready || !open || coins < GACHA_PRICE[10];
 }
 
+// 뽑기: 누르자마자 연출 화면(src/gachaShow.js)이 뜨고, 서버 결과가 오면 탁구공이 떨어진다.
+// 연출 화면의 '한 번 더'는 여기로 다시 오고, '나가기'를 누르면 결과를 오른쪽 목록에 남기고 가장 좋은 것을 입혀 보여 준다.
+let lastPull = null;
+const pullPool = () => shopTab;
+function gachaPity(pool) {
+  const hasLegend = ITEMS.some((i) => i.pool === pool && i.grade === 'legend');
+  return hasLegend ? { used: account.shop?.pity[pool] ?? 0, max: PITY } : null;
+}
 async function doGacha(count) {
-  if (shopBusy) return;
+  if (shopBusy && !gachaState.active) return;
   initAudio();
-  playUI('click');
   shopBusy = true;
-  renderGacha();
-  setMsg('');
-  const box = $('gacha-result');
-  box.innerHTML = '';
-  const r = await gacha(shopTab, count);
-  if (r.status !== 'ok') {
-    shopBusy = false;
-    setMsg(SHOP_MSG[r.status] || SHOP_MSG.error);
+  const pool = pullPool();
+  if (!gachaState.active) {
+    playUI('click');
     renderGacha();
+    setMsg('');
+    $('gacha-result').innerHTML = '';
+    lastPull = null;
+    openGacha({ coins: () => account.player?.coins ?? 0, price: GACHA_PRICE, pity: gachaPity(pool), onAgain: (n) => doGacha(n), onExit: exitGacha });
+  }
+  const r = await gacha(pool, count);
+  if (r.status !== 'ok') {
+    gachaError(SHOP_MSG[r.status] || SHOP_MSG.error);
     return;
   }
   renderWallet();
-  const gap = count === 1 ? 0 : 0.16;
-  runAchCheck(count === 1 ? 1500 : 3400); // 카드가 다 뒤집힌 뒤
-  box.className = `gacha-result${count === 1 ? ' one' : ''}`;
-  box.innerHTML = r.results.map((x, i) => {
+  lastPull = r.results;
+  playGacha(r.results.map((x) => ({ it: ITEM[x.item] || { id: x.item, name: x.item, grade: x.grade, cat: '' }, grade: x.grade, dup: x.dup, pieces: x.pieces })), gachaPity(pool));
+}
+function exitGacha() {
+  closeGacha();
+  shopBusy = false;
+  const res = lastPull || [];
+  const box = $('gacha-result');
+  box.className = `gacha-result${res.length === 1 ? ' one' : ''}`;
+  box.innerHTML = res.map((x, i) => {
     const it = ITEM[x.item] || { name: x.item, grade: x.grade };
-    return `<li class="card g-${x.grade}" data-id="${ITEM[x.item] ? x.item : ''}" style="animation-delay:${(i * gap).toFixed(2)}s">`
+    return `<li class="card g-${x.grade}" data-id="${ITEM[x.item] ? x.item : ''}" style="animation-delay:${(i * 0.03).toFixed(2)}s">`
       + `${x.dup ? '' : '<span class="new">NEW</span>'}${swatch(it)}<span class="nm">${esc(it.name)}</span>`
       + `<span class="tag">${x.dup ? `중복 ${ic('puzzle')}+${x.pieces}` : gradeName(x.grade)}</span><i class="bar"></i></li>`;
   }).join('');
-  r.results.forEach((x, i) => setTimeout(() => playUI(x.grade === 'common' ? 'card' : x.grade), i * gap * 1000));
-  // 가장 좋은 아이템을 캐릭터에 입혀 크게 보여 주기
+  // 마지막에 뽑은 것 중 가장 좋은 아이템을 캐릭터에 입혀 크게 보여 주기
   const rank = (g) => ['common', 'rare', 'legend'].indexOf(g);
-  const best = [...r.results].sort((a, b) => rank(b.grade) - rank(a.grade))[0];
-  setTimeout(() => {
-    shopBusy = false;
-    if (best && ITEM[best.item]) select(best.item);
-    renderGacha();
-    renderSpot();
-  }, r.results.length * gap * 1000 + 300);
+  const best = [...res].sort((a, b) => rank(b.grade) - rank(a.grade))[0];
+  if (best && ITEM[best.item]) select(best.item);
+  renderDress();
+  runAchCheck(400); // 업적 알림은 연출이 끝난 뒤에
 }
+// 자동 점검용 (scripts/check.cjs)
+window.__gachaTest = { finishNow: gachaFinishNow, get mode() { return gachaState.mode; }, get active() { return gachaState.active; } };
 
 async function doEquip(it) {
   shopBusy = true;

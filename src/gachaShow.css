@@ -1,0 +1,91 @@
+/* 뽑기 연출 화면 (src/gachaShow.js). 게임 꾸미기 화면과 시안(gacha.html)이 같이 쓴다 */
+.gshow {
+  --gs-red-hi: #E5343B; --gs-red-lo: #C81F27; --gs-ball: #FF8A1F;
+  --gs-font: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif;
+  position: fixed; inset: 0; z-index: 15; overflow: hidden; user-select: none; -webkit-user-select: none;
+  font-family: var(--gs-font); color: #fff;
+  background: radial-gradient(ellipse at 50% 30%, #23407e 0%, #142a5a 45%, #0b1633 100%);
+  animation: gsIn .3s ease-out both;
+}
+.gshow.hidden { display: none; }
+@keyframes gsIn { from { opacity: 0; } }
+.gshow .gs-hide { display: none !important; }
+.gshow .gs-stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: manipulation; }
+.gshow .gs-three { position: absolute; left: 50%; top: calc(42% - 60px); width: min(380px, 80vw); height: min(380px, 80vw); transform: translate(-50%, -50%); pointer-events: none; opacity: 0; transition: opacity .5s; }
+.gshow .gs-three.on { opacity: 1; }
+
+/* 나가기 (왼쪽 위) · 코인 (오른쪽 위) */
+.gshow .gs-exit { position: absolute; top: 12px; left: 12px; z-index: 6; font: 700 15px var(--gs-font); color: #fff; border: 0; border-radius: 14px; padding: 9px 14px; cursor: pointer;
+  background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); }
+.gshow .gs-exit:hover { background: rgba(255,255,255,.24); }
+.gshow .gs-coins { position: absolute; top: 12px; right: 12px; z-index: 6; font: 700 15px var(--gs-font); padding: 8px 14px; border-radius: 14px; background: rgba(0,0,0,.25); box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); display: flex; align-items: center; gap: 6px; }
+.gshow .gs-coin { display: inline-block; width: .8em; height: .8em; border-radius: 50%; background: var(--gs-ball); box-shadow: inset 0 -2px 0 rgba(0,0,0,.18); }
+
+/* 아래: 안내 · 버튼 · 천장 게이지 */
+.gshow .gs-dock { position: absolute; left: 0; right: 0; bottom: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 4; pointer-events: none; }
+.gshow .gs-dock > * { pointer-events: auto; }
+.gshow .gs-hint { font-size: 17px; font-weight: 700; color: rgba(255,255,255,.92); text-shadow: 0 2px 10px rgba(0,0,0,.4); min-height: 24px; text-align: center; padding: 0 16px; }
+.gshow .gs-hint.pulse { animation: gsPulse 1.1s ease-in-out infinite; }
+@keyframes gsPulse { 50% { opacity: .45; transform: scale(.97); } }
+.gshow .gs-btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; padding: 0 16px; }
+.gshow .gs-btns button { font: 700 17px var(--gs-font); color: #fff; border: 0; border-radius: 16px; padding: 13px 22px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); transition: transform .15s; }
+.gshow .gs-btns button:hover:not(:disabled) { transform: translateY(-1px); }
+.gshow .gs-btns button:active:not(:disabled) { transform: scale(.97); }
+.gshow .gs-btns button:disabled { opacity: .4; cursor: default; }
+.gshow .gs-btns button.big { background: linear-gradient(180deg, var(--gs-red-hi), var(--gs-red-lo)); box-shadow: 0 10px 26px rgba(215,38,46,.4), inset 0 1px 0 rgba(255,255,255,.35); }
+.gshow .gs-btns button small { font-weight: 600; font-size: 13px; opacity: .85; display: inline-flex; align-items: center; gap: 4px; }
+/* 게임의 공통 버튼 모양(style.css의 button·button.big)이 섞이지 않게 */
+.gshow button { width: auto; flex: none; margin: 0; line-height: 1.2; letter-spacing: -0.01em; }
+.gshow button:active:not(:disabled) { box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); }
+.gshow .gs-btns button.big:active:not(:disabled) { box-shadow: 0 5px 14px rgba(215,38,46,.35), inset 0 1px 0 rgba(255,255,255,.3); }
+.gshow .gs-pity { font-size: 13px; color: rgba(255,255,255,.7); display: flex; align-items: center; gap: 8px; }
+.gshow .gs-pity .gauge { width: 140px; height: 7px; border-radius: 99px; background: rgba(255,255,255,.15); overflow: hidden; }
+.gshow .gs-pity .gauge i { display: block; height: 100%; background: linear-gradient(90deg, #ffb13c, #ffe27a); border-radius: 99px; transition: width .6s; }
+
+/* 아이템 등장 (가운데) */
+.gshow .gs-reveal { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; z-index: 3; }
+.gshow .gs-reveal .pic { width: 150px; height: 150px; display: grid; place-items: center; }
+.gshow .gs-reveal .pic img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 10px 24px rgba(0,0,0,.35)); }
+.gshow .gs-reveal .pic.bg img { width: 220px; height: 136px; border-radius: 14px; object-fit: cover; }
+.gshow .gs-reveal .gd { margin-top: 10px; font-size: 14px; font-weight: 700; padding: 3px 12px; border-radius: 99px; background: var(--gc); color: #1b1630; }
+.gshow .gs-reveal .nm { margin-top: 6px; font-size: 30px; font-weight: 800; letter-spacing: -.02em; text-shadow: 0 3px 16px rgba(0,0,0,.45); text-align: center; }
+.gshow .gs-reveal .sub { margin-top: 4px; font-size: 14px; color: rgba(255,255,255,.75); }
+.gshow .gs-reveal .new { color: #ff5d7a; font-weight: 800; }
+.gshow .gs-reveal.pop { animation: gsPop .5s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes gsPop { 0% { transform: translate(-50%, -50%) scale(.3); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+
+/* 전설: 금빛 글자 */
+.gshow .gs-reveal.leg .pic { width: 380px; height: 300px; }
+.gshow .gs-reveal.leg .big { font-weight: 200; font-size: 22px; letter-spacing: .6em; color: #fff3cf; text-shadow: 0 0 18px #ffcf5a, 0 0 40px #ff9d2a; margin-right: -.6em; animation: gsFadeUp 1.2s .1s both; }
+.gshow .gs-reveal.leg .nm { font-size: 40px; font-weight: 800; background: linear-gradient(100deg, #fff6d8 0%, #ffd25a 30%, #fff 45%, #ffd25a 60%, #e39b12 100%); background-size: 250% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 0 14px rgba(255,190,60,.7)); animation: gsFadeUp 1s .45s both, gsShimmer 2.8s 1.4s linear infinite; }
+.gshow .gs-reveal.leg .sub { animation: gsFadeUp 1s .8s both; }
+@keyframes gsFadeUp { 0% { opacity: 0; transform: translateY(14px); filter: blur(6px); } 100% { opacity: 1; transform: none; } }
+@keyframes gsShimmer { 0% { background-position: 120% 0; } 100% { background-position: -130% 0; } }
+.gshow .gs-reveal .pic img.float { width: 78%; height: 78%; animation: gsFloat 2.2s cubic-bezier(.2,.8,.3,1) both, gsBob 3s 2.2s ease-in-out infinite; }
+.gshow .gs-reveal .pic.bg img.float { width: 300px; height: 186px; }
+@keyframes gsFloat { 0% { transform: translateY(-40px) scale(.6) rotateY(900deg); opacity: 0; filter: brightness(3) blur(4px); } 100% { transform: none; opacity: 1; } }
+@keyframes gsBob { 50% { transform: translateY(-8px) rotate(2deg); } }
+
+/* 10회 결과 정리 */
+.gshow .gs-sum { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -54%); width: min(620px, calc(100vw - 32px)); z-index: 3; padding: 16px; border-radius: 22px;
+  background: rgba(255,255,255,.12); backdrop-filter: blur(22px) saturate(170%); -webkit-backdrop-filter: blur(22px) saturate(170%); border: 1px solid rgba(255,255,255,.32);
+  box-shadow: 0 16px 40px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.35); animation: gsSumIn .4s ease-out both; }
+@keyframes gsSumIn { from { opacity: 0; transform: translate(-50%, -48%) scale(.96); } }
+.gshow .gs-sum h3 { margin: 0 0 12px; text-align: center; font-size: 19px; }
+.gshow .gs-sum ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.gshow .gs-sum li { position: relative; border-radius: 14px; padding: 8px 3px 6px; text-align: center; background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); animation: gsSumIn .3s both; }
+.gshow .gs-sum li img { width: 52px; height: 52px; object-fit: contain; display: block; margin: 0 auto; }
+.gshow .gs-sum li img.bg { width: 64px; height: 40px; object-fit: cover; border-radius: 6px; margin: 6px auto; }
+.gshow .gs-sum li .n { display: block; font-size: 12px; font-weight: 600; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gshow .gs-sum li .t { display: block; font-size: 11px; color: rgba(255,255,255,.6); }
+.gshow .gs-sum li .new { position: absolute; top: 4px; left: 5px; font-size: 10px; font-weight: 800; background: #ff4d6d; border-radius: 6px; padding: 0 4px; }
+.gshow .gs-sum li.g-rare { background: linear-gradient(180deg, rgba(176,124,255,.35), rgba(176,124,255,.1)); box-shadow: inset 0 0 0 1px rgba(196,160,255,.6); }
+.gshow .gs-sum li.g-legend { background: linear-gradient(180deg, rgba(255,201,60,.45), rgba(255,160,40,.12)); box-shadow: inset 0 0 0 2px #ffc93c, 0 0 18px rgba(255,190,60,.55); }
+@media (max-width: 560px) {
+  .gshow .gs-sum ul { gap: 5px; } .gshow .gs-sum li img { width: 40px; height: 40px; }
+  .gshow .gs-reveal.leg .pic { width: 280px; height: 260px; }
+  .gshow .gs-reveal.leg .nm { font-size: 32px; }
+  .gshow .gs-btns button { font-size: 16px; padding: 12px 16px; }
+}

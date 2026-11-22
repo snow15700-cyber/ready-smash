@@ -74,6 +74,8 @@ const camBlend = { p: 0, f: 0, x: 0, last: 0 }; // p: 0 = 로비 카메라, 1 = 
 })();
 /* ───────── 매 프레임 ───────── */
 function loop() {
+  // 뽑기 연출 화면(src/gachaShow.js)이 화면을 다 덮는 동안에는 뒤의 3D 장면을 쉬게 한다 (느린 PC)
+  if (!game && !match && document.body.classList.contains('gacha-on')) { requestAnimationFrame(loop); return; }
   const now = performance.now() / 1000;
   // 내 스윙 판단을 먼저 끝내고 나서 경기 판정 (느린 PC에서도 늦게 친 공이 버려지지 않게)
   if (game) game.decideHit(now + game.offset);

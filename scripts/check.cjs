@@ -378,6 +378,14 @@ async function browserChecks() {
       await click('#btn-test-coins');
       await waitFor(page, () => !document.querySelector('#btn-gacha-10').disabled, null, 10000, '뽑기 버튼 (시험 코인)');
       await click('#btn-gacha-10');
+      // 뽑기 연출 화면: 공 10개가 다 떨어지면 '모두 깨기' → (금빛 공은 직접 깨야 하니) 점검용으로 바로 결과 → 나가기
+      await waitFor(page, () => window.__gachaTest?.mode === 'tap', null, 30000, '뽑기 연출: 공 10개');
+      await page.evaluate(() => [...document.querySelectorAll('#gacha-show .gs-btns button')].find((b) => b.dataset.act === 'all')?.click());
+      await page.waitForTimeout(800);
+      await page.evaluate(() => window.__gachaTest.finishNow());
+      await waitFor(page, () => !!document.querySelector('#gacha-exit:not(.gs-hide)'), null, 10000, '뽑기 연출: 나가기 버튼');
+      await click('#gacha-exit');
+      must(!(await page.evaluate(() => window.__gachaTest.active)), '나가기를 눌러도 뽑기 연출 화면이 안 닫혀요');
       await waitFor(page, () => document.querySelectorAll('#gacha-result > li').length === 10, null, 15000, '뽑기 10장');
       await waitFor(page, () => !document.querySelector('#btn-gacha-1').disabled, null, 15000, '뽑기 끝');
       await click('#tab-closet');

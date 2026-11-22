@@ -17,7 +17,7 @@
 | 경기 규칙·조작·판정·찬스볼·몰입 연출·**동기화 규칙** | `docs/dev/gameplay.md` | main / 와이파이 느림 대비(출발 늦추기·네트워크 렛) test |
 | 2v2·혼자 하기(AI)·모바일·링크 미리보기·**관전 모드(기획·단계)** | `docs/dev/modes.md` | main (관전 ①~⑤) / ⑥ 대기실부터 관전 1·2단계 test |
 | PIN 계정·전적·랭킹·코인·경기 확인·**보안(18)**·업적·칭호·**쉬는 시간 보너스(19)** | `docs/dev/accounts.md` | main (SQL 01~21 실행 완료) — 쉬는 시간 보너스·오늘의 미션 포함 / 출석 도장판 아직 |
-| 상점·꾸미기 공통, 탁구채(전설 포함)·몸·목록 그림·**머리·얼굴·세트(기획)** | `docs/dev/shop.md` | main / 머리 28·얼굴 16·세트 11 test(**24 실행 필요**) |
+| 상점·꾸미기 공통, 탁구채(전설 포함)·몸·목록 그림·**머리·얼굴·세트(기획)**·**뽑기 연출** | `docs/dev/shop.md` | main / 머리 28·얼굴 16·세트 11 test(**24 실행 필요**) / 뽑기 연출(탁구공 깨기) test |
 | 탁구공 | `docs/dev/balls.md` | main |
 | 탁구대(일반 6·고급 7·전설 5) | `docs/dev/tables.md` | 게임·뽑기 연결 test(22 실행 필요) |
 | 배경(경기장)·배경 합치기(성능) | `docs/dev/arenas.md` | main (일반 배경 3종 포함, 20 실행 완료) |
@@ -44,6 +44,7 @@
   `state.js`(공용: `$`·`world`·`game`/`match`/`preview`와 `setGame` 등 — 다른 파일이 바꾸는 변수는 여기에 두고 setter로) · `screen.js`(`show`·`stopGame`) · `hud.js`(경기 화면 글자) · `ai.js`(혼자 하기) · `room.js`(방·대기실·시계 맞추기·전적 저장·코드 입장) · `lobbyList.js`(로비 방 목록) · `watch.js`(관전) · `cheer.js`(관중석·응원) · `login.js`(로그인·PIN·업데이트/치는 방법 창) · `rank.js` · `dress.js`(꾸미기) · `titles.js`(업적 알림·칭호) · `stage.js`(대기실 무대·연습 스윙) · `intro.js`(VS 소개).
   새 화면 파일을 만들면 `main.js` 맨 위에서 꼭 불러온다(버튼 연결이 불러올 때 일어남).
 - `src/account.js` 서버 함수 부르기 + 로컬 가짜 서버. `src/achievements.js` 업적 목록.
+- `src/gachaShow.js` 뽑기 연출 화면(탁구공 깨기, 시안 `gacha.html`과 같은 코드).
 - `src/items.js` 아이템 목록·탁구채 모델·`applyLook`·목록 그림(`src/thumbs/`). `src/outfits.js` 몸. `src/balls.js` 탁구공. `src/fx.js` 효과 파티클.
 - `src/crowd.js` 관중석 캐릭터(관전).
 - `src/arenas.js` + `src/arena-*.js` 배경. `src/lobbyDemo.js` 로비 배경 랠리. 시안 페이지 `outfits.html`·`balls.html`·`tables.html`·`hats.html`(머리 `src/hats.js`·얼굴 `src/faces.js`). 탁구대 `src/tables.js`(+ `tables-rare.js`·`tables-legend.js`·`table-kit.js`).
