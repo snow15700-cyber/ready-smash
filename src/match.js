@@ -19,6 +19,13 @@ export const SMASH_OUT = true;
 // 받는 사람 화면에 공이 '날아오지도 않았는데' 놓침이 될 수 있다. 그래서 늦게 온 타격은 공이 라켓에 조금 더
 // 머물다 출발하게 해서, 도착한 시점에 공이 날아가 있던 시간이 LATE_OK초를 넘지 않게 한다.
 export const LATE_OK = 0.15;
+// 반대 방향(방장이 계산한 공이 받는 사람 PC에 늦게 도착)도 같은 방법: 받는 사람이 네트워크 너머에 있으면
+// 그 사람의 연결 지연(편도, 참가자 PC가 재서 ping에 실어 보냄)만큼 공이 라켓에 더 머물다 출발한다. 최대 RECV_LAG_MAX초
+export const RECV_LAG_MAX = 0.2;
+// 네트워크 렛: 받는 사람 PC가 공 소식을 LET_LATE초 넘게 늦게 받았다고 알려 왔고 그 공을 놓쳤으면
+// 실점 대신 점수 없이 다시 서브. 선수마다 한 경기에 LET_MAX번까지 (그다음부터는 원래대로 실점)
+export const LET_LATE = 0.3;
+export const LET_MAX = 3;
 
 // 한 번의 타격 결과 계산. 방장과 상대 PC가 같은 입력이면 똑같은 결과가 나온다 (상대 PC의 예측용)
 // incoming: 지금 받는 공의 종류 ('chance' | 'smash' | null), dt: 이상적인 타격 시각과의 차이
@@ -82,8 +89,13 @@ export function hitOrder(mode) {
 
 export class Match {
   // isRemote(side, slot): 네트워크 너머에 있는 선수인지 (입력이 늦게 도착하므로 판정 대기 시간을 늘림)
-  constructor({ mode, emit, seed = (Math.random() * 1e9) | 0, isRemote = () => false }) {
+  // lagOf(side, slot): 그 선수 PC까지 방장 소식이 가는 데 걸리는 시간(초, 편도). 이 PC 선수는 0
+  constructor({ mode, emit, seed = (Math.random() * 1e9) | 0, isRemote = () => false, lagOf = () => 0 }) {
     this.isRemote = isRemote;
+    this.lagOf = lagOf;
+    this.lets = {}; // 선수('side:slot')별 네트워크 렛 횟수
+    this.late = null; // 받는 사람이 '늦게 받았어요'라고 알려 온 공 {side, slot, idx}
+    this.missed = null; // 방금 놓친 공 (점수가 나기 전까지, 늦은 알림이 뒤따라오면 렛으로 바꾼다)
     this.mode = mode; // 'ai' | '1v1' | '2v2'
     this.order = hitOrder(mode);
     this.turn = 0; // 다음에 칠 사람 (order의 번호)
@@ -112,6 +124,8 @@ export class Match {
     this.expect = null;
     this.rally = 0;
     this.incoming = null;
+    this.late = null;
+    this.missed = null;
     this.emit({ type: 'serveReady', server: this.server, turn: this.turn, score: [...this.score] });
   }
 
@@ -147,6 +161,11 @@ export class Match {
 
   // hold: 사람이 친 공은 방향을 읽는 동안 잠깐 라켓에 머문 뒤 출발
   hit(side, t, grade, dir, hold = 0, slot = 0, dt = 0) {
+    // 받는 사람이 네트워크 너머면 소식이 도착할 시간만큼 출발을 늦춘다 (RECV_LAG_MAX 참고)
+    const recv = this.order[(this.turn + 1) % this.order.length];
+    hold += Math.min(RECV_LAG_MAX, Math.max(0, this.lagOf(recv.side, recv.slot) || 0));
+    this.late = null;
+    this.missed = null;
     const shot = computeShot({
       mode: this.mode, seed: this.seed, shotIdx: this.shotIdx, rally: this.rally,
       segs: this.segs, serve: this.phase === 'toss', side, t, grade, dir, hold, incoming: this.incoming, dt,
@@ -171,6 +190,7 @@ export class Match {
     this.pending = {
       t: at,
       fn: (now) => {
+        this.missed = null; // 점수가 났으면 더는 렛으로 못 바꿈
         if (this.mode === 'ai') {
           this.emit({ type: 'rallyEnd', rally: this.rally });
           this.pending = { t: now + 1.0, fn: (n) => this.readyServe(n) };
@@ -191,6 +211,30 @@ export class Match {
         this.pending = { t: now + 1.4, fn: (n) => this.readyServe(n) };
       },
     };
+  }
+
+  // 받는 사람 PC가 '공 소식(idx번 공)을 늦게 받았어요'라고 알려 옴
+  reportLate(side, slot, idx, now) {
+    if (this.mode === 'ai' || idx !== this.shotIdx - 1) return;
+    if ((this.lets[`${side}:${slot}`] || 0) >= LET_MAX) return;
+    this.late = { side, slot, idx };
+    const m = this.missed;
+    if (m && m.idx === idx && m.side === side && m.slot === slot) this.netLet(side, slot, now); // 놓친 뒤에 알림이 도착
+  }
+
+  // 네트워크 렛: 점수 없이 같은 서버가 다시 서브
+  netLet(side, slot, now) {
+    const key = `${side}:${slot}`;
+    this.lets[key] = (this.lets[key] || 0) + 1;
+    this.late = null;
+    this.missed = null;
+    this.phase = 'point';
+    this.expect = null;
+    const [a, b] = this.score;
+    this.turn = (a + b) % this.order.length;
+    this.server = this.order[this.turn].side;
+    this.emit({ type: 'let', side, slot, left: LET_MAX - this.lets[key] });
+    this.pending = { t: now + 1.6, fn: (n) => this.readyServe(n) };
   }
 
   update(now) {
@@ -215,8 +259,11 @@ export class Match {
         this.emit({ type: 'serveMiss', side: ex.side, slot: ex.slot });
         this.pending = { t: now + 1.1, fn: (n) => this.readyServe(n) };
       } else {
+        const idx = this.shotIdx - 1, L = this.late;
+        if (L && L.idx === idx && L.side === ex.side && L.slot === ex.slot) { this.netLet(ex.side, ex.slot, now); return; }
         this.emit({ type: 'miss', side: ex.side, slot: ex.slot, t: now });
         this.pointTo(1 - ex.side, now + 0.9, 'miss');
+        this.missed = { side: ex.side, slot: ex.slot, idx };
       }
     }
   }

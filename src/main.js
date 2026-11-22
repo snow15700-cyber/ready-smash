@@ -11,7 +11,7 @@ import './ui/breakPill.js';
 import './ui/missions.js';
 import { autoLogin, equipItem, gacha, myEquip, testCoins } from './account.js';
 import { initAudio, playUI, setEcho, setListener, setQuiet } from './audio.js';
-import { applyLook, arenaOf, ballOf } from './items.js';
+import { applyLook, arenaOf, ballOf, tableOf } from './items.js';
 import { LOBBY_CAM, createLobbyDemo } from './lobbyDemo.js';
 import { IS_TEST, ONLINE, makeCode } from './net.js';
 import { CHAR_Z } from './scene.js';
@@ -139,6 +139,7 @@ function loop() {
   const arenaLook = room ? room.hostM?.look : watch ? watch.hostM?.look : preview && !game ? preview.look : myEquip();
   world.setArena(arenaOf(arenaLook));
   world.setBallSkin(ballOf(arenaLook)); // 탁구공도 배경처럼: 방에서는 방장 것
+  world.setTable(tableOf(arenaLook)); // 탁구대도 (방장 것)
 
   world.crowd.setShown(!!game); // 관중석은 경기 화면에서만 (대기실 무대엔 안 세움)
   world.crowd.update(now); // 관중석 (관중이 없으면 바로 끝남)

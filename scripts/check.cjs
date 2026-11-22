@@ -268,7 +268,7 @@ async function browserChecks() {
       // 목록 그림
       const thumbs = new Set(fs.readdirSync(path.join(ROOT, 'src', 'thumbs')).map((f) => f.replace(/\.webp$/, '')));
       for (const it of [...web.items.map((i) => i.id), ...web.defaults]) {
-        if (/^(paddle|body|ball)_/.test(it) && !thumbs.has(it)) probs.push(`${it}: 목록 그림 없음 → npm run thumbs`);
+        if (/^(paddle|body|ball|table)_/.test(it) && !thumbs.has(it)) probs.push(`${it}: 목록 그림 없음 → npm run thumbs`);
       }
       for (const it of web.items.filter((i) => i.cat === 'bg')) if (!fs.existsSync(path.join(ROOT, 'public', 'arenas', `${it.arena}.jpg`))) probs.push(`${it.id}: public/arenas/${it.arena}.jpg 없음`);
       must(!probs.length, probs.join('\n'));
@@ -476,6 +476,33 @@ async function browserChecks() {
       return `방 코드 ${code}, 관전 확인`;
     });
 
+    await step('화면: 탁구대 19종 짓기·바꾸기 (튀기·득점 연출)', async () => {
+      const r = await page.evaluate(async () => {
+        const w = window.__smash.world, out = [];
+        const I = await import('/src/tables.js');
+        const orig = w.setTable; let want = 'blue';
+        w.setTable = () => orig(want); // 루프가 내 장착으로 되돌리지 않게
+        try {
+          for (const t of I.TABLES) {
+            want = t.id;
+            const t0 = performance.now();
+            while (w.table?.name !== 'table:' + t.id && performance.now() - t0 < 20000) await new Promise((r) => setTimeout(r, 50));
+            if (w.table?.name !== 'table:' + t.id) return { fail: t.id };
+            w.table.userData.bounce?.([0.2, 0.76, -0.5], true, null);
+            w.tableScore({ x: 0.1, z: -1.37, smash: true });
+            await new Promise((r) => setTimeout(r, 150));
+            out.push(t.id);
+          }
+          want = 'blue';
+          await new Promise((r) => setTimeout(r, 200));
+        } finally { w.setTable = orig; }
+        return { out };
+      });
+      must(!r.fail, `탁구대 ${r.fail}이(가) 안 바뀌어요` + (errs.length ? '\n' + [...new Set(errs.splice(0))].slice(0, 4).join('\n') : ''));
+      flush();
+      return `${r.out.length}종`;
+    });
+
     await step('화면: 배경 9종 짓기·바꾸기', async () => {
       const r = await page.evaluate(async () => {
         const w = window.__smash.world, out = [];
@@ -498,7 +525,7 @@ async function browserChecks() {
       return '합친 물건 ' + r.out.join(', ');
     });
 
-    for (const [file, ready] of [['outfits.html', '몸 꾸미기 시안'], ['balls.html', '탁구공 시안'], ['hats.html', '머리 꾸미기 시안']]) {
+    for (const [file, ready] of [['outfits.html', '몸 꾸미기 시안'], ['balls.html', '탁구공 시안'], ['tables.html', '탁구대 시안'], ['hats.html', '머리 꾸미기 시안']]) {
       await step(`화면: ${ready} 페이지 (${file})`, async () => {
         const p = await ctx.newPage();
         watch(p, file, errs);

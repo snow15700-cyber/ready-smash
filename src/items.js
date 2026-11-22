@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { fxTex } from './fx.js';
 import { OUTFITS, makeOutfit } from './outfits.js';
 import { BALLS, makeBall } from './balls.js';
+import { TABLES, makeTable } from './tables.js';
 
 // 상점 아이템 목록 (기획서 4장). 이름·모양은 여기, 뽑기·구매 규칙은 서버(supabase/06_shop.sql)가 정한다.
 // ⚠️ 아이템을 추가·변경하면 06_shop.sql의 pingpong_items 목록(insert)도 똑같이 고쳐야 한다.
@@ -30,13 +31,13 @@ export const CATS = {
   head: { name: '머리', pool: 'char' },
   body: { name: '몸', pool: 'char', ready: true },
   trail: { name: '궤적', pool: 'char' },
-  table: { name: '탁구대', pool: 'arena' },
+  table: { name: '탁구대', pool: 'arena', ready: true },
   bg: { name: '배경', pool: 'arena', ready: true },
   ball: { name: '탁구공', pool: 'arena', ready: true },
 };
 
 // 기본 아이템 (카테고리마다 하나, 장착 안 했을 때 이것)
-export const DEFAULTS = { paddle: 'paddle_red', body: 'body_none', bg: 'bg_gym', ball: 'ball_white' };
+export const DEFAULTS = { paddle: 'paddle_red', body: 'body_none', bg: 'bg_gym', ball: 'ball_white', table: 'table_blue' };
 
 // model: 모양이 다른 탁구채(아래 PADDLE_MODELS). 없으면 기본 탁구채에 color만 바꾼다
 const paddle = (id, name, grade, color, extra = {}) => ({ id, cat: 'paddle', name, grade, color, ...extra });
@@ -96,6 +97,8 @@ export const ITEMS = [
   // 탁구공 (경기장 뽑기). ball = balls.js의 BALLS id, sound = 바운드음(audio.js의 BOUNCE_SKINS). 방에서는 방장 것이 모두에게 보인다
   { id: 'ball_white', cat: 'ball', name: '흰색', grade: 'default', ball: 'white' },
   ...BALLS.map((b) => ({ id: 'ball_' + b.id, cat: 'ball', name: b.name, grade: b.grade, ball: b.id, ...(b.sound ? { sound: b.sound } : {}), ...(b.hatch ? { hatch: b.hatch } : {}) })),
+  // 탁구대 (경기장 뽑기). table = tables.js의 TABLES id. 방에서는 방장 것이 모두에게 보인다. 공 튀는 소리는 안 바뀜(공이 정함)
+  ...TABLES.map((t) => ({ id: 'table_' + t.id, cat: 'table', name: t.grade === 'default' ? '파랑' : t.name, grade: t.grade, table: t.id })),
 ];
 for (const it of ITEMS) it.pool = CATS[it.cat].pool;
 export const ITEM = Object.fromEntries(ITEMS.map((it) => [it.id, it]));
@@ -1221,13 +1224,14 @@ function snap(obj, px, lookY, dist) {
   } else {
     // 크기는 실제 부품만 잰다 (전설 탁구채의 효과용 그림은 빼고)
     const box = new THREE.Box3(), bb = new THREE.Box3();
-    obj.traverse((o) => {
+    obj.traverseVisible((o) => { // 숨겨 둔 것(전설 탁구대의 지니 등)은 크기에서 뺀다
       if (!o.isMesh || o.userData.fxKeep) return;
       if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
       box.union(bb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld));
     });
     const c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3()).length();
     camera.position.set(c.x, c.y, c.z + size * 1.9);
+    camera.far = Math.max(10, size * 4); camera.updateProjectionMatrix(); // 큰 물건(탁구대)도 안 잘리게
     camera.lookAt(c);
   }
   renderer.setClearColor(0x000000, 0);
@@ -1292,6 +1296,25 @@ export function ballImage(it, px = 128) {
 const ARENA_IMG = (import.meta.env?.BASE_URL || '/') + 'arenas/';
 export const arenaOf = (look) => equipped(look, 'bg').arena;
 export const ballOf = (look) => equipped(look, 'ball').ball;
+export const tableOf = (look) => equipped(look, 'table').table;
+
+// 탁구대는 비스듬히 내려다본 모양 (옆 소품까지)
+export function tableImage(it, px = 128) {
+  const key = it.id + '/' + px;
+  if (thumbs[key] != null) return thumbs[key];
+  try {
+    const t = makeTable(it.table);
+    for (let i = 0; i < 4; i++) t.userData.tick?.(1 + i * 0.04, 0.04, null, {}); // 움직이는 탁구대: 한 번 그려 둠
+    t.rotation.y = -0.65;
+    const g = new THREE.Group();
+    g.add(t);
+    g.rotation.x = 0.62;
+    thumbs[key] = snap(g, px);
+  } catch {
+    thumbs[key] = '';
+  }
+  return thumbs[key];
+}
 
 // 미리 찍어 둔 목록 그림 (npm run thumbs → src/thumbs/<id>.webp). 있으면 바로 쓰고, 없으면 그 자리에서 3D로 찍는다
 // (예전엔 카테고리를 처음 누를 때 수십 개를 한꺼번에 찍느라 화면이 1초쯤 멈췄다)
@@ -1304,6 +1327,10 @@ export function swatch(it) {
   if (file) return `<img class="sw img" src="${file}" alt="" />`;
   if (it.cat === 'ball') {
     const src = ballImage(it);
+    if (src) return `<img class="sw img" src="${src}" alt="" />`;
+  }
+  if (it.cat === 'table') {
+    const src = tableImage(it);
     if (src) return `<img class="sw img" src="${src}" alt="" />`;
   }
   if (it.cat === 'body') {

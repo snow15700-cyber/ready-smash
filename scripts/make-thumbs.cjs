@@ -1,4 +1,4 @@
-// 옷장 목록 그림 미리 찍기: 탁구채·몸·탁구공 아이템을 3D로 그려 src/thumbs/<아이템 id>.webp 로 저장한다.
+// 옷장 목록 그림 미리 찍기: 탁구채·몸·탁구공·탁구대 아이템을 3D로 그려 src/thumbs/<아이템 id>.webp 로 저장한다.
 // 아이템을 추가하거나 모양을 바꾸면 한 번 실행: npm run thumbs
 // (그림 파일이 없는 아이템은 게임이 예전처럼 그 자리에서 찍는다 — 느릴 뿐 고장은 아님)
 const { chromium } = require('playwright');
@@ -17,9 +17,10 @@ const only = process.argv.slice(2); // 아이템 id를 주면 그것만
     const browser = await chromium.launch();
     const page = await browser.newPage();
     await page.goto(`http://localhost:${PORT}/outfits.html`); // 가벼운 페이지 (게임 화면은 안 띄움)
+    await page.evaluate(() => document.fonts.load('20px Jua')); // 탁구대 그림 속 글씨
     const shots = await page.evaluate(async (only) => {
       const I = await import('/src/items.js');
-      const make = { paddle: I.paddleImage, body: I.outfitImage, ball: I.ballImage };
+      const make = { paddle: I.paddleImage, body: I.outfitImage, ball: I.ballImage, table: I.tableImage };
       const toWebp = (url) => new Promise((res) => {
         const img = new Image();
         img.onload = () => {
