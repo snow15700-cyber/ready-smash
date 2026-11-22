@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { createFx } from './fx.js';
 import { makeBall, ballFx } from './balls.js';
 import { playCrack, playPeep, playRoar } from './audio.js';
-import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H, HIT_Z, sideSign } from './physics.js';
+import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H, HIT_Z, sideSign, ballPos } from './physics.js';
 import { createCrowd } from './crowd.js';
 import { makeTable } from './tables.js';
 
@@ -166,6 +166,80 @@ export function createWorld(canvas) {
   const trailHist = []; // [x, y, z, 초]
   const TRAIL_GAP = 2 / 60; // 잔상 하나당 간격(초) — 예전 60fps에서 2장 간격과 같음
   const tv1 = new THREE.Vector3(), tv2 = new THREE.Vector3();
+  // 찬스볼 물결 잔상 (gameplay.md 찬스볼): 친 순간 ~ 처음 튈 때까지 하얀 줄이 살랑살랑. 튀면 사라지고 상대가 칠 때까지 잔상 없음.
+  // 색은 안 쓴다(나중에 궤적 아이템이 색을 바꿔도 모양으로 알아보게). '똑 똑 똑 띵' 박자에 맞춰 튀기 전엔 물결이, 튄 뒤엔 공이 반짝
+  const WAVE = { amp: 0.045, freq: 20, speed: 9, w: 0.022, alpha: 0.75, fade: 0.12, max: 240 };
+  const wave = (() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(WAVE.max * 6), 3));
+    g.setAttribute('alpha', new THREE.BufferAttribute(new Float32Array(WAVE.max * 2), 1));
+    const idx = [];
+    for (let i = 0; i < WAVE.max - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    g.setIndex(idx);
+    const m = new THREE.Mesh(g, new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      vertexShader: 'attribute float alpha; varying float vA; void main(){ vA = alpha; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'varying float vA; void main(){ gl_FragColor = vec4(1.0, 1.0, 1.0, vA); }',
+    }));
+    m.frustumCulled = false;
+    m.visible = false;
+    m.userData.noFocus = true;
+    scene.add(m);
+    return m;
+  })();
+  // 튄 뒤 박자 반짝임: 공 둘레의 하얀 빛
+  const ballGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: canvasTex(64, 64, (g, w, h) => {
+      const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+      gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.7)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    }),
+    transparent: true, depthWrite: false, opacity: 0,
+  }));
+  ballGlow.visible = false;
+  ball.add(ballGlow);
+  let chance = null; // { segs, t0, tb, now, flash } — game.js가 매 프레임 넣음
+  const wPts = [], wTg = new THREE.Vector3(), wN = new THREE.Vector3(), wV = new THREE.Vector3(), wS = new THREE.Vector3(), wQ = new THREE.Vector3();
+  for (let i = 0; i < WAVE.max; i++) wPts.push(new THREE.Vector3());
+  function drawChance() {
+    const c = chance;
+    const fade = !c ? 0 : c.now < c.tb ? 1 : Math.max(0, 1 - (c.now - c.tb) / WAVE.fade);
+    const bounced = c && c.now >= c.tb;
+    // 공 반짝임 (튄 뒤)
+    const bf = c && bounced && ball.visible ? c.flash : 0;
+    ballGlow.visible = bf > 0.01;
+    ballGlow.material.opacity = bf * 0.9;
+    ballGlow.scale.setScalar(0.07 + 0.09 * bf);
+    ball.scale.setScalar(1 + 0.3 * bf);
+    if (!c || fade <= 0 || c.now <= c.t0) { wave.visible = false; return; }
+    // 공이 지나온 길: [공 쪽 → 친 곳]
+    const end = Math.min(c.now, c.tb);
+    let n = 0;
+    if (bounced) wPts[n++].fromArray(ballPos(c.segs, c.tb));
+    for (let t = end; t > c.t0 && n < WAVE.max - 1; t -= 1 / 240) wPts[n++].fromArray(ballPos(c.segs, t));
+    wPts[n++].fromArray(ballPos(c.segs, c.t0));
+    const wf = bounced ? 0 : c.flash; // 튀기 전 박자 반짝임: 더 진하고 굵게
+    const pos = wave.geometry.attributes.position.array, al = wave.geometry.attributes.alpha.array;
+    let s = 0;
+    for (let i = 0; i < WAVE.max; i++) {
+      const k = Math.min(i, n - 1);
+      const p = wPts[k];
+      if (i > 0 && i < n) s += p.distanceTo(wPts[k - 1]);
+      wTg.subVectors(wPts[Math.max(k - 1, 0)], wPts[Math.min(k + 1, n - 1)]).normalize();
+      wV.subVectors(camera.position, p).normalize();
+      wN.crossVectors(wTg, wV).normalize(); // 화면에서 공 길에 수직 (어느 쪽에서 봐도 물결이 보이게)
+      const u = n > 1 ? k / (n - 1) : 0; // 0 = 공, 1 = 꼬리
+      const amp = WAVE.amp * Math.min(1, s / 0.12); // 공 바로 뒤에서는 작게 시작
+      wQ.copy(p).addScaledVector(wN, Math.sin(s * WAVE.freq - c.now * WAVE.speed) * amp);
+      wS.copy(wN).multiplyScalar(WAVE.w * (1 + 0.6 * wf) * (1 - u * 0.6) * 0.5);
+      pos[i * 6] = wQ.x + wS.x; pos[i * 6 + 1] = wQ.y + wS.y; pos[i * 6 + 2] = wQ.z + wS.z;
+      pos[i * 6 + 3] = wQ.x - wS.x; pos[i * 6 + 4] = wQ.y - wS.y; pos[i * 6 + 5] = wQ.z - wS.z;
+      al[i * 2] = al[i * 2 + 1] = i < n ? Math.min(1, WAVE.alpha + 0.25 * wf) * Math.pow(1 - u, 1.3) * Math.min(1, s / 0.05) * fade : 0;
+    }
+    wave.geometry.attributes.position.needsUpdate = true;
+    wave.geometry.attributes.alpha.needsUpdate = true;
+    wave.visible = n > 1;
+  }
   // 잔상 중 카메라와 공 사이에 있으면서 화면에서 공과 겹치는 것은 숨긴다 (공 반지름 0.028, 겹침 여유 1.15배)
   function hideTrailOverBall() {
     if (!ball.visible) return;
@@ -369,6 +443,8 @@ export function createWorld(canvas) {
       shadow.material.opacity = Math.max(0.08, 0.4 - hgt * 0.35);
     },
     clearTrail() { trailHist.length = 0; },
+    // 찬스볼 물결 잔상 (c = null이면 끔): 찬스볼이 날아가는 동안에는 보통 잔상(동그라미)을 안 그린다
+    chanceFx(c) { chance = c; },
     // 탁구공 꾸미기: 방에서는 방장 것, 로비·혼자 하기는 내 것 (main.js 루프)
     setBallSkin,
     setTable,
@@ -387,6 +463,8 @@ export function createWorld(canvas) {
     },
     clearHatch() { ballBfx.clearKid(); },
     render() {
+      drawChance();
+      if (chance) for (const m of trail) m.visible = false;
       hideTrailOverBall();
       const t = performance.now() / 1000;
       const dt = Math.min(0.1, t - fxLast || 0.016);

@@ -225,11 +225,31 @@ export class Game {
     });
     this.predicted = { t, prevSegs: this.segs, prevExpect: this.expect, prevTurn: this.turn };
     this.segs = shot.segs;
+    this.markChance(shot.kind, shot.next);
     this.played = new Set([0]);
     this.turn = (this.turn + 1) % this.order.length;
     this.expect = shot.next ? { ...shot.next, slot: this.order[this.turn].slot, whiffed: false } : null;
     this.phase = 'rally';
     this.holdPos = null;
+  }
+
+  // 찬스볼 물결 잔상: 지금 공(this.segs)이 찬스볼이면 기억. 모든 화면(선수·팀원·관전)에 보임
+  markChance(kind, next) {
+    this.chance = kind === 'chance' ? { segs: this.segs, tb: this.segs[1]?.t0 ?? Infinity, hitT: next?.t ?? null } : null;
+  }
+
+  // 매 프레임: 물결 잔상 + '똑 똑 똑 띵'(playCue와 같은 박자)에 맞춘 반짝임. 마지막 '띵'이 가장 밝음
+  chanceFrame(now) {
+    const c = this.chance;
+    if (!c || c.segs !== this.segs || this.holdPos) { this.w.chanceFx(null); return; }
+    let flash = 0;
+    if (c.hitT != null) {
+      for (let i = 3; i >= 0; i--) {
+        const d = now - (c.hitT - i * CUE_GAP);
+        if (d >= 0 && d < 0.5) flash = Math.max(flash, (i === 0 ? 1 : 0.6) * Math.exp(-d / 0.1));
+      }
+    }
+    this.w.chanceFx({ segs: c.segs, t0: c.segs[0].t0, tb: c.tb, now, flash });
   }
 
   // 몰입 연출: 랠리가 길어질수록 에코가 커지고 배경이 어두워진다. 천천히 따라가고, 점수가 나면 빠르게 돌아온다
@@ -394,6 +414,7 @@ export class Game {
         const next = findIdealHit(this.segs, 1 - ev.side);
         if (this.hatched) { this.w.clearHatch(); this.hatched = null; } // 알이 깨진 뒤에 받아쳤다는 결과가 옴 → 되돌림
         this.smashWatch = ev.kind === 'smash' && next ? { segs: this.segs, t: next.t } : null;
+        this.markChance(ev.kind, next);
         this.expect = next ? { ...next, slot: this.order[this.turn].slot, whiffed: false } : null;
         const toMe = this.expect && this.isMe(this.expect.side, this.expect.slot);
         if (!mine && toMe) this.announceTurn(false);
@@ -495,11 +516,13 @@ export class Game {
     this.decideHit(now);
     this.updateFocus(dt);
     // 공
+    if (!this.segs || this.holdPos) w.chanceFx(null);
     if (this.holdPos) {
       w.setBall(this.holdPos);
     } else if (this.segs) {
       this.checkHatch(now);
       w.setBall(ballPos(this.segs, now), this.hatched !== this.segs, !!this.segs[0]?.smash);
+      this.chanceFrame(now);
       this.scheduleSounds(now);
     } else if (this.phase === 'serve') {
       const p = this.tossPos(this.server);
