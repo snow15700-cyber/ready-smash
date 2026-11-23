@@ -429,6 +429,7 @@ async function browserChecks() {
       };
       // 앞 단계의 로그인 탭도 광장에 서 있을 수 있어서 인원 수가 아니라 서로의 id로 확인
       const a = await mk('광장가', 7), b = await mk('광장나', 8);
+      let sunOk = [];
       try {
       const idOf = (p) => p.evaluate(() => [...window.__smash.plaza.view.figs.entries()].find(([, f]) => f.me)[0]);
       const aId = await idOf(a), bId = await idOf(b);
@@ -437,7 +438,7 @@ async function browserChecks() {
       must(await a.evaluate(() => window.__smash.world.arena.root.visible === false && !window.__smash.world.table.visible), '광장인데 옛 배경·탁구대가 보여요');
       // 시간·날씨 (src/plazaSky.js): 표시 글자, 대구 해 뜨는/지는 시각이 그럴듯한지
       await waitFor(a, () => /(아침|한낮|오후|일몰|저녁|밤) · (맑음|흐림|비|눈) · 대구/.test(document.querySelector('#pz-wx').textContent), null, 10000, '광장 시간·날씨 표시');
-      const sunOk = await a.evaluate(async () => {
+      sunOk = await a.evaluate(async () => {
         const { sunTimes } = await import('/src/plazaSky.js');
         const w = sunTimes(new Date('2026-12-21T03:00:00Z')), s = sunTimes(new Date('2026-06-21T03:00:00Z'));
         return [w.rise, w.set, s.rise, s.set].map((m) => +(m / 60).toFixed(2));
