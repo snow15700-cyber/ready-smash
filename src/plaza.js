@@ -42,8 +42,8 @@ export function clipWalk(from, to) {
   let tx = clampN(to[0], P.minX, P.maxX), tz = clampN(to[1], P.minZ, P.maxZ);
   const dx = tx - from[0], dz = tz - from[1];
   let best = 1;
-  for (const s of P.shops) {
-    const r = shopRect(s, 0.35);
+  for (const r0 of [...P.shops.map((s) => shopRect(s)), ...(P.blocks || [])]) {
+    const r = { x0: r0.x0 - 0.35, x1: r0.x1 + 0.35, z0: r0.z0 - 0.35, z1: r0.z1 + 0.35 };
     // 선분과 네모가 처음 만나는 곳 (slab 방식)
     let t0 = 0, t1 = 1, hit = true;
     for (const [o, d, a, b] of [[from[0], dx, r.x0, r.x1], [from[1], dz, r.z0, r.z1]]) {
@@ -53,8 +53,7 @@ export function clipWalk(from, to) {
       t0 = Math.max(t0, u); t1 = Math.min(t1, v);
       if (t0 > t1) { hit = false; break; }
     }
-    if (hit && t0 > 0) best = Math.min(best, Math.max(0, t0 - 0.02));
-    else if (hit && t0 === 0) best = 0; // 이미 건물에 붙어 있고 안쪽으로 → 제자리
+    if (hit && t0 > 0) best = Math.min(best, Math.max(0, t0 - 0.02)); // 이미 그 안에 있으면(t0 = 0) 빠져나가는 길은 막지 않음
   }
   return [from[0] + dx * best, from[1] + dz * best];
 }

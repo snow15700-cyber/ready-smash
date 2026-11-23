@@ -10,6 +10,7 @@ import { playUI } from '../audio.js';
 import { PLAZA } from '../arena-plaza.js';
 import { joinPlaza } from '../net.js';
 import { cleanWalk, clipWalk, createPlazaView, posAt } from '../plaza.js';
+import { createPlazaSky } from '../plazaSky.js';
 import { openDress } from './dress.js';
 import { hud } from './hud.js';
 import { myId, room } from './room.js';
@@ -43,6 +44,8 @@ const pz = {
   trackT: 0, trackTimer: 0, infoKey: '', infoCheckT: 0, shown: false,
 };
 const view = createPlazaView(world, { onGround: walkTo, onShop: goShop });
+let sky = null; // 시간·날씨 (src/plazaSky.js), 광장을 처음 켤 때 만든다
+let skyLabelT = -9;
 
 const myInfo = () => ({ id: myId, nick: myNick(), title: myTitle(), titleX: myNemesis(), look: myEquip(), at: pz.at, mob: IS_MOBILE, w: pz.myW });
 const myFig = () => ({ id: myId, nick: myNick(), title: titleText(myTitle(), myNemesis()), look: myEquip(), w: pz.myW, me: true });
@@ -217,8 +220,11 @@ export function plazaFrame(now) {
     if (Math.hypot(p[0] - pz.myW.to[0], p[1] - pz.myW.to[1]) < 0.02) openShop(pz.pendingShop);
   }
   view.update(now, myId);
+  sky ||= createPlazaSky(world);
+  sky.update(now);
+  if (now - skyLabelT > 1) { skyLabelT = now; $('pz-wx').textContent = sky.label(); }
   return true;
 }
 
 // 점검·디버그용
-export const plazaDebug = { pz, view, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list) };
+export const plazaDebug = { pz, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list) };

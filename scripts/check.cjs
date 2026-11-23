@@ -435,6 +435,14 @@ async function browserChecks() {
       await waitFor(a, (id) => window.__smash.plaza.pz.people.has(id) && /[2-9]명/.test(document.querySelector('#pz-count').textContent), bId, 15000, '서로 보임 (광장 인원)');
       await waitFor(b, (id) => window.__smash.plaza.pz.people.has(id), aId, 15000, '서로 보임 (반대쪽)');
       must(await a.evaluate(() => window.__smash.world.arena.root.visible === false && !window.__smash.world.table.visible), '광장인데 옛 배경·탁구대가 보여요');
+      // 시간·날씨 (src/plazaSky.js): 표시 글자, 대구 해 뜨는/지는 시각이 그럴듯한지
+      await waitFor(a, () => /(아침|한낮|오후|일몰|저녁|밤) · (맑음|흐림|비|눈) · 대구/.test(document.querySelector('#pz-wx').textContent), null, 10000, '광장 시간·날씨 표시');
+      const sunOk = await a.evaluate(async () => {
+        const { sunTimes } = await import('/src/plazaSky.js');
+        const w = sunTimes(new Date('2026-12-21T03:00:00Z')), s = sunTimes(new Date('2026-06-21T03:00:00Z'));
+        return [w.rise, w.set, s.rise, s.set].map((m) => +(m / 60).toFixed(2));
+      });
+      must(sunOk[0] > 7.2 && sunOk[0] < 7.7 && sunOk[1] > 17 && sunOk[1] < 17.5 && sunOk[2] > 5 && sunOk[2] < 5.4 && sunOk[3] > 19.5 && sunOk[3] < 19.9, '대구 일출·일몰 계산이 이상해요: ' + sunOk.join(', '));
       // 걷기: b가 바닥을 클릭 → a 화면에서 b가 그곳까지 걸어감
       const to = await b.evaluate(() => { window.__smash.plaza.walkTo([4, 6]); return window.__smash.plaza.pz.myW.to; });
       await waitFor(a, ([id, x, z]) => { const f = window.__smash.plaza.view.figs.get(id); return f && Math.hypot(f.c.group.position.x - x, f.c.group.position.z - z) < 0.1; }, [bId, to[0], to[1]], 15000, '상대 화면에서 걸어간 곳에 도착');
@@ -468,7 +476,18 @@ async function browserChecks() {
       await waitFor(a, () => !window.__smash.world.plazaOn && !window.__smash.plaza.pz.link, null, 10000, '41번째는 광장에 못 들어감');
       } finally { await a.close(); await b.close(); } // 실패해도 탭을 닫아 다음 점검이 느려지지 않게
       flush();
-      return '서로 보임 · 걷기 · 말풍선 · 랭킹 가게 · 옛 로비 왕복 · 40명 제한';
+      // 날씨 흉내 (?wx=snow&sky=night): 눈이 내리고 밤 하늘
+      const n = await ctx.newPage();
+      watch(n, '광장 밤 눈', errs);
+      try {
+        await n.goto(URL + '/?acct=6&wx=snow&sky=night');
+        await waitFor(n, () => window.__smash?.world && !document.querySelector('#login').classList.contains('hidden'), null, 60000, '밤·눈 탭 준비');
+        await n.fill('#login-nick', '눈사람');
+        await n.click('#btn-guest');
+        await waitFor(n, () => window.__smash.plaza.sky && /밤 · 눈/.test(document.querySelector('#pz-wx').textContent), null, 15000, '밤·눈 표시');
+        must(await n.evaluate(() => window.__smash.world.plaza.snowLayer.visible && window.__smash.world.scene.background.getHSL({}).l < 0.4), '눈 쌓임·밤 하늘이 안 보여요');
+      } finally { await n.close(); }
+      return '서로 보임 · 걷기 · 말풍선 · 랭킹 가게 · 옛 로비 왕복 · 40명 제한 · 시간·날씨 (대구 일출 ' + sunOk[0] + '시)';
     });
 
     await step('화면: 1대1 방 (탭 두 개) 만들기 → 입장 → 팀 고르기 → 경기 시작', async () => {
