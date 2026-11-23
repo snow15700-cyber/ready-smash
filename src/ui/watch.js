@@ -4,11 +4,11 @@ import { initAudio, playUI } from '../audio.js';
 import { Game } from '../game.js';
 import { applyLook } from '../items.js';
 import { joinRoom } from '../net.js';
-import { crowdJoin, crowdKeep, renderCheerBar } from './cheer.js';
+import { crowdJoin, renderCheerBar } from './cheer.js';
 import { hud } from './hud.js';
 import { addSkip } from './intro.js';
 import { lobbyRooms } from './lobbyList.js';
-import { enterRoom, leaveRoom, myId, room, takeRoomLink } from './room.js';
+import { leaveRoom, myId } from './room.js';
 import { show, stopGame } from './screen.js';
 import { $, game, myNemesis, myNick, setGame, world } from './state.js';
 
@@ -18,34 +18,32 @@ let watchView = 'me'; // 관전 카메라 (기본 = 관중석 내 자리에서 1
    선수 채널은 듣기만(명단에도 안 들어감, 말도 안 함) → 선수 PC에 부담 0.
    시계: 방장이 보내는 시각(pong의 th, 이벤트의 t)과 받은 순간의 차이 중 가장 큰 값 = 방장 시계 - 내 시계 - (가장 짧은 전달 시간).
    그래서 화면은 방장보다 전달 시간만큼 늦게, 끊김 없이 흘러간다. 중간에 들어오면 다음 서브부터 보여 준다.
-   관중 명단은 따로 관중석 채널(pingpong-watch-XXXX)에서, 16명까지. */
+   관중 명단은 따로 관중석 채널(pingpong-watch-XXXX)에서, 16명까지. 광장에서 경기 중인 탁구대를 누르면 들어온다. */
 export const WATCH_MAX = 16;
-// keep: 같은 방이면 관중석 채널은 나가지 않고 그대로. link·members: 대기실 관전에서 채널을 넘겨받음 (나갔다 다시 들어가지 않게)
-// live: 경기 시작 신호('go')를 직접 받았음 → 처음부터 빠짐없이 받으니 '다음 서브부터'가 아니라 첫 서브부터
-export function startWatch(r, { keep = false, link = null, members = null, live = false } = {}) {
+// r = 로비 채널의 경기 정보 {code, mode, pl, nick} (광장의 경기 중인 탁구대를 누르면)
+export function startWatch(r) {
   initAudio();
-  if (!link) playUI('click');
-  if (link) takeRoomLink(); else leaveRoom();
-  stopGame(keep);
+  playUI('click');
+  leaveRoom();
+  stopGame();
   const me = { id: myId, nick: myNick(), at: Date.now() };
-  watch = { code: r.code, mode: r.mode, pl: r.pl, nick: r.nick, members: [], hostM: null, sawHost: false, seen: new Set(), offs: [], live: false, count: 0, fromGo: live };
+  watch = { code: r.code, pt: r.pt, mode: r.mode, pl: r.pl, nick: r.nick, members: [], hostM: null, sawHost: false, seen: new Set(), offs: [], live: false, count: 0 };
   const w = watch;
   const handlers = {
     onMsg: (m) => onWatchMsg(w, m),
     onMembers: (list) => onWatchMembers(w, list),
     onStatus: (st, text) => { if (st === 'error' && watch === w) endWatch(text); },
   };
-  if (link) { w.link = link; link.setHandlers(handlers); } else w.link = joinRoom(r.code, me, handlers, { listen: true });
+  w.link = joinRoom(r.code, me, handlers, { listen: true });
   // 관중석 명단에 들어가기 (16명 제한은 onCrowdList). 내 꾸미기·칭호도 같이 → 관중석에 내 캐릭터로 선다
-  if (!(keep && crowdKeep(r.code))) crowdJoin(r.code, { ...me, team: null, look: myEquip(), title: myTitle(), titleX: myNemesis() });
+  crowdJoin(r.code, { ...me, team: null, look: myEquip(), title: myTitle(), titleX: myNemesis() });
   show('hud');
   const n = watchNames(w);
   setGame(new Game(world, { mySide: 0, mode: r.mode, hud, spectator: true, names: n.names, playerNames: n.per, playerTitles: n.tl, looks: [[{}, {}], [{}, {}]], send: { toss() {}, swing() {} } }));
   game.view = watchView; // 넘나들어도 고른 카메라 그대로
   hud.score([0, 0]);
   hud.stats(game.stats);
-  hud.hint(live ? '' : '다음 서브부터 중계해요…'); // live: 곧 VS 소개 연출 (room.js specToWatch)
-  if (members?.length) onWatchMembers(w, members);
+  hud.hint('다음 서브부터 중계해요…');
   document.body.classList.add('watching');
   renderWatchBar();
   renderCheerBar();
@@ -53,8 +51,8 @@ export function startWatch(r, { keep = false, link = null, members = null, live 
   setTimeout(() => { if (watch === w && !w.sawHost) endWatch('경기를 찾을 수 없어요'); }, 6000);
 }
 
-// toLobby = false: 다른 경기로 넘어가는 중 (로비로 안 돌아감). keepCrowd: 같은 방 다음 경기로 이어 보기
-export function endWatch(msg, toLobby = true, keepCrowd = false) {
+// toLobby = false: 다른 경기로 넘어가는 중 (광장으로 안 돌아감)
+export function endWatch(msg, toLobby = true) {
   if (!watch) return;
   const w = watch;
   watch = null;
@@ -62,14 +60,14 @@ export function endWatch(msg, toLobby = true, keepCrowd = false) {
   document.body.classList.remove('watching');
   $('watch-bar').classList.add('hidden');
   if (game) watchView = game.view;
-  stopGame(keepCrowd);
+  stopGame();
   if (!toLobby) return;
   show('lobby');
   if (msg) hud.toast(msg, 2600);
 }
 
 // 지금 관전할 수 있는 방들 (코드 순, 넘나들 때 순서가 흔들리지 않게)
-export const watchable = () => lobbyRooms.filter((r) => r.play && r.w !== false && r.pl).sort((a, b) => (a.code < b.code ? -1 : 1));
+export const watchable = () => lobbyRooms.filter((r) => r.play && r.pl).sort((a, b) => (a.pt ?? 9) - (b.pt ?? 9) || (a.code < b.code ? -1 : 1));
 // 관전 중 ◀ ▶: 다른 경기로 바로 넘어가기
 function hopWatch(dir) {
   if (!watch) return;
@@ -124,23 +122,12 @@ function onWatchMembers(w, list) {
   renderCheerBar();
 }
 
-/* ───────── 경기가 끝난 뒤 (관전 5·6단계) ─────────
-   관중은 방에 그대로 남아 대기실 관전으로 돌아간다 (채널을 넘겨줌: 나갔다 다시 들어가지 않음).
-   대기실 관전 화면에서 '🏓 참가'(빈자리) / '🔔 자리 나면 알려 줘요' / 다른 경기 보기. 다음 경기가 시작되면 자동으로 이어서 중계.
-   아무도 쫓겨나지 않는다(사용자 확정). */
+/* ───────── 경기가 끝난 뒤 ─────────
+   관중은 광장으로 돌아온다 (선수들도 그 탁구대 앞에 서 있다). 예전의 '대기실 관전'은 광장이 대신한다 (plaza.md ④에서 광장 관전) */
 export function watchDone(w) {
   if (watch !== w || w.over) return;
   w.over = true;
-  $('result').classList.add('hidden');
-  hud.hint('');
-  const { code, mode, link } = w;
-  const members = link.members();
-  watch = null;
-  document.body.classList.remove('watching');
-  $('watch-bar').classList.add('hidden');
-  if (game) watchView = game.view;
-  stopGame(true);
-  enterRoom(code, false, mode, { spectate: true, link, members });
+  endWatch('경기가 끝났어요. 광장으로 돌아왔어요');
 }
 function watchClock(w, hostT) {
   const off = hostT - performance.now() / 1000;
@@ -173,7 +160,7 @@ export function renderWatchBar() {
   $('watch-bar').classList.remove('hidden');
   const list = watchable(), i = list.findIndex((r) => r.code === watch.code);
   const pos = list.length > 1 && i >= 0 ? ` (${i + 1}/${list.length})` : '';
-  $('watch-who').textContent = `👀 ${watch.nick}의 방${pos} · 관중 ${watch.count || 1}명`;
+  $('watch-who').textContent = `👀 ${watch.pt != null ? `${watch.pt + 1}번 탁구대` : `${watch.nick}의 경기`}${pos} · 관중 ${watch.count || 1}명`;
   for (const b of $('watch-bar').querySelectorAll('[data-hop]')) b.disabled = !list.some((r) => r.code !== watch.code);
   for (const b of $('watch-bar').querySelectorAll('[data-view]')) b.classList.toggle('on', String(game.view) === b.dataset.view);
 }

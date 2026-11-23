@@ -15,13 +15,13 @@
 | 주제 | 파일 | 상태 |
 |---|---|---|
 | 경기 규칙·조작·판정·찬스볼·몰입 연출·**동기화 규칙** | `docs/dev/gameplay.md` | main (와이파이 느림 대비·찬스볼 물결 잔상(정점까지) 포함) |
-| 2v2·혼자 하기(AI)·모바일·링크 미리보기·**관전 모드(기획·단계)** | `docs/dev/modes.md` | main (관전 ①~⑤) / ⑥ 대기실부터 관전 1·2단계 test / **새 광장 시스템 기획 중**(방·로비·관전 갈아엎기, 아직 코드 없음) |
+| 2v2·혼자 하기(AI)·모바일·링크 미리보기·**관전 모드(기획·단계)** | `docs/dev/modes.md` | main (관전 ①~⑤) / 광장 ②(test)에서 방 목록·방 코드·비공개 방·대기실 관전 없앰 |
 | PIN 계정·전적·랭킹·코인·경기 확인·**보안(18)**·업적·칭호·**쉬는 시간 보너스(19)** | `docs/dev/accounts.md` | main (SQL 01~21 실행 완료) — 쉬는 시간 보너스·오늘의 미션 포함 / 출석 도장판 아직 / 혼자 하기 3번에 1코인 main(26 실행 완료) |
 | 상점·꾸미기 공통, 탁구채(전설 포함)·몸·목록 그림·**머리·얼굴·세트(기획)**·**뽑기 연출** | `docs/dev/shop.md` | main / 머리 28·얼굴 16·세트 11 test(**24 실행 필요**) / 뽑기 연출(탁구공 깨기)·**무료 뽑기 50회**(25 실행 필요, 로비 배너 `src/ui/freeGacha.js`) test |
 | 탁구공 | `docs/dev/balls.md` | main |
 | 탁구대(일반 6·고급 7·전설 5) | `docs/dev/tables.md` | 게임·뽑기 연결 test(22 실행 필요) |
 | 배경(경기장)·배경 합치기(성능) | `docs/dev/arenas.md` | main (일반 배경 3종 포함, 20 실행 완료) |
-| **광장 로비**(걷는 3D 메인 화면·탁구대 4대·김제빵 탁구대·모집 알림·정해진 채팅) | `docs/dev/plaza.md` | 기획 확정(11/23) — ① 광장 기본 + 가게 건물 다시 디자인 + 시간·날씨(대구, `src/plazaSky.js`) test, ②~⑥ 아직 |
+| **광장 로비**(걷는 3D 메인 화면·탁구대 4대·김제빵 탁구대·모집 알림·정해진 채팅) | `docs/dev/plaza.md` | 기획 확정(11/23) — ① 광장 기본 + 가게 건물 + 시간·날씨 test, **② 탁구대에 서서 경기 test**(옛 로비·대기실 없앰), ③~⑥ 아직 |
 | 화면 디자인(**새 디자인 '탁구 색 + 유리'**: ①~⑤ 모든 화면)·대기실 무대·VS 소개·**업데이트 내역**(`src/updates.js`, main에 합칠 때마다 추가) | `docs/dev/design.md` | 새 디자인 test |
 
 아직 안 한 것(기획서 8장): 궤적 아이템, 출석·미션, 사운드 스킨, 승리 세리머니. 최적화 ①~⑤ 모두 끝(남은 보안 — 계정 두 개로 승수 쌓기, 가입 제한 — 은 사용자가 이번엔 안 하기로).
@@ -40,9 +40,9 @@
 - `src/match.js` 경기 기준 로직(방장/혼자 모드에서만 실행). `computeShot`은 방장과 상대 PC가 같이 쓴다.
 - `src/game.js` 화면 쪽: 이벤트를 받아 공·캐릭터·링·소리 처리, 내 입력 판정, 상대 PC의 타격 예측.
 - `src/scene.js` Three.js 체육관·탁구대·캐릭터·카메라. `src/audio.js` Web Audio 합성음.
-- `src/net.js` Supabase Realtime Broadcast + presence. 채널 `pingpong-room-XXXX`. 설정이 없으면 BroadcastChannel로 같은 브라우저 탭끼리만 연결(로컬 테스트, `?lag=80`으로 지연 흉내).
+- `src/net.js` Supabase Realtime Broadcast + presence. 경기 채널 `pingpong-room-XXXX`, 광장 `pingpong-plaza`, 로비(탁구대 상태) `pingpong-lobby`. 설정이 없으면 BroadcastChannel로 같은 브라우저 탭끼리만 연결(로컬 테스트, `?lag=80`으로 지연 흉내).
 - `src/main.js` 시작점: 화면 파일을 모두 불러오고 매 프레임 루프(로비 카메라·배경). 화면 흐름은 `src/ui/`:
-  `plaza.js`(광장 로비) · `state.js`(공용: `$`·`world`·`game`/`match`/`preview`·`plazaHome`과 `setGame` 등 — 다른 파일이 바꾸는 변수는 여기에 두고 setter로) · `screen.js`(`show`·`stopGame`) · `hud.js`(경기 화면 글자) · `ai.js`(혼자 하기) · `room.js`(방·대기실·시계 맞추기·전적 저장·코드 입장) · `lobbyList.js`(로비 방 목록) · `watch.js`(관전) · `cheer.js`(관중석·응원) · `login.js`(로그인·PIN·업데이트/치는 방법 창) · `rank.js` · `dress.js`(꾸미기) · `titles.js`(업적 알림·칭호) · `stage.js`(대기실 무대·연습 스윙) · `intro.js`(VS 소개).
+  `plaza.js`(광장 로비 = 메인 화면: 걷기·채팅·가게·탁구대 자리·준비·한 판 더) · `state.js`(공용: `$`·`world`·`game`/`match`/`preview`과 `setGame` 등 — 다른 파일이 바꾸는 변수는 여기에 두고 setter로) · `screen.js`(`show`·`stopGame`) · `hud.js`(경기 화면 글자) · `ai.js`(혼자 하기) · `room.js`(경기 채널: 탁구대 경기 시작·시계 맞추기·전적 저장) · `lobbyList.js`(로비 채널: 경기 중인 탁구대 정보) · `watch.js`(관전) · `cheer.js`(관중석·응원) · `login.js`(로그인·PIN·업데이트/치는 방법 창) · `rank.js` · `dress.js`(꾸미기) · `titles.js`(업적 알림·칭호) · `stage.js`(VS 소개의 탁구채 든 자세) · `intro.js`(VS 소개).
   새 화면 파일을 만들면 `main.js` 맨 위에서 꼭 불러온다(버튼 연결이 불러올 때 일어남).
 - `src/account.js` 서버 함수 부르기 + 로컬 가짜 서버. `src/achievements.js` 업적 목록.
 - `src/gachaShow.js` 뽑기 연출 화면(탁구공 깨기, 시안 `gacha.html`과 같은 코드).
@@ -63,7 +63,7 @@
 - Supabase 프로젝트는 다른 게임과 공유한다. DB 테이블을 만들 때는 `pingpong_` 접두어를 붙인다.
 
 ## 테스트 요령
-- **`npm run check`** = 자동 점검(`scripts/check.cjs`, 약 2분): 빌드, 서버 SQL을 빈 DB에 01부터 두 번 실행 + anon 권한으로 가입·상점·뽑기 등, `items.js`·`achievements.js` ↔ SQL 목록·목록 그림, 브라우저로 손님·로그인·혼자 하기·꾸미기·랭킹·1대1 방(탭 두 개)·배경 9종·시안 페이지. test에 올리기 전에 돌리고, 새 화면·SQL을 만들면 점검도 추가한다. 화면 점검은 진짜 Supabase를 안 쓴다(VITE_SUPABASE_URL을 비움). GitHub에서도 `.github/workflows/check.yml`이 test·main push마다 돌린다(Actions 탭).
+- **`npm run check`** = 자동 점검(`scripts/check.cjs`, 약 2분): 빌드, 서버 SQL을 빈 DB에 01부터 두 번 실행 + anon 권한으로 가입·상점·뽑기 등, `items.js`·`achievements.js` ↔ SQL 목록·목록 그림, 브라우저로 손님·로그인·혼자 하기·꾸미기·랭킹·광장·광장 탁구대 1대1(탭 두 개)·배경 9종·시안 페이지. test에 올리기 전에 돌리고, 새 화면·SQL을 만들면 점검도 추가한다. 화면 점검은 진짜 Supabase를 안 쓴다(VITE_SUPABASE_URL을 비움). GitHub에서도 `.github/workflows/check.yml`이 test·main push마다 돌린다(Actions 탭).
 - `npm run dev` 후 Playwright(사전 설치됨)로 확인. 헤드리스 swiftshader는 매우 느려서(초당 수 프레임) 타이밍 결과가 흔들린다. 판정 테스트는 페이지 안에서 `PointerEvent`를 직접 쏘는 방식이 안정적이다.
-- 1v1은 같은 브라우저 컨텍스트의 탭 두 개(로컬 모드) 또는 컨텍스트 두 개 + Supabase로 확인한다. 디버그 훅: `window.__smash.{world, game, match, room}`.
+- 1v1은 같은 브라우저 컨텍스트의 탭 두 개(로컬 모드) 또는 컨텍스트 두 개 + Supabase로 확인한다. 디버그 훅: `window.__smash.{world, game, match, room, plaza}` (`plaza.sit(t, s)`·`ready()`·`table(t)`·`kim()`·`state(t)`·`afk()`).
 - 사용자에게 줄 단일 HTML이 필요하면 `npm run build` 후 `dist/assets/*.js`와 css를 `index.html`에 인라인한다(함수형 replace로 `$` 패턴 주의).

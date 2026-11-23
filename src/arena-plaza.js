@@ -1,21 +1,35 @@
 // 광장 로비 배경 (docs/dev/plaza.md 1장): 배경 아이템과 상관없이 늘 같은 '광장' 하나.
-// 북쪽(-z)에 가게 건물 3개가 나란히(상점 = 커다란 뽑기 기계, 꾸미기 = 커다란 옷장, 랭킹 = 시상대), 가운데는 넓은 돌바닥(② 탁구대 자리), 둘레에 나무·가로등·벤치.
+// 북쪽(-z)에 가게 건물 3개가 나란히(상점 = 커다란 뽑기 기계, 꾸미기 = 커다란 옷장, 랭킹 = 시상대), 양옆에 탁구대 4대(사람 대결용 3대 + 김제빵), 둘레에 나무·가로등·벤치.
 // 움직이지 않는 것은 bakeArena로 합쳐서 가볍게 (scene.js의 setPlaza가 합친다).
 import * as THREE from 'three';
 import { addBox, canvasTex, glowSprite, seeded, std, textTex } from './arena-kit.js';
 
+// 탁구대 (② 탁구대에 서서 경기, plaza.md 2장): 긴 쪽이 x. A팀(side 0) = 서쪽(x−) 끝, B팀(side 1) = 동쪽(x+) 끝.
+// 자리 4칸: 0·1 = A팀 1번·2번, 2·3 = B팀 1번·2번 (각 팀이 탁구대를 볼 때 1번이 왼쪽)
+const T_HALF = [1.37, 0.7625]; // 탁구대 반 길이·반 너비 (경기 탁구대와 같은 크기)
+const SEAT_X = 2.12, SEAT_Z = 0.5;
+const tableAt = (n, x, z) => ({
+  n, x, z,
+  seats: [[x - SEAT_X, z - SEAT_Z], [x - SEAT_X, z + SEAT_Z], [x + SEAT_X, z + SEAT_Z], [x + SEAT_X, z - SEAT_Z]],
+  rect: { x0: x - T_HALF[0] - 0.08, x1: x + T_HALF[0] + 0.08, z0: z - T_HALF[1] - 0.08, z1: z + T_HALF[1] + 0.08 },
+});
+const TABLES = [tableAt(1, -8, -0.5), tableAt(2, 8, -0.5), tableAt(3, -8, 4.5)];
+const KIM = { ...tableAt(0, 8, 4.5), spot: [8 - SEAT_X, 4.5] }; // 김제빵 탁구대 (혼자 하기, ③에서 표지판·김제빵)
+
 // 걸을 수 있는 곳 (m). 가게 건물 앞면까지
 export const PLAZA = {
   minX: -13, maxX: 13, minZ: -10, maxZ: 12,
-  spawn: [0, 2.5], // 처음 서는 곳 (북쪽 가게를 바라봄). 가게 문까지 약 7~10m = 걸어서 2~3초
+  spawn: [0, 7], // 처음 서는 곳 (북쪽 가게를 바라봄). 가게 문까지 약 12m = 걸어서 3초, 탁구대 4대가 양옆으로 다 보인다
   // 가게: 가운데 x, 앞면 z(front), 너비 w, 깊이 d, 높이 h. 문 앞 door = 도착하면 화면이 열리는 곳
   shops: [
     { id: 'shop', name: '🛒 상점', x: -5.6, h: 2.7 }, // 커다란 뽑기 기계
     { id: 'closet', name: '👕 꾸미기', x: 0, h: 4.2 }, // 커다란 옷장
     { id: 'rank', name: '🏆 랭킹', x: 5.6, h: 2.9 }, // 시상대
   ].map((s) => ({ ...s, front: -6.5, w: 4.5, d: 3.4, door: [s.x, -5.4] })),
-  // 걸어서 못 지나가는 곳 (가게 말고): 꾸미기 옷장의 활짝 열린 왼쪽 문
-  blocks: [{ x0: -2.2, x1: -1.2, z0: -6.5, z1: -4.0 }],
+  tables: TABLES,
+  kim: KIM,
+  // 걸어서 못 지나가는 곳 (가게 말고): 꾸미기 옷장의 활짝 열린 왼쪽 문, 탁구대 4대
+  blocks: [{ x0: -2.2, x1: -1.2, z0: -6.5, z1: -4.0 }, ...TABLES.map((t) => t.rect), KIM.rect],
 };
 
 // 밤에 켜지는 불빛 재질: 시간·날씨(src/plazaSky.js)가 밝기를 바꾸므로 합치지 않는다(noBake)
@@ -253,6 +267,28 @@ function bench() {
   return g;
 }
 
+// 광장 탁구대 (가벼운 모양: 판·흰 선·네트·다리). 경기는 경기 화면(방장 배경)에서 하고, 광장 탁구대는 보기만
+function plazaTable(t, color) {
+  const g = new THREE.Group();
+  g.position.set(t.x, 0, t.z);
+  const L = T_HALF[0] * 2, W = T_HALF[1] * 2, Y = 0.76;
+  const top = std(color, { roughness: 0.6 }), white = std(0xffffff), dark = std(0x2b2a33);
+  addBox(g, L, 0.05, W, top, 0, Y - 0.025, 0).castShadow = true;
+  addBox(g, L, 0.052, 0.03, white, 0, Y - 0.024, -W / 2 + 0.015);
+  addBox(g, L, 0.052, 0.03, white, 0, Y - 0.024, W / 2 - 0.015);
+  for (const sx of [-1, 1]) addBox(g, 0.03, 0.052, W, white, sx * (L / 2 - 0.015), Y - 0.024, 0);
+  addBox(g, L, 0.052, 0.006, white, 0, Y - 0.024, 0);
+  addBox(g, 0.02, 0.15, W + 0.14, std(0xf4f4f4, { roughness: 0.9 }), 0, Y + 0.075, 0);
+  for (const sz of [-1, 1]) addBox(g, 0.04, 0.2, 0.04, dark, 0, Y + 0.08, sz * (W / 2 + 0.07));
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) addBox(g, 0.06, Y - 0.05, 0.06, dark, sx * (L / 2 - 0.25), (Y - 0.05) / 2, sz * (W / 2 - 0.15));
+  return g;
+}
+// 기둥에 단 작은 간판 (바닥에 서 있음)
+function signPost(root, lines, x, z, color) {
+  addBox(root, 0.08, 1.5, 0.08, std(0x6b4a2e), x, 0.75, z);
+  signPlate(root, lines, 1.9, 0.62, x, 1.6, z + 0.05, { bg: '#fffaf0', border: color, font: 'bold 64px Jua, sans-serif', px: 600 });
+}
+
 export function buildPlaza() {
   const root = new THREE.Group();
   const rnd = seeded(2311);
@@ -280,14 +316,13 @@ export function buildPlaza() {
   const fz = floor.position.z;
   addBox(root, W + 0.4, 0.08, 0.4, edge, 0, 0.04, fz + D / 2);
   for (const sx of [-1, 1]) addBox(root, 0.4, 0.08, D, edge, sx * (W / 2 + 0.2), 0.04, fz);
-  // 가운데 원 (② 탁구대가 놓일 넓은 마당)
+  // 가운데 원 (처음 서는 곳)
   const ring = new THREE.Mesh(new THREE.RingGeometry(4.2, 4.6, 48), new THREE.MeshLambertMaterial({ color: 0xd2b98f }));
-  ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.008, 6); root.add(ring);
-  // 바닥 글씨 (② 탁구대가 놓일 자리): 세워 두면 카메라 앞을 가려서 바닥에 눕혀 둔다
-  const floorText = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 0.83), new THREE.MeshBasicMaterial({
-    map: textTex(['🏓 탁구대 자리 · 곧 생겨요!'], { w: 1024, h: 224, bg: null, color: '#a0794a', font: 'bold 120px Jua, sans-serif' }), transparent: true, depthWrite: false,
-  }));
-  floorText.rotation.x = -Math.PI / 2; floorText.position.set(0, 0.012, 6); root.add(floorText);
+  ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.008, PLAZA.spawn[1]); root.add(ring);
+  // 탁구대 4대 (사람 대결용 3대 + 김제빵 탁구대). 움직이지 않으니 합친다. 이름표·자리 칸·상태 표지판은 src/plaza.js
+  for (const t of PLAZA.tables) root.add(plazaTable(t, 0x2a5db0));
+  root.add(plazaTable(PLAZA.kim, 0x2f8a4e));
+  signPost(root, ['🤖 김제빵 탁구대', '혼자 하기 · 누르면 바로'], PLAZA.kim.x, PLAZA.kim.z + 1.6, '#2f8a4e');
 
   // 가게 3개 + 뒤쪽 담장
   for (const s of PLAZA.shops) root.add(BUILD[s.id](s));

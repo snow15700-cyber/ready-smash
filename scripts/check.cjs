@@ -5,8 +5,8 @@
 //  2. 서버 SQL    — supabase/*.sql을 빈 DB에 01부터 차례로 두 번 실행(여러 번 실행해도 되는지),
 //                   anon(브라우저) 권한으로 가입·로그인·상점·뽑기·장착·업적·랭킹을 불러 보고, 표를 직접 못 읽는지
 //  3. 목록 맞추기 — items.js ↔ SQL 아이템(등급·뽑기 통·카테고리), achievements.js ↔ SQL 업적, 목록 그림 파일
-//  4. 화면        — 브라우저로 게임을 띄워 손님·로그인(로컬 가짜 서버), 혼자 하기, 꾸미기, 랭킹, 1대1 방·관전,
-//                   1대1 방 만들기→입장→팀 고르기→경기 시작(탭 두 개), 배경 9종, 시안 페이지 2개를 돌려 보고 오류가 없는지
+//  4. 화면        — 브라우저로 게임을 띄워 손님·로그인(로컬 가짜 서버), 혼자 하기, 꾸미기, 랭킹, 광장(걷기·채팅·가게),
+//                   광장 탁구대 1대1(서기→준비→경기→한 판 더, 탭 두 개)·관전, 배경 9종, 시안 페이지를 돌려 보고 오류가 없는지
 //
 // 옵션: --no-sql (DB 점검 건너뛰기) --no-browser (화면 점검 건너뛰기)
 // DB: 환경 변수 CHECK_PG(예: postgres://postgres:postgres@localhost:5432)가 있으면 그것, 없으면 이 PC의 PostgreSQL(su postgres).
@@ -306,19 +306,21 @@ async function browserChecks() {
       const t = await shown('clock=09:53', '#break-banner');
       must(/\+50%/.test(t) && /7분 남음/.test(t) && /한시적/.test(t), '쉬는 시간(09:53)인데 알림이 이상해요: ' + t);
       must(/\+50%/.test(await shown('mobile=1&clock=09:53', '#break-banner')), '휴대폰 로비에 쉬는 시간 알림이 없어요');
-      must(await p.evaluate(() => document.body.classList.contains('mobile') && /PC에서만/.test(document.querySelector('.lb-friends .lb-label').textContent)), '휴대폰 로비 표시가 이상해요');
+      // 휴대폰은 사람 대결 탁구대 자리에 못 선다 (김제빵·관전·채팅만)
+      await p.evaluate(() => window.__smash.plaza.sit(0, 0));
+      must(await p.evaluate(() => document.body.classList.contains('mobile') && !window.__smash.plaza.pz.seat && /PC에서만/.test(document.querySelector('#toast').textContent)), '휴대폰인데 탁구대 자리에 서져요');
       must(!(await shown('clock=10:20', '#break-banner')), '쉬는 시간이 아닌데 알림이 떠요');
       await p.close();
       flush();
-      return '09:53 알림 · 10:20 숨김 · 휴대폰 로비';
+      return '09:53 알림 · 10:20 숨김 · 휴대폰은 자리에 못 섬';
     });
 
-    await step('화면: 손님으로 들어가서 혼자 하기', async () => {
+    await step('화면: 손님으로 들어가서 혼자 하기 (광장 김제빵 탁구대)', async () => {
       await page.fill('#login-nick', '점검손님');
       await page.click('#btn-guest');
       await waitFor(page, () => !document.querySelector('#lobby').classList.contains('hidden'), null, 10000, '로비');
-      await page.evaluate(() => document.querySelector('#btn-ai').click());
-      await waitFor(page, () => window.__smash.game && window.__smash.match, null, 15000, '혼자 하기 시작');
+      await page.evaluate(() => window.__smash.plaza.kim()); // 김제빵 탁구대까지 걸어가서 혼자 하기
+      await waitFor(page, () => window.__smash.game && window.__smash.match, null, 20000, '혼자 하기 시작');
       // 서브 토스: 캔버스를 누른다
       const fire = (type) => page.evaluate((type) => {
         const c = document.querySelector('#c');
@@ -414,8 +416,8 @@ async function browserChecks() {
       return `뽑기 10장, ${equippedOne ? '장착 확인' : '장착할 새 아이템 없음'}, 업적 ${nAch}개`;
     });
 
-    // 광장 로비 (docs/dev/plaza.md ①): 들어가면 광장, 탭 두 개가 서로 보임, 걷기(클릭 한 번 = 정보 한 번), 정해진 채팅, 가게 → 화면, 옛 로비 왕복, 40명 제한
-    await step('화면: 광장 (탭 두 개) 걷기·채팅·가게·옛 로비', async () => {
+    // 광장 로비 (docs/dev/plaza.md ①): 들어가면 광장, 탭 두 개가 서로 보임, 걷기(클릭 한 번 = 정보 한 번), 정해진 채팅, 가게 → 화면, 40명 제한
+    await step('화면: 광장 (탭 두 개) 걷기·채팅·가게', async () => {
       const mk = async (nick, acct) => {
         const p = await ctx.newPage();
         watch(p, '광장 ' + nick, errs);
@@ -462,19 +464,19 @@ async function browserChecks() {
       must(await a.evaluate(() => !!window.__smash.plaza.pz.link), '랭킹 화면을 보는 동안 광장에서 빠졌어요');
       await a.evaluate(() => document.querySelector('#btn-rank-back').click());
       await waitFor(a, () => window.__smash.world.plazaOn, null, 10000, '랭킹 → 광장');
-      // 옛 로비(임시) 왕복: 옛 로비에서는 광장 채널에서 빠짐
-      await a.evaluate(() => document.querySelector('#btn-old-lobby').click());
-      await waitFor(a, () => !window.__smash.world.plazaOn && !window.__smash.plaza.pz.link && !document.querySelector('#lobby').classList.contains('plaza-on'), null, 10000, '옛 로비');
-      await waitFor(b, (id) => !window.__smash.plaza.pz.people.has(id), aId, 10000, '옛 로비로 간 사람이 광장에서 사라짐');
-      await a.evaluate(() => document.querySelector('#btn-to-plaza').click());
-      await waitFor(a, () => window.__smash.world.plazaOn && window.__smash.plaza.pz.link, null, 10000, '다시 광장');
-      // 40명 제한: 먼저 온 40명 뒤에 내가 있으면 '꽉 찼어요' → 옛 로비
+      // 걷는 길이 탁구대에 막히면 모서리를 돌아서 간다 (1번 탁구대 건너편 자리 → 탁구대 앞에서 멈추지 않음)
+      const around = await b.evaluate(async () => {
+        const { planWalk } = await import('/src/plaza.js');
+        return planWalk([-4.5, -0.5], [-11.5, -0.5]).length;
+      });
+      must(around >= 2, '탁구대를 돌아가는 길을 못 찾아요');
+      // 40명 제한: 먼저 온 40명 뒤에 내가 있으면 '꽉 찼어요' → 혼자 광장 (광장 채널에서 빠짐)
       await a.evaluate(() => {
         const me = window.__smash.plaza.pz;
         const list = Array.from({ length: 40 }, (_, i) => ({ id: 'x' + i, nick: 'n' + i, at: 1, w: { from: [0, 0], to: [0, 0], t: 1 } }));
         window.__smash.plaza.fakeList([...list, { id: [...window.__smash.plaza.view.figs.entries()].find(([, f]) => f.me)[0], nick: 'me', at: me.at, w: me.myW }]);
       });
-      await waitFor(a, () => !window.__smash.world.plazaOn && !window.__smash.plaza.pz.link, null, 10000, '41번째는 광장에 못 들어감');
+      await waitFor(a, () => window.__smash.plaza.pz.full && !window.__smash.plaza.pz.link && /꽉 찼어요/.test(document.querySelector('#pz-count').textContent), null, 10000, '41번째는 광장 채널에 못 들어감');
       } finally { await a.close(); await b.close(); } // 실패해도 탭을 닫아 다음 점검이 느려지지 않게
       flush();
       // 날씨 흉내 (?wx=snow&sky=night): 눈이 내리고 밤 하늘
@@ -488,10 +490,12 @@ async function browserChecks() {
         await waitFor(n, () => window.__smash.plaza.sky && /밤 · 눈/.test(document.querySelector('#pz-wx').textContent), null, 15000, '밤·눈 표시');
         must(await n.evaluate(() => window.__smash.world.plaza.snowLayer.visible && window.__smash.world.scene.background.getHSL({}).l < 0.4), '눈 쌓임·밤 하늘이 안 보여요');
       } finally { await n.close(); }
-      return '서로 보임 · 걷기 · 말풍선 · 랭킹 가게 · 옛 로비 왕복 · 40명 제한 · 시간·날씨 (대구 일출 ' + sunOk[0] + '시)';
+      return '서로 보임 · 걷기 · 돌아가기 · 말풍선 · 랭킹 가게 · 40명 제한 · 시간·날씨 (대구 일출 ' + sunOk[0] + '시)';
     });
 
-    await step('화면: 1대1 방 (탭 두 개) 만들기 → 입장 → 팀 고르기 → 경기 시작', async () => {
+    // 광장 탁구대 (docs/dev/plaza.md ②): 자리에 서기 → 준비 → VS 소개 → 경기(광장 채널에서 빠짐) → 관전 → 끝나면 광장 + '한 판 더' → 다시 시작
+    // 같은 칸 다툼(먼저 선 사람), 자리 비움(1분)도
+    await step('화면: 광장 탁구대 1대1 (탭 두 개) 서기 → 준비 → 경기 → 한 판 더 · 관전', async () => {
       const guest = await ctx.newPage();
       watch(guest, '참가자', errs);
       await guest.goto(URL + '/?acct=2');
@@ -499,33 +503,34 @@ async function browserChecks() {
       await guest.evaluate(() => document.querySelector('#howto')?.classList.add('hidden'));
       await guest.fill('#login-nick', '점검참가');
       await guest.click('#btn-guest');
-      await waitFor(guest, () => !document.querySelector('#lobby').classList.contains('hidden'), null, 10000, '참가자 로비');
-
-      await page.evaluate(() => document.querySelector('#btn-create-1v1').click());
-      await waitFor(page, () => window.__smash.room && document.querySelector('#room-code').textContent.trim().length === 4, null, 10000, '방 만들기');
-      const code = (await page.textContent('#room-code')).trim();
-      await waitFor(page, () => document.querySelector('#room-missions:not(.hidden) .lm-head'), null, 10000, "대기실 오른쪽 위 '오늘의 미션' 카드");
-      // 로비 방 목록에 방장 방이 뜨는지 (관전 1단계)
-      await waitFor(guest, (c) => [...document.querySelectorAll('#lb-rooms .rl-row')].some((b) => b.dataset.code === c), code, 10000, '로비 방 목록에 방 표시');
-      await guest.evaluate(() => document.querySelector('#btn-join').click());
-      await guest.fill('#join-code', code);
-      await guest.evaluate(() => document.querySelector('#btn-join-go').click());
-      await waitFor(guest, () => window.__smash.room, null, 10000, '방 입장');
-      await waitFor(page, () => document.querySelectorAll('#team-0 .slot, #team-1 .slot').length > 0, null, 10000, '자리 칸');
-      await page.evaluate(() => document.querySelector('#team-0 .slot.empty').click());
-      await page.waitForTimeout(400);
-      await waitFor(guest, () => document.querySelector('#team-1 .slot.empty'), null, 10000, '참가자에게 빈자리');
-      await guest.evaluate(() => document.querySelector('#team-1 .slot.empty').click());
-      await waitFor(page, () => !document.querySelector('#btn-start').disabled, null, 10000, "방장 '경기 시작' 버튼 켜짐");
-      await page.click('#btn-start');
-      // 경기 전 연출(약 10초): 둘 다 '건너뛰기'를 누르면 초록 불 2개 → 정적으로 넘어가 곧 경기 시작
+      await waitFor(guest, () => window.__smash.plaza.pz.link, null, 10000, '참가자 광장');
+      await waitFor(page, () => window.__smash.plaza.pz.link, null, 10000, '방장 광장');
+      const idOf = (p) => p.evaluate(() => [...window.__smash.plaza.view.figs.entries()].find(([, f]) => f.me)[0]);
+      const hostId = await idOf(page);
+      await waitFor(guest, (id) => window.__smash.plaza.pz.people.has(id), hostId, 15000, '참가자 화면에 방장');
+      // 먼저 선 사람 = 방장. 같은 칸은 먼저 선 사람 것 (참가자가 눌러도 안 됨)
+      await page.evaluate(() => window.__smash.plaza.sit(1, 0));
+      await waitFor(guest, () => window.__smash.plaza.state(1).seats[0], null, 10000, '참가자 화면에 방장 자리');
+      await guest.evaluate(() => window.__smash.plaza.sit(1, 0));
+      must(await guest.evaluate(() => !window.__smash.plaza.pz.seat), '이미 사람이 선 칸에 또 서져요');
+      await guest.evaluate(() => window.__smash.plaza.sit(1, 2));
+      await waitFor(page, () => { const s = window.__smash.plaza.state(1); return s.mode === '1v1' && s.host?.me; }, null, 10000, '방장 화면: 1대1, 내가 방장');
+      await waitFor(guest, () => !document.querySelector('#pz-table').classList.contains('hidden') && /준비/.test(document.querySelector('#pz-table').textContent), null, 10000, '자리 판');
+      // 둘 다 준비 → 경기 화면 (VS 소개)
+      await page.evaluate(() => window.__smash.plaza.ready());
+      await page.waitForTimeout(600);
+      must(await page.evaluate(() => !window.__smash.room), '혼자만 준비했는데 시작돼요');
+      await guest.evaluate(() => window.__smash.plaza.ready());
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.intro && window.__smash.intro.seg && window.__smash.intro.seg !== 'dim', null, 30000, '연출: VS 소개');
+      // 경기가 시작되면 선수는 광장 채널에서 빠진다 (선수 부담 0)
+      for (const p of [page, guest]) must(await p.evaluate(() => !window.__smash.plaza.pz.link && window.__smash.room?.inGame && window.__smash.room.pt === 1), '경기 중인데 광장 채널에 붙어 있어요');
       await page.evaluate(() => document.querySelector('#vi-skip-btn').click());
       await waitFor(guest, () => document.querySelectorAll('#vi-skip-dots i.on').length === 1, null, 10000, '참가자 화면에 건너뛰기 초록 불 1개');
       await guest.evaluate(() => document.querySelector('#vi-skip-btn').click());
       for (const p of [page, guest]) await waitFor(p, () => !window.__smash.intro || window.__smash.intro.seg.includes('hush'), null, 10000, '모두 건너뛰기 → 정적');
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.game && !window.__smash.intro, null, 30000, '경기 시작');
-      // 관전 (2단계): 세 번째 탭이 로비 목록의 '👀 관전'으로 들어가 중계 화면이 뜨는지, 방장이 나가면 로비로 돌아오는지
+      const startedAt = Date.now();
+      // 관전: 세 번째 탭이 광장에서 경기 중인 2번 탁구대를 누르면 중계 화면
       const viewer = await ctx.newPage();
       watch(viewer, '관중', errs);
       await viewer.goto(URL + '/?acct=3');
@@ -533,52 +538,45 @@ async function browserChecks() {
       await viewer.evaluate(() => document.querySelector('#howto')?.classList.add('hidden'));
       await viewer.fill('#login-nick', '점검관중');
       await viewer.click('#btn-guest');
-      await waitFor(viewer, (c) => document.querySelector(`#lb-rooms .rl-row[data-code="${c}"] .rl-act.watch`), code, 15000, "로비 목록에 '👀 관전' 버튼");
-      // 3단계: 🎲 아무 경기나 보기로 들어가고, 다른 경기가 없으면 ◀ ▶는 꺼져 있다
-      await waitFor(viewer, () => !document.querySelector('#btn-random-watch').classList.contains('hidden'), null, 10000, "'🎲 아무 경기나 보기' 버튼");
-      await viewer.evaluate(() => document.querySelector('#btn-random-watch').click());
+      await waitFor(viewer, () => window.__smash.plaza.state(1).busy, null, 15000, '광장에서 2번 탁구대가 경기 중으로 보임');
+      must(await viewer.evaluate(() => { window.__smash.plaza.sit(1, 1); return !window.__smash.plaza.pz.seat; }), '경기 중인 탁구대 자리에 서져요');
+      await viewer.evaluate(() => window.__smash.plaza.table(1));
       await waitFor(viewer, () => window.__smash.game?.spectator && !document.querySelector('#watch-bar').classList.contains('hidden'), null, 10000, '관전 화면');
-      await waitFor(viewer, () => document.querySelector('#scoreboard').textContent.includes('점검참가'), null, 10000, '관전 점수판에 선수 이름');
+      await waitFor(viewer, () => document.querySelector('#scoreboard').textContent.includes('점검참가') && /2번 탁구대/.test(document.querySelector('#watch-who').textContent), null, 10000, '관전 점수판에 선수 이름');
       // 관전 기본 시점 = 관중석 내 자리 1인칭 ('🙂 내 자리' 버튼 켜짐, 카메라가 관중석 쪽 -x 눈높이)
       await waitFor(viewer, () => window.__smash.game.view === 'me' && document.querySelector('[data-view="me"]').classList.contains('on') && window.__smash.world.camera.position.x < -2, null, 8000, "관전 기본 시점 '내 자리'(1인칭)");
       await viewer.evaluate(() => document.querySelector('[data-view="1"]').click());
       await waitFor(viewer, () => document.querySelector('[data-hop="1"]').disabled, null, 5000, '다른 경기가 없으면 ◀ ▶ 꺼짐');
-      // 4단계: 관중이 응원 팀을 고르고 박수 → 선수 화면에 '관중 1명', 응원 버튼은 2초 동안 잠김
+      // 관중이 응원 팀을 고르고 박수 → 선수 화면에 '관중 1명', 응원 버튼은 2초 동안 잠김
       await waitFor(viewer, () => !document.querySelector('#cheer-bar').classList.contains('hidden'), null, 5000, '응원 막대');
       await viewer.evaluate(() => document.querySelector('#cheer-bar [data-team="0"]').click());
       await viewer.evaluate(() => document.querySelector('#cheer-bar [data-cheer="clap"]').click());
       await waitFor(viewer, () => document.querySelector('#cheer-bar [data-cheer="fire"]').disabled, null, 3000, '응원 2초 잠김');
       await waitFor(page, () => document.querySelector('#crowd-pill').textContent.includes('관중 1명'), null, 10000, "선수 화면에 '관중 1명'");
       await waitFor(page, () => window.__smash.world.crowd.root.children.some((g) => (g.userData.tag || '').startsWith('점검관중/')), null, 10000, '선수 화면 관중석에 관중 캐릭터(이름표)');
+      // 경기 끝 → 선수는 광장 그 자리에 그대로 + 결과·코인 + '🔁 한 판 더', 관중도 광장으로
+      await page.waitForTimeout(Math.max(0, 27000 - (Date.now() - startedAt))); // 서버는 25초보다 빨리 끝난 경기엔 코인을 안 줌
       await page.evaluate(() => window.__smash.match.emit({ type: 'gameOver', winner: 0, score: [5, 0] }));
-      // 6단계: 경기가 끝나면 관중은 대기실 관전으로 (자리가 꽉 찼으니 '자리 나면 알려 줘요'), 선수 대기실엔 '관중 1명'
-      await waitFor(viewer, () => window.__smash.room?.spectate && !document.querySelector('#room').classList.contains('hidden') && document.querySelector('#btn-spec-join').textContent.includes('알려'), null, 20000, "경기 끝 → 관중은 대기실 관전 ('알려 줘요')");
-      // 관전이 끝나면 응원 막대도 숨김 (안 그러면 그 사람이 참가해 경기할 때 응원 막대가 남아 보였다)
+      for (const p of [page, guest]) await waitFor(p, () => window.__smash.world.plazaOn && window.__smash.plaza.pz.link && window.__smash.plaza.pz.seat?.t === 1 && /한 판 더/.test(document.querySelector('#pz-table').textContent), null, 20000, "경기 끝 → 광장 자리에 '한 판 더'");
+      await waitFor(page, () => /승리! 5 : 0/.test(document.querySelector('#pz-table').textContent) && /코인/.test(document.querySelector('#pz-table .coins-got').textContent) && !/정산 중/.test(document.querySelector('#pz-table .coins-got').textContent), null, 15000, '방장(로그인) 자리 판에 승리·코인');
+      await waitFor(viewer, () => !window.__smash.game && window.__smash.world.plazaOn, null, 20000, '경기 끝 → 관중도 광장으로');
       must(await viewer.evaluate(() => document.querySelector('#cheer-bar').classList.contains('hidden')), '관전이 끝났는데 응원 막대가 남아 있어요');
-      await waitFor(page, () => !document.querySelector('#room').classList.contains('hidden') && document.querySelector('#room-eyes').textContent.includes('관중 1명'), null, 20000, "선수 대기실에 '관중 1명'");
-      await waitFor(viewer, () => document.querySelector('#team-0').textContent.includes('점검') || document.querySelectorAll('#team-0 .slot').length > 0, null, 5000, '대기실 관전 자리 칸');
-      // 6단계: 대기실 관전 중 다음 경기 시작 → 관중도 VS 소개 (건너뛰기 버튼 없음), 선수 모두 건너뛰면 같이 넘어가 중계
-      await waitFor(page, () => document.querySelector('#team-0 .slot.empty:not(.locked)'), null, 10000, '다음 판 자리 칸');
-      await page.evaluate(() => document.querySelector('#team-0 .slot.empty:not(.locked)').click());
-      await waitFor(guest, () => document.querySelector('#team-1 .slot.empty:not(.locked)'), null, 10000, '참가자 다음 판 자리');
-      await guest.evaluate(() => document.querySelector('#team-1 .slot.empty:not(.locked)').click());
-      await waitFor(viewer, () => document.querySelectorAll('#team-0 .slot:not(.empty), #team-1 .slot:not(.empty)').length === 2, null, 10000, '관중 화면에 두 선수 팀');
-      await waitFor(page, () => !document.querySelector('#btn-start').disabled, null, 10000, '다음 판 시작 버튼');
-      await page.click('#btn-start');
-      await waitFor(viewer, () => window.__smash.game?.spectator && window.__smash.intro && document.querySelector('#vi-skip-btn').classList.contains('hidden'), null, 20000, '관중도 VS 소개 (건너뛰기 버튼 없음)');
-      for (const p of [page, guest]) await waitFor(p, () => window.__smash.intro && window.__smash.intro.seg && window.__smash.intro.seg !== 'dim', null, 30000, '선수 VS 소개');
-      // 대기실 이름표·VS 소개 이름 카드는 칭호 + 닉네임만 (아이템·세트 알약 없음, 사용자 확정 11/22)
-      for (const p of [page, guest, viewer]) must(await p.evaluate(() => document.querySelectorAll('#room-labels .it, #vs-intro .it').length === 0 && document.querySelectorAll('#vs-intro .vi-card').length === 2), '이름표에 아이템 알약이 보여요');
-      for (const p of [page, guest]) await p.evaluate(() => document.querySelector('#vi-skip-btn').click());
-      await waitFor(viewer, () => !window.__smash.intro && window.__smash.game?.spectator && !window.__smash.game.paused, null, 20000, '선수 모두 건너뛰기 → 관중도 중계');
-      await page.waitForTimeout(1500);
+      // 한 판 더: 둘 다 누르면 다시 시작
+      await page.evaluate(() => window.__smash.plaza.ready());
+      await guest.evaluate(() => window.__smash.plaza.ready());
+      for (const p of [page, guest]) await waitFor(p, () => window.__smash.intro && window.__smash.room?.inGame, null, 30000, '한 판 더 → 다시 VS 소개');
       flush();
-      // 방장 나가기 (경기 끝나 대기실로 돌아갔으면 대기실의 나가기 버튼)
-      await page.evaluate(() => (document.querySelector('#room').classList.contains('hidden') ? document.querySelector('#exit') : document.querySelector('#btn-room-leave')).click());
-      await waitFor(viewer, () => !window.__smash.game && !document.querySelector('#lobby').classList.contains('hidden'), null, 15000, '방장이 나가면 관중도 로비로');
+      // 방장이 경기 중에 나가면: 방장은 자리에서 내려오고, 참가자는 광장 자리로 돌아옴
+      await page.evaluate(() => document.querySelector('#exit').click());
+      await waitFor(guest, () => !window.__smash.game && window.__smash.world.plazaOn && window.__smash.plaza.pz.seat?.t === 1, null, 15000, '방장이 나가면 참가자는 광장 자리로');
+      await waitFor(page, () => !window.__smash.game && window.__smash.world.plazaOn && !window.__smash.plaza.pz.seat, null, 15000, '나간 방장은 광장 (자리에서 내려옴)');
+      // 자리 비움: 1분 동안 아무것도 안 하면 내려온다
+      await guest.evaluate(() => window.__smash.plaza.afk());
+      await waitFor(guest, () => !window.__smash.plaza.pz.seat && /자리|내려왔어요/.test(document.querySelector('#toast').textContent), null, 5000, '자리 비움 → 내려옴');
       await viewer.close();
       await guest.close();
-      return `방 코드 ${code}, 관전 확인`;
+      flush();
+      return '서기·같은 칸 다툼·준비·경기 중 광장에서 빠짐·관전·한 판 더·자리 비움';
     });
 
     await step('화면: 탁구대 19종 짓기·바꾸기 (튀기·득점 연출)', async () => {

@@ -1,28 +1,40 @@
 import { joinLobby } from '../net.js';
-import { hud } from './hud.js';
-import { capacity, enterRoom, room, specLobby } from './room.js';
+import { room } from './room.js';
 import { curScreen } from './screen.js';
-import { $, IS_MOBILE, esc, game, myNick } from './state.js';
-import { randomWatch, renderWatchBar, startWatch, watch, watchable } from './watch.js';
+import { myNick } from './state.js';
+import { renderWatchBar, watch } from './watch.js';
 
 let lobbyLink = null; // 로비 채널
-export let lobbyRooms = []; // 지금 열린 방들
+export let lobbyRooms = []; // 지금 경기 중이거나 곧 시작하는 광장 탁구대들 (방장이 올림)
 let lobbySent = ''; // 마지막으로 올린 내 방 정보
-/* ───────── 로비 방 목록 ─────────
-   로비 채널(pingpong-lobby)은 로비 화면에 있을 때 + 내가 방장일 때만 붙어 있다.
-   방장은 '내 방' 정보를 상태가 바뀔 때만 올린다(사람 수·경기 시작/끝·점수). */
+/* ───────── 로비 채널 (탁구대 상태판) ─────────
+   로비 채널(pingpong-lobby)은 광장 화면에 있을 때 + 내가 방장일 때 + 관전 중일 때만 붙어 있다.
+   방장은 '내 경기' 정보를 상태가 바뀔 때만 올린다(사람 수·경기 시작/끝·점수) — 예전 방 목록과 같은 양.
+   광장은 이걸로 '경기 중인 탁구대'(점수판·관전)를 안다 (광장 채널에서는 경기 중인 선수가 빠져 있어서). */
 export function syncLobby() {
   // 관전 중에도 붙는다(듣기만): 다른 경기로 넘어갈 목록이 필요해서. 선수 PC와는 상관없음
-  const need = curScreen === 'lobby' || !!(room && (room.host || room.spectate)) || !!watch;
+  const need = curScreen === 'lobby' || !!room?.host || !!watch;
   if (need && !lobbyLink) {
     lobbySent = '';
-    lobbyLink = joinLobby((list) => { lobbyRooms = list; renderRoomList(); renderWatchBar(); specLobby(); });
+    lobbyLink = joinLobby((list) => { lobbyRooms = cleanRooms(list); renderWatchBar(); });
   } else if (!need && lobbyLink) {
     lobbyLink.leave();
     lobbyLink = null;
     lobbyRooms = [];
   }
   announceRoom();
+}
+// 받은 정보 다듬기 (다른 PC가 보낸 것은 믿지 않고 모양을 확인)
+function cleanRooms(list) {
+  const out = [];
+  for (const r of list) {
+    if (!r || typeof r.code !== 'string' || !/^[A-Z0-9]{4}$/.test(r.code)) continue;
+    const pt = Number.isInteger(r.pt) && r.pt >= 0 && r.pt < 8 ? r.pt : null;
+    const score = Array.isArray(r.score) && r.score.length === 2 ? r.score.map((v) => Math.max(0, Math.min(99, v | 0))) : null;
+    const pl = Array.isArray(r.pl) ? r.pl.filter((p) => p && typeof p.id === 'string').slice(0, 4).map((p) => ({ id: p.id, side: p.side ? 1 : 0, slot: p.slot ? 1 : 0 })) : null;
+    out.push({ code: r.code, mode: r.mode === '2v2' ? '2v2' : '1v1', nick: typeof r.nick === 'string' ? r.nick.slice(0, 10) : '방장', n: r.n | 0, cap: r.cap | 0, play: !!r.play, score, pl, pt });
+  }
+  return out;
 }
 export function announceRoom() {
   if (!lobbyLink) return;
@@ -31,8 +43,8 @@ export function announceRoom() {
     return;
   }
   const info = {
-    code: room.code, mode: room.mode, nick: myNick(), n: room.members.length || 1, cap: capacity(), play: !!room.inGame, score: room.inGame ? room.score || [0, 0] : null,
-    w: room.watchOk, // 관전 허용
+    code: room.code, mode: room.mode, nick: myNick(), n: room.members.length || 1, cap: room.mode === '2v2' ? 4 : 2, play: !!room.inGame, score: room.inGame ? room.score || [0, 0] : null,
+    pt: room.pt, // 광장 탁구대 번호
     pl: room.inGame && room.players ? room.players.map((p) => ({ id: p.id, side: p.side, slot: p.slot || 0 })) : null, // 중간에 들어온 관중이 선수 자리를 알게
   };
   const key = JSON.stringify(info);
@@ -40,47 +52,3 @@ export function announceRoom() {
   lobbySent = key;
   lobbyLink.track(info);
 }
-// 목록 순서: 들어갈 수 있는 방 → 경기 중 → 꽉 찬 방 (같으면 코드 순, 깜빡이지 않게)
-function roomListHTML(max) {
-  const mine = room?.code;
-  const rank = (r) => (r.play ? 1 : r.n >= r.cap ? 2 : 0);
-  const list = lobbyRooms.filter((r) => r.code !== mine).sort((a, b) => rank(a) - rank(b) || (a.code < b.code ? -1 : 1));
-  if (!list.length) return '<p class="rl-empty">아직 열린 방이 없어요<br /><small>방을 만들고 친구를 불러 보세요!</small></p>';
-  const row = (r) => {
-    const full = !r.play && r.n >= r.cap;
-    const state = r.play ? `<span class="rl-st play">● 경기 중 <b>${(r.score || [0, 0]).join(' : ')}</b></span>` : full ? '<span class="rl-st full">꽉 참</span>' : `<span class="rl-st wait">● 대기 중 ${r.n}/${r.cap}</span>`;
-    // 관전 6단계: 대기 중인 방도 관전할 수 있다 (참가 + 관전 둘 다, 휴대폰은 관전만)
-    // 방장이 관전을 막은 방 = 비공개 방: 로비에서 참가도 관전도 안 되고 방 코드로만 들어온다 (11/19 사용자 요청)
-    const locked = r.w === false;
-    const canWatch = !locked && (!r.play || r.pl);
-    const canJoin = !locked && !r.play && !full && !IS_MOBILE;
-    const watchBtn = canWatch ? '<span class="rl-act watch" data-act="watch">👀 관전</span>' : locked ? '<span class="rl-act soon">🔒 코드로만</span>' : '<span class="rl-act soon">관전 막힘</span>';
-    const act = (canJoin ? '<span class="rl-act" data-act="join">참가</span>' : '') + watchBtn;
-    const can = canJoin || canWatch;
-    return `<button class="rl-row${can ? '' : ' off'}" data-code="${esc(r.code)}"${can ? '' : ' tabindex="-1"'}><span class="rl-mode">${r.mode === '2v2' ? '2:2' : '1:1'}</span><span class="rl-nm"><b>${esc(r.nick)}</b>의 방</span>${state}${act}</button>`;
-  };
-  const more = list.length > max ? `<p class="rl-more">외 ${list.length - max}개 방</p>` : '';
-  return list.slice(0, max).map(row).join('') + more;
-}
-function renderRoomList() {
-  // 로비 안 목록은 화면 높이에 맞춰 줄 수를 줄인다 (아래 버튼과 겹치지 않게)
-  const lbMax = innerHeight >= 860 ? 3 : innerHeight >= 740 ? 2 : 1;
-  $('lb-rooms').innerHTML = roomListHTML(lbMax);
-  $('btn-random-watch').classList.toggle('hidden', !watchable().some((r) => r.code !== room?.code));
-}
-addEventListener('resize', renderRoomList);
-$('btn-random-watch').addEventListener('click', () => { if (!game) randomWatch(); });
-$('lb-rooms').addEventListener('click', (e) => {
-  const b = e.target.closest('.rl-row');
-  if (!b) return;
-  const r = lobbyRooms.find((x) => x.code === b.dataset.code);
-  if (!r) return;
-  if (r.w === false) { hud.toast('비공개 방이에요. 방 코드로만 들어갈 수 있어요', 2400); return; }
-  // 줄의 '참가'를 누르면 참가, 그 밖(줄·'👀 관전')은: 들어갈 수 있으면 참가, 아니면 관전
-  const full = !r.play && r.n >= r.cap;
-  const wantJoin = e.target.closest('[data-act="join"]') || (!e.target.closest('[data-act="watch"]') && !r.play && !full && !IS_MOBILE);
-  if (wantJoin) { enterRoom(r.code, false); return; }
-  if (r.w === false || (r.play && !r.pl)) { hud.toast('이 방은 관전을 막아 두었어요', 2200); return; }
-  if (r.play) startWatch(r);
-  else enterRoom(r.code, false, r.mode, { spectate: true }); // 대기실 관전
-});

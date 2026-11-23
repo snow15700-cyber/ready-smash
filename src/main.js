@@ -15,16 +15,15 @@ import { autoLogin, buyItem, equipItem, gacha, myEquip, testCoins } from './acco
 import { initAudio, playUI, setEcho, setListener, setQuiet } from './audio.js';
 import { applyLook, arenaOf, ballOf, tableOf } from './items.js';
 import { LOBBY_CAM, createLobbyDemo } from './lobbyDemo.js';
-import { IS_TEST, ONLINE, makeCode } from './net.js';
+import { IS_TEST, ONLINE } from './net.js';
 import { CHAR_Z } from './scene.js';
-import { aiCoins, clearAiCoins, startAI } from './ui/ai.js';
+import { aiCoins, clearAiCoins } from './ui/ai.js';
 import { crowd } from './ui/cheer.js';
 import { hud } from './ui/hud.js';
 import { INTRO, intro, introFrame } from './ui/intro.js';
 import { checkDaily, showLobby, showLogin } from './ui/login.js';
-import { enterRoom, leaveRoom, room } from './ui/room.js';
+import { endRoom, room } from './ui/room.js';
 import { show, stopGame } from './ui/screen.js';
-import { STAGE, stageFrame, stageOff } from './ui/stage.js';
 import { $, ease, game, lerp3, match, preview, world } from './ui/state.js';
 import { plazaDebug, plazaFrame } from './ui/plaza.js';
 import { endWatch, watch } from './ui/watch.js';
@@ -42,17 +41,14 @@ if (IS_TEST) {
   tag.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:9999;padding:4px 12px;border-radius:999px;background:#ffcc00;color:#222;font:bold 13px sans-serif;pointer-events:none;';
   document.body.appendChild(tag);
 }
-if (!ONLINE) $('mode-note').textContent = '⚠️ 서버 설정이 없어 로컬 테스트 모드예요 (같은 브라우저의 탭끼리만 연결)';
+if (!ONLINE) { $('mode-note').classList.remove('hidden'); $('mode-note').title = '서버 설정이 없어 로컬 테스트 모드예요 (같은 브라우저의 탭끼리만 연결)'; }
 if (!ONLINE) $('login-offline').classList.remove('hidden');
 /* ───────── 버튼 ───────── */
-$('btn-ai').addEventListener('click', () => startAI());
-$('btn-create-1v1').addEventListener('click', () => enterRoom(makeCode(), true, '1v1'));
-$('btn-create-2v2').addEventListener('click', () => enterRoom(makeCode(), true, '2v2'));
 
 function exitGame() {
   playUI('click');
   if (watch) endWatch();
-  else if (room) { leaveRoom(); show('lobby'); }
+  else if (room) endRoom('quit'); // 경기 중에 나가면 광장으로 (탁구대 자리에서도 내려온다)
   else {
     stopGame();
     show('lobby');
@@ -88,12 +84,10 @@ function loop() {
   // 위치가 있는 소리 크기: 경기·대기실(연습 스윙)은 그대로, 로비·꾸미기 배경 랠리는 작게
   if (game) {
     setQuiet(1);
-    if (!(intro && introFrame(now))) { stageOff(); game.update(now + game.offset); } // 연출 중엔 introFrame이 대기실 무대를 직접 켜고 끈다
+    if (!(intro && introFrame(now))) game.update(now + game.offset); // 연출 중엔 introFrame이 그린다
   }
-  else if (room && !room.inGame && !$('room').classList.contains('hidden')) { setQuiet(1); stageFrame(now); }
   else if (inPlaza) {
     setQuiet(LOBBY_QUIET);
-    stageOff();
     world.setFocus(0);
     setEcho(0);
     const cp = world.camera.position, e = world.camera.matrixWorld.elements;
@@ -101,7 +95,6 @@ function loop() {
   }
   else {
     setQuiet(LOBBY_QUIET);
-    stageOff();
     // 로비 배경: 두 캐릭터가 랠리를 주고받고, 카메라는 옆에서 천천히 흔들린다
     // 꾸미기 화면에서도 랠리는 계속되고, 카메라만 내 캐릭터 등 뒤로 스르륵 옮겨 간다
     world.setFocus(0);
@@ -222,4 +215,4 @@ const perf = new URLSearchParams(location.search).has('fps') ? (() => {
   };
 })() : null;
 requestAnimationFrame(loop);
-window.__smash = { plaza: plazaDebug, PV, STAGE, INTRO, world, shop: { testCoins, gacha, buyItem, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; }, get crowd() { return crowd; } };
+window.__smash = { plaza: plazaDebug, PV, INTRO, world, shop: { testCoins, gacha, buyItem, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; }, get crowd() { return crowd; } };

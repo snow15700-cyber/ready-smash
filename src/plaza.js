@@ -58,6 +58,34 @@ export function clipWalk(from, to) {
   return [from[0] + dx * best, from[1] + dz * best];
 }
 
+// 걸어갈 길 (꺾어 가기): 곧장 가는 길이 건물·탁구대에 막히면 모서리를 한두 번 돌아서 간다.
+// 돌려주는 것 = 지나갈 점들 [..., 도착점]. 걷기 정보는 한 구간씩 보낸다(꺾을 때마다 한 번 — 매 프레임 전송 없음)
+const allRects = () => [...PLAZA.shops.map((s) => shopRect(s)), ...(PLAZA.blocks || [])];
+const clear = (a, b) => { const c = clipWalk(a, b); return Math.hypot(c[0] - b[0], c[1] - b[1]) < 1e-3; };
+const dist2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const inside = (p) => allRects().some((r) => p[0] > r.x0 - 0.36 && p[0] < r.x1 + 0.36 && p[1] > r.z0 - 0.36 && p[1] < r.z1 + 0.36);
+export function planWalk(from, to) {
+  const P = PLAZA;
+  const end = [clampN(to[0], P.minX, P.maxX), clampN(to[1], P.minZ, P.maxZ)];
+  if (clear(from, end)) return [end];
+  const pad = 0.62; // 모서리에서 조금 떨어져서 (clipWalk 여유 0.35보다 넉넉히)
+  const corners = [];
+  for (const r of allRects()) for (const x of [r.x0 - pad, r.x1 + pad]) for (const z of [r.z0 - pad, r.z1 + pad]) {
+    if (x >= P.minX && x <= P.maxX && z >= P.minZ && z <= P.maxZ && !inside([x, z])) corners.push([x, z]);
+  }
+  let best = null, bd = Infinity;
+  for (const c of corners) {
+    if (!clear(from, c)) continue;
+    if (clear(c, end)) { const d = dist2(from, c) + dist2(c, end); if (d < bd) { bd = d; best = [c, end]; } continue; }
+    for (const c2 of corners) {
+      if (c2 === c || !clear(c, c2) || !clear(c2, end)) continue;
+      const d = dist2(from, c) + dist2(c, c2) + dist2(c2, end);
+      if (d < bd) { bd = d; best = [c, c2, end]; }
+    }
+  }
+  return best || [clipWalk(from, end)]; // 못 찾으면(도착점이 건물 안 등) 막히는 곳 앞까지
+}
+
 // 발밑 동그란 그림자 (진짜 그림자 대신: 사람이 많아도 가볍게)
 let BLOB = null;
 function blobShadow() {
@@ -86,7 +114,43 @@ function makeMarker() {
   return m;
 }
 
-// handlers: onGround([x, z]) · onShop(shop) · onHover(shop|null)
+// 탁구대 자리 칸 (바닥 동그라미) + 탁구대 위 상태 표지판. 색: A팀 주황, B팀 파랑
+export const TEAM_COLOR = ['#ff8a3d', '#3d8bff'];
+function makeSeatMark(team) {
+  const g = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.4, 32), new THREE.MeshBasicMaterial({ color: TEAM_COLOR[team], transparent: true, opacity: 0.95, depthWrite: false }));
+  const fill = new THREE.Mesh(new THREE.CircleGeometry(0.3, 32), new THREE.MeshBasicMaterial({ color: TEAM_COLOR[team], transparent: true, opacity: 0.18, depthWrite: false }));
+  for (const m of [ring, fill]) { m.rotation.x = -Math.PI / 2; g.add(m); }
+  g.position.y = 0.022;
+  return { g, ring, fill };
+}
+function makeSign() {
+  const c = document.createElement('canvas');
+  c.width = 640; c.height = 200;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sp.scale.set(2.6, 0.81, 1);
+  sp.renderOrder = 5;
+  return { sp, c, tex, key: '' };
+}
+function drawSign(sg, lines, color) {
+  const key = JSON.stringify([lines, color]);
+  if (sg.key === key) return;
+  sg.key = key;
+  const g = sg.c.getContext('2d'), W = sg.c.width, H = sg.c.height;
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = 'rgba(28,38,66,.82)';
+  g.beginPath(); g.roundRect(6, 6, W - 12, H - 12, 40); g.fill();
+  g.strokeStyle = color; g.lineWidth = 8; g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#fff'; g.font = 'bold 64px Jua, sans-serif';
+  g.fillText(lines[0] || '', W / 2, lines[1] ? 66 : H / 2);
+  if (lines[1]) { g.fillStyle = '#ffe9a8'; g.font = 'bold 50px Jua, sans-serif'; g.fillText(lines[1], W / 2, 140); }
+  sg.tex.needsUpdate = true;
+}
+
+// handlers: onGround([x, z]) · onShop(shop) · onTable(t) · onSeat(t, s) · onKim()
 export function createPlazaView(world, handlers) {
   const root = new THREE.Group();
   root.visible = false;
@@ -107,18 +171,28 @@ export function createPlazaView(world, handlers) {
     const blob = blobShadow();
     c.group.add(blob);
     root.add(c.group);
-    return { c, bub, blob, w: null, disp: null, yaw: 0, phase: Math.random() * 6, key: '', me, near: true, bubT: -9 };
+    return { c, bub, blob, w: null, disp: null, yaw: 0, face: null, phase: Math.random() * 6, key: '', me, near: true, bubT: -9 };
   }
   const drop = (id, f) => {
     root.remove(f.c.group);
     f.c.group.traverse((o) => { if (o.geometry && o !== f.blob) o.geometry.dispose(); });
     figs.delete(id);
   };
-  // 사람 한 명 그리기 정보 p = { id, nick, title(글자), look, w, me }
+  // 탁구대 자리 칸·표지판
+  const tables = PLAZA.tables.map((t) => {
+    const marks = t.seats.map((pt, i) => { const m = makeSeatMark(i < 2 ? 0 : 1); m.g.position.x = pt[0]; m.g.position.z = pt[1]; root.add(m.g); return m; });
+    const sign = makeSign();
+    sign.sp.position.set(t.x, 2.45, t.z);
+    root.add(sign.sp);
+    return { t, marks, sign };
+  });
+
+  // 사람 한 명 그리기 정보 p = { id, nick(이름표 글자), title(글자), look, w, me, face(서 있을 때 바라볼 쪽, 없으면 null) }
   function put(p) {
     let f = figs.get(p.id);
     if (!f) { f = make(!!p.me); figs.set(p.id, f); }
     f.me = !!p.me;
+    f.face = typeof p.face === 'number' ? p.face : null;
     const key = JSON.stringify([p.nick, p.title, p.look]);
     if (f.key !== key) {
       f.key = key;
@@ -141,6 +215,9 @@ export function createPlazaView(world, handlers) {
     const r = shopRect(s);
     return { s, box: new THREE.Box3(new THREE.Vector3(r.x0, 0, r.z0), new THREE.Vector3(r.x1, s.h + 2.6, r.z1 + 1.2)) };
   });
+  // 탁구대 상자 (판 + 표지판 높이까지): 사람 대결용 t = 0~2, 김제빵 = 'kim'
+  const tBox = (r, h) => new THREE.Box3(new THREE.Vector3(r.x0, 0, r.z0), new THREE.Vector3(r.x1, h, r.z1));
+  const tableBoxes = [...PLAZA.tables.map((t, i) => ({ t: i, box: tBox(t.rect, 1.1) })), { t: 'kim', box: tBox(PLAZA.kim.rect, 1.1) }];
   function pick(px, py) {
     const rect = world.renderer.domElement.getBoundingClientRect();
     ndc.set(((px - rect.left) / rect.width) * 2 - 1, -((py - rect.top) / rect.height) * 2 + 1);
@@ -148,10 +225,19 @@ export function createPlazaView(world, handlers) {
     ray.setFromCamera(ndc, world.camera);
     let best = null, bd = Infinity;
     for (const b of boxes) {
-      if (ray.ray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = b.s; } }
+      if (ray.ray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = { shop: b.s }; } }
     }
-    if (best) return { shop: best };
+    for (const b of tableBoxes) {
+      if (ray.ray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = b.t === 'kim' ? { kim: true } : { table: b.t }; } }
+    }
+    if (best) return best;
     if (!ray.ray.intersectPlane(ground, hitP)) return null;
+    // 바닥의 자리 칸 근처를 눌렀으면 그 칸
+    for (let t = 0; t < PLAZA.tables.length; t++) {
+      const s = PLAZA.tables[t].seats.findIndex((pt) => Math.hypot(pt[0] - hitP.x, pt[1] - hitP.z) < 0.55);
+      if (s >= 0) return { seat: [t, s] };
+    }
+    if (Math.hypot(PLAZA.kim.spot[0] - hitP.x, PLAZA.kim.spot[1] - hitP.z) < 0.55) return { kim: true };
     return { ground: [hitP.x, hitP.z] };
   }
 
@@ -174,7 +260,7 @@ export function createPlazaView(world, handlers) {
   canvas.addEventListener('pointermove', (e) => {
     if (!active()) return;
     const p = ptrs.get(e.pointerId);
-    if (!p) { const h = pick(e.clientX, e.clientY); canvas.style.cursor = h?.shop ? 'pointer' : ''; handlers.onHover?.(h?.shop || null); return; }
+    if (!p) { const h = pick(e.clientX, e.clientY); canvas.style.cursor = h && !h.ground ? 'pointer' : ''; return; }
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
     p.x = e.clientX; p.y = e.clientY;
     if (Math.hypot(p.x - p.x0, p.y - p.y0) > TOUCH_SLOP) p.moved = true;
@@ -198,6 +284,9 @@ export function createPlazaView(world, handlers) {
     if (!active() || p.moved || p.btn !== 0 || performance.now() - p.t0 > 900) return;
     const h = pick(e.clientX, e.clientY);
     if (h?.shop) handlers.onShop?.(h.shop);
+    else if (h?.table != null) handlers.onTable?.(h.table);
+    else if (h?.seat) handlers.onSeat?.(h.seat[0], h.seat[1]);
+    else if (h?.kim) handlers.onKim?.();
     else if (h?.ground) handlers.onGround?.(h.ground);
   };
   canvas.addEventListener('pointerup', up);
@@ -239,6 +328,18 @@ export function createPlazaView(world, handlers) {
       f.bub.visible = true;
       f.bubT = performance.now() / 1000;
     },
+    // 탁구대 하나의 모습: seats = ['empty'|'taken'|'ready'] ×4, lines = 표지판 글자 [큰 줄, 작은 줄], color = 표지판 테두리
+    setTable(t, { seats, lines, color = '#ffd23f' }) {
+      const T = tables[t];
+      if (!T) return;
+      seats.forEach((st, i) => {
+        const m = T.marks[i];
+        m.fill.material.opacity = st === 'empty' ? 0.18 : st === 'ready' ? 0.85 : 0.55;
+        m.ring.material.opacity = st === 'off' ? 0.25 : 0.95;
+        if (st === 'off') m.fill.material.opacity = 0.06;
+      });
+      drawSign(T.sign, lines, color);
+    },
     showMarker(x, z) { marker.position.set(x, 0.02, z); marker.visible = true; markerT = performance.now() / 1000; },
     // 카메라를 내 캐릭터 뒤로 바로 (처음 들어올 때)
     resetCam() { cam.init = false; cam.manual = false; },
@@ -268,6 +369,11 @@ export function createPlazaView(world, handlers) {
           }
           f.phase += dt * 11;
         }
+        else if (f.face != null) { // 탁구대 자리에 서 있으면 탁구대 쪽을 본다
+          let d = f.face - f.yaw;
+          d = Math.atan2(Math.sin(d), Math.cos(d));
+          f.yaw += d * (1 - Math.exp(-dt * 8));
+        }
         g.rotation.y = f.yaw;
         // 걷는 모습: 통통 튀며 살짝 앞으로 기울기 (다리가 없는 캐릭터)
         const walkK = moving ? 1 : 0;
@@ -280,6 +386,12 @@ export function createPlazaView(world, handlers) {
         if (near !== f.near) { f.near = near; f.c.setTag(near ? f.nick : null, f.me, f.title); }
         if (f.me || dist < NEAR_TICK) f.c.tickOutfit(now, dt);
         if (f.bub.visible && now - f.bubT > 3) f.bub.visible = false;
+      }
+      // 카메라 바로 앞의 탁구대 표지판은 흐리게 (화면을 가리지 않게)
+      for (const T of tables) {
+        const d = T.sign.sp.position.distanceTo(camP);
+        T.sign.sp.material.opacity = Math.min(1, Math.max(0, (d - 3.5) / 3));
+        T.sign.sp.visible = T.sign.sp.material.opacity > 0.02;
       }
       if (marker.visible) {
         const a = now - markerT;
@@ -295,7 +407,7 @@ export function createPlazaView(world, handlers) {
       if (!cam.init) { cam.yaw = me.yaw; }
       else if (!cam.manual) {
         const moving = me.w && Math.hypot(me.w.to[0] - me.disp[0], me.w.to[1] - me.disp[1]) > 0.3;
-        if (moving) {
+        if (moving || me.face != null) { // 탁구대 자리에 서면 탁구대 쪽을 보는 내 뒤로
           let d = me.yaw - cam.yaw;
           d = Math.atan2(Math.sin(d), Math.cos(d));
           cam.yaw += d * (1 - Math.exp(-dt * CAM.follow));

@@ -14,7 +14,7 @@ let loading = false;
 
 const folded = () => { try { return localStorage.getItem(FOLD_KEY) === '1'; } catch { return false; } };
 
-const BOXES = ['lb-missions', 'room-missions'];
+const BOXES = ['lb-missions'];
 const paint = (fn) => BOXES.forEach((id) => fn($(id)));
 
 export function renderMissions() {
