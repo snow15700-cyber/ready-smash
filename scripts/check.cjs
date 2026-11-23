@@ -427,13 +427,16 @@ async function browserChecks() {
         await waitFor(p, () => window.__smash.world.plazaOn && document.querySelector('#lobby').classList.contains('plaza-on'), null, 15000, '로그인 뒤 광장');
         return p;
       };
+      // 앞 단계의 로그인 탭도 광장에 서 있을 수 있어서 인원 수가 아니라 서로의 id로 확인
       const a = await mk('광장가', 7), b = await mk('광장나', 8);
-      await waitFor(a, () => window.__smash.plaza.pz.people.size === 1 && /2명/.test(document.querySelector('#pz-count').textContent), null, 10000, '서로 보임 (광장 2명)');
-      await waitFor(b, () => window.__smash.plaza.pz.people.size === 1, null, 10000, '서로 보임 (반대쪽)');
+      try {
+      const idOf = (p) => p.evaluate(() => [...window.__smash.plaza.view.figs.entries()].find(([, f]) => f.me)[0]);
+      const aId = await idOf(a), bId = await idOf(b);
+      await waitFor(a, (id) => window.__smash.plaza.pz.people.has(id) && /[2-9]명/.test(document.querySelector('#pz-count').textContent), bId, 15000, '서로 보임 (광장 인원)');
+      await waitFor(b, (id) => window.__smash.plaza.pz.people.has(id), aId, 15000, '서로 보임 (반대쪽)');
       must(await a.evaluate(() => window.__smash.world.arena.root.visible === false && !window.__smash.world.table.visible), '광장인데 옛 배경·탁구대가 보여요');
       // 걷기: b가 바닥을 클릭 → a 화면에서 b가 그곳까지 걸어감
       const to = await b.evaluate(() => { window.__smash.plaza.walkTo([4, 6]); return window.__smash.plaza.pz.myW.to; });
-      const bId = await b.evaluate(() => [...window.__smash.plaza.view.figs.entries()].find(([, f]) => f.me)[0]);
       await waitFor(a, ([id, x, z]) => { const f = window.__smash.plaza.view.figs.get(id); return f && Math.hypot(f.c.group.position.x - x, f.c.group.position.z - z) < 0.1; }, [bId, to[0], to[1]], 15000, '상대 화면에서 걸어간 곳에 도착');
       // 건물 안으로는 못 들어감 (가게 앞에서 멈춤)
       const clip = await b.evaluate(() => { window.__smash.plaza.walkTo([0, -9]); return window.__smash.plaza.pz.myW.to[1]; });
@@ -453,7 +456,7 @@ async function browserChecks() {
       // 옛 로비(임시) 왕복: 옛 로비에서는 광장 채널에서 빠짐
       await a.evaluate(() => document.querySelector('#btn-old-lobby').click());
       await waitFor(a, () => !window.__smash.world.plazaOn && !window.__smash.plaza.pz.link && !document.querySelector('#lobby').classList.contains('plaza-on'), null, 10000, '옛 로비');
-      await waitFor(b, () => window.__smash.plaza.pz.people.size === 0, null, 10000, '옛 로비로 간 사람이 광장에서 사라짐');
+      await waitFor(b, (id) => !window.__smash.plaza.pz.people.has(id), aId, 10000, '옛 로비로 간 사람이 광장에서 사라짐');
       await a.evaluate(() => document.querySelector('#btn-to-plaza').click());
       await waitFor(a, () => window.__smash.world.plazaOn && window.__smash.plaza.pz.link, null, 10000, '다시 광장');
       // 40명 제한: 먼저 온 40명 뒤에 내가 있으면 '꽉 찼어요' → 옛 로비
@@ -463,7 +466,7 @@ async function browserChecks() {
         window.__smash.plaza.fakeList([...list, { id: [...window.__smash.plaza.view.figs.entries()].find(([, f]) => f.me)[0], nick: 'me', at: me.at, w: me.myW }]);
       });
       await waitFor(a, () => !window.__smash.world.plazaOn && !window.__smash.plaza.pz.link, null, 10000, '41번째는 광장에 못 들어감');
-      await a.close(); await b.close();
+      } finally { await a.close(); await b.close(); } // 실패해도 탭을 닫아 다음 점검이 느려지지 않게
       flush();
       return '서로 보임 · 걷기 · 말풍선 · 랭킹 가게 · 옛 로비 왕복 · 40명 제한';
     });
