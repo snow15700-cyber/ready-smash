@@ -21,7 +21,7 @@
 | 탁구공 | `docs/dev/balls.md` | main |
 | 탁구대(일반 6·고급 7·전설 5) | `docs/dev/tables.md` | 게임·뽑기 연결 test(22 실행 필요) |
 | 배경(경기장)·배경 합치기(성능) | `docs/dev/arenas.md` | main (일반 배경 3종 포함, 20 실행 완료) |
-| **광장 로비**(걷는 3D 메인 화면·탁구대 4대·김제빵 탁구대·모집 알림·정해진 채팅) | `docs/dev/plaza.md` | 기획 확정(11/23), 아직 안 만듦 — 만드는 순서 ①~⑥ |
+| **광장 로비**(걷는 3D 메인 화면·탁구대 4대·김제빵 탁구대·모집 알림·정해진 채팅) | `docs/dev/plaza.md` | 기획 확정(11/23) — ① 광장 기본 test(`src/plaza.js`·`src/ui/plaza.js`·`src/arena-plaza.js`), ②~⑥ 아직 |
 | 화면 디자인(**새 디자인 '탁구 색 + 유리'**: ①~⑤ 모든 화면)·대기실 무대·VS 소개·**업데이트 내역**(`src/updates.js`, main에 합칠 때마다 추가) | `docs/dev/design.md` | 새 디자인 test |
 
 아직 안 한 것(기획서 8장): 궤적 아이템, 출석·미션, 사운드 스킨, 승리 세리머니. 최적화 ①~⑤ 모두 끝(남은 보안 — 계정 두 개로 승수 쌓기, 가입 제한 — 은 사용자가 이번엔 안 하기로).
@@ -42,7 +42,7 @@
 - `src/scene.js` Three.js 체육관·탁구대·캐릭터·카메라. `src/audio.js` Web Audio 합성음.
 - `src/net.js` Supabase Realtime Broadcast + presence. 채널 `pingpong-room-XXXX`. 설정이 없으면 BroadcastChannel로 같은 브라우저 탭끼리만 연결(로컬 테스트, `?lag=80`으로 지연 흉내).
 - `src/main.js` 시작점: 화면 파일을 모두 불러오고 매 프레임 루프(로비 카메라·배경). 화면 흐름은 `src/ui/`:
-  `state.js`(공용: `$`·`world`·`game`/`match`/`preview`와 `setGame` 등 — 다른 파일이 바꾸는 변수는 여기에 두고 setter로) · `screen.js`(`show`·`stopGame`) · `hud.js`(경기 화면 글자) · `ai.js`(혼자 하기) · `room.js`(방·대기실·시계 맞추기·전적 저장·코드 입장) · `lobbyList.js`(로비 방 목록) · `watch.js`(관전) · `cheer.js`(관중석·응원) · `login.js`(로그인·PIN·업데이트/치는 방법 창) · `rank.js` · `dress.js`(꾸미기) · `titles.js`(업적 알림·칭호) · `stage.js`(대기실 무대·연습 스윙) · `intro.js`(VS 소개).
+  `plaza.js`(광장 로비) · `state.js`(공용: `$`·`world`·`game`/`match`/`preview`·`plazaHome`과 `setGame` 등 — 다른 파일이 바꾸는 변수는 여기에 두고 setter로) · `screen.js`(`show`·`stopGame`) · `hud.js`(경기 화면 글자) · `ai.js`(혼자 하기) · `room.js`(방·대기실·시계 맞추기·전적 저장·코드 입장) · `lobbyList.js`(로비 방 목록) · `watch.js`(관전) · `cheer.js`(관중석·응원) · `login.js`(로그인·PIN·업데이트/치는 방법 창) · `rank.js` · `dress.js`(꾸미기) · `titles.js`(업적 알림·칭호) · `stage.js`(대기실 무대·연습 스윙) · `intro.js`(VS 소개).
   새 화면 파일을 만들면 `main.js` 맨 위에서 꼭 불러온다(버튼 연결이 불러올 때 일어남).
 - `src/account.js` 서버 함수 부르기 + 로컬 가짜 서버. `src/achievements.js` 업적 목록.
 - `src/gachaShow.js` 뽑기 연출 화면(탁구공 깨기, 시안 `gacha.html`과 같은 코드).

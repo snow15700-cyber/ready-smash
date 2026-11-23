@@ -137,6 +137,14 @@ export function joinWatch(code, onList, onMsg) {
   return ONLINE ? lobbySupabase(name, onList, onMsg) : lobbyLocal(name, onList, onMsg);
 }
 
+// 광장 로비 채널 (docs/dev/plaza.md 0장): 광장에 있는 사람 명단(presence: 이름·꾸미기·마지막 걷기 {from,to,t}) + 정해진 채팅.
+// 걷기는 클릭할 때만 명단 정보를 고친다(매 프레임 위치 전송 없음). 경기 채널과 따로라 경기 중인 선수는 이 채널에 없다.
+// onList([{id, nick, title, titleX, look, at, mob, w}]), onMsg(payload)
+export const PLAZA_CH = IS_TEST ? 'pingpong-test-plaza' : 'pingpong-plaza';
+export function joinPlaza(onList, onMsg) {
+  return ONLINE ? lobbySupabase(PLAZA_CH, onList, onMsg) : lobbyLocal(PLAZA_CH, onList, onMsg);
+}
+
 function lobbySupabase(chName, onList, onMsg = null) {
   const key = Math.random().toString(36).slice(2, 10);
   const ch = getClient().channel(chName, { config: { broadcast: { self: false }, presence: { key } } });

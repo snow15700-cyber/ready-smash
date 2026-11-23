@@ -10,6 +10,7 @@ import './ui/lobbyList.js';
 import './ui/breakPill.js';
 import './ui/missions.js';
 import './ui/freeGacha.js';
+import './ui/plaza.js';
 import { autoLogin, buyItem, equipItem, gacha, myEquip, testCoins } from './account.js';
 import { initAudio, playUI, setEcho, setListener, setQuiet } from './audio.js';
 import { applyLook, arenaOf, ballOf, tableOf } from './items.js';
@@ -25,6 +26,7 @@ import { enterRoom, leaveRoom, room } from './ui/room.js';
 import { show, stopGame } from './ui/screen.js';
 import { STAGE, stageFrame, stageOff } from './ui/stage.js';
 import { $, ease, game, lerp3, match, preview, world } from './ui/state.js';
+import { plazaDebug, plazaFrame } from './ui/plaza.js';
 import { endWatch, watch } from './ui/watch.js';
 
 const lobbyDemo = createLobbyDemo();
@@ -81,12 +83,22 @@ function loop() {
   // 내 스윙 판단을 먼저 끝내고 나서 경기 판정 (느린 PC에서도 늦게 친 공이 버려지지 않게)
   if (game) game.decideHit(now + game.offset);
   if (match) match.update(now);
+  // 광장 로비 (src/ui/plaza.js): 광장 채널 붙기/빠지기는 매 프레임 확인, 광장이 보이면 광장을 그린다
+  const inPlaza = plazaFrame(now);
   // 위치가 있는 소리 크기: 경기·대기실(연습 스윙)은 그대로, 로비·꾸미기 배경 랠리는 작게
   if (game) {
     setQuiet(1);
     if (!(intro && introFrame(now))) { stageOff(); game.update(now + game.offset); } // 연출 중엔 introFrame이 대기실 무대를 직접 켜고 끈다
   }
   else if (room && !room.inGame && !$('room').classList.contains('hidden')) { setQuiet(1); stageFrame(now); }
+  else if (inPlaza) {
+    setQuiet(LOBBY_QUIET);
+    stageOff();
+    world.setFocus(0);
+    setEcho(0);
+    const cp = world.camera.position, e = world.camera.matrixWorld.elements;
+    setListener([cp.x, cp.y, cp.z], [e[0], e[1], e[2]]); // 카메라 자리에서 듣기 (오른쪽 = 카메라 x축)
+  }
   else {
     setQuiet(LOBBY_QUIET);
     stageOff();
@@ -210,4 +222,4 @@ const perf = new URLSearchParams(location.search).has('fps') ? (() => {
   };
 })() : null;
 requestAnimationFrame(loop);
-window.__smash = { PV, STAGE, INTRO, world, shop: { testCoins, gacha, buyItem, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; }, get crowd() { return crowd; } };
+window.__smash = { plaza: plazaDebug, PV, STAGE, INTRO, world, shop: { testCoins, gacha, buyItem, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; }, get crowd() { return crowd; } };

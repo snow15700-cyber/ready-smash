@@ -6,6 +6,8 @@ import { playCrack, playPeep, playRoar } from './audio.js';
 import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H, HIT_Z, sideSign, ballPos } from './physics.js';
 import { createCrowd } from './crowd.js';
 import { makeTable } from './tables.js';
+import { buildPlaza } from './arena-plaza.js';
+import { bakeArena } from './arena-bake.js';
 
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts });
 
@@ -94,9 +96,20 @@ export function createWorld(canvas) {
     if (arena) { scene.remove(arena.root); disposeArena(arena.root); }
     arena = next;
     arenaId = id;
+    arena.root.visible = !plazaOn;
     scene.add(arena.root);
     crowd.setRows(arena.crowd); // 관중 줄 위치 (배경 물건과 안 겹치게, 없으면 기본)
-    scene.background = new THREE.Color(arena.sky);
+    if (!plazaOn) applyEnv(arena);
+    envMats = [];
+    arena.root.traverse((o) => {
+      if (o.userData.noFocus || !o.material) return;
+      for (const m of [].concat(o.material)) if (m.color && !envMats.some((e) => e.m === m)) envMats.push({ m, c: m.color.clone() });
+    });
+    if (focusK) { const k = focusK; focusK = -1; world.setFocus(k); }
+  }
+  // 하늘·안개·빛을 배경(또는 광장)에 맞춘다
+  function applyEnv(a) {
+    scene.background = new THREE.Color(a.sky);
     scene.fog = new THREE.Fog(arena.sky, arena.fog[0], arena.fog[1]);
     camera.far = arena.far; camera.updateProjectionMatrix();
     const [hs, hg, hi] = arena.light.hemi;
@@ -105,13 +118,29 @@ export function createWorld(canvas) {
     const b = arena.light.shadow || 5;
     Object.assign(sun.shadow.camera, { left: -b, right: b, top: b, bottom: -b, far: arena.light.shadow ? 60 : 20 });
     sun.shadow.camera.updateProjectionMatrix();
-    envMats = [];
-    arena.root.traverse((o) => {
-      if (o.userData.noFocus || !o.material) return;
-      for (const m of [].concat(o.material)) if (m.color && !envMats.some((e) => e.m === m)) envMats.push({ m, c: m.color.clone() });
-    });
     bg0 = scene.background.clone();
-    if (focusK) { const k = focusK; focusK = -1; world.setFocus(k); }
+  }
+  // 광장 로비 (docs/dev/plaza.md): 배경 아이템과 상관없는 고정 배경. 처음 켤 때 한 번 짓고 합쳐서(bakeArena) 계속 둔다.
+  // 켜 있는 동안 지금 배경·탁구대·공은 숨기고 하늘·빛은 광장 것으로. 끄면 원래대로
+  let plaza = null, plazaOn = false;
+  function setPlaza(on) {
+    on = !!on;
+    if (on === plazaOn) return;
+    plazaOn = on;
+    if (on && !plaza) {
+      plaza = buildPlaza();
+      plaza.root.traverse((o) => { if (o.isMesh && !o.castShadow) o.receiveShadow = true; });
+      if (!/[?&]nobake=1/.test(location.search)) {
+        const t0 = performance.now();
+        try { plaza.bake = { ...bakeArena(plaza, 'plaza'), ms: Math.round(performance.now() - t0) }; } catch (e) { console.warn('[광장 합치기 실패, 그대로 씀]', e); }
+      }
+      scene.add(plaza.root);
+    }
+    if (plaza) plaza.root.visible = on;
+    if (arena) arena.root.visible = !on;
+    if (table) table.visible = !on;
+    if (on) { focusK = 0; for (const e of envMats) e.m.color.copy(e.c); }
+    if (on || arena) applyEnv(on ? plaza : arena);
   }
   // 탁구대: 꾸미기로 바뀐다 (tables.js). 방에서는 방장 것, 로비·혼자 하기는 내 것 (main.js 루프). 보기만 다름
   let table = null, tableId = null;
@@ -124,6 +153,7 @@ export function createWorld(canvas) {
       table.traverse((o) => { o.geometry?.dispose?.(); for (const mt of [].concat(o.material || [])) mt.dispose?.(); });
     }
     table = makeTable(id);
+    table.visible = !plazaOn;
     scene.add(table);
   }
   setTable(null);
@@ -470,7 +500,7 @@ export function createWorld(canvas) {
       const dt = Math.min(0.1, t - fxLast || 0.016);
       fxLast = t;
       for (const side of team) for (const c of side) if (c.group.visible) c.paddleModel?.userData.tick?.(t, dt);
-      if (arena) {
+      if (arena && !plazaOn) {
         // 공이 막 튄 순간(아래로 가다 위로) → 반려동물이 반응
         const vy = ball.position.y - ballPrevY;
         const bounce = ball.visible && ballPrevVy < -0.0005 && vy > 0 ? 1 : 0;
@@ -506,6 +536,9 @@ export function createWorld(canvas) {
       renderer.render(scene, camera);
     },
     setArena,
+    setPlaza,
+    get plazaOn() { return plazaOn; },
+    get plaza() { return plaza; },
     get arenaId() { return arenaId; },
     get arena() { return arena; },
   };

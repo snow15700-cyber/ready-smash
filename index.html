@@ -232,8 +232,22 @@
       <button id="btn-updates" class="icon-btn"><i><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><b id="upd-dot" class="new-dot hidden">N</b></i>업데이트</button>
     </div>
 
+    <!-- 광장 로비 (src/ui/plaza.js): 로비에 plaza-on이 붙으면 메뉴 대신 3D 광장 + 이 버튼들 -->
+    <div id="plaza-ui" class="plaza-ui hidden">
+      <div class="pz-top">
+        <button id="btn-old-lobby" class="pz-pill" type="button" title="② 단계 전까지 임시">🏠 옛 로비로</button>
+        <span id="pz-count" class="pz-pill">👥 광장 1명</span>
+      </div>
+      <div class="pz-chat">
+        <div id="pz-phrases" class="pz-phrases hidden"></div>
+        <button id="btn-say" class="pz-say" type="button">💬 말하기</button>
+        <p id="pz-help" class="pz-help"></p>
+      </div>
+    </div>
+
     <!-- 왼쪽 아래: 치는 방법 -->
     <div class="lb-bottom">
+      <button id="btn-to-plaza" class="lb-help lb-to-plaza">🏞️ 광장으로</button>
       <button id="btn-howto" class="lb-help"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg> 치는 방법</button>
       <a id="lnk-until09" class="lb-help lb-ext" href="https://until09-5zhx.vercel.app/" target="_blank" rel="noopener">"09시까지 출근하세요" 플레이 <span class="ext"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg></span></a>
     </div>

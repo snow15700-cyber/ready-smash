@@ -34,3 +34,6 @@ export let preview = null; // 꾸미기에서 입어 보는 중 { look } (null�
 export const setGame = (g) => (game = g);
 export const setMatch = (m) => (match = m);
 export const setPreview = (p) => (preview = p);
+// 로비 자리: true = 광장(걷는 3D 로비, src/ui/plaza.js), false = 옛 로비(메뉴 화면). 광장 ②단계까지 임시로 둘 다 둔다
+export let plazaHome = true;
+export const setPlazaHome = (on) => (plazaHome = !!on);

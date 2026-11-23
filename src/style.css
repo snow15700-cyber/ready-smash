@@ -230,7 +230,7 @@ button.big small { display: block; font-size: 14px; opacity: .92; }
    색은 탁구용품에서: 빨강(러버) = 가장 중요한 버튼, 파랑(탁구대) = 두 번째, 흰 반투명 유리 = 패널, 공 주황 = 코인.
    배경 3D는 로비에서만 색을 빼고 어둡게 + 남색으로 덮어서 유리가 또렷하게 보이게 한다. */
 #c { transition: filter .4s; }
-body:has(#lobby:not(.hidden), #rank:not(.hidden), #login:not(.hidden), #pin-change:not(.hidden), #join:not(.hidden)) #c { filter: saturate(.55) brightness(.78) contrast(1.05); }
+body:has(#lobby:not(.hidden):not(.plaza-on), #rank:not(.hidden), #login:not(.hidden), #pin-change:not(.hidden), #join:not(.hidden)) #c { filter: saturate(.55) brightness(.78) contrast(1.05); }
 .screen.lobby { display: block; padding: 0; overflow: auto; backdrop-filter: none; color: #fff; font-family: var(--font-ui);
   background: linear-gradient(90deg, var(--night-62) 0%, var(--night-30) 38%, var(--night-08) 60%), linear-gradient(0deg, rgba(14,26,58,.4), rgba(14,26,58,0) 35%), linear-gradient(180deg, rgba(14,26,58,.35), rgba(14,26,58,0) 30%); }
 .lobby button, .lobby a { font-family: var(--font-ui); letter-spacing: -0.01em; transition: transform .15s, background .15s, box-shadow .15s; }
@@ -1151,3 +1151,47 @@ html.lite-glass .break-banner { backdrop-filter: none; -webkit-backdrop-filter: 
 .spot-set { margin-top: 6px; font-size: 12px; line-height: 1.5; color: #ffd9a8; }
 .spot-set b { font-weight: 600; color: #e9e3ff; }
 .spot-set b.on { color: #9effb0; }
+
+/* ───────── 광장 로비 (src/ui/plaza.js, docs/dev/plaza.md) ─────────
+   로비 화면 위에 3D 광장: 메뉴(왼쪽)·랭킹·꾸미기 아이콘은 숨기고(가게 건물로), 내 정보·미션·쉬는 시간 알림·업데이트는 그대로.
+   화면 자체는 클릭을 통과시켜 바닥을 누를 수 있게 하고, 버튼·카드만 누를 수 있다 */
+.screen.lobby.plaza-on { display: block; padding: 0; overflow: hidden; background: linear-gradient(180deg, rgba(14,26,58,.28), rgba(14,26,58,0) 22%); pointer-events: none; }
+.lobby.plaza-on > * { pointer-events: auto; }
+.lobby.plaza-on > .plaza-ui { pointer-events: none; }
+.plaza-ui > * > * { pointer-events: auto; }
+.lobby.plaza-on .lb-left, .lobby.plaza-on #btn-rank, .lobby.plaza-on #btn-closet, .lobby.plaza-on .lb-to-plaza { display: none; }
+.lobby:not(.plaza-on) .plaza-ui { display: none; }
+.plaza-ui { position: absolute; inset: 0; }
+.pz-top { position: absolute; top: 24px; left: clamp(16px, 2.5vw, 32px); display: flex; gap: 8px; flex-wrap: wrap; }
+.pz-pill { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 999px; font: 600 15px var(--font-ui); color: #fff;
+  background: rgba(28,38,66,.62); border: 1px solid var(--glass-line); box-shadow: 0 8px 22px rgba(0,0,0,.2); white-space: nowrap; }
+button.pz-pill:hover:not(:disabled) { background: rgba(28,38,66,.8); }
+.pz-chat { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.lobby button.pz-say { height: 52px; padding: 0 26px; border-radius: 999px; font: 700 18px var(--font-ui); color: #fff; background: var(--tt-blue-hi); box-shadow: 0 6px 18px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.25); }
+.lobby button.pz-say:disabled { opacity: .55; }
+.pz-help { margin: 0; font: 500 13px var(--font-ui); color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.55); white-space: nowrap; }
+.pz-phrases { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 10px; width: min(460px, calc(100vw - 32px)); border-radius: 18px; background: rgba(28,38,66,.92); border: 1px solid var(--glass-line); box-shadow: 0 16px 40px rgba(0,0,0,.3); }
+.lobby .pz-phrases button { font: 600 15px var(--font-ui); color: #2b2a33; background: #fffaf0; box-shadow: none; border-radius: 12px; padding: 10px 8px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lobby .pz-phrases button:hover { background: #ffe9c9; }
+/* 밝은 광장 위에서는 유리 패널이 하얗게 떠서 글자가 안 읽힌다 → 광장에서는 진한 남색 유리 */
+.lobby.plaza-on .me-chip, .lobby.plaza-on .me-stats span, .lobby.plaza-on .lb-help, .lobby.plaza-on button.icon-btn i, .lobby.plaza-on .lb-missions { background: rgba(28,38,66,.66); }
+/* 광장에서는 '무료 뽑기' 선물을 말하기 버튼 위가 아니라 오른쪽 아래(업데이트 아이콘 위)에 */
+.lobby.plaza-on .lb-free { bottom: 120px; }
+@media (max-width: 760px), (max-height: 560px) {
+  .screen.lobby.plaza-on { display: block; padding: 0; background: linear-gradient(180deg, rgba(14,26,58,.3), rgba(14,26,58,0) 26%); }
+  .lobby.plaza-on .lb-me { position: absolute; top: 10px; right: 10px; align-items: flex-end; }
+  .lobby.plaza-on .me-stats { display: none; }
+  .lobby.plaza-on .me-box { width: min(230px, 56vw); }
+  .lobby.plaza-on .me-name { font-size: 15px; }
+  .lobby.plaza-on .lb-icons { position: absolute; right: 10px; bottom: 96px; }
+  .lobby.plaza-on button.icon-btn i { width: 52px; height: 52px; font-size: 24px; border-radius: 16px; }
+  .lobby.plaza-on .lb-bottom { position: absolute; left: 10px; bottom: 96px; flex-direction: column; align-items: flex-start; }
+  .lobby.plaza-on .lb-help { height: 38px; padding: 0 14px; font-size: 13px; }
+  .lobby.plaza-on .lb-ext { display: none; }
+  .lobby.plaza-on .lb-free { position: absolute; left: 10px; right: 10px; bottom: 160px; width: auto; }
+  .lobby.plaza-on .break-banner { position: absolute; top: 64px; left: 50%; transform: translateX(-50%) scale(.82); transform-origin: top center; white-space: nowrap; }
+  .pz-top { top: 10px; left: 10px; }
+  .pz-pill { height: 36px; padding: 0 12px; font-size: 13px; }
+  .pz-chat { bottom: 14px; }
+  .pz-help { font-size: 11px; }
+}

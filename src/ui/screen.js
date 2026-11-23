@@ -3,7 +3,7 @@ import { resetScore } from './hud.js';
 import { endIntro } from './intro.js';
 import { syncLobby } from './lobbyList.js';
 import { renderMe, updSeen } from './login.js';
-import { $, game, setGame, setMatch, setPreview, world } from './state.js';
+import { $, game, plazaHome, setGame, setMatch, setPreview, world } from './state.js';
 
 export let curScreen = '';
 export const HOWTO_KEY = 'smash-howto-seen'; // 치는 방법 창을 본 적 있는지 (처음 온 사람에게 한 번 자동으로 띄움)
@@ -16,6 +16,8 @@ export function show(screen) {
     $('upd-dot').classList.toggle('hidden', updSeen());
   }
   if (screen !== 'dress') setPreview(null);
+  $('lobby').classList.toggle('plaza-on', plazaHome); // 광장: 로비 글자·버튼 일부만 3D 광장 위에 (src/ui/plaza.js)
+  $('plaza-ui').classList.toggle('hidden', !plazaHome);
   curScreen = screen;
   syncLobby();
   for (const id of ['login', 'pin-change', 'rank', 'lobby', 'join', 'room', 'dress']) $(id).classList.toggle('hidden', id !== screen);
