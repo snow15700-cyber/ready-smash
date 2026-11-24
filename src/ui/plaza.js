@@ -26,7 +26,7 @@ import { TEAM_NAME, enterTable, h2hOf, leaveRoom, myId, myStreak, room, roomHook
 import { curScreen, show } from './screen.js';
 import { $, IS_MOBILE, MOBILE_MSG, esc, game, myNemesis, myNick, world } from './state.js';
 import { BUBBLE_IN } from '../arena-plaza.js';
-import { bub, bubbleArena, bubbleFrame, bubbleSeated, rememberPlazaEnv, setSeated, stop as bubbleStop } from './plazaBubble.js';
+import { bub, bubbleArena, bubbleClip, bubbleFrame, bubbleHooks, bubbleLeave, bubbleSeated, rememberPlazaEnv, setSeated, stop as bubbleStop } from './plazaBubble.js';
 
 export const PLAZA_MAX = 40;
 const SAY_GAP = 2; // 한 사람 2초에 한 번
@@ -209,12 +209,20 @@ function onMsg(link, m) {
 }
 
 // ───── 걷기 ─────
+bubbleHooks.walk = (pt) => walkTo(pt, { keepSeat: true });
 // pt로 걸어간다 (막히면 모서리를 돌아서). then: 도착하면 할 일 · keepSeat: 탁구대 자리로 가는 길 (자리에서 안 내려옴)
 function walkTo(pt, { then = null, keepSeat = false } = {}) {
   if (bubbleSeated()) setSeated(false); // 관중석에 앉아 있었으면 일어나서 걷기
   if (!keepSeat) unseat();
   const nowMs = Date.now();
   const from = posAt(pz.myW, nowMs);
+  // 경기장 거품 안: 벽 밖으로는 못 감 → 벽 앞까지 걸어가서 광장으로 나간 뒤, 원래 가려던 곳으로
+  const clip = bubbleClip(from, pt);
+  if (clip.exit && !then) {
+    const target = pt;
+    then = () => { bubbleLeave(); setTimeout(() => walkTo(target), 350); };
+    pt = clip.to;
+  } else pt = clip.to;
   const path = planWalk(from, pt);
   pz.route = path.slice(1);
   pz.pending = then;

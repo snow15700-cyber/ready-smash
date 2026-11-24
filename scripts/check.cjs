@@ -698,6 +698,9 @@ async function browserChecks() {
         } finally { w.setArena = orig; }
         return { out };
       });
+      // 경기장 거품 안 걸을 수 있는 범위 (src/arenaWalls.js): 교실은 벽이 가깝고, 해변은 벽이 없음(9m)
+      const wl = await page.evaluate(async () => { const m = await import('/src/arenas.js'); const c = m.buildArena('classroom').walls, b = m.buildArena('beach').walls; return [c.x1, c.z1, b.x1]; });
+      must(wl[0] > 4 && wl[0] < 7 && wl[1] < 9 && wl[2] === 9, '배경 벽 재기가 이상해요: ' + wl.join(', '));
       must(!r.fail, `배경 ${r.fail}이(가) 안 바뀌어요` + (errs.length ? '\n' + [...new Set(errs.splice(0))].slice(0, 4).join('\n') : ''));
       flush();
       return '합친 물건 ' + r.out.join(', ');

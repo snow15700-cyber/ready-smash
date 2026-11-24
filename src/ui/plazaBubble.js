@@ -15,6 +15,8 @@ import { applyLook, arenaOf } from '../items.js';
 import { AI_LOOK, AI_NAME, KIM_ID } from '../match.js';
 import { joinRoom } from '../net.js';
 import { fireBand } from '../plaza.js';
+import { measureWalls } from '../arenaWalls.js';
+import { CHAR_Z } from '../scene.js';
 import { CHEERS, cheerHooks, cheerState, crowdJoin, crowdLeave, pickCheerTeam, sendCheer } from './cheer.js';
 import { myId } from './room.js';
 import { $, esc, myNemesis, myNick, world } from './state.js';
@@ -31,6 +33,59 @@ export const bubbleArena = () => bub.phase === 'in' || bub.phase === 'inside' ||
 export const bubbleLook = () => (bubbleArena() || bub.phase === 'join' ? bub.hostM?.look || null : null);
 export const bubbleSeated = () => bub.phase === 'inside' && bub.seated;
 let view = null;
+// plaza.js가 연결: walk(광장 좌표) = 거기로 걷기 (원 안에 들어왔는데 벽 밖이면 방 안으로)
+export const bubbleHooks = { walk: null };
+// ───── 걸을 수 있는 범위 (경기장 좌표 네모, src/arenaWalls.js) ─────
+// 광장 좌표 ↔ 경기장 좌표 (그 탁구대가 원점, plaza.js setFrame과 같은 90° 돌림)
+const toA = (t, p) => { const T = PLAZA.tables[t]; return [p[1] - T.z, -(p[0] - T.x)]; };
+const toP = (t, a) => { const T = PLAZA.tables[t]; return [T.x - a[1], T.z + a[0]]; };
+let wallsOf = null, wallsRoot = null;
+function walls() {
+  if (!world.arena) return null;
+  if (wallsRoot !== world.arena.root) { wallsRoot = world.arena.root; wallsOf = world.arena.walls || measureWalls(world.arena.root); }
+  return wallsOf;
+}
+const PLAY = { x: 1.7, z: CHAR_Z + 0.9 }; // 선수가 치는 자리 (관전자는 못 들어감)
+const inRect = (a, w, pad = 0) => a[0] > w.x0 + pad && a[0] < w.x1 - pad && a[1] > w.z0 + pad && a[1] < w.z1 - pad;
+// 걷기 길을 벽에서 자르기: from·to = 광장 좌표. 벽 밖으로 가려 하면 벽 앞까지 + exit(거품을 나감)
+export function bubbleClip(from, to) {
+  const w = (bub.phase === 'in' || bub.phase === 'inside') && walls(); // 나가는 중엔 자르지 않음
+  if (!w) return { to, exit: false };
+  const f = toA(bub.t, from);
+  let a = toA(bub.t, to);
+  // 선수 자리 안이면 그 바깥 가장자리로
+  if (Math.abs(a[0]) < PLAY.x && Math.abs(a[1]) < PLAY.z) a = Math.abs(a[0]) / PLAY.x > Math.abs(a[1]) / PLAY.z ? [Math.sign(a[0] || 1) * PLAY.x, a[1]] : [a[0], Math.sign(a[1] || 1) * PLAY.z];
+  if (inRect(a, w)) return { to: toP(bub.t, a), exit: false };
+  // 벽에 처음 닿는 곳 (from은 안쪽)
+  let k = 1;
+  for (const [i, lo, hi] of [[0, w.x0, w.x1], [1, w.z0, w.z1]]) {
+    const d = a[i] - f[i];
+    if (d > 1e-6 && a[i] > hi) k = Math.min(k, (hi - f[i]) / d);
+    if (d < -1e-6 && a[i] < lo) k = Math.min(k, (lo - f[i]) / d);
+  }
+  k = Math.max(0, k - 0.02);
+  return { to: toP(bub.t, [f[0] + (a[0] - f[0]) * k, f[1] + (a[1] - f[1]) * k]), exit: true };
+}
+// 벽에 닿아 나감: 다시 9m 밖으로 나갈 때까지 이 경기 거품에 안 들어감
+export function bubbleLeave() {
+  if (bub.phase === 'off') return;
+  bub.block = bub.code;
+  beginOut();
+}
+// 카메라: 경기장 안에서는 벽 밖으로 안 나가게
+function camClamp(me, cam) {
+  const w = walls();
+  if (!w) return 1;
+  const m = toA(bub.t, me), c = toA(bub.t, cam);
+  if (inRect(c, w, -0.3)) return 1;
+  let k = 1;
+  for (const [i, lo, hi] of [[0, w.x0 - 0.3, w.x1 + 0.3], [1, w.z0 - 0.3, w.z1 + 0.3]]) {
+    const d = c[i] - m[i];
+    if (d > 1e-6 && c[i] > hi) k = Math.min(k, (hi - m[i]) / d);
+    if (d < -1e-6 && c[i] < lo) k = Math.min(k, (lo - m[i]) / d);
+  }
+  return Math.max(0.15, k * 0.95);
+}
 
 // 물결 앞 불꽃 띠 + 불티 (세상 원점 = 그 탁구대)
 const front = fireBand(0.93, 1.07, 0);
@@ -90,6 +145,10 @@ function beginIn() {
   for (const p of pl) applyLook(world.team[p.side][p.slot], lookOf(p.id));
   world.crowd.setFirstPerson(true); // 관중석의 내 캐릭터는 숨김 (걸어 다니는 내가 나)
   view.setFrame(bub.t);
+  view.setCamClamp(camClamp);
+  // 원(7m) 안이지만 방(실내 배경) 밖이면 방 안으로 몇 걸음
+  const w = walls(), me = bub.mePos && toA(bub.t, bub.mePos);
+  if (w && me && !inRect(me, w, 0.2)) bubbleHooks.walk?.(toP(bub.t, [Math.max(w.x0 + 0.6, Math.min(w.x1 - 0.6, me[0])), Math.max(w.z0 + 0.6, Math.min(w.z1 - 0.6, me[1]))]));
   prep();
   renderBar();
   playUI('rare');
@@ -118,6 +177,7 @@ export function stop() {
   bub.code = '';
   bub.seated = false;
   view?.setCamOff(false);
+  view?.setCamClamp(null);
   view?.setFrame(null);
   view?.setFilter(null);
   view?.setPlazaBits(true);
@@ -208,9 +268,12 @@ export function bubbleFrame(v, now, dt, me, busy, ok, plazaEnv) {
   view = v;
   const dist = (t) => Math.hypot(me[0] - PLAZA.tables[t].x, me[1] - PLAZA.tables[t].z);
   // 들어가기
+  bub.mePos = me;
   if (bub.phase === 'off') {
+    // 벽에 닿아 나온 경기는 9m 밖으로 한 번 나간 뒤에야 다시 들어감
+    if (bub.block && !busy.some((r, t) => r?.code === bub.block && dist(t) < BUBBLE_OUT)) bub.block = '';
     if (!ok) return;
-    busy.forEach((r, t) => { if (bub.phase === 'off' && r && dist(t) < BUBBLE_IN && !(performance.now() - (failed.get(r.code) || -1e9) < 10000)) start(t, r); });
+    busy.forEach((r, t) => { if (bub.phase === 'off' && r && r.code !== bub.block && dist(t) < BUBBLE_IN && !(performance.now() - (failed.get(r.code) || -1e9) < 10000)) start(t, r); });
     return;
   }
   const r = busy[bub.t];

@@ -359,7 +359,7 @@ export function createPlazaView(world, handlers) {
   // 경기장 거품: 탁구대 t가 세상 원점(경기 좌표)에 오도록 광장을 돌려 놓는다 (광장 배경·사람·카메라 모두)
   const frame = { on: false, m: new THREE.Matrix4(), inv: new THREE.Matrix4(), t: -1 };
   const toWorld = (v) => (frame.on ? v.applyMatrix4(frame.m) : v);
-  let filter = null, camOff = false, plazaBits = true;
+  let filter = null, camOff = false, plazaBits = true, camClamp = null;
   return {
     root,
     figs,
@@ -428,6 +428,8 @@ export function createPlazaView(world, handlers) {
     setFilter(fn) { filter = fn; },
     // 관중석에 앉아 있는 동안은 카메라를 경기 쪽(관전 시점)이 정한다
     setCamOff(on) { camOff = on; },
+    // 카메라가 벽 밖으로 안 나가게: fn(나[x,z], 카메라[x,z]) → 0~1 (카메라를 나 쪽으로 당기는 비율, 광장 좌표). null이면 그대로
+    setCamClamp(fn) { camClamp = fn; },
     // 탁구대 자리 칸·표지판·김제빵·걷기 표시 (광장 것: 거품 안에서는 숨김)
     setPlazaBits(on) { for (const T of tables) { T.sign.sp.visible = on && T.sign.sp.visible; for (const m of T.marks || []) m.g.visible = on; if (T.rune) T.rune.visible = on && T.rune.visible; } kim.c.group.visible = on; plazaBits = on; },
     showMarker(x, z) { marker.position.set(x, 0.02, z); marker.visible = true; markerT = performance.now() / 1000; },
@@ -520,7 +522,8 @@ export function createPlazaView(world, handlers) {
       const look = tmpV.set(me.disp[0] + fx * 1.2, CAM.lookY, me.disp[1] + fz * 1.2);
       const h = Math.cos(cam.pitch) * cam.dist;
       let px = me.disp[0] - fx * h, pz = me.disp[1] - fz * h;
-      const py = CAM.lookY + Math.sin(cam.pitch) * cam.dist;
+      let py = CAM.lookY + Math.sin(cam.pitch) * cam.dist;
+      if (camClamp) { const k = camClamp(me.disp, [px, pz]); px = me.disp[0] + (px - me.disp[0]) * k; pz = me.disp[1] + (pz - me.disp[1]) * k; py = CAM.lookY + (py - CAM.lookY) * Math.max(0.55, k); }
       // 카메라가 가게 건물 안으로 들어가지 않게: 건물 앞면보다 뒤(북쪽)로는 안 간다
       const wallZ = PLAZA.shops[0].front + 0.4;
       if (pz < wallZ && me.disp[1] > wallZ) { const k = (me.disp[1] - wallZ) / (me.disp[1] - pz); px = me.disp[0] + (px - me.disp[0]) * k; pz = wallZ; }
