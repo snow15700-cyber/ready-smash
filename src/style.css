@@ -1173,6 +1173,10 @@ button.pz-pill:hover:not(:disabled) { background: rgba(28,38,66,.8); }
 .pz-phrases { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 10px; width: min(460px, calc(100vw - 32px)); border-radius: 18px; background: rgba(28,38,66,.92); border: 1px solid var(--glass-line); box-shadow: 0 16px 40px rgba(0,0,0,.3); }
 .lobby .pz-phrases button { font: 600 15px var(--font-ui); color: #2b2a33; background: #fffaf0; box-shadow: none; border-radius: 12px; padding: 10px 8px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lobby .pz-phrases button:hover { background: #ffe9c9; }
+/* ④ 경기 중인 탁구대 가까이: '👀 관전' (말하기 버튼 위) */
+.lobby button.pz-watch { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 22px; border-radius: 18px; font: 700 17px var(--font-ui); color: #fff; background: linear-gradient(180deg, #ff6b6f, #d7262e); box-shadow: 0 8px 22px rgba(0,0,0,.3); white-space: nowrap; }
+.lobby button.pz-watch small { font-size: 12px; font-weight: 500; opacity: .9; }
 /* 탁구대 자리 판 (src/ui/plaza.js renderPanel): 자리에 서 있을 때만, 왼쪽 아래(치는 방법 위) — 가운데 탁구대·상대를 가리지 않게 */
 .pz-table { position: absolute; left: clamp(16px, 2.5vw, 32px); bottom: 84px; width: min(440px, calc(100vw - 32px)); pointer-events: auto;
   display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 10px; border-radius: 20px; color: #fff;

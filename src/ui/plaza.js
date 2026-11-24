@@ -25,6 +25,7 @@ import { TEAM_NAME, enterTable, h2hOf, leaveRoom, myId, myStreak, room, roomHook
 import { curScreen, show } from './screen.js';
 import { $, IS_MOBILE, MOBILE_MSG, esc, game, myNemesis, myNick, world } from './state.js';
 import { startWatch, watch } from './watch.js';
+import { liveFrame, liveInfo, stop as liveStop } from './plazaLive.js';
 
 export const PLAZA_MAX = 40;
 const SAY_GAP = 2; // 한 사람 2초에 한 번
@@ -278,6 +279,7 @@ function onTable(t) {
   if (st.busy) {
     if (!st.busy.pl) { hud.toast('곧 중계가 시작돼요. 잠시 뒤 다시 눌러 주세요', 1800); return; }
     unseat();
+    liveStop();
     startWatch(st.busy);
     return;
   }
@@ -351,7 +353,8 @@ function renderTables(force = false) {
     const seats = st.seats.map((p) => (off ? 'off' : !p ? 'empty' : p.rdy ? 'ready' : 'taken'));
     let lines, color;
     if (st.busy) {
-      const sc = st.busy.score || [0, 0];
+      const li = liveInfo();
+      const sc = li?.t === t ? li.score : st.busy.score || [0, 0]; // 가까이 있으면 실시간 점수
       lines = [`${t + 1}번 · ${st.busy.mode === '2v2' ? '2대2' : '1대1'} 경기 중 ${sc[0]} : ${sc[1]}`, '👀 탁구대를 누르면 관전'];
       color = '#ff5a5f';
     } else if (st.soon || (st.mode && st.ready)) { lines = [`${t + 1}번 탁구대`, '🏓 곧 시작해요!']; color = '#ffd23f'; }
@@ -463,6 +466,25 @@ function renderCount() {
   $('pz-count').textContent = pz.full ? `👥 광장이 꽉 찼어요 (${PLAZA_MAX}명)` : `👥 광장 ${pz.link ? pz.people.size + pz.kimN + 1 : 1}명`;
 }
 
+// '👀 N번 탁구대 관전' 버튼 (가까이 있는 경기 중 탁구대)
+let watchBtn = { key: '', r: null };
+function showWatchBtn(li) {
+  const el = $('pz-watch');
+  const key = li ? `${li.t}:${li.score.join(':')}` : '';
+  watchBtn.r = li?.r || null;
+  if (key === watchBtn.key) return;
+  watchBtn.key = key;
+  el.classList.toggle('hidden', !li);
+  if (li) el.innerHTML = `👀 ${li.t + 1}번 탁구대 관전 <small>${li.score[0]} : ${li.score[1]} · 관중석에서 보기</small>`;
+}
+$('pz-watch').addEventListener('click', () => {
+  const r = watchBtn.r;
+  if (!r) return;
+  liveStop();
+  unseat();
+  startWatch(r);
+});
+
 // 지금 광장이 화면에 보이나 (로비 화면)
 export const plazaShown = () => !game && !$('lobby').classList.contains('hidden');
 
@@ -504,7 +526,7 @@ export function plazaFrame(now) {
       closePhrases(); // 로비 캐릭터는 로비·경기 화면이 다시 켠다
     }
   }
-  if (!shown) return false;
+  if (!shown) { liveStop(); showWatchBtn(null); return false; }
   for (const side of world.team) for (const c of side) c.group.visible = false; // 랠리하는 로비 캐릭터는 숨김
   // 걷는 중: 한 구간이 끝나면 다음 구간, 다 왔으면 도착해서 할 일 (가게 열기·혼자 하기)
   const nowMs = Date.now();
@@ -514,6 +536,9 @@ export function plazaFrame(now) {
     else if (pz.pending) { const f = pz.pending; pz.pending = null; f(); }
   }
   renderTables();
+  // ④ 광장에서 관전: 경기 중인 탁구대 가까이 가면 그 1대만 실시간 (듣기만), '👀 관전' 버튼
+  const busy = PLAZA.tables.map((_, t) => lobbyRooms.find((r) => r.pt === t && r.play && r.pl) || null);
+  showWatchBtn(liveFrame(view, now, posAt(pz.myW, Date.now()), busy, !!pz.link && !room));
   view.update(now, myId);
   sky ||= createPlazaSky(world);
   sky.update(now);
@@ -524,5 +549,5 @@ export function plazaFrame(now) {
 // 점검·디버그용
 export const plazaDebug = {
   pz, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list), fakeState: (m) => onState(m), get kimN() { return pz.kimN; },
-  sit: onSeat, table: onTable, kim: onKim, ready: toggleReady, unseat, state: tableState, afk: () => { pz.lastAct -= AFK_MS + 1000; },
+  live: liveInfo, sit: onSeat, table: onTable, kim: onKim, ready: toggleReady, unseat, state: tableState, afk: () => { pz.lastAct -= AFK_MS + 1000; },
 };

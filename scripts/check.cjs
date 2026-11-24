@@ -546,6 +546,11 @@ async function browserChecks() {
       await viewer.click('#btn-guest');
       await waitFor(viewer, () => window.__smash.plaza.state(1).busy, null, 15000, '광장에서 2번 탁구대가 경기 중으로 보임');
       must(await viewer.evaluate(() => { window.__smash.plaza.sit(1, 1); return !window.__smash.plaza.pz.seat; }), '경기 중인 탁구대 자리에 서져요');
+      // ④ 광장에서 관전: 가까이 가면 그 탁구대만 실시간(듣기만) + '👀 관전' 버튼, 멀어지면 끊김
+      await viewer.evaluate(() => window.__smash.plaza.walkTo([8, 2.5]));
+      await waitFor(viewer, () => window.__smash.plaza.live()?.t === 1 && window.__smash.plaza.live().got > 0 && /2번 탁구대 관전/.test(document.querySelector('#pz-watch').textContent), null, 20000, "가까이 가면 실시간 + '👀 2번 탁구대 관전'");
+      await viewer.evaluate(() => window.__smash.plaza.walkTo([-4, 9]));
+      await waitFor(viewer, () => !window.__smash.plaza.live() && document.querySelector('#pz-watch').classList.contains('hidden'), null, 20000, '멀어지면 실시간 끊김');
       await viewer.evaluate(() => window.__smash.plaza.table(1));
       await waitFor(viewer, () => window.__smash.game?.spectator && !document.querySelector('#watch-bar').classList.contains('hidden'), null, 10000, '관전 화면');
       await waitFor(viewer, () => document.querySelector('#scoreboard').textContent.includes('점검참가') && /2번 탁구대/.test(document.querySelector('#watch-who').textContent), null, 10000, '관전 점수판에 선수 이름');
@@ -582,7 +587,7 @@ async function browserChecks() {
       await viewer.close();
       await guest.close();
       flush();
-      return '서기·같은 칸 다툼·준비·경기 중 광장에서 빠짐·관전·한 판 더·자리 비움';
+      return '서기·같은 칸 다툼·준비·경기 중 광장에서 빠짐·가까이 실시간·관전·한 판 더·자리 비움';
     });
 
     await step('화면: 탁구대 19종 짓기·바꾸기 (튀기·득점 연출)', async () => {
