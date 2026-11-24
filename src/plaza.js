@@ -422,7 +422,7 @@ export function createPlazaView(world, handlers) {
     setFrame(t) {
       const roots = [root, world.plaza?.root].filter(Boolean);
       if (t == null) { frame.on = false; frame.t = -1; for (const r of roots) { r.rotation.y = 0; r.position.set(0, 0, 0); r.updateMatrixWorld(true); } return; }
-      const T = PLAZA.tables[t];
+      const T = t === 'kim' ? PLAZA.kim : PLAZA.tables[t]; // 'kim' = 김제빵 탁구대 (혼자 하기 물결)
       frame.on = true; frame.t = t;
       for (const r of roots) { r.rotation.y = Math.PI / 2; r.position.set(-T.z, 0, T.x); r.updateMatrixWorld(true); }
       frame.m.copy(root.matrixWorld); frame.inv.copy(frame.m).invert();

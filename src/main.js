@@ -26,7 +26,7 @@ import { endRoom, room } from './ui/room.js';
 import { show, stopGame } from './ui/screen.js';
 import { $, ease, game, lerp3, match, preview, world } from './ui/state.js';
 import { plazaDebug, plazaFrame } from './ui/plaza.js';
-import { bubbleArena, bubbleLook, bubbleSeated } from './ui/plazaBubble.js';
+import { aiWaveCam, bubbleArena, bubbleLook, bubbleSeated } from './ui/plazaBubble.js';
 
 const lobbyDemo = createLobbyDemo();
 const LOBBY_QUIET = 0.4; // 로비 배경 랠리 소리 크기 (경기 중 소리를 1로 볼 때)
@@ -83,7 +83,10 @@ function loop() {
   // 위치가 있는 소리 크기: 경기·대기실(연습 스윙)은 그대로, 로비·꾸미기 배경 랠리는 작게
   if (game) {
     setQuiet(1);
-    if (!(intro && introFrame(now))) game.update(now + game.offset); // 연출 중엔 introFrame이 그린다
+    if (!(intro && introFrame(now))) {
+      game.update(now + game.offset); // 연출 중엔 introFrame이 그린다
+      aiWaveCam(now); // 김제빵 혼자 하기 시작 물결: 광장 카메라 → 경기 카메라 (plaza.md 19장 ⓓ)
+    }
   }
   else if (inPlaza) {
     setQuiet(bubbleArena() ? 1 : LOBBY_QUIET); // 경기장 거품 안: 경기 소리 그대로

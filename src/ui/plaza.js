@@ -27,7 +27,7 @@ import { TEAM_NAME, enterTable, h2hOf, leaveRoom, myId, myStreak, room, roomHook
 import { curScreen, show } from './screen.js';
 import { $, IS_MOBILE, MOBILE_MSG, esc, game, myNemesis, myNick, preview, world } from './state.js';
 import { BUBBLE_IN } from '../arena-plaza.js';
-import { bub, bubbleArena, bubbleClip, bubbleFrame, bubbleHooks, bubbleLeave, bubbleSeated, matchWaveDebug, matchWaveOut, rememberPlazaEnv, setSeated, stop as bubbleStop } from './plazaBubble.js';
+import { aiWaveStart, bub, bubbleArena, bubbleClip, bubbleFrame, bubbleHooks, bubbleLeave, bubbleSeated, matchWaveDebug, matchWaveOut, rememberPlazaEnv, setSeated, stop as bubbleStop } from './plazaBubble.js';
 
 export const PLAZA_MAX = 40;
 const SAY_GAP = 2; // 한 사람 2초에 한 번
@@ -252,8 +252,10 @@ function goShop(s) {
 function onKim() {
   playUI('click');
   const p = posAt(pz.myW, Date.now()), k = PLAZA.kim.spot;
-  if (Math.hypot(p[0] - k[0], p[1] - k[1]) < 1.0) { unseat(); startAI(); return; }
-  walkTo(k, { then: () => startAI() });
+  // 혼자 하기 시작: 내 배경으로 물결 (19장 ⓓ). 끝나면 plazaFrame이 거꾸로 물결
+  const go = () => { aiWaveStart(); startAI(); pz.aiT = true; };
+  if (Math.hypot(p[0] - k[0], p[1] - k[1]) < 1.0) { unseat(); go(); return; }
+  walkTo(k, { then: go });
 }
 
 // ───── 탁구대 (plaza.md 2장) ─────
@@ -748,6 +750,8 @@ export function plazaFrame(now) {
   const apv = arenaPreview();
   if (apv !== pz.apv) { pz.apv = apv; world.renderer.domElement.animate?.([{ opacity: 0.15 }, { opacity: 1 }], { duration: 420, easing: 'ease-out' }); }
   const shown = plazaShown();
+  // 혼자 하기가 끝나 광장으로: 경기장이 걷히며 광장 (19장 ⓓ)
+  if (pz.aiT && !inAI()) { pz.aiT = false; if (shown) matchWaveOut('kim', myEquip()); }
   world.setPlaza(shown && !bubbleArena()); // 경기장 거품 안(또는 물결 중)이면 경기장 배경 (plazaBubble.js가 둘을 섞음)
   if (shown !== pz.shown) {
     pz.shown = shown;

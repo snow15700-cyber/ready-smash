@@ -338,6 +338,9 @@ async function browserChecks() {
       await waitFor(page, () => !document.querySelector('#lobby').classList.contains('hidden'), null, 10000, '로비');
       await page.evaluate(() => window.__smash.plaza.kim()); // 김제빵 탁구대까지 걸어가서 혼자 하기
       await waitFor(page, () => window.__smash.game && window.__smash.match, null, 20000, '혼자 하기 시작');
+      // 내 배경으로 물결 (plaza.md 19장 ⓓ): 김제빵 탁구대 좌표로 광장 → 경기장, 끝나면 광장은 숨고 좌표는 원래대로
+      must(await page.evaluate(() => window.__smash.plaza.mwave.on || window.__smash.plaza.view.frameT === null), '혼자 하기 물결 상태가 이상해요');
+      await waitFor(page, () => !window.__smash.plaza.mwave.on && !window.__smash.world.plaza.root.visible && window.__smash.plaza.view.frameT === null, null, 20000, '혼자 하기 시작 물결 끝');
       // 서브 토스: 캔버스를 누른다
       const fire = (type) => page.evaluate((type) => {
         const c = document.querySelector('#c');
@@ -348,6 +351,7 @@ async function browserChecks() {
       await page.waitForTimeout(1500);
       await page.click('#exit');
       await waitFor(page, () => !window.__smash.game, null, 10000, '나가기');
+      await waitFor(page, () => window.__smash.world.plazaOn && !window.__smash.plaza.mwave.on && window.__smash.plaza.view.frameT === null, null, 20000, '혼자 하기 끝 → 물결 지나고 광장');
       flush();
     });
 
@@ -501,8 +505,6 @@ async function browserChecks() {
       await b.evaluate(() => document.querySelector('#exit').click());
       await waitFor(a, (id) => window.__smash.plaza.kimN === 0 && window.__smash.plaza.view.figs.has(id), bId, 15000, '혼자 하기를 끝내면 다시 광장에 보임');
       // ⑤ 모집 알림·콕 집어 초대: a가 1번 탁구대에 서서 '구해요' → b 화면 위 띠 / a가 b를 눌러 초대 → b 수락 → 같은 탁구대
-      // 뒤에 있는 탭은 타이머가 느려져서(브라우저 절약) '나 여기 있어요' 신호가 8초 넘게 끊기면 상대 화면에서 잠깐 빠진다 → a를 앞으로 (진짜 PC는 사람마다 창이 따로라 상관없음)
-      await a.bringToFront();
       await a.evaluate(() => window.__smash.plaza.sit(0, 0));
       await waitFor(b, () => window.__smash.plaza.state(0).n === 1, null, 10000, 'b 화면에 a가 1번 탁구대에 섬');
       await a.evaluate(() => window.__smash.plaza.call());

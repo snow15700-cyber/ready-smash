@@ -179,7 +179,7 @@ export function stop() {
   world.crowd.setShown(false);
   world.setBall([0, -9, 0], false);
   world.ring.visible = false; world.aim.visible = false;
-  sun.castShadow = true;
+  sun.shadow.intensity = 1;
   bub.phase = 'off';
   bub.code = '';
   bub.seated = false;
@@ -286,7 +286,8 @@ function drawWave(q, enter, now, env, fire) {
   }
   world.plaza.root.visible = !(enter && q >= 1);
   world.arena.root.visible = !(!enter && q >= 1);
-  sun.castShadow = q >= 1 || q <= 0; // 물결 중엔 그림자를 잠깐 끔 (줄어드는 물건 그림자가 남지 않게)
+  // 물결 중엔 그림자를 잠깐 안 보이게 (줄어드는 물건 그림자가 남지 않게). castShadow를 끄고 켜면 모든 재질을 다시 만들어 화면이 멈춰서(느린 PC) 진하기만 0으로
+  sun.shadow.intensity = q >= 1 || q <= 0 ? 1 : 0;
   mixEnv(enter ? q : 1 - q, env);
   fireFront(R, now, fire);
   return R;
@@ -294,10 +295,35 @@ function drawWave(q, enter, now, env, fire) {
 
 // ───── 선수 물결 (plaza.md 19장 ⓑ) ─────
 const WAVE_LATEST = INTRO.p3; // 늦어도 VS 장면 전에 끝
-let lastEnv = null; // 마지막으로 본 광장 하늘·빛 (경기 시작 물결은 광장을 더 안 그리니까)
+let lastEnv = null;
+const tableOf = (t) => (t === 'kim' ? PLAZA.kim : t == null ? null : PLAZA.tables[t]); // 'kim' = 김제빵 탁구대
+
+// 김제빵 혼자 하기 (19장 ⓓ, 사용자 확정 = 내 배경으로 물결): VS 소개가 없으니 경기 화면 카메라(game.update 다음, main.js)를
+// 광장 3인칭 자리에서 이어 준다. 물결·하늘은 선수 물결과 같은 코드
+let aiW = null; // { t0 }
+export function aiWaveStart() {
+  aiW = introHooks.waveStart('kim') ? { t0: performance.now() / 1000 } : null;
+}
+const fwd = new THREE.Vector3();
+export function aiWaveCam(now) {
+  if (!aiW) return;
+  const ti = now - aiW.t0;
+  const wc = introHooks.waveFrame(ti, now);
+  if (!wc) { aiW = null; return; }
+  const k = ease(Math.min(1, ti / AI_CAM));
+  if (k >= 1) return;
+  const cam = world.camera, pos = cam.position.toArray();
+  fwd.set(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(6).add(cam.position);
+  const lp = (a, b) => a.map((v, i) => v + (b[i] - v) * k);
+  cam.position.set(...lp(wc.pos, pos));
+  cam.position.y += Math.sin(Math.PI * k) * 0.6;
+  cam.lookAt(...lp(wc.look, fwd.toArray()));
+}
+export const aiWaveOn = () => !!aiW;
+const AI_CAM = 1.1; // 광장 카메라 → 경기 카메라 (초) // 마지막으로 본 광장 하늘·빛 (경기 시작 물결은 광장을 더 안 그리니까)
 // 경기 시작: VS 소개가 시작될 때 (intro.js). t = 탁구대 번호. 카메라는 광장 3인칭 자리에서 출발
 introHooks.waveStart = (t) => {
-  if (!view || !world.plaza || !world.arena || !lastEnv || t == null || !PLAZA.tables[t] || bub.phase !== 'off') return false;
+  if (!view || !world.plaza || !world.arena || !lastEnv || !tableOf(t) || bub.phase !== 'off') return false;
   if (mw.on) finishWave();
   const cp = view.cam.pos.clone(), cl = view.cam.look.clone(), fov = world.camera.fov;
   view.setFrame(t); // 광장을 그 탁구대가 원점에 오게 돌려 놓음 (경기 좌표)
@@ -312,7 +338,7 @@ introHooks.waveStart = (t) => {
 // 물결은 프레임마다 조금씩(멈칫해도 건너뛰지 않게 — 처음 그릴 때 그래픽 카드가 잠깐 멈출 수 있음), 늦어도 VS 장면(p3) 전에 끝
 introHooks.waveFrame = (ti, now) => {
   if (!mw.on || !mw.enter) return null;
-  mw.q = Math.min(1, mw.q + Math.min(0.05, now - (mw.last ?? now)) / WAVE_DUR);
+  mw.q = Math.min(1, Math.max(mw.q + Math.min(0.05, now - (mw.last ?? now)) / WAVE_DUR, ti / (WAVE_DUR * 2)));
   mw.last = now;
   if (ti >= WAVE_LATEST) mw.q = 1;
   const q = mw.q;
@@ -324,8 +350,8 @@ introHooks.waveStop = () => { if (mw.on && mw.enter) finishWave(); };
 // 경기 끝: 광장으로 돌아올 때 (plaza.js roomHooks.onEnd). look = 그 경기 방장 꾸미기 (물결 동안 그 경기장 그대로)
 export function matchWaveOut(t, look) {
   if (mw.on) finishWave();
-  if (!view || !world.plaza || !world.arena || t == null || !PLAZA.tables[t] || bub.phase !== 'off') return;
-  mw = { on: true, enter: false, t, q: 0, look, env: null, cam: null };
+  if (!view || !world.plaza || !world.arena || !tableOf(t) || bub.phase !== 'off') return;
+  mw = { on: true, enter: false, t, q: 0, look, env: null, cam: null, t0: performance.now() / 1000 };
   view.setFrame(t);
   prep();
   playUI('rare');
@@ -336,7 +362,7 @@ function finishWave() {
   document.body.classList.remove('mwave');
   resetWave();
   fireFront(-1, 0, false);
-  sun.castShadow = true;
+  sun.shadow.intensity = 1;
   view?.setFrame(null);
   view?.setFilter(null);
   view?.setPlazaBits(true);
@@ -349,10 +375,11 @@ export function bubbleFrame(v, now, dt, me, busy, ok, plazaEnv) {
   view = v;
   // 경기가 끝나 광장으로 돌아오는 물결 (선수): 경기장이 걷히고 광장이 그 탁구대에서부터 다시
   if (mwOut()) {
-    mw.q = Math.min(1, mw.q + dt / WAVE_DUR);
+    // 프레임마다 조금씩 + 느린 PC에서도 늦어도 WAVE_DUR의 2배 안에는 끝나게
+    mw.q = Math.min(1, Math.max(mw.q + dt / WAVE_DUR, (now - mw.t0) / (WAVE_DUR * 2)));
     const R = drawWave(mw.q, false, now, plazaEnv, mw.q < 1);
     view.setPlazaBits(mw.q > 0.7);
-    const T = PLAZA.tables[mw.t];
+    const T = tableOf(mw.t);
     view.setFilter((f, p) => Math.hypot(p[0] - T.x, p[1] - T.z) < R); // 광장 사람은 물결이 지나간 곳부터 보임
     for (const side of world.team) for (const c of side) c.group.visible = false; // 경기 캐릭터 대신 광장의 나·사람들
     if (mw.q >= 1) finishWave();
