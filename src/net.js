@@ -36,7 +36,7 @@ export const normalizeCode = (s) => s.toUpperCase().replace(/[^A-Z0-9]/g, '').sl
 //   · direct(): 선수끼리 WebRTC로 바로 이어졌는지 (rtc 옵션을 켰을 때)
 // rtc: 선수끼리 WebRTC 직접 연결도 쓴다 (docs/dev/gameplay.md 'WebRTC 직접 연결'). 모든 소식을 서버(채널)와 직접 길로 같이 보내고,
 //   받는 쪽은 먼저 온 것만 쓴다 → 직접 연결이 안 붙어도 지금처럼 서버로 된다. 관중(listen)은 서버로만 듣는다.
-//   handlers.onDirect(bool): 직접 연결이 열리거나 닫힐 때. 주소창 ?rtc=0 이면 끔 (비교 시험용)
+//   handlers.onDirect({ n, of }): 직접 연결이 열리거나 닫힐 때 (다른 선수 of명 중 n명과 직접 연결, 2대2면 서로 다 연결). 주소창 ?rtc=0 이면 끔 (비교 시험용)
 export function joinRoom(code, me, handlers, { listen = false, rtc = false } = {}) {
   let h = handlers, last = [], p2p = null;
   const route = {
@@ -59,24 +59,29 @@ export function joinRoom(code, me, handlers, { listen = false, rtc = false } = {
     leave() { p2p?.close(); p2p = null; base.leave(); },
     setHandlers(nh) { h = nh; },
     members: () => last,
-    direct: () => !!p2p?.open(),
+    direct: () => !!p2p?.open(), // 한 명이라도 직접 연결
   };
 }
 
 // ───────── 선수끼리 WebRTC 직접 연결 (경기 채널로 연결 정보를 주고받음) ─────────
 const RTC_ON = typeof RTCPeerConnection !== 'undefined' && new URLSearchParams(location.search).get('rtc') !== '0';
 const ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
-// myId: 내 id. sig(m): 서버 길로 보내기. deliver(m): 직접 길로 받은 소식. onDirect(bool)
-// 상대마다 연결 하나 (1대1이면 하나). id가 작은 쪽이 먼저 연결을 건다(offer).
+// myId: 내 id. sig(m): 서버 길로 보내기. deliver(m): 직접 길로 받은 소식. onDirect({ n, of })
+// 상대마다 연결 하나 (1대1이면 하나, 2대2 네 명이면 각자 셋 → 모두 6개). id가 작은 쪽이 먼저 연결을 건다(offer).
 function makeP2P(myId, sig, deliver, onDirect) {
   const peers = new Map(); // 상대 id → { pc, dc, q(받은 순서대로 처리) }
   const tries = new Map(); // 상대 id → 연결 건 횟수 (실패하면 3초 뒤 다시, 3번까지)
   let listed = new Set(); // 지난 명단 (명단에 있다가 빠진 사람만 끊는다 — 명단보다 연결 요청이 먼저 올 수 있어서)
   const seen = new Map(); // 보낸 사람 id → 받은 번호 Set (두 길로 온 같은 소식 걸러내기)
-  let seq = 0, closed = false, wasOpen = false;
+  let seq = 0, closed = false, lastKey = '';
   const nonce = Math.random().toString(36).slice(2, 8); // 새로고침해도 번호가 겹치지 않게
   const anyOpen = () => [...peers.values()].some((p) => p.dc?.readyState === 'open');
-  const report = () => { const o = anyOpen(); if (o !== wasOpen) { wasOpen = o; onDirect(o); } };
+  const report = () => {
+    if (closed) return;
+    const n = [...listed].filter((id) => peers.get(id)?.dc?.readyState === 'open').length;
+    const key = `${n}/${listed.size}`;
+    if (key !== lastKey) { lastKey = key; onDirect({ n, of: listed.size }); }
+  };
   const signal = (to, m) => sig({ k: '_rtc', to, from: myId, ...m });
 
   function drop(id) {
@@ -124,6 +129,7 @@ function makeP2P(myId, sig, deliver, onDirect) {
       const ids = new Set(list.map((m) => m.id).filter((id) => id && id !== myId));
       for (const id of [...peers.keys()]) if (listed.has(id) && !ids.has(id)) drop(id);
       listed = ids;
+      report();
       for (const id of ids) if (myId < id) call(id).catch(() => {});
     },
     signal(m) {

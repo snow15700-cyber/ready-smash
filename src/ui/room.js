@@ -43,14 +43,14 @@ export function enterTable(code, host, mode, t, players, h2h = {}) {
     lag: {}, // 방장: 참가자 id → 그 PC까지 소식이 가는 시간(초, 편도). 참가자가 ping에 실어 보냄 (match.js RECV_LAG_MAX)
   };
   const r0 = room;
-  const useRtc = humans(players).length === 2; // 선수끼리 WebRTC 직접 연결: 지금은 1대1만 (2대2는 다음 단계)
+  const useRtc = humans(players).length >= 2; // 선수끼리 WebRTC 직접 연결 (1대1·2대2·김제빵 낀 2대2 — 김제빵은 방장 PC 안에 있어서 연결 없음)
   room.link = joinRoom(code, me, {
     onMsg: onRoomMsg,
     onMembers,
     onStatus: (st, text) => { if (room === r0 && st === 'error') endRoom('error', text); },
-    onDirect: (on) => { if (room === r0) netPill(on); },
+    onDirect: (d) => { if (room === r0) netPill(d); },
   }, { rtc: useRtc });
-  netPill(useRtc ? false : null);
+  netPill(useRtc ? { n: 0, of: 0 } : null);
   crowdJoin(code); // 관중석 채널: 선수는 듣기만 (관중 수·응원)
   // 참가자 PC: 방장과 시계 맞추기
   room.timer = setInterval(() => {
@@ -242,13 +242,17 @@ function startGuestGame(mode, players, mine, mid) {
   startIntro(players, mine.side, mode);
 }
 
-// 경기 화면 왼쪽 위 연결 표시: true ⚡ 직접 연결 · false 🌐 서버 경유 · null 숨김
-function netPill(on) {
+// 경기 화면 왼쪽 위 연결 표시 (d = { n, of }: 다른 선수 of명 중 n명과 직접 연결, null 숨김)
+// 모두 ⚡ 직접 연결 · 일부(2대2) ⚡ 일부 직접 (n/of) · 없음 🌐 서버 경유
+function netPill(d) {
   const el = $('net-pill');
   if (!el) return;
-  el.classList.toggle('hidden', on === null);
-  el.classList.toggle('on', on === true);
-  el.textContent = on ? '⚡ 직접 연결' : '🌐 서버 경유';
+  el.classList.toggle('hidden', !d);
+  if (!d) return;
+  const all = d.of > 0 && d.n === d.of;
+  el.classList.toggle('on', all);
+  el.classList.toggle('part', d.n > 0 && !all);
+  el.textContent = all ? '⚡ 직접 연결' : d.n > 0 ? `⚡ 일부 직접 (${d.n}/${d.of})` : '🌐 서버 경유';
 }
 
 // 참가자 PC: 방장 소식이 보통 몇 초 걸려 오는지 (최근 ping 왕복 시간의 75% 지점 ÷ 2).
