@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { PLAZA } from './arena-plaza.js';
 import { bubble } from './crowd.js';
 import { applyLook } from './items.js';
+import { holdPose } from './ui/stage.js';
 import { makeCharacter } from './scene.js';
 
 export const WALK_SPEED = 4; // m/s
@@ -152,6 +153,7 @@ function drawSign(sg, lines, color) {
 
 // handlers: onGround([x, z]) · onShop(shop) · onTable(t) · onSeat(t, s) · onKim()
 export function createPlazaView(world, handlers) {
+  const K = PLAZA.kim;
   const root = new THREE.Group();
   root.visible = false;
   world.scene.add(root);
@@ -187,6 +189,18 @@ export function createPlazaView(world, handlers) {
     return { t, marks, sign };
   });
 
+  // 김제빵 탁구대 (③): 김제빵이 동쪽 끝에 늘 서 있고 (다른 사람 눈엔 도전하는 사람은 안 보이고 김제빵 혼자), 위에 '🔥 N명 도전 중' 표지판
+  const kim = { c: makeCharacter('#2f8a4e'), sign: makeSign(), n: -1, swingAt: 2 };
+  kim.c.setHold(true);
+  kim.c.group.traverse((o) => { o.castShadow = false; });
+  kim.c.group.add(blobShadow());
+  kim.c.group.position.set(K.chef[0], 0, K.chef[1]);
+  kim.c.group.rotation.y = Math.PI / 2; // 서쪽(탁구대 쪽)을 본다
+  root.add(kim.c.group);
+  kim.sign.sp.position.set(K.x - 0.4, 3.05, K.z); // 김제빵 이름표 위로
+  root.add(kim.sign.sp);
+  tables.push({ sign: kim.sign }); // 카메라 앞 흐리게 (아래 update)
+
   // 사람 한 명 그리기 정보 p = { id, nick(이름표 글자), title(글자), look, w, me, face(서 있을 때 바라볼 쪽, 없으면 null) }
   function put(p) {
     let f = figs.get(p.id);
@@ -217,7 +231,8 @@ export function createPlazaView(world, handlers) {
   });
   // 탁구대 상자 (판 + 표지판 높이까지): 사람 대결용 t = 0~2, 김제빵 = 'kim'
   const tBox = (r, h) => new THREE.Box3(new THREE.Vector3(r.x0, 0, r.z0), new THREE.Vector3(r.x1, h, r.z1));
-  const tableBoxes = [...PLAZA.tables.map((t, i) => ({ t: i, box: tBox(t.rect, 1.1) })), { t: 'kim', box: tBox(PLAZA.kim.rect, 1.1) }];
+  const tableBoxes = [...PLAZA.tables.map((t, i) => ({ t: i, box: tBox(t.rect, 1.1) })), { t: 'kim', box: tBox(K.rect, 1.1) },
+    { t: 'kim', box: tBox({ x0: K.chef[0] - 0.45, x1: K.chef[0] + 0.45, z0: K.z - 0.45, z1: K.z + 0.45 }, 1.9) }]; // 김제빵을 눌러도
   function pick(px, py) {
     const rect = world.renderer.domElement.getBoundingClientRect();
     ndc.set(((px - rect.left) / rect.width) * 2 - 1, -((py - rect.top) / rect.height) * 2 + 1);
@@ -340,6 +355,14 @@ export function createPlazaView(world, handlers) {
       });
       drawSign(T.sign, lines, color);
     },
+    // 김제빵 모습 (꾸미기·이름표) + 도전 중인 사람 수
+    setKim(look, name, n) {
+      if (!kim.look) { kim.look = true; applyLook(kim.c, look); kim.c.group.traverse((o) => { if (o.isMesh) o.castShadow = false; }); kim.c.setTag(name, false, ''); }
+      if (n === kim.n) return;
+      kim.n = n;
+      drawSign(kim.sign, ['🤖 김제빵 탁구대', n > 0 ? `🔥 ${n}명 도전 중` : '누르면 혼자 하기 · 휴대폰도 OK'], n > 0 ? '#ff8a3d' : '#2f8a4e');
+    },
+    get kimN() { return kim.n; },
     showMarker(x, z) { marker.position.set(x, 0.02, z); marker.visible = true; markerT = performance.now() / 1000; },
     // 카메라를 내 캐릭터 뒤로 바로 (처음 들어올 때)
     resetCam() { cam.init = false; cam.manual = false; },
@@ -387,6 +410,15 @@ export function createPlazaView(world, handlers) {
         if (f.me || dist < NEAR_TICK) f.c.tickOutfit(now, dt);
         if (f.bub.visible && now - f.bubT > 3) f.bub.visible = false;
       }
+      // 김제빵: 탁구채를 든 채 숨 쉬듯 흔들리고, 가끔 한 번씩 휘두른다 (도전하는 사람이 있으면 자주 — 같이 치는 중)
+      if (now > kim.swingAt) {
+        kim.c.stSwing = now;
+        kim.c.stBlock = Math.random() < 0.25;
+        kim.swingAt = now + (kim.n > 0 ? 0.9 + Math.random() * 0.6 : 3 + Math.random() * 3);
+      }
+      kim.c.body.position.y = Math.sin(now * 2.6) * 0.008;
+      holdPose(kim.c, now, 0);
+      kim.c.tickOutfit(now, dt);
       // 카메라 바로 앞의 탁구대 표지판은 흐리게 (화면을 가리지 않게)
       for (const T of tables) {
         const d = T.sign.sp.position.distanceTo(camP);

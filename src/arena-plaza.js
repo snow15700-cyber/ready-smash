@@ -14,7 +14,8 @@ const tableAt = (n, x, z) => ({
   rect: { x0: x - T_HALF[0] - 0.08, x1: x + T_HALF[0] + 0.08, z0: z - T_HALF[1] - 0.08, z1: z + T_HALF[1] + 0.08 },
 });
 const TABLES = [tableAt(1, -8, -0.5), tableAt(2, 8, -0.5), tableAt(3, -8, 4.5)];
-const KIM = { ...tableAt(0, 8, 4.5), spot: [8 - SEAT_X, 4.5] }; // 김제빵 탁구대 (혼자 하기, ③에서 표지판·김제빵)
+// 김제빵 탁구대 (③ 혼자 하기): 서쪽 끝 spot에 서면 혼자 하기, 동쪽 끝 chef에 김제빵이 늘 서 있다
+const KIM = { ...tableAt(0, 8, 4.5), spot: [8 - SEAT_X, 4.5], chef: [8 + SEAT_X, 4.5] };
 
 // 걸을 수 있는 곳 (m). 가게 건물 앞면까지
 export const PLAZA = {
@@ -29,7 +30,7 @@ export const PLAZA = {
   tables: TABLES,
   kim: KIM,
   // 걸어서 못 지나가는 곳 (가게 말고): 꾸미기 옷장의 활짝 열린 왼쪽 문, 탁구대 4대
-  blocks: [{ x0: -2.2, x1: -1.2, z0: -6.5, z1: -4.0 }, ...TABLES.map((t) => t.rect), KIM.rect],
+  blocks: [{ x0: -2.2, x1: -1.2, z0: -6.5, z1: -4.0 }, ...TABLES.map((t) => t.rect), KIM.rect, { x0: KIM.chef[0] - 0.3, x1: KIM.chef[0] + 0.3, z0: KIM.z - 0.3, z1: KIM.z + 0.3 }],
 };
 
 // 밤에 켜지는 불빛 재질: 시간·날씨(src/plazaSky.js)가 밝기를 바꾸므로 합치지 않는다(noBake)
@@ -283,12 +284,6 @@ function plazaTable(t, color) {
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) addBox(g, 0.06, Y - 0.05, 0.06, dark, sx * (L / 2 - 0.25), (Y - 0.05) / 2, sz * (W / 2 - 0.15));
   return g;
 }
-// 기둥에 단 작은 간판 (바닥에 서 있음)
-function signPost(root, lines, x, z, color) {
-  addBox(root, 0.08, 1.5, 0.08, std(0x6b4a2e), x, 0.75, z);
-  signPlate(root, lines, 1.9, 0.62, x, 1.6, z + 0.05, { bg: '#fffaf0', border: color, font: 'bold 64px Jua, sans-serif', px: 600 });
-}
-
 export function buildPlaza() {
   const root = new THREE.Group();
   const rnd = seeded(2311);
@@ -319,10 +314,9 @@ export function buildPlaza() {
   // 가운데 원 (처음 서는 곳)
   const ring = new THREE.Mesh(new THREE.RingGeometry(4.2, 4.6, 48), new THREE.MeshLambertMaterial({ color: 0xd2b98f }));
   ring.rotation.x = -Math.PI / 2; ring.position.set(0, 0.008, PLAZA.spawn[1]); root.add(ring);
-  // 탁구대 4대 (사람 대결용 3대 + 김제빵 탁구대). 움직이지 않으니 합친다. 이름표·자리 칸·상태 표지판은 src/plaza.js
+  // 탁구대 4대 (사람 대결용 3대 + 김제빵 탁구대). 움직이지 않으니 합친다. 이름표·자리 칸·상태 표지판·김제빵은 src/plaza.js
   for (const t of PLAZA.tables) root.add(plazaTable(t, 0x2a5db0));
   root.add(plazaTable(PLAZA.kim, 0x2f8a4e));
-  signPost(root, ['🤖 김제빵 탁구대', '혼자 하기 · 누르면 바로'], PLAZA.kim.x, PLAZA.kim.z + 1.6, '#2f8a4e');
 
   // 가게 3개 + 뒤쪽 담장
   for (const s of PLAZA.shops) root.add(BUILD[s.id](s));

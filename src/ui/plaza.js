@@ -12,11 +12,12 @@ import { account, myEquip, myTitle } from '../account.js';
 import { titleText } from '../achievements.js';
 import { initAudio, playUI } from '../audio.js';
 import { PLAZA } from '../arena-plaza.js';
+import { AI_NAME } from '../match.js';
 import { ic } from '../icons.js';
 import { joinPlaza, makeCode } from '../net.js';
 import { cleanWalk, createPlazaView, planWalk, posAt } from '../plaza.js';
 import { createPlazaSky } from '../plazaSky.js';
-import { startAI } from './ai.js';
+import { AI_LOOK, startAI } from './ai.js';
 import { openDress } from './dress.js';
 import { hud } from './hud.js';
 import { lobbyRooms } from './lobbyList.js';
@@ -56,7 +57,7 @@ const spawn = () => {
   return { from: p, to: p, t: Date.now() };
 };
 const pz = {
-  link: null, at: 0, people: new Map(), myW: spawn(), full: false,
+  link: null, at: 0, people: new Map(), kimN: 0, myW: spawn(), full: false,
   sayT: -9, lastSay: new Map(), pending: null, route: [],
   sendT: 0, sendTimer: 0, infoKey: '', infoCheckT: 0, shown: false,
   list: [], states: new Map(), known: new Set(), resendT: 0, beatT: 0, // 명단(presence) · 받은 상태 'st'(id → 걷기·자리·준비) · 이미 본 id
@@ -69,7 +70,9 @@ let skyLabelT = -9;
 
 const myPid = () => (account.loggedIn ? account.player?.id ?? null : null);
 // 명단(presence)에는 잘 안 바뀌는 것만 (Supabase는 track을 자주 하면 채널을 끊는다, net.js TRACK_MIN)
-const myInfo = () => ({ id: myId, nick: myNick(), title: myTitle(), titleX: myNemesis(), look: myEquip(), at: pz.at, mob: IS_MOBILE });
+// kim: 김제빵 탁구대에서 혼자 하기 중 (③) — 다른 사람 화면에선 내 캐릭터 대신 '🔥 N명 도전 중'
+const inAI = () => game?.mode === 'ai';
+const myInfo = () => ({ id: myId, nick: myNick(), title: myTitle(), titleX: myNemesis(), look: myEquip(), at: pz.at, mob: IS_MOBILE, kim: inAI() });
 // 자주 바뀌는 것은 메시지로: 걷기·탁구대 자리·준비·경기 채널 코드·연승·선수 번호
 const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid() });
 const tagOf = (nick, rdy) => (rdy ? `${nick} ✅` : nick);
@@ -116,7 +119,7 @@ function disconnect() {
   view.sync([myFig()]);
   renderCount();
 }
-const infoKey = () => JSON.stringify([myNick(), myTitle(), myNemesis(), myEquip(), myStreak()]);
+const infoKey = () => JSON.stringify([myNick(), myTitle(), myNemesis(), myEquip(), myStreak(), inAI()]);
 
 // 받은 명단 다듬기 (다른 PC가 보낸 것은 믿지 않고 모양·길이를 확인)
 const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
@@ -158,13 +161,16 @@ function rebuild() {
       w: m.id === myId ? null : cleanWalk(m.w, now),
       seat: mob ? null : cleanSeat(m.seat), rdy: !!m.rdy, code: typeof m.code === 'string' && /^[A-Z0-9]{4}$/.test(m.code) ? m.code : null,
       pid: (typeof m.pid === 'string' && m.pid.length <= 64) || Number.isInteger(m.pid) ? m.pid : null,
+      kim: !!m.kim,
     });
   }
   // 40명까지: 먼저 들어온 순서 (들어온 시각 → id 순, 모든 PC가 같은 규칙)
   const order = [...byId.values()].sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));
   const mine = order.findIndex((p) => p.id === myId);
   if (mine >= PLAZA_MAX) { plazaFull(); return; }
-  pz.people = new Map(order.slice(0, PLAZA_MAX).filter((p) => p.id !== myId && p.w).map((p) => [p.id, p]));
+  const inPlaza = order.slice(0, PLAZA_MAX).filter((p) => p.id !== myId);
+  pz.kimN = inPlaza.filter((p) => p.kim).length; // 김제빵에게 도전 중 (광장에는 안 보임)
+  pz.people = new Map(inPlaza.filter((p) => !p.kim && p.w).map((p) => [p.id, p]));
   view.sync([myFig(), ...[...pz.people.values()].map(figOf)]);
   renderCount();
   pz.tableT = 0; // 탁구대 다시 계산
@@ -216,7 +222,7 @@ function goShop(s) {
   if (Math.hypot(p[0] - s.door[0], p[1] - s.door[1]) < 1.3) { unseat(); SHOP_OPEN[s.id]?.(); return; }
   walkTo(s.door, { then: () => SHOP_OPEN[s.id]?.() });
 }
-// 김제빵 탁구대: 걸어가서 혼자 하기 (휴대폰도 됨. ③에서 '🔥 N명 도전 중' 표지판·김제빵)
+// 김제빵 탁구대 (③): 걸어가서 혼자 하기. 누구나 동시에 (각자 자기 PC에서, 네트워크 안 씀). 휴대폰도 됨
 function onKim() {
   playUI('click');
   const p = posAt(pz.myW, Date.now()), k = PLAZA.kim.spot;
@@ -338,6 +344,7 @@ function renderTables(force = false) {
   const now = performance.now() / 1000;
   if (!force && now - pz.tableT < 0.2) return;
   pz.tableT = now;
+  view.setKim(AI_LOOK, AI_NAME, pz.link ? pz.kimN : 0);
   for (let t = 0; t < NT; t++) {
     const st = tableState(t);
     const off = !!st.busy;
@@ -453,7 +460,7 @@ document.addEventListener('pointerdown', (e) => { if (!e.target.closest?.('.pz-c
 $('pz-help').textContent = IS_MOBILE ? '탭: 걷기 · 끌기: 돌려 보기 · 두 손가락: 가까이/멀리' : '바닥 클릭: 걷기 · 탁구대 자리 클릭: 서기 · 오른쪽 버튼 끌기: 돌려 보기 · 휠: 가까이/멀리';
 
 function renderCount() {
-  $('pz-count').textContent = pz.full ? `👥 광장이 꽉 찼어요 (${PLAZA_MAX}명)` : `👥 광장 ${pz.link ? pz.people.size + 1 : 1}명`;
+  $('pz-count').textContent = pz.full ? `👥 광장이 꽉 찼어요 (${PLAZA_MAX}명)` : `👥 광장 ${pz.link ? pz.people.size + pz.kimN + 1 : 1}명`;
 }
 
 // 지금 광장이 화면에 보이나 (로비 화면)
@@ -463,7 +470,8 @@ export const plazaShown = () => !game && !$('lobby').classList.contains('hidden'
 export function plazaFrame(now) {
   // 광장 채널: 광장·상점·꾸미기·랭킹 화면에 있을 때만 (탁구대에서 경기 채널로 가는 중에도 — 시작할 때까지).
   // 경기(혼자 하기 포함)·관전·로그인 화면에서는 빠진다 → 경기 중 선수는 광장 메시지를 하나도 안 주고받는다
-  const want = !pz.full && !game && !watch && !room?.inGame && ['lobby', 'dress', 'rank'].includes(curScreen);
+  // 김제빵 탁구대 혼자 하기(네트워크 안 씀)는 광장에 남아 '도전 중'만 알린다 (그동안 광장은 그리지 않음)
+  const want = !pz.full && !watch && !room?.inGame && (inAI() ? curScreen === 'hud' : !game && ['lobby', 'dress', 'rank'].includes(curScreen));
   if (want && !pz.link) connect();
   else if (!want && pz.link) disconnect();
   if (curScreen === 'login' && pz.seat) unseat(); // 로그아웃
@@ -515,6 +523,6 @@ export function plazaFrame(now) {
 
 // 점검·디버그용
 export const plazaDebug = {
-  pz, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list), fakeState: (m) => onState(m),
+  pz, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list), fakeState: (m) => onState(m), get kimN() { return pz.kimN; },
   sit: onSeat, table: onTable, kim: onKim, ready: toggleReady, unseat, state: tableState, afk: () => { pz.lastAct -= AFK_MS + 1000; },
 };

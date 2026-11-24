@@ -416,7 +416,7 @@ async function browserChecks() {
       return `뽑기 10장, ${equippedOne ? '장착 확인' : '장착할 새 아이템 없음'}, 업적 ${nAch}개`;
     });
 
-    // 광장 로비 (docs/dev/plaza.md ①): 들어가면 광장, 탭 두 개가 서로 보임, 걷기(클릭 한 번 = 정보 한 번), 정해진 채팅, 가게 → 화면, 40명 제한
+    // 광장 로비 (docs/dev/plaza.md ①·③): 들어가면 광장, 탭 두 개가 서로 보임, 걷기(클릭 한 번 = 정보 한 번), 정해진 채팅, 가게 → 화면, 김제빵 도전 중, 40명 제한
     await step('화면: 광장 (탭 두 개) 걷기·채팅·가게', async () => {
       const mk = async (nick, acct) => {
         const p = await ctx.newPage();
@@ -470,6 +470,12 @@ async function browserChecks() {
         return planWalk([-4.5, -0.5], [-11.5, -0.5]).length;
       });
       must(around >= 2, '탁구대를 돌아가는 길을 못 찾아요');
+      // ③ 김제빵 탁구대: b가 혼자 하기를 시작하면 a 화면에선 b 캐릭터가 사라지고 '🔥 1명 도전 중', 끝나면 다시 보임
+      await b.evaluate(() => window.__smash.plaza.kim());
+      await waitFor(b, () => window.__smash.game?.mode === 'ai' && window.__smash.plaza.pz.link, null, 20000, '김제빵 탁구대 → 혼자 하기 (광장 채널은 그대로)');
+      await waitFor(a, (id) => window.__smash.plaza.kimN === 1 && !window.__smash.plaza.view.figs.has(id) && window.__smash.plaza.view.kimN === 1, bId, 15000, "상대 화면: 도전자는 안 보이고 '🔥 1명 도전 중'");
+      await b.evaluate(() => document.querySelector('#exit').click());
+      await waitFor(a, (id) => window.__smash.plaza.kimN === 0 && window.__smash.plaza.view.figs.has(id), bId, 15000, '혼자 하기를 끝내면 다시 광장에 보임');
       // 40명 제한: 먼저 온 40명 뒤에 내가 있으면 '꽉 찼어요' → 혼자 광장 (광장 채널에서 빠짐)
       await a.evaluate(() => {
         const me = window.__smash.plaza.pz;
@@ -490,7 +496,7 @@ async function browserChecks() {
         await waitFor(n, () => window.__smash.plaza.sky && /밤 · 눈/.test(document.querySelector('#pz-wx').textContent), null, 15000, '밤·눈 표시');
         must(await n.evaluate(() => window.__smash.world.plaza.snowLayer.visible && window.__smash.world.scene.background.getHSL({}).l < 0.4), '눈 쌓임·밤 하늘이 안 보여요');
       } finally { await n.close(); }
-      return '서로 보임 · 걷기 · 돌아가기 · 말풍선 · 랭킹 가게 · 40명 제한 · 시간·날씨 (대구 일출 ' + sunOk[0] + '시)';
+      return '서로 보임 · 걷기 · 돌아가기 · 말풍선 · 랭킹 가게 · 김제빵 도전 중 · 40명 제한 · 시간·날씨 (대구 일출 ' + sunOk[0] + '시)';
     });
 
     // 광장 탁구대 (docs/dev/plaza.md ②): 자리에 서기 → 준비 → VS 소개 → 경기(광장 채널에서 빠짐) → 관전 → 끝나면 광장 + '한 판 더' → 다시 시작
