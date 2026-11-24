@@ -230,7 +230,7 @@ button.big small { display: block; font-size: 14px; opacity: .92; }
    색은 탁구용품에서: 빨강(러버) = 가장 중요한 버튼, 파랑(탁구대) = 두 번째, 흰 반투명 유리 = 패널, 공 주황 = 코인.
    배경 3D는 로비에서만 색을 빼고 어둡게 + 남색으로 덮어서 유리가 또렷하게 보이게 한다. */
 #c { transition: filter .4s; }
-body:has(#lobby:not(.hidden):not(.plaza-on), #rank:not(.hidden), #login:not(.hidden), #pin-change:not(.hidden), #join:not(.hidden)) #c { filter: saturate(.55) brightness(.78) contrast(1.05); }
+body:has(#lobby:not(.hidden):not(.plaza-on), #login:not(.hidden), #pin-change:not(.hidden), #join:not(.hidden)) #c { filter: saturate(.55) brightness(.78) contrast(1.05); }
 .screen.lobby { display: block; padding: 0; overflow: auto; backdrop-filter: none; color: #fff; font-family: var(--font-ui);
   background: linear-gradient(90deg, var(--night-62) 0%, var(--night-30) 38%, var(--night-08) 60%), linear-gradient(0deg, rgba(14,26,58,.4), rgba(14,26,58,0) 35%), linear-gradient(180deg, rgba(14,26,58,.35), rgba(14,26,58,0) 30%); }
 .lobby button, .lobby a { font-family: var(--font-ui); letter-spacing: -0.01em; transition: transform .15s, background .15s, box-shadow .15s; }
@@ -1247,3 +1247,19 @@ body.pz-seated .lobby.plaza-on .lb-free, body.pz-bubble .lobby.plaza-on .lb-free
   .pz-chat { bottom: 14px; }
   .pz-help { font-size: 11px; }
 }
+
+/* ───────── 광장 위에 뜨는 창 (랭킹·꾸미기) 여닫기 — plaza.md 19장 ─────────
+   카메라가 먼저 날아가기 시작하고(0.9초) 창은 조금 늦게 오른쪽에서 쑥. 닫을 땐 오른쪽으로 쏙 (screen.js WIN_OUT_MS) */
+@keyframes win-bg-in { from { opacity: 0; } }
+@keyframes win-panel-in { from { opacity: 0; transform: translateX(56px) scale(.96); } }
+@keyframes win-bg-out { to { opacity: 0; } }
+@keyframes win-panel-out { to { opacity: 0; transform: translateX(56px) scale(.96); } }
+.screen.win-in { animation: win-bg-in .4s ease-out; }
+.screen.win-in > .panel { animation: win-panel-in .45s cubic-bezier(.2,.85,.25,1) .15s both; }
+.screen.win-out { animation: win-bg-out .2s ease-in forwards; pointer-events: none; }
+.screen.win-out > .panel { animation: win-panel-out .2s ease-in forwards; }
+@media (max-width: 760px) {
+  @keyframes win-panel-in { from { opacity: 0; transform: translateY(48px) scale(.97); } }
+  @keyframes win-panel-out { to { opacity: 0; transform: translateY(48px) scale(.97); } }
+}
+@media (prefers-reduced-motion: reduce) { .screen.win-in, .screen.win-in > .panel, .screen.win-out, .screen.win-out > .panel { animation-duration: .01s; } }

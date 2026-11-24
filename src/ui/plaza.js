@@ -19,12 +19,12 @@ import { joinPlaza, makeCode } from '../net.js';
 import { cleanWalk, createPlazaView, planWalk, posAt } from '../plaza.js';
 import { createPlazaSky } from '../plazaSky.js';
 import { AI_LOOK, startAI } from './ai.js';
-import { openDress } from './dress.js';
+import { dressTabNow, openDress } from './dress.js';
 import { hud } from './hud.js';
 import { lobbyRooms } from './lobbyList.js';
 import { TEAM_NAME, enterTable, h2hOf, leaveRoom, myId, myStreak, room, roomHooks } from './room.js';
 import { curScreen, show } from './screen.js';
-import { $, IS_MOBILE, MOBILE_MSG, esc, game, myNemesis, myNick, world } from './state.js';
+import { $, IS_MOBILE, MOBILE_MSG, esc, game, myNemesis, myNick, preview, world } from './state.js';
 import { BUBBLE_IN } from '../arena-plaza.js';
 import { bub, bubbleArena, bubbleClip, bubbleFrame, bubbleHooks, bubbleLeave, bubbleSeated, rememberPlazaEnv, setSeated, stop as bubbleStop } from './plazaBubble.js';
 
@@ -60,7 +60,7 @@ const spawn = () => {
 };
 const pz = {
   link: null, at: 0, people: new Map(), kimN: 0, myW: spawn(), full: false,
-  sayT: -9, lastSay: new Map(), pending: null, route: [],
+  sayT: -9, lastSay: new Map(), pending: null, route: [], face: null, // face: 서 있을 때 바라볼 쪽 (꾸미기 창에서 카메라 쪽으로 돌아섬, 걸으면 null)
   sendT: 0, sendTimer: 0, infoKey: '', infoCheckT: 0, shown: false,
   list: [], states: new Map(), known: new Set(), resendT: 0, beatT: 0, // 명단(presence) · 받은 상태 'st'(id → 걷기·자리·준비) · 이미 본 id
   // 탁구대: 내 자리 {t, s, at} · 준비 · 경기 채널 코드(내가 방장이면 이걸로) · 방금 끝난 경기(결과·코인) · 경기 채널로 가는 중
@@ -80,7 +80,9 @@ const myInfo = () => ({ id: myId, nick: myNick(), title: myTitle(), titleX: myNe
 // 자주 바뀌는 것은 메시지로: 걷기·탁구대 자리·준비·경기 채널 코드·연승·선수 번호
 const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid(), kc: pz.kim });
 const tagOf = (nick, rdy) => (rdy ? `${nick} ✅` : nick);
-const myFig = () => ({ id: myId, nick: tagOf(myNick(), pz.seat && pz.rdy), title: titleText(myTitle(), myNemesis()), look: myEquip(), w: pz.myW, me: true, face: pz.seat ? faceOf(pz.seat) : null });
+// 꾸미기 창에서 입어 보는 중이면 그 모습 (내 화면에서만, 다른 사람에겐 장착한 것)
+const myLook = () => (curScreen === 'dress' && preview ? preview.look : myEquip());
+const myFig = () => ({ id: myId, nick: tagOf(myNick(), pz.seat && pz.rdy), title: titleText(myTitle(), myNemesis()), look: myLook(), w: pz.myW, me: true, face: pz.seat ? faceOf(pz.seat) : pz.face });
 const figOf = (p) => ({ ...p, nick: tagOf(p.nick, p.seat && p.rdy), face: p.seat ? faceOf(p.seat) : null });
 
 // 내 상태 보내기 (걷기·자리·준비가 바뀔 때만). 너무 잦으면 마지막 것만 조금 뒤에
@@ -214,6 +216,7 @@ bubbleHooks.walk = (pt) => walkTo(pt, { keepSeat: true });
 function walkTo(pt, { then = null, keepSeat = false } = {}) {
   if (bubbleSeated()) setSeated(false); // 관중석에 앉아 있었으면 일어나서 걷기
   if (!keepSeat) unseat();
+  pz.face = null;
   const nowMs = Date.now();
   const from = posAt(pz.myW, nowMs);
   // 경기장 거품 안: 벽 밖으로는 못 감 → 벽 앞까지 걸어가서 광장으로 나간 뒤, 원래 가려던 곳으로
@@ -657,7 +660,51 @@ function renderCount() {
 }
 
 // 지금 광장이 화면에 보이나 (로비 화면)
-export const plazaShown = () => !game && !$('lobby').classList.contains('hidden');
+// 랭킹·꾸미기 창도 광장 위에 뜬다 (plaza.md 19장: 광장은 사라지지 않는다).
+// 꾸미기에서 배경·탁구대·탁구공을 입어 보는 동안만 예전처럼 그 경기장을 보여 준다
+const ARENA_CATS = ['bg', 'table', 'ball'];
+const arenaPreview = () => curScreen === 'dress' && !!preview && ARENA_CATS.some((c) => (preview.look?.[c] || null) !== (myEquip()[c] || null));
+export const plazaShown = () => !game && ['lobby', 'dress', 'rank'].includes(curScreen) && !arenaPreview();
+
+// ───── 창을 여는 동안 카메라 (plaza.md 19장) ─────
+// 랭킹: 시상대·트로피를 비춘다 (창은 오른쪽 → 시상대는 화면 왼쪽)
+const RANK_SHOP = PLAZA.shops.find((s) => s.id === 'rank'), GACHA_SHOP = PLAZA.shops.find((s) => s.id === 'shop');
+export const WIN_CAM = {
+  rank: { pos: [RANK_SHOP.x + 1.0, 2.4, RANK_SHOP.front + 6.6], look: [RANK_SHOP.x + 2.6, 2.1, RANK_SHOP.front - 1] },
+  // 뽑기 탭: 커다란 뽑기 기계 (유리 공이 보이게 조금 높이)
+  gacha: { pos: [GACHA_SHOP.x + 1.2, 2.6, GACHA_SHOP.front + 6.4], look: [GACHA_SHOP.x + 2.7, 2.2, GACHA_SHOP.front - 1] },
+  // 꾸미기: 내 캐릭터가 지금 카메라 쪽으로 돌아서고, 카메라는 비스듬히 앞에서 (얼굴을 고르면 정면 가까이 — 사용자 확정)
+  dress: { r: 2.7, y: 1.45, lookY: 0.85, side: 0.75, angle: 0.6 },
+  face: { r: 1.85, y: 1.32, lookY: 0.98, side: 0.5, angle: 0 },
+};
+const win = { scr: '', u: [0, 1], yaw0: null, look: '' };
+function windowFrame(p) {
+  view.setInput(curScreen === 'lobby');
+  const scr = curScreen === 'dress' || curScreen === 'rank' ? curScreen : '';
+  if (scr !== win.scr) {
+    if (scr === 'dress') {
+      // 지금 카메라가 있는 쪽을 본다 (카메라가 크게 돌지 않고 그 자리에서 다가가게)
+      const c = view.cam.pos, ux = c.x - p[0], uz = c.z - p[1], L = Math.hypot(ux, uz) || 1;
+      win.u = [ux / L, uz / L];
+      if (win.scr !== 'dress') win.yaw0 = pz.seat ? null : view.figs.get(myId)?.yaw ?? null;
+      pz.face = Math.atan2(-win.u[0], -win.u[1]);
+    } else if (win.scr === 'dress' && !pz.seat) pz.face = win.yaw0; // 창을 닫으면 원래 보던 쪽으로
+    win.scr = scr;
+    view.put(myFig());
+  }
+  if (scr === 'dress' && dressTabNow() === 'gacha') view.setFocus(WIN_CAM.gacha);
+  else if (scr === 'dress') {
+    const lk = JSON.stringify(myLook());
+    if (lk !== win.look) { win.look = lk; view.put(myFig()); }
+    const C = preview?.front ? WIN_CAM.face : WIN_CAM.dress;
+    const ca = Math.cos(C.angle), sa = Math.sin(C.angle);
+    const ux = win.u[0] * ca - win.u[1] * sa, uz = win.u[0] * sa + win.u[1] * ca; // 캐릭터에서 카메라 쪽
+    const side = innerWidth < 760 ? 0.1 : C.side; // 창을 피해 캐릭터를 화면 왼쪽으로: 보는 점을 카메라 오른쪽(uz, -ux)으로
+    const lx = p[0] + uz * side, lz = p[1] - ux * side;
+    view.setFocus({ pos: [lx + ux * C.r, C.y, lz + uz * C.r], look: [lx, C.lookY, lz] });
+  } else if (scr === 'rank') view.setFocus(WIN_CAM.rank);
+  else { view.setFocus(null); win.look = ''; }
+}
 
 // 매 프레임 (main.js): 광장 채널 붙기/빠지기 + 광장이 보이면 그리기. 광장을 그렸으면 true
 export function plazaFrame(now) {
@@ -681,6 +728,9 @@ export function plazaFrame(now) {
   }
   // 자리 비움 (1분)
   if (pz.seat && !room && Date.now() - pz.lastAct > AFK_MS) { unseat(); hud.toast('1분 동안 아무것도 안 해서 탁구대에서 내려왔어요', 2800); }
+  // 꾸미기에서 배경·탁구대·탁구공을 입어 보러 들어가고 나올 때: 툭 바뀌지 않게 살짝 밝아지며
+  const apv = arenaPreview();
+  if (apv !== pz.apv) { pz.apv = apv; world.renderer.domElement.animate?.([{ opacity: 0.15 }, { opacity: 1 }], { duration: 420, easing: 'ease-out' }); }
   const shown = plazaShown();
   world.setPlaza(shown && !bubbleArena()); // 경기장 거품 안(또는 물결 중)이면 경기장 배경 (plazaBubble.js가 둘을 섞음)
   if (shown !== pz.shown) {
@@ -697,7 +747,7 @@ export function plazaFrame(now) {
       closePhrases(); // 로비 캐릭터는 로비·경기 화면이 다시 켠다
     }
   }
-  if (!shown) { bubbleStop(); return false; }
+  if (!shown) { bubbleStop(); if (!arenaPreview()) view.setInput(true); return false; }
   if (!bubbleArena()) for (const side of world.team) for (const c of side) c.group.visible = false; // 랠리하는 로비 캐릭터는 숨김
   // 걷는 중: 한 구간이 끝나면 다음 구간, 다 왔으면 도착해서 할 일 (가게 열기·혼자 하기)
   const nowMs = Date.now();
@@ -707,6 +757,7 @@ export function plazaFrame(now) {
     else if (pz.pending) { const f = pz.pending; pz.pending = null; f(); }
   }
   renderTables();
+  windowFrame(p);
   view.update(now, myId);
   sky ||= createPlazaSky(world);
   sky.update(now);

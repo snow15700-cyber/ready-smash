@@ -1,7 +1,7 @@
 import { ic } from '../icons.js';
 import { account, getRanking } from '../account.js';
 import { playUI } from '../audio.js';
-import { show } from './screen.js';
+import { closeWindow, show } from './screen.js';
 import { $, esc, tpill } from './state.js';
 
 /* ───────── 랭킹 ───────── */
@@ -61,4 +61,4 @@ async function showRank(kind = rankKind) {
 $('btn-rank').addEventListener('click', () => { playUI('click'); showRank('wins'); });
 $('rank-tab-wins').addEventListener('click', () => { playUI('click'); showRank('wins'); });
 $('rank-tab-rally').addEventListener('click', () => { playUI('click'); showRank('rally'); });
-$('btn-rank-back').addEventListener('click', () => { playUI('click'); show('lobby'); });
+$('btn-rank-back').addEventListener('click', () => { playUI('click'); closeWindow(); });

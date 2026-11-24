@@ -12,6 +12,7 @@ import { makeCharacter } from './scene.js';
 export const WALK_SPEED = 5; // m/s (광장이 넓어져서 11/24 4 → 5)
 const NEAR_TAG = 16; // 이 거리(m)보다 먼 사람은 이름표 생략 (사람이 많을 때 가볍게)
 const NEAR_TICK = 24; // 이 거리보다 먼 사람은 움직이는 옷 효과도 멈춤
+export const FOCUS_DUR = 0.9; // 창을 여닫을 때 카메라가 날아가는 시간(초)
 export const CAM = { dist: 8.5, minDist: 3.2, maxDist: 15, pitch: 0.42, minPitch: 0.12, maxPitch: 1.15, lookY: 1.1, follow: 1.4 };
 const TOUCH_SLOP = 8; // 이만큼(px) 안 움직이고 떼면 '클릭(탭)'
 
@@ -302,7 +303,7 @@ export function createPlazaView(world, handlers) {
   const canvas = world.renderer.domElement;
   const ptrs = new Map(); // pointerId → { x, y, x0, y0, t0, btn, moved }
   let pinch0 = 0, pinchDist0 = 0;
-  const active = () => root.visible;
+  const active = () => root.visible && inputOn;
   canvas.addEventListener('contextmenu', (e) => { if (active()) e.preventDefault(); });
   canvas.addEventListener('pointerdown', (e) => {
     if (!active()) return;
@@ -359,7 +360,10 @@ export function createPlazaView(world, handlers) {
   // 경기장 거품: 탁구대 t가 세상 원점(경기 좌표)에 오도록 광장을 돌려 놓는다 (광장 배경·사람·카메라 모두)
   const frame = { on: false, m: new THREE.Matrix4(), inv: new THREE.Matrix4(), t: -1 };
   const toWorld = (v) => (frame.on ? v.applyMatrix4(frame.m) : v);
-  let filter = null, camOff = false, plazaBits = true, camClamp = null;
+  let filter = null, camOff = false, plazaBits = true, camClamp = null, inputOn = true;
+  // 창(랭킹·꾸미기)을 여는 동안 카메라가 날아갈 곳 (plaza.md 19장): want = { pos, look } (광장 좌표) | null.
+  // p: 0 = 3인칭 카메라, 1 = 그 자리 (FOCUS_DUR초 동안 부드럽게). 날아가는 중 목표가 바뀌면(얼굴 보기 등) cur가 따라감
+  const focus = { want: null, p: 0, cur: { pos: new THREE.Vector3(), look: new THREE.Vector3() }, to: { pos: new THREE.Vector3(), look: new THREE.Vector3() } };
   return {
     root,
     figs,
@@ -432,6 +436,16 @@ export function createPlazaView(world, handlers) {
     setCamClamp(fn) { camClamp = fn; },
     // 탁구대 자리 칸·표지판·김제빵·걷기 표시 (광장 것: 거품 안에서는 숨김)
     setPlazaBits(on) { for (const T of tables) { T.sign.sp.visible = on && T.sign.sp.visible; for (const m of T.marks || []) m.g.visible = on; if (T.rune) T.rune.visible = on && T.rune.visible; } kim.c.group.visible = on; plazaBits = on; },
+    // 걷기·돌리기·휠 받기 (창이 떠 있는 동안은 끔)
+    setInput(on) { inputOn = on; if (!on) { ptrs.clear(); canvas.style.cursor = ''; } },
+    // 카메라 날아가기: f = { pos: [x, y, z], look: [x, y, z] } (광장 좌표) | null(3인칭으로 돌아오기)
+    setFocus(f) {
+      if (!f) { focus.want = null; return; }
+      focus.to.pos.set(...f.pos); focus.to.look.set(...f.look);
+      if (!focus.want && focus.p <= 0) { focus.cur.pos.copy(focus.to.pos); focus.cur.look.copy(focus.to.look); }
+      focus.want = f;
+    },
+    get focusP() { return focus.p; },
     showMarker(x, z) { marker.position.set(x, 0.02, z); marker.visible = true; markerT = performance.now() / 1000; },
     // 카메라를 내 캐릭터 뒤로 바로 (처음 들어올 때)
     resetCam() { cam.init = false; cam.manual = false; },
@@ -510,7 +524,7 @@ export function createPlazaView(world, handlers) {
       const me = figs.get(myId);
       if (!me?.disp) return;
       if (!cam.init) { cam.yaw = me.yaw; }
-      else if (!cam.manual) {
+      else if (!cam.manual && !focus.want && focus.p <= 0) {
         const moving = me.w && Math.hypot(me.w.to[0] - me.disp[0], me.w.to[1] - me.disp[1]) > 0.3;
         if (moving || me.face != null) { // 탁구대 자리에 서면 탁구대 쪽을 보는 내 뒤로
           let d = me.yaw - cam.yaw;
@@ -534,12 +548,16 @@ export function createPlazaView(world, handlers) {
       if (!cam.init) cam.look.copy(look);
       cam.init = true;
       if (camOff) return;
-      world.camera.position.copy(cam.pos);
+      // 창을 여닫을 때: 3인칭 카메라 ↔ 그 창의 카메라 자리 (부드럽게 출발·도착)
+      focus.p = Math.min(1, Math.max(0, focus.p + (focus.want ? dt : -dt) / FOCUS_DUR));
+      const fk = focus.p * focus.p * (3 - 2 * focus.p);
+      if (focus.want) { const k2 = 1 - Math.exp(-dt * 5); focus.cur.pos.lerp(focus.to.pos, k2); focus.cur.look.lerp(focus.to.look, k2); }
+      world.camera.position.copy(cam.pos).lerp(focus.cur.pos, fk);
       toWorld(world.camera.position);
       // 세로로 긴 화면(휴대폰)은 가게 3개가 다 들어오게 화각을 넓힌다
       const fov = Math.min(80, Math.max(55, (2 * Math.atan(Math.tan(0.4) / world.camera.aspect) * 180) / Math.PI));
       if (Math.abs(world.camera.fov - fov) > 0.01) { world.camera.fov = fov; world.camera.updateProjectionMatrix(); }
-      world.camera.lookAt(toWorld(tmpV.copy(cam.look)));
+      world.camera.lookAt(toWorld(tmpV.copy(cam.look).lerp(focus.cur.look, fk)));
     },
   };
 }

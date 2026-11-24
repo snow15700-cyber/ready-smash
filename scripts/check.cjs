@@ -369,6 +369,7 @@ async function browserChecks() {
       await waitFor(page, () => !document.querySelector('#rank').classList.contains('hidden'), null, 10000, '랭킹 화면');
       await page.waitForTimeout(500);
       await page.evaluate(() => document.querySelector('#btn-rank-back').click());
+      await waitFor(page, () => !document.querySelector('#lobby').classList.contains('hidden'), null, 5000, '랭킹 창 닫기 → 광장');
       flush();
       return `옷장 아이템 ${n}칸`;
     });
@@ -424,8 +425,8 @@ async function browserChecks() {
       await click('#tab-title');
       await waitFor(page, () => document.querySelectorAll('#pane-title li.ach').length > 0, null, 10000, '칭호 탭 업적 목록');
       const nAch = await page.evaluate(() => document.querySelectorAll('#pane-title li.ach').length);
-      await click('#btn-dress-back');
-      must(await vis('#lobby'), '꾸미기에서 로비로 못 돌아와요');
+      await click('#btn-dress-back'); // 창이 쏙 들어간 뒤(0.2초) 광장으로 (plaza.md 19장)
+      await waitFor(page, () => !document.querySelector('#lobby').classList.contains('hidden'), null, 5000, '꾸미기에서 로비로 돌아오기');
       flush();
       return `뽑기 10장, ${equippedOne ? '장착 확인' : '장착할 새 아이템 없음'}, 업적 ${nAch}개`;
     });
@@ -476,8 +477,11 @@ async function browserChecks() {
       await a.mouse.click(pt[0], pt[1]);
       await waitFor(a, () => !document.querySelector('#rank').classList.contains('hidden'), null, 20000, '랭킹 가게 → 랭킹 화면');
       must(await a.evaluate(() => !!window.__smash.plaza.pz.link), '랭킹 화면을 보는 동안 광장에서 빠졌어요');
+      // 화면 전환 (plaza.md 19장): 랭킹 창 뒤에도 광장 그대로 + 카메라가 시상대로 날아감, 걷기 클릭은 꺼짐
+      await waitFor(a, () => window.__smash.world.plazaOn && window.__smash.plaza.view.focusP > 0.99, null, 10000, '랭킹 창 뒤에 광장 + 카메라가 시상대로');
+      must(await a.evaluate(() => window.__smash.world.camera.position.distanceTo({ x: 6.6, y: 2.4, z: 0.1 }) < 0.6), '랭킹 카메라가 시상대 앞이 아니에요');
       await a.evaluate(() => document.querySelector('#btn-rank-back').click());
-      await waitFor(a, () => window.__smash.world.plazaOn, null, 10000, '랭킹 → 광장');
+      await waitFor(a, () => window.__smash.world.plazaOn && !document.querySelector('#lobby').classList.contains('hidden') && window.__smash.plaza.view.focusP === 0, null, 10000, '랭킹 → 광장 (카메라가 내 뒤로)');
       // 걷는 길이 탁구대에 막히면 모서리를 돌아서 간다 (1번 탁구대 건너편 자리 → 탁구대 앞에서 멈추지 않음)
       const around = await b.evaluate(async () => {
         const { planWalk } = await import('/src/plaza.js');

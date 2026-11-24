@@ -98,6 +98,8 @@ function loop() {
     // 꾸미기 화면에서도 랠리는 계속되고, 카메라만 내 캐릭터 등 뒤로 스르륵 옮겨 간다
     world.setFocus(0);
     setEcho(0);
+    // 광장(꾸미기 창)에서 배경을 입어 보러 막 넘어왔으면 카메라는 바로 꾸미기 자리에 (로비에서 날아오지 않게)
+    if (now - camBlend.last > 0.3) { camBlend.p = preview ? 1 : 0; camBlend.f = preview?.front ? 1 : 0; camBlend.x = world.team[0][0].group.position.x; }
     const dt = Math.min(0.1, now - camBlend.last || 0.016);
     camBlend.last = now;
     const L = LOBBY_CAM;

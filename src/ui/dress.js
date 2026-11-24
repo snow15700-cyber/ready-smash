@@ -4,7 +4,7 @@ import { initAudio, playHit, playTable, playUI } from '../audio.js';
 import { CATS, GACHA_PRICE, GRADES, ITEM, ITEMS, PITY, POOLS, equipped, poolOpen, swatch } from '../items.js';
 import { ONLINE } from '../net.js';
 import { hud } from './hud.js';
-import { show } from './screen.js';
+import { closeWindow, show } from './screen.js';
 import { $, esc, setPreview, world } from './state.js';
 import { setOf, setsWith, setBonusText } from '../sets.js';
 import { renderTitles, runAchCheck } from './titles.js';
@@ -14,6 +14,7 @@ import { closeGacha, gachaFinishNow, gachaError, gachaState, openGacha, playGach
    뽑기·구매·장착은 서버(supabase/06_shop.sql)가 정하고, 화면은 결과만 보여 준다.
    패널은 오른쪽, 왼쪽에는 내 캐릭터(입어 보기)와 고른 아이템을 크게 보여 주는 카드(#spot). */
 let dressTab = 'closet'; // closet | gacha | title
+export const dressTabNow = () => dressTab; // 광장 카메라가 뽑기 탭이면 뽑기 기계를 비춘다 (ui/plaza.js)
 let shopTab = 'char'; // 뽑기 통 (char | arena)
 let closetCat = 'paddle'; // 옷장에서 보는 카테고리
 let selId = null; // 고른(입어 보는) 아이템. null이면 지금 장착한 것
@@ -360,7 +361,7 @@ $('spot-acts').addEventListener('click', (e) => {
 });
 
 $('btn-closet').addEventListener('click', () => openDress('closet'));
-$('btn-dress-back').addEventListener('click', () => { playUI('click'); show('lobby'); });
+$('btn-dress-back').addEventListener('click', () => { playUI('click'); closeWindow(); });
 $('btn-gacha-1').addEventListener('click', () => doGacha(1));
 $('btn-gacha-10').addEventListener('click', () => doGacha(10));
 // 서버 없이 도는 테스트 모드에서만: 뽑기를 시험해 볼 코인
