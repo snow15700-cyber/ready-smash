@@ -523,7 +523,7 @@ export function createPlazaView(world, handlers) {
       const h = Math.cos(cam.pitch) * cam.dist;
       let px = me.disp[0] - fx * h, pz = me.disp[1] - fz * h;
       let py = CAM.lookY + Math.sin(cam.pitch) * cam.dist;
-      if (camClamp) { const k = camClamp(me.disp, [px, pz]); px = me.disp[0] + (px - me.disp[0]) * k; pz = me.disp[1] + (pz - me.disp[1]) * k; py = CAM.lookY + (py - CAM.lookY) * Math.max(0.55, k); }
+      if (camClamp) { const k = camClamp(me.disp, [px, pz]); px = me.disp[0] + (px - me.disp[0]) * k; pz = me.disp[1] + (pz - me.disp[1]) * k; py = CAM.lookY + (py - CAM.lookY) * Math.max(0.8, k); }
       // 카메라가 가게 건물 안으로 들어가지 않게: 건물 앞면보다 뒤(북쪽)로는 안 간다
       const wallZ = PLAZA.shops[0].front + 0.4;
       if (pz < wallZ && me.disp[1] > wallZ) { const k = (me.disp[1] - wallZ) / (me.disp[1] - pz); px = me.disp[0] + (px - me.disp[0]) * k; pz = wallZ; }

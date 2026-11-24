@@ -9,7 +9,7 @@ import { myEquip, myTitle } from '../account.js';
 import { titleText } from '../achievements.js';
 import { initAudio, playUI } from '../audio.js';
 import { BUBBLE_IN, BUBBLE_OUT, PLAZA } from '../arena-plaza.js';
-import { WAVE_DUR, applyWave, prepWave, waveR } from '../bubbleFx.js';
+import { WAVE_DUR, applyWave, prepWave, setCut, waveR } from '../bubbleFx.js';
 import { Game } from '../game.js';
 import { applyLook, arenaOf } from '../items.js';
 import { AI_LOOK, AI_NAME, KIM_ID } from '../match.js';
@@ -35,6 +35,8 @@ export const bubbleSeated = () => bub.phase === 'inside' && bub.seated;
 let view = null;
 // plaza.js가 연결: walk(광장 좌표) = 거기로 걷기 (원 안에 들어왔는데 벽 밖이면 방 안으로)
 export const bubbleHooks = { walk: null };
+const cutMe = new THREE.Vector3();
+const myIdRef = () => myId;
 // ───── 걸을 수 있는 범위 (경기장 좌표 네모, src/arenaWalls.js) ─────
 // 광장 좌표 ↔ 경기장 좌표 (그 탁구대가 원점, plaza.js setFrame과 같은 90° 돌림)
 const toA = (t, p) => { const T = PLAZA.tables[t]; return [p[1] - T.z, -(p[0] - T.x)]; };
@@ -66,25 +68,25 @@ export function bubbleClip(from, to) {
   k = Math.max(0, k - 0.02);
   return { to: toP(bub.t, [f[0] + (a[0] - f[0]) * k, f[1] + (a[1] - f[1]) * k]), exit: true };
 }
+// 카메라: 경기장 안에서는 벽 바로 안쪽까지만 (높이는 거의 그대로 — 가리는 물건은 투명 구멍으로)
+function camClamp(me, cam) {
+  const w = walls();
+  if (!w) return 1;
+  const m = toA(bub.t, me), c = toA(bub.t, cam);
+  if (inRect(c, w, -0.4)) return 1;
+  let k = 1;
+  for (const [i, lo, hi] of [[0, w.x0 - 0.4, w.x1 + 0.4], [1, w.z0 - 0.4, w.z1 + 0.4]]) {
+    const d = c[i] - m[i];
+    if (d > 1e-6 && c[i] > hi) k = Math.min(k, (hi - m[i]) / d);
+    if (d < -1e-6 && c[i] < lo) k = Math.min(k, (lo - m[i]) / d);
+  }
+  return Math.max(0.3, k);
+}
 // 벽에 닿아 나감: 다시 9m 밖으로 나갈 때까지 이 경기 거품에 안 들어감
 export function bubbleLeave() {
   if (bub.phase === 'off') return;
   bub.block = bub.code;
   beginOut();
-}
-// 카메라: 경기장 안에서는 벽 밖으로 안 나가게
-function camClamp(me, cam) {
-  const w = walls();
-  if (!w) return 1;
-  const m = toA(bub.t, me), c = toA(bub.t, cam);
-  if (inRect(c, w, -0.3)) return 1;
-  let k = 1;
-  for (const [i, lo, hi] of [[0, w.x0 - 0.3, w.x1 + 0.3], [1, w.z0 - 0.3, w.z1 + 0.3]]) {
-    const d = c[i] - m[i];
-    if (d > 1e-6 && c[i] > hi) k = Math.min(k, (hi - m[i]) / d);
-    if (d < -1e-6 && c[i] < lo) k = Math.min(k, (lo - m[i]) / d);
-  }
-  return Math.max(0.15, k * 0.95);
 }
 
 // 물결 앞 불꽃 띠 + 불티 (세상 원점 = 그 탁구대)
@@ -181,6 +183,7 @@ export function stop() {
   view?.setFrame(null);
   view?.setFilter(null);
   view?.setPlazaBits(true);
+  if (aw) setCut(aw, false);
   resetWave();
   fireFront(-1, 0, false);
   renderBar();
@@ -316,6 +319,12 @@ export function bubbleFrame(v, now, dt, me, busy, ok, plazaEnv) {
   view.setFilter((f, p) => Math.hypot(p[0] - T.x, p[1] - T.z) < BUBBLE_OUT + 0.5);
   if (bub.phase === 'in' && bub.q >= 1) { bub.phase = 'inside'; renderBar(); }
   if (bub.phase === 'out' && bub.q >= 1) { stop(); return; }
+  // 벽 투명 구멍: 카메라와 내 캐릭터 사이를 가리는 경기장 벽·물건은 그 자리만 뚫어서 (관중석에 앉았을 땐 끔)
+  if (aw) {
+    const mf = view.figs.get(myIdRef()), on = !bub.seated && !!mf && (bub.phase === 'inside' || bub.phase === 'in');
+    if (on) cutMe.set(mf.c.group.position.x, 1.0, mf.c.group.position.z).applyMatrix4(view.root.matrixWorld);
+    setCut(aw, on, world.camera.position, cutMe);
+  }
   // 경기 그리기 (공·선수·관중석 시점)
   if (bub.game) {
     bub.game.update(now + bub.game.offset);
