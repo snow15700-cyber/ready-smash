@@ -58,7 +58,8 @@ const spawn = () => {
 const pz = {
   link: null, at: 0, people: new Map(), myW: spawn(), full: false,
   sayT: -9, lastSay: new Map(), pending: null, route: [],
-  trackT: 0, trackTimer: 0, infoKey: '', infoCheckT: 0, shown: false,
+  sendT: 0, sendTimer: 0, infoKey: '', infoCheckT: 0, shown: false,
+  list: [], states: new Map(), known: new Set(), resendT: 0, beatT: 0, // 명단(presence) · 받은 상태 'st'(id → 걷기·자리·준비) · 이미 본 id
   // 탁구대: 내 자리 {t, s, at} · 준비 · 경기 채널 코드(내가 방장이면 이걸로) · 방금 끝난 경기(결과·코인) · 경기 채널로 가는 중
   seat: null, rdy: false, code: makeCode(), after: null, going: false, readyAt: 0, lastAct: Date.now(), tableT: 0, panelKey: '',
 };
@@ -67,19 +68,28 @@ let sky = null; // 시간·날씨 (src/plazaSky.js), 광장을 처음 켤 때 �
 let skyLabelT = -9;
 
 const myPid = () => (account.loggedIn ? account.player?.id ?? null : null);
-const myInfo = () => ({ id: myId, nick: myNick(), title: myTitle(), titleX: myNemesis(), look: myEquip(), at: pz.at, mob: IS_MOBILE, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid() });
+// 명단(presence)에는 잘 안 바뀌는 것만 (Supabase는 track을 자주 하면 채널을 끊는다, net.js TRACK_MIN)
+const myInfo = () => ({ id: myId, nick: myNick(), title: myTitle(), titleX: myNemesis(), look: myEquip(), at: pz.at, mob: IS_MOBILE });
+// 자주 바뀌는 것은 메시지로: 걷기·탁구대 자리·준비·경기 채널 코드·연승·선수 번호
+const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid() });
 const tagOf = (nick, rdy) => (rdy ? `${nick} ✅` : nick);
 const myFig = () => ({ id: myId, nick: tagOf(myNick(), pz.seat && pz.rdy), title: titleText(myTitle(), myNemesis()), look: myEquip(), w: pz.myW, me: true, face: pz.seat ? faceOf(pz.seat) : null });
 const figOf = (p) => ({ ...p, nick: tagOf(p.nick, p.seat && p.rdy), face: p.seat ? faceOf(p.seat) : null });
 
-// 명단 정보 보내기 (걷기·자리·준비·꾸미기가 바뀔 때만). 너무 잦으면 마지막 것만 조금 뒤에
+// 내 상태 보내기 (걷기·자리·준비가 바뀔 때만). 너무 잦으면 마지막 것만 조금 뒤에
 function sendInfo() {
   if (!pz.link) return;
-  clearTimeout(pz.trackTimer);
-  const wait = TRACK_GAP - (performance.now() - pz.trackT);
-  if (wait > 0) { pz.trackTimer = setTimeout(sendInfo, wait); return; }
-  pz.trackT = performance.now();
-  pz.link.track(myInfo());
+  clearTimeout(pz.sendTimer);
+  const wait = TRACK_GAP - (performance.now() - pz.sendT);
+  if (wait > 0) { pz.sendTimer = setTimeout(sendInfo, wait); return; }
+  pz.sendT = performance.now();
+  pz.beatT = performance.now();
+  pz.link.send(myState());
+}
+// 새 사람이 들어오면 내 상태를 한 번 더 (메시지는 들어오기 전 것을 못 받으니까). 여럿이 한꺼번에 와도 한 번으로 묶음
+function resendSoon() {
+  if (pz.resendT || !pz.link) return;
+  pz.resendT = setTimeout(() => { pz.resendT = 0; sendInfo(); }, 300 + Math.random() * 500);
 }
 
 function connect() {
@@ -88,12 +98,18 @@ function connect() {
   pz.people.clear();
   const link = pz.link = joinPlaza((list) => onList(link, list), (m) => onMsg(link, m));
   pz.infoKey = infoKey();
-  pz.trackT = 0;
+  pz.sendT = 0;
+  pz.list = [];
+  pz.states.clear();
+  pz.known = new Set([myId]);
   link.track(myInfo());
+  setTimeout(() => { if (pz.link === link) sendInfo(); }, 600); // 붙은 뒤 내 상태 알리기
 }
 function disconnect() {
   if (!pz.link) return;
-  clearTimeout(pz.trackTimer);
+  clearTimeout(pz.sendTimer);
+  clearTimeout(pz.resendT);
+  pz.resendT = 0;
   pz.link.leave();
   pz.link = null;
   pz.people.clear();
@@ -111,9 +127,27 @@ function cleanSeat(v) {
 }
 function onList(link, list) {
   if (link !== pz.link) return;
+  pz.list = list;
+  // 처음 보는 사람이 들어왔으면 내 상태를 다시 알려 준다
+  const ids = new Set(list.map((m) => m?.id).filter((id) => typeof id === 'string'));
+  if ([...ids].some((id) => !pz.known.has(id))) resendSoon();
+  pz.known = ids.add(myId);
+  for (const id of pz.states.keys()) if (!ids.has(id)) pz.states.delete(id); // 나간 사람 상태는 버림
+  rebuild();
+}
+// 받은 상태 'st' 다듬어 두기 (명단에 아직 없는 사람 것도 잠시 둔다: 메시지가 명단보다 먼저 올 수 있음)
+function onState(m) {
+  if (typeof m.id !== 'string' || !m.id || m.id.length > 16 || m.id === myId) return;
+  if (pz.states.size > 120 && !pz.states.has(m.id)) return;
+  pz.states.set(m.id, m);
+  rebuild();
+}
+// 명단 + 상태 → 광장 사람들
+function rebuild() {
   const now = Date.now();
   const byId = new Map();
-  for (const m of list) {
+  for (const m0 of pz.list) {
+    const m = m0 && { ...m0, ...(pz.states.get(m0.id) || {}) };
     if (!m || typeof m.id !== 'string' || !m.id || m.id.length > 16) continue;
     const at = fin(m.at) ? m.at : now;
     const old = byId.get(m.id);
@@ -144,7 +178,9 @@ function plazaFull() {
   setTimeout(() => { pz.full = false; renderCount(); }, 30000);
 }
 function onMsg(link, m) {
-  if (link !== pz.link || !m || m.k !== 'say' || typeof m.id !== 'string') return;
+  if (link !== pz.link || !m) return;
+  if (m.k === 'st') { onState(m); return; }
+  if (m.k !== 'say' || typeof m.id !== 'string') return;
   const c = String(m.c);
   if (!Object.hasOwn(PHRASES, c) || !pz.people.has(m.id)) return; // 목록에 있는 문구·광장에 있는 사람만
   const now = performance.now() / 1000;
@@ -435,7 +471,12 @@ export function plazaFrame(now) {
   if (pz.link && now - pz.infoCheckT > 1) {
     pz.infoCheckT = now;
     const k = infoKey();
-    if (k !== pz.infoKey) { pz.infoKey = k; view.put(myFig()); sendInfo(); }
+    if (k !== pz.infoKey) { pz.infoKey = k; view.put(myFig()); pz.link.track(myInfo()); sendInfo(); } // 이름·꾸미기는 명단(4초에 한 번까지), 연승은 상태
+  }
+  // 가끔 내 상태를 다시 (메시지를 놓친 사람이 있어도 15초 안에 맞춰짐)
+  if (pz.link && performance.now() - pz.beatT > 15000) {
+    pz.beatT = performance.now();
+    sendInfo();
   }
   // 자리 비움 (1분)
   if (pz.seat && !room && Date.now() - pz.lastAct > AFK_MS) { unseat(); hud.toast('1분 동안 아무것도 안 해서 탁구대에서 내려왔어요', 2800); }
@@ -474,6 +515,6 @@ export function plazaFrame(now) {
 
 // 점검·디버그용
 export const plazaDebug = {
-  pz, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list),
+  pz, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list), fakeState: (m) => onState(m),
   sit: onSeat, table: onTable, kim: onKim, ready: toggleReady, unseat, state: tableState, afk: () => { pz.lastAct -= AFK_MS + 1000; },
 };
