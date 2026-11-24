@@ -116,7 +116,8 @@ function subGeo(g, gr) {
 }
 
 // 합치기 전 모양 하나를 준비: 자리 옮기기 + 꼭짓점 색 + 속성 맞추기
-function prepGeo(src, mat, m4, col, keepUV) {
+// piv: 이 메시가 속한 '물건'(root 바로 아래 자식)의 [가운데 x, 바닥 y, 가운데 z, 크기 표시] — 경기장 거품에서 물건마다 따로 줄이고 솟게 (src/bubbleFx.js)
+function prepGeo(src, mat, m4, col, keepUV, piv = null) {
   const g = src.clone();
   g.applyMatrix4(m4);
   g.morphAttributes = {};
@@ -136,6 +137,7 @@ function prepGeo(src, mat, m4, col, keepUV) {
     g.setAttribute('color', new THREE.BufferAttribute(c, 3));
   } else if (!mat.vertexColors) g.deleteAttribute('color');
   if (!g.index) { const idx = new Uint32Array(n); for (let i = 0; i < n; i++) idx[i] = i; g.setIndex(new THREE.BufferAttribute(idx, 1)); }
+  if (piv) { const a = new Float32Array(n * 4); for (let i = 0; i < n; i++) a.set(piv, i * 4); g.setAttribute('piv', new THREE.BufferAttribute(a, 4)); }
   return g;
 }
 
@@ -156,6 +158,16 @@ export function bakeArena(a, id) {
 
   const groups = new Map();
   const m4 = new THREE.Matrix4(), inv = new THREE.Matrix4();
+  // 물건(root 바로 아래 자식)마다 가운데·바닥 (경기장 거품용 piv). 큰 것(바닥·하늘·먼 언덕)은 w = 1
+  const unitOf = new Map(), box = new THREE.Box3(), sz = new THREE.Vector3(), ctr = new THREE.Vector3();
+  for (const u of root.children) {
+    box.setFromObject(u);
+    if (box.isEmpty()) continue;
+    box.getSize(sz); box.getCenter(ctr);
+    const big = Math.max(sz.x, sz.z) > 24 || Math.hypot(ctr.x, ctr.z) > 60 ? 1 : 0;
+    unitOf.set(u, [ctr.x, box.min.y, ctr.z, big]);
+  }
+  const topOf = (o) => { let u = o; while (u.parent && u.parent !== root) u = u.parent; return u; };
   root.traverse((o) => {
     if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || changing.has(o)) return;
     if (o.onBeforeRender !== baseBeforeRender || o.userData.fx || o.userData.fxKeep || o.userData.noBake) return;
@@ -180,7 +192,7 @@ export function bakeArena(a, id) {
       const key = [anchor.uuid, cell, matKey(mat), usesUV(mat), o.castShadow, o.receiveShadow, o.renderOrder, o.frustumCulled, o.layers.mask, !!o.userData.noFocus, !!o.userData.noOutline].join('#');
       if (!groups.has(key)) groups.set(key, { anchor, list: [], multi: false });
       const G = groups.get(key);
-      G.list.push({ o, mat, geo, m: m4.clone() });
+      G.list.push({ o, mat, geo, m: m4.clone(), piv: anchor === root ? unitOf.get(topOf(o)) || [0, 0, 0, 1] : null });
       if (multi) G.multi = true; // 여러 재질 메시의 조각이 들어 있으면 하나뿐이어도 만든다(원래 메시를 없애므로)
     }
   });
@@ -192,7 +204,7 @@ export function bakeArena(a, id) {
     const m0 = list[0].mat;
     const oneColor = list.every(({ mat }) => !mat.vertexColors && (!m0.color || mat.color.equals(m0.color)));
     const keepUV = usesUV(m0);
-    const geos = list.map(({ mat, geo, m }) => prepGeo(geo, mat, m, oneColor || !mat.color ? null : mat.color, keepUV));
+    const geos = list.map(({ mat, geo, m, piv }) => prepGeo(geo, mat, m, oneColor || !mat.color ? null : mat.color, keepUV, piv));
     // 꼭짓점 색이 없는 것과 있는 것이 섞이면 못 합치므로 맞춘다
     if (!oneColor) for (let i = 0; i < geos.length; i++) if (!geos[i].attributes.color) {
       const c = new Float32Array(geos[i].attributes.position.count * 3).fill(1);
@@ -204,12 +216,14 @@ export function bakeArena(a, id) {
     merged.computeBoundingSphere();
     let mat = m0;
     if (!oneColor) { mat = m0.clone(); mat.vertexColors = true; mat.color?.set(0xffffff); }
+    else if (anchor === root) mat = m0.clone(); // piv가 있는 합친 메시는 재질을 따로 (거품 효과 셰이더를 이 메시에만)
     const src = list[0].o;
     const mesh = new THREE.Mesh(merged, mat);
     mesh.castShadow = src.castShadow; mesh.receiveShadow = src.receiveShadow;
     mesh.renderOrder = src.renderOrder; mesh.frustumCulled = src.frustumCulled; mesh.layers.mask = src.layers.mask;
     for (const k of ['noFocus', 'noOutline']) if (src.userData[k]) mesh.userData[k] = true;
     mesh.userData.baked = list.length;
+    if (anchor === root) mesh.userData.piv = true;
     for (const { o } of list) {
       if (dropped.has(o)) continue;
       // 자식이 달린 메시는 빈 자리(같은 위치의 Object3D)를 남겨 자식을 그대로 둔다

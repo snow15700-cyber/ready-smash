@@ -34,6 +34,5 @@ export function stopGame(keepCrowd = false) {
   $('stats').textContent = '';
   $('scoreboard').textContent = '';
   $('result').classList.add('hidden');
-  $('cheer-bar').classList.add('hidden'); // 관전이 끝난 뒤 선수로 경기할 때 응원 줄이 남아 있지 않게 (관전 중이면 startWatch가 다시 띄움)
   resetScore();
 }

@@ -34,19 +34,6 @@
     <div id="result" class="hidden"><b id="result-title"></b><span id="result-score"></span></div>
     <button id="exit" class="small"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg> 나가기</button>
     <p id="crowd-pill" class="crowd-pill hidden"></p>
-    <!-- 관전 중 응원: 응원할 쪽 고르기 + 박수·함성·화이팅 (2초에 한 번) -->
-    <div id="cheer-bar" class="cheer-bar hidden">
-      <button class="small cb-team" data-team="0"></button><button class="small cb-team" data-team="1"></button>
-      <i class="cb-sep"></i>
-      <button class="small" data-cheer="clap">👏<span> 박수</span></button><button class="small" data-cheer="nice">👍<span> 나이스</span></button><button class="small" data-cheer="wow">😮<span> 우와</span></button><button class="small" data-cheer="fire">🔥<span> 함성</span></button><button class="small" data-cheer="go">📣<span> 화이팅</span></button>
-    </div>
-    <!-- 관전 중: 어느 방인지·관중 수·카메라 바꾸기 -->
-    <div id="watch-bar" class="watch-bar hidden">
-      <button class="small watch-hop" data-hop="-1" title="이전 경기">◀</button>
-      <span id="watch-who" class="watch-who"></span>
-      <button class="small watch-hop" data-hop="1" title="다음 경기">▶</button>
-      <div class="watch-views"><button class="small" data-view="me">🙂 내 자리</button><button class="small" data-view="side">📺 옆에서</button><button class="small" data-view="0">A쪽</button><button class="small" data-view="1">B쪽</button></div>
-    </div>
   </div>
 
   <!-- 경기 시작 전 연출 (약 10초): 어두워짐 → VS 소개 → 3·2·1 → 준비하시고, 스매시! (src/ui/intro.js) -->
@@ -223,8 +210,8 @@
       <div id="pz-call" class="pz-call hidden"></div>
       <div id="pz-pop" class="pz-pop hidden"></div>
       <div id="pz-invite" class="pz-pop pz-invite hidden"></div>
-      <!-- 경기 중인 탁구대 가까이 (④): 지금 관전 화면으로 -->
-      <button id="pz-watch" class="pz-watch hidden" type="button"></button>
+      <!-- 경기장 거품 안 (plaza.md 16장): 점수·관전자 수·관중석에 앉기·응원 -->
+      <div id="pz-bub" class="pz-bub hidden"></div>
       <div class="pz-chat">
         <div id="pz-phrases" class="pz-phrases hidden"></div>
         <button id="btn-say" class="pz-say" type="button">💬 말하기</button>

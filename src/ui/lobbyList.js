@@ -2,21 +2,19 @@ import { joinLobby } from '../net.js';
 import { room } from './room.js';
 import { curScreen } from './screen.js';
 import { myNick } from './state.js';
-import { renderWatchBar, watch } from './watch.js';
 
 let lobbyLink = null; // 로비 채널
 export let lobbyRooms = []; // 지금 경기 중이거나 곧 시작하는 광장 탁구대들 (방장이 올림)
 let lobbySent = ''; // 마지막으로 올린 내 방 정보
 /* ───────── 로비 채널 (탁구대 상태판) ─────────
-   로비 채널(pingpong-lobby)은 광장 화면에 있을 때 + 내가 방장일 때 + 관전 중일 때만 붙어 있다.
+   로비 채널(pingpong-lobby)은 광장 화면에 있을 때(경기장 거품 관전 포함) + 내가 방장일 때만 붙어 있다.
    방장은 '내 경기' 정보를 상태가 바뀔 때만 올린다(사람 수·경기 시작/끝·점수) — 예전 방 목록과 같은 양.
    광장은 이걸로 '경기 중인 탁구대'(점수판·관전)를 안다 (광장 채널에서는 경기 중인 선수가 빠져 있어서). */
 export function syncLobby() {
-  // 관전 중에도 붙는다(듣기만): 다른 경기로 넘어갈 목록이 필요해서. 선수 PC와는 상관없음
-  const need = curScreen === 'lobby' || !!room?.host || !!watch;
+  const need = curScreen === 'lobby' || !!room?.host;
   if (need && !lobbyLink) {
     lobbySent = '';
-    lobbyLink = joinLobby((list) => { lobbyRooms = cleanRooms(list); renderWatchBar(); });
+    lobbyLink = joinLobby((list) => { lobbyRooms = cleanRooms(list); });
   } else if (!need && lobbyLink) {
     lobbyLink.leave();
     lobbyLink = null;

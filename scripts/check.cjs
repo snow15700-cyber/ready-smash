@@ -481,7 +481,7 @@ async function browserChecks() {
       // 걷는 길이 탁구대에 막히면 모서리를 돌아서 간다 (1번 탁구대 건너편 자리 → 탁구대 앞에서 멈추지 않음)
       const around = await b.evaluate(async () => {
         const { planWalk } = await import('/src/plaza.js');
-        return planWalk([-4.5, -0.5], [-11.5, -0.5]).length;
+        return planWalk([-8, 2], [-18, 2]).length;
       });
       must(around >= 2, '탁구대를 돌아가는 길을 못 찾아요');
       // ③ 김제빵 탁구대: b가 혼자 하기를 시작하면 a 화면에선 b 캐릭터가 사라지고 '🔥 1명 도전 중', 끝나면 다시 보임
@@ -568,7 +568,7 @@ async function browserChecks() {
 
     // 광장 탁구대 (docs/dev/plaza.md ②): 자리에 서기 → 준비 → VS 소개 → 경기(광장 채널에서 빠짐) → 관전 → 끝나면 광장 + '한 판 더' → 다시 시작
     // 같은 칸 다툼(먼저 선 사람), 자리 비움(1분)도
-    await step('화면: 광장 탁구대 1대1 (탭 두 개) 서기 → 준비 → 경기 → 한 판 더 · 관전', async () => {
+    await step('화면: 광장 탁구대 1대1 (탭 두 개) 서기 → 준비 → 경기 → 한 판 더 · 경기장 거품 관전', async () => {
       const guest = await ctx.newPage();
       watch(guest, '참가자', errs);
       await guest.goto(URL + '/?acct=2');
@@ -576,6 +576,8 @@ async function browserChecks() {
       await guest.evaluate(() => document.querySelector('#howto')?.classList.add('hidden'));
       await guest.fill('#login-nick', '점검참가');
       await guest.click('#btn-guest');
+      let viewer = null;
+      try {
       await waitFor(guest, () => window.__smash.plaza.pz.link, null, 10000, '참가자 광장');
       await waitFor(page, () => window.__smash.plaza.pz.link, null, 10000, '방장 광장');
       const idOf = (p) => p.evaluate(() => [...window.__smash.plaza.view.figs.entries()].find(([, f]) => f.me)[0]);
@@ -604,7 +606,7 @@ async function browserChecks() {
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.game && !window.__smash.intro, null, 30000, '경기 시작');
       const startedAt = Date.now();
       // 관전: 세 번째 탭이 광장에서 경기 중인 2번 탁구대를 누르면 중계 화면
-      const viewer = await ctx.newPage();
+      viewer = await ctx.newPage();
       watch(viewer, '관중', errs);
       await viewer.goto(URL + '/?acct=3');
       await waitFor(viewer, () => window.__smash?.world, null, 60000, '관중 탭 준비');
@@ -613,23 +615,20 @@ async function browserChecks() {
       await viewer.click('#btn-guest');
       await waitFor(viewer, () => window.__smash.plaza.state(1).busy, null, 15000, '광장에서 2번 탁구대가 경기 중으로 보임');
       must(await viewer.evaluate(() => { window.__smash.plaza.sit(1, 1); return !window.__smash.plaza.pz.seat; }), '경기 중인 탁구대 자리에 서져요');
-      // ④ 광장에서 관전: 가까이 가면 그 탁구대만 실시간(듣기만) + '👀 관전' 버튼, 멀어지면 끊김
-      await viewer.evaluate(() => window.__smash.plaza.walkTo([8, 2.5]));
-      await waitFor(viewer, () => window.__smash.plaza.live()?.t === 1 && window.__smash.plaza.live().got > 0 && /2번 탁구대 관전/.test(document.querySelector('#pz-watch').textContent), null, 20000, "가까이 가면 실시간 + '👀 2번 탁구대 관전'");
-      await viewer.evaluate(() => window.__smash.plaza.walkTo([-4, 9]));
-      await waitFor(viewer, () => !window.__smash.plaza.live() && document.querySelector('#pz-watch').classList.contains('hidden'), null, 20000, '멀어지면 실시간 끊김');
-      await viewer.evaluate(() => window.__smash.plaza.table(1));
-      await waitFor(viewer, () => window.__smash.game?.spectator && !document.querySelector('#watch-bar').classList.contains('hidden'), null, 10000, '관전 화면');
-      await waitFor(viewer, () => document.querySelector('#scoreboard').textContent.includes('점검참가') && /2번 탁구대/.test(document.querySelector('#watch-who').textContent), null, 10000, '관전 점수판에 선수 이름');
-      // 관전 기본 시점 = 관중석 내 자리 1인칭 ('🙂 내 자리' 버튼 켜짐, 카메라가 관중석 쪽 -x 눈높이)
-      await waitFor(viewer, () => window.__smash.game.view === 'me' && document.querySelector('[data-view="me"]').classList.contains('on') && window.__smash.world.camera.position.x < -2, null, 8000, "관전 기본 시점 '내 자리'(1인칭)");
-      await viewer.evaluate(() => document.querySelector('[data-view="1"]').click());
-      await waitFor(viewer, () => document.querySelector('[data-hop="1"]').disabled, null, 5000, '다른 경기가 없으면 ◀ ▶ 꺼짐');
-      // 관중이 응원 팀을 고르고 박수 → 선수 화면에 '관중 1명', 응원 버튼은 2초 동안 잠김
-      await waitFor(viewer, () => !document.querySelector('#cheer-bar').classList.contains('hidden'), null, 5000, '응원 막대');
-      await viewer.evaluate(() => document.querySelector('#cheer-bar [data-team="0"]').click());
-      await viewer.evaluate(() => document.querySelector('#cheer-bar [data-cheer="clap"]').click());
-      await waitFor(viewer, () => document.querySelector('#cheer-bar [data-cheer="fire"]').disabled, null, 3000, '응원 2초 잠김');
+      // 경기장 거품 (plaza.md 16장): 경기 중인 2번 탁구대 둘레 불꽃 고리, 원(7m) 안으로 들어가면 그 경기장으로 바뀌며 관전(듣기만)
+      must(await viewer.evaluate(() => window.__smash.plaza.view.frameT === null), '거품 밖인데 좌표가 바뀌어 있어요');
+      await viewer.evaluate(() => window.__smash.plaza.table(1)); // 탁구대를 누르면 원 안으로 걸어 들어감
+      await waitFor(viewer, () => window.__smash.plaza.bubble.phase !== 'off', null, 30000, '원 안으로 걸어 들어감 → 관전 시작');
+      await waitFor(viewer, () => window.__smash.plaza.bubble.phase === 'inside' && !window.__smash.world.plazaOn && window.__smash.plaza.view.frameT === 1, null, 60000, '원 안 → 경기장으로 바뀜 (방장 배경을 짓느라 느린 PC에선 오래 걸림)');
+      await waitFor(viewer, () => /2번 탁구대/.test(document.querySelector('#pz-bub').textContent) && /점검참가/.test(document.querySelector('#pz-bub').textContent), null, 10000, '거품 막대에 탁구대·선수 이름');
+      // 응원: 팀 고르고 박수 → 2초 잠김
+      await viewer.evaluate(() => document.querySelector('#pz-bub [data-team="0"]').click());
+      await viewer.evaluate(() => document.querySelector('#pz-bub [data-cheer="clap"]').click());
+      await waitFor(viewer, () => document.querySelector('#pz-bub [data-cheer="fire"]').disabled, null, 3000, '응원 2초 잠김');
+      // 관중석에 앉기 (관중석 내 자리 1인칭) → 일어나기
+      await viewer.evaluate(() => document.querySelector('#pz-bub [data-bub="seat"]').click());
+      await waitFor(viewer, () => window.__smash.plaza.bubble.seated && window.__smash.plaza.bubble.game.view === 'me', null, 5000, '관중석에 앉기');
+      await viewer.evaluate(() => document.querySelector('#pz-bub [data-bub="seat"]').click());
       await waitFor(page, () => document.querySelector('#crowd-pill').textContent.includes('관중 1명'), null, 10000, "선수 화면에 '관중 1명'");
       await waitFor(page, () => window.__smash.world.crowd.root.children.some((g) => (g.userData.tag || '').startsWith('점검관중/')), null, 10000, '선수 화면 관중석에 관중 캐릭터(이름표)');
       // 경기 끝 → 선수는 광장 그 자리에 그대로 + 결과·코인 + '🔁 한 판 더', 관중도 광장으로
@@ -637,8 +636,7 @@ async function browserChecks() {
       await page.evaluate(() => window.__smash.match.emit({ type: 'gameOver', winner: 0, score: [5, 0] }));
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.world.plazaOn && window.__smash.plaza.pz.link && window.__smash.plaza.pz.seat?.t === 1 && /한 판 더/.test(document.querySelector('#pz-table').textContent), null, 20000, "경기 끝 → 광장 자리에 '한 판 더'");
       await waitFor(page, () => /승리! 5 : 0/.test(document.querySelector('#pz-table').textContent) && /코인/.test(document.querySelector('#pz-table .coins-got').textContent) && !/정산 중/.test(document.querySelector('#pz-table .coins-got').textContent), null, 15000, '방장(로그인) 자리 판에 승리·코인');
-      await waitFor(viewer, () => !window.__smash.game && window.__smash.world.plazaOn, null, 20000, '경기 끝 → 관중도 광장으로');
-      must(await viewer.evaluate(() => document.querySelector('#cheer-bar').classList.contains('hidden')), '관전이 끝났는데 응원 막대가 남아 있어요');
+      await waitFor(viewer, () => window.__smash.plaza.bubble.phase === 'off' && window.__smash.world.plazaOn && window.__smash.plaza.view.frameT === null && document.querySelector('#pz-bub').classList.contains('hidden'), null, 30000, '경기 끝 → 거품이 걷히고 광장으로');
       // 한 판 더: 둘 다 누르면 다시 시작
       await page.evaluate(() => window.__smash.plaza.ready());
       await guest.evaluate(() => window.__smash.plaza.ready());
@@ -651,10 +649,9 @@ async function browserChecks() {
       // 자리 비움: 1분 동안 아무것도 안 하면 내려온다
       await guest.evaluate(() => window.__smash.plaza.afk());
       await waitFor(guest, () => !window.__smash.plaza.pz.seat && /자리|내려왔어요/.test(document.querySelector('#toast').textContent), null, 5000, '자리 비움 → 내려옴');
-      await viewer.close();
-      await guest.close();
+      } finally { for (const p of [viewer, guest]) await p?.close().catch(() => {}); } // 실패해도 탭을 닫아 다음 점검이 느려지지 않게
       flush();
-      return '서기·같은 칸 다툼·준비·경기 중 광장에서 빠짐·가까이 실시간·관전·한 판 더·자리 비움';
+      return '서기·같은 칸 다툼·준비·경기 중 광장에서 빠짐·경기장 거품 관전·응원·관중석에 앉기·한 판 더·자리 비움';
     });
 
     await step('화면: 탁구대 19종 짓기·바꾸기 (튀기·득점 연출)', async () => {

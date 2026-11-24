@@ -13,7 +13,7 @@ import { titleText } from '../achievements.js';
 import { initAudio, playUI } from '../audio.js';
 import { PLAZA } from '../arena-plaza.js';
 import { AI_NAME, KIM_ID } from '../match.js';
-import { KIM_READY_MS } from '../plazaKim.js';
+import { BREADS, KIM_READY_MS } from '../plazaKim.js';
 import { ic } from '../icons.js';
 import { joinPlaza, makeCode } from '../net.js';
 import { cleanWalk, createPlazaView, planWalk, posAt } from '../plaza.js';
@@ -25,8 +25,8 @@ import { lobbyRooms } from './lobbyList.js';
 import { TEAM_NAME, enterTable, h2hOf, leaveRoom, myId, myStreak, room, roomHooks } from './room.js';
 import { curScreen, show } from './screen.js';
 import { $, IS_MOBILE, MOBILE_MSG, esc, game, myNemesis, myNick, world } from './state.js';
-import { startWatch, watch } from './watch.js';
-import { liveFrame, liveInfo, stop as liveStop } from './plazaLive.js';
+import { BUBBLE_IN } from '../arena-plaza.js';
+import { bub, bubbleArena, bubbleFrame, bubbleSeated, rememberPlazaEnv, setSeated, stop as bubbleStop } from './plazaBubble.js';
 
 export const PLAZA_MAX = 40;
 const SAY_GAP = 2; // 한 사람 2초에 한 번
@@ -135,7 +135,7 @@ function cleanSeat(v) {
 // 불려 온 김제빵 정보 {t, s, at, bye} (방장의 상태). 'kim'(혼자 하기 중 표시, true)과 구별
 function cleanKim(v) {
   if (!v || typeof v !== 'object' || !Number.isInteger(v.t) || v.t < 0 || v.t >= NT || !Number.isInteger(v.s) || v.s < 0 || v.s > 3 || !fin(v.at)) return null;
-  return { t: v.t, s: v.s, at: v.at, bye: fin(v.bye) ? v.bye : null };
+  return { t: v.t, s: v.s, at: v.at, bye: fin(v.bye) ? v.bye : null, b: Number.isInteger(v.b) && v.b >= 0 && v.b < 500 ? v.b : null };
 }
 function onList(link, list) {
   if (link !== pz.link) return;
@@ -211,6 +211,7 @@ function onMsg(link, m) {
 // ───── 걷기 ─────
 // pt로 걸어간다 (막히면 모서리를 돌아서). then: 도착하면 할 일 · keepSeat: 탁구대 자리로 가는 길 (자리에서 안 내려옴)
 function walkTo(pt, { then = null, keepSeat = false } = {}) {
+  if (bubbleSeated()) setSeated(false); // 관중석에 앉아 있었으면 일어나서 걷기
   if (!keepSeat) unseat();
   const nowMs = Date.now();
   const from = posAt(pz.myW, nowMs);
@@ -304,10 +305,10 @@ function onSeat(t, s) {
 function onTable(t) {
   const st = tableState(t);
   if (st.busy) {
-    if (!st.busy.pl) { hud.toast('곧 중계가 시작돼요. 잠시 뒤 다시 눌러 주세요', 1800); return; }
-    unseat();
-    liveStop();
-    startWatch(st.busy);
+    // 경기장 거품: 그 탁구대 원 안으로 걸어 들어가면 저절로 관전 (탁구대 쪽으로 4.5m 앞까지)
+    const p = posAt(pz.myW, Date.now()), T = PLAZA.tables[t];
+    const dx = p[0] - T.x, dz = p[1] - T.z, d = Math.hypot(dx, dz) || 1;
+    if (d > BUBBLE_IN - 1) walkTo([T.x + (dx / d) * 4.5, T.z + (dz / d) * 4.5]);
     return;
   }
   if (pz.seat?.t === t) return;
@@ -474,9 +475,10 @@ function callKim() {
   renderTables(true);
 }
 // 김제빵 돌려보내기 (경기가 끝났거나, 사람이 3명이 아니게 됐거나, 방장이 내려옴)
-function kimBye(delay = 0) {
+// bread: 방장이 직접 내보낼 때 빵 번호 ('이번엔 ○○을 만들어 볼까나...')
+function kimBye(delay = 0, bread = null) {
   if (!pz.kim || pz.kim.bye) return;
-  pz.kim = { ...pz.kim, bye: Date.now() + delay };
+  pz.kim = { ...pz.kim, bye: Date.now() + delay, ...(bread != null ? { b: bread } : {}) };
   sendInfo();
   const k = pz.kim;
   setTimeout(() => { if (pz.kim === k) { pz.kim = null; sendInfo(); } }, delay + 9000); // 다 뛰어간 뒤 지움
@@ -496,7 +498,7 @@ function syncKimRuns() {
   const add = (id, k) => {
     if (!k) return;
     const T = PLAZA.tables[k.t];
-    list.push({ key: `${id}:${k.at}`, seat: T.seats[k.s], face: faceOf({ t: k.t, s: k.s }), at: kimLocal(id, k.at), bye: k.bye ? kimLocal(id + 'b', k.bye) : null });
+    list.push({ key: `${id}:${k.at}`, seat: T.seats[k.s], face: faceOf({ t: k.t, s: k.s }), at: kimLocal(id, k.at), bye: k.bye ? kimLocal(id + 'b', k.bye) : null, b: k.b ?? null });
   };
   add(myId, pz.kim);
   for (const p of pz.people.values()) add(p.id, p.called);
@@ -517,14 +519,13 @@ function renderTables(force = false) {
     const seats = st.seats.map((p) => (off ? 'off' : !p ? 'empty' : p.rdy ? 'ready' : 'taken'));
     let lines, color;
     if (st.busy) {
-      const li = liveInfo();
-      const sc = li?.t === t ? li.score : st.busy.score || [0, 0]; // 가까이 있으면 실시간 점수
-      lines = [`${t + 1}번 · ${st.busy.mode === '2v2' ? '2대2' : '1대1'} 경기 중 ${sc[0]} : ${sc[1]}`, '👀 탁구대를 누르면 관전'];
+      const sc = bub.t === t && bub.phase !== 'off' ? bub.score : st.busy.score || [0, 0]; // 거품 안이면 실시간 점수
+      lines = [`${t + 1}번 · ${st.busy.mode === '2v2' ? '2대2' : '1대1'} 경기 중 ${sc[0]} : ${sc[1]}`, '👀 불꽃 원 안으로 들어가면 관전'];
       color = '#ff5a5f';
     } else if (st.soon || (st.mode && st.ready)) { lines = [`${t + 1}번 탁구대`, '🏓 곧 시작해요!']; color = '#ffd23f'; }
     else if (!st.n) { lines = [`${t + 1}번 탁구대`, '빈 탁구대 · 자리를 눌러 서요']; color = '#7ad35a'; }
     else { lines = [`${t + 1}번 탁구대 · ${st.mode === '2v2' ? '2대2' : st.mode ? '1대1' : '모이는 중'}`, `${st.n}명 · 준비 ${st.nReady}/${st.n}`]; color = '#ffd23f'; }
-    view.setTable(t, { seats, lines, color });
+    view.setTable(t, { seats, lines, color, busy: !!st.busy });
   }
   const st = pz.seat ? tableState(pz.seat.t) : null;
   if (st && !room && pz.link) {
@@ -588,6 +589,7 @@ function renderPanel(st) {
         : wait > 0 ? `<small class="pzt-kimtip">🤖 ${wait}초 뒤 김제빵을 부를 수 있어요</small>` : '<button class="small kim" data-pzt="kim">🤖 김제빵 불러서 2대2</button>';
     } else if (!st.host?.me && st.humans === 3 && !st.kim && !st.mode) extra += '<small class="pzt-kimtip">🤖 방장이 김제빵을 부를 수 있어요</small>';
   }
+  if (st.kim && st.host?.me && !busyNow) extra += '<button class="small kim" data-pzt="kimout">🥖 김제빵 내보내기</button>'; // 방장만
   if (st.kim) extra += '<small class="pzt-kimtip">🤖 김제빵이 한 자리를 채웠어요 · 전적엔 안 남고 코인은 보통 2대2와 같아요</small>';
   const html = `<div class="pzt-head"><b>${ic('table')} ${st.t + 1}번 탁구대</b><span class="pzt-mode">${label}${st.host?.me ? ` · ${ic('crown')} 내가 방장 (내 배경으로 경기)` : ''}</span><button class="small" data-pzt="leave">내려오기</button></div>`
     + `<div class="pzt-seats">${side(0)}<i class="pzt-vs">VS</i>${side(1)}</div>${res}${btn}${extra ? `<div class="pzt-extra">${extra}</div>` : ''}<p class="pzt-tip">${tip}</p>`;
@@ -606,6 +608,7 @@ $('pz-table').addEventListener('click', (e) => {
   else if (b.dataset.pzt === 'leave') { playUI('click'); unseat(); }
   else if (b.dataset.pzt === 'call') sendCall();
   else if (b.dataset.pzt === 'kim') callKim();
+  else if (b.dataset.pzt === 'kimout') { playUI('click'); kimBye(0, (Math.random() * BREADS.length) | 0); renderTables(true); }
 });
 // 자리 비움: 탁구대에 서 있는 동안 누르기·키 입력이 있으면 '아직 있어요'
 for (const ev of ['pointerdown', 'keydown', 'wheel']) addEventListener(ev, () => { if (pz.seat) pz.lastAct = Date.now(); }, { passive: true });
@@ -645,25 +648,6 @@ function renderCount() {
   $('pz-count').textContent = pz.full ? `👥 광장이 꽉 찼어요 (${PLAZA_MAX}명)` : `👥 광장 ${pz.link ? pz.people.size + pz.kimN + 1 : 1}명`;
 }
 
-// '👀 N번 탁구대 관전' 버튼 (가까이 있는 경기 중 탁구대)
-let watchBtn = { key: '', r: null };
-function showWatchBtn(li) {
-  const el = $('pz-watch');
-  const key = li ? `${li.t}:${li.score.join(':')}` : '';
-  watchBtn.r = li?.r || null;
-  if (key === watchBtn.key) return;
-  watchBtn.key = key;
-  el.classList.toggle('hidden', !li);
-  if (li) el.innerHTML = `👀 ${li.t + 1}번 탁구대 관전 <small>${li.score[0]} : ${li.score[1]} · 관중석에서 보기</small>`;
-}
-$('pz-watch').addEventListener('click', () => {
-  const r = watchBtn.r;
-  if (!r) return;
-  liveStop();
-  unseat();
-  startWatch(r);
-});
-
 // 지금 광장이 화면에 보이나 (로비 화면)
 export const plazaShown = () => !game && !$('lobby').classList.contains('hidden');
 
@@ -672,7 +656,7 @@ export function plazaFrame(now) {
   // 광장 채널: 광장·상점·꾸미기·랭킹 화면에 있을 때만 (탁구대에서 경기 채널로 가는 중에도 — 시작할 때까지).
   // 경기(혼자 하기 포함)·관전·로그인 화면에서는 빠진다 → 경기 중 선수는 광장 메시지를 하나도 안 주고받는다
   // 김제빵 탁구대 혼자 하기(네트워크 안 씀)는 광장에 남아 '도전 중'만 알린다 (그동안 광장은 그리지 않음)
-  const want = !pz.full && !watch && !room?.inGame && (inAI() ? curScreen === 'hud' : !game && ['lobby', 'dress', 'rank'].includes(curScreen));
+  const want = !pz.full && !room?.inGame && (inAI() ? curScreen === 'hud' : !game && ['lobby', 'dress', 'rank'].includes(curScreen));
   if (want && !pz.link) connect();
   else if (!want && pz.link) disconnect();
   if (curScreen === 'login' && pz.seat) unseat(); // 로그아웃
@@ -690,7 +674,7 @@ export function plazaFrame(now) {
   // 자리 비움 (1분)
   if (pz.seat && !room && Date.now() - pz.lastAct > AFK_MS) { unseat(); hud.toast('1분 동안 아무것도 안 해서 탁구대에서 내려왔어요', 2800); }
   const shown = plazaShown();
-  world.setPlaza(shown);
+  world.setPlaza(shown && !bubbleArena()); // 경기장 거품 안(또는 물결 중)이면 경기장 배경 (plazaBubble.js가 둘을 섞음)
   if (shown !== pz.shown) {
     pz.shown = shown;
     view.setVisible(shown);
@@ -705,8 +689,8 @@ export function plazaFrame(now) {
       closePhrases(); // 로비 캐릭터는 로비·경기 화면이 다시 켠다
     }
   }
-  if (!shown) { liveStop(); showWatchBtn(null); return false; }
-  for (const side of world.team) for (const c of side) c.group.visible = false; // 랠리하는 로비 캐릭터는 숨김
+  if (!shown) { bubbleStop(); return false; }
+  if (!bubbleArena()) for (const side of world.team) for (const c of side) c.group.visible = false; // 랠리하는 로비 캐릭터는 숨김
   // 걷는 중: 한 구간이 끝나면 다음 구간, 다 왔으면 도착해서 할 일 (가게 열기·혼자 하기)
   const nowMs = Date.now();
   const p = posAt(pz.myW, nowMs);
@@ -715,18 +699,20 @@ export function plazaFrame(now) {
     else if (pz.pending) { const f = pz.pending; pz.pending = null; f(); }
   }
   renderTables();
-  // ④ 광장에서 관전: 경기 중인 탁구대 가까이 가면 그 1대만 실시간 (듣기만), '👀 관전' 버튼
-  const busy = PLAZA.tables.map((_, t) => lobbyRooms.find((r) => r.pt === t && r.play && r.pl) || null);
-  showWatchBtn(liveFrame(view, now, posAt(pz.myW, Date.now()), busy, !!pz.link && !room));
   view.update(now, myId);
   sky ||= createPlazaSky(world);
   sky.update(now);
   if (now - skyLabelT > 1) { skyLabelT = now; $('pz-wx').textContent = sky.label(); }
+  // 경기장 거품 (plaza.md 16장): 경기 중인 탁구대 원(7m) 안으로 들어가면 그 경기장으로, 9m 밖이면 광장으로
+  const busy = PLAZA.tables.map((_, t) => lobbyRooms.find((r) => r.pt === t && r.play && r.pl) || null);
+  const dt = Math.min(0.1, now - (pz.lastNow || now));
+  pz.lastNow = now;
+  bubbleFrame(view, now, dt, p, busy, !!pz.link && !room && !pz.seat, rememberPlazaEnv());
   return true;
 }
 
 // 점검·디버그용
 export const plazaDebug = {
   pz, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list), fakeState: (m) => onState(m), get kimN() { return pz.kimN; },
-  live: liveInfo, call: sendCall, callKim, person: onPerson, invite: sendInvite, sit: onSeat, table: onTable, kim: onKim, ready: toggleReady, unseat, state: tableState, afk: () => { pz.lastAct -= AFK_MS + 1000; },
+  bubble: bub, seat: setSeated, call: sendCall, callKim, person: onPerson, invite: sendInvite, sit: onSeat, table: onTable, kim: onKim, ready: toggleReady, unseat, state: tableState, afk: () => { pz.lastAct -= AFK_MS + 1000; },
 };

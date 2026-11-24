@@ -13,14 +13,16 @@ const tableAt = (n, x, z) => ({
   seats: [[x - SEAT_X, z - SEAT_Z], [x - SEAT_X, z + SEAT_Z], [x + SEAT_X, z + SEAT_Z], [x + SEAT_X, z - SEAT_Z]],
   rect: { x0: x - T_HALF[0] - 0.08, x1: x + T_HALF[0] + 0.08, z0: z - T_HALF[1] - 0.08, z1: z + T_HALF[1] + 0.08 },
 });
-const TABLES = [tableAt(1, -8, -0.5), tableAt(2, 8, -0.5), tableAt(3, -8, 4.5)];
+// 경기장 거품(plaza.md 16장): 경기 중인 탁구대 둘레 원(들어가기 7m·나가기 9m)이 겹치지 않게 탁구대끼리 18m 넘게 떨어뜨림
+export const BUBBLE_IN = 7, BUBBLE_OUT = 9;
+const TABLES = [tableAt(1, -13, 2), tableAt(2, 13, 2), tableAt(3, 0, 24)];
 // 김제빵 탁구대 (③ 혼자 하기): 서쪽 끝 spot에 서면 혼자 하기, 동쪽 끝 chef에 김제빵이 늘 서 있다
-const KIM = { ...tableAt(0, 8, 4.5), spot: [8 - SEAT_X, 4.5], chef: [8 + SEAT_X, 4.5] };
+const KIM = { ...tableAt(0, 0, 3), spot: [-SEAT_X, 3], chef: [SEAT_X, 3] };
 
 // 걸을 수 있는 곳 (m). 가게 건물 앞면까지
 export const PLAZA = {
-  minX: -13, maxX: 13, minZ: -10, maxZ: 12,
-  spawn: [0, 7], // 처음 서는 곳 (북쪽 가게를 바라봄). 가게 문까지 약 12m = 걸어서 3초, 탁구대 4대가 양옆으로 다 보인다
+  minX: -21.5, maxX: 21.5, minZ: -10, maxZ: 32,
+  spawn: [0, 12], // 처음 서는 곳 (북쪽 가게를 바라봄). 앞에 김제빵 탁구대, 양옆 앞에 1·2번, 뒤에 3번 탁구대. 가게 문까지 약 17m(걸어서 3~4초)
   // 가게: 가운데 x, 앞면 z(front), 너비 w, 깊이 d, 높이 h. 문 앞 door = 도착하면 화면이 열리는 곳
   shops: [
     { id: 'shop', name: '🛒 상점', x: -5.6, h: 2.7 }, // 커다란 뽑기 기계
@@ -321,8 +323,9 @@ export function buildPlaza() {
   // 가게 3개 + 뒤쪽 담장
   for (const s of PLAZA.shops) root.add(BUILD[s.id](s));
   const wallM = std(0xe7d8bd);
-  addBox(root, 32, 2.2, 0.4, wallM, 0, 1.1, -10.6);
-  for (const sx of [-1, 1]) addBox(root, 0.4, 2.2, 5, wallM, sx * 15.8, 1.1, -8.2);
+  const WX = PLAZA.maxX + 2.8;
+  addBox(root, WX * 2, 2.2, 0.4, wallM, 0, 1.1, -10.6);
+  for (const sx of [-1, 1]) addBox(root, 0.4, 2.2, 5, wallM, sx * WX, 1.1, -8.2);
   // 가게 사이 화단
   for (const x of [-2.8, 2.8]) {
     addBox(root, 1.0, 0.4, 1.2, std(0xb9ad99), x, 0.2, -7.4);
@@ -334,11 +337,12 @@ export function buildPlaza() {
 
   // 둘레: 나무·가로등·벤치 (걷는 곳 바깥)
   for (const sx of [-1, 1]) {
-    for (let i = 0; i < 5; i++) { const t = tree(rnd); t.position.set(sx * (15 + rnd() * 1.5), 0, -6 + i * 4.4 + rnd()); t.scale.setScalar(0.9 + rnd() * 0.4); root.add(t); }
-    for (const z of [-4, 4, 11]) { const l = lamp(); l.position.set(sx * 14, 0, z); root.add(l); }
-    for (const z of [0, 8]) { const b = bench(); b.position.set(sx * 14.2, 0, z); b.rotation.y = -sx * Math.PI / 2; root.add(b); }
+    const ex = PLAZA.maxX;
+    for (let i = 0; i < 9; i++) { const t = tree(rnd); t.position.set(sx * (ex + 2 + rnd() * 1.5), 0, -6 + i * 4.6 + rnd()); t.scale.setScalar(0.9 + rnd() * 0.4); root.add(t); }
+    for (const z of [-4, 8, 20, 30]) { const l = lamp(); l.position.set(sx * (ex + 1), 0, z); root.add(l); }
+    for (const z of [2, 14, 26]) { const b = bench(); b.position.set(sx * (ex + 1.2), 0, z); b.rotation.y = -sx * Math.PI / 2; root.add(b); }
   }
-  for (let i = 0; i < 7; i++) { const t = tree(rnd); t.position.set(-12 + i * 4 + rnd(), 0, 15 + rnd() * 1.5); t.scale.setScalar(0.9 + rnd() * 0.4); root.add(t); }
+  for (let i = 0; i < 11; i++) { const t = tree(rnd); t.position.set(-20 + i * 4 + rnd(), 0, PLAZA.maxZ + 3 + rnd() * 1.5); t.scale.setScalar(0.9 + rnd() * 0.4); root.add(t); }
   // 멀리 언덕
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2, r = 55 + rnd() * 10;

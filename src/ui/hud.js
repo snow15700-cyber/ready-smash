@@ -7,7 +7,6 @@ import { aiCoins } from './ai.js';
 import { crowdRoar } from './cheer.js';
 import { backToRoom, room, saveResult } from './room.js';
 import { $, esc, game } from './state.js';
-import { watch, watchDone } from './watch.js';
 
 const GRADE_TEXT = { perfect: 'PERFECT!', good: 'GOOD', bad: 'BAD', block: 'BLOCK', miss: 'MISS' };
 let toastTimer = 0;
@@ -61,17 +60,6 @@ export const hud = {
     el.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove('show'), ms);
-  },
-  // 관전: 이긴 쪽 이름으로 결과 띠, 잠시 뒤 로비로
-  watchOver(winner, score) {
-    const el = $('result');
-    el.className = 'win';
-    $('result-title').textContent = `🏆 ${game.names[winner]} 승리!`;
-    $('result-score').textContent = `${score[0]} : ${score[1]}`;
-    clearTimeout(resultTimer);
-    resultTimer = setTimeout(() => el.classList.add('hidden'), 2700);
-    const w = watch;
-    setTimeout(() => { if (watch === w) watchDone(w); }, 2800); // 결과 띠가 사라지면 '다음 판' 창
   },
   gameOver(win, score) {
     const me = game.mySide;

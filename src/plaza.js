@@ -2,14 +2,14 @@
 // 걷기는 {from, to, t}(t = 출발 시각, ms)만 알면 언제든 같은 자리를 계산할 수 있다 → 네트워크로는 클릭할 때 한 번만 보낸다.
 // 보기만 하는 장면이라 경기 판정과 상관없음. 네트워크·화면 흐름은 src/ui/plaza.js.
 import * as THREE from 'three';
-import { PLAZA } from './arena-plaza.js';
+import { BUBBLE_IN, PLAZA } from './arena-plaza.js';
 import { bubble } from './crowd.js';
 import { applyLook } from './items.js';
 import { holdPose } from './ui/stage.js';
 import { createKimRunners } from './plazaKim.js';
 import { makeCharacter } from './scene.js';
 
-export const WALK_SPEED = 4; // m/s
+export const WALK_SPEED = 5; // m/s (광장이 넓어져서 11/24 4 → 5)
 const NEAR_TAG = 16; // 이 거리(m)보다 먼 사람은 이름표 생략 (사람이 많을 때 가볍게)
 const NEAR_TICK = 24; // 이 거리보다 먼 사람은 움직이는 옷 효과도 멈춤
 export const CAM = { dist: 8.5, minDist: 3.2, maxDist: 15, pitch: 0.42, minPitch: 0.12, maxPitch: 1.15, lookY: 1.1, follow: 1.4 };
@@ -152,6 +152,31 @@ function drawSign(sg, lines, color) {
   sg.tex.needsUpdate = true;
 }
 
+// 경기장 거품 원(plaza.md 16장): 경기 중인 탁구대 둘레 바닥에 천천히 도는 주황 불꽃 고리 마법진 (반지름 = 들어가기 7m)
+function ringTex(dashes) {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 64;
+  const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 0, 64);
+  grd.addColorStop(0, 'rgba(255,140,30,0)'); grd.addColorStop(0.5, 'rgba(255,200,80,1)'); grd.addColorStop(1, 'rgba(255,140,30,0)');
+  g.fillStyle = grd;
+  if (dashes) {
+    for (let i = 0; i < dashes; i++) g.fillRect((i * 1024) / dashes, 0, (1024 / dashes) * 0.62, 64);
+    g.fillStyle = 'rgba(255,230,150,.9)';
+    for (let i = 0; i < dashes; i++) g.fillRect((i * 1024) / dashes + 6, 26, 6, 12);
+  } else g.fillRect(0, 0, 1024, 64);
+  const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+// 반지름 1짜리 빛 띠 (scale로 키움)
+export function fireBand(inner, outer, dashes) {
+  const g = new THREE.RingGeometry(inner, outer, 128, 1);
+  const pos = g.attributes.position, uv = g.attributes.uv;
+  for (let i = 0; i < pos.count; i++) { const a = Math.atan2(pos.getY(i), pos.getX(i)); uv.setXY(i, (a / (Math.PI * 2) + 0.5) * 4, Math.hypot(pos.getX(i), pos.getY(i)) > (inner + outer) / 2 ? 1 : 0); }
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: ringTex(dashes), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+  m.rotation.x = -Math.PI / 2; m.position.y = 0.04; m.renderOrder = 3;
+  return m;
+}
+
 // handlers: onGround([x, z]) · onShop(shop) · onTable(t) · onSeat(t, s) · onKim() · onPerson(id)
 export function createPlazaView(world, handlers) {
   const K = PLAZA.kim;
@@ -187,7 +212,12 @@ export function createPlazaView(world, handlers) {
     const sign = makeSign();
     sign.sp.position.set(t.x, 2.45, t.z);
     root.add(sign.sp);
-    return { t, marks, sign };
+    // 경기 중일 때만 보이는 불꽃 고리 마법진
+    const rune = new THREE.Group();
+    const r1 = fireBand(0.96, 1.04, 24), r2 = fireBand(0.9, 0.93, 60);
+    rune.add(r1, r2); rune.scale.setScalar(BUBBLE_IN); rune.position.set(t.x, 0, t.z); rune.visible = false;
+    root.add(rune);
+    return { t, marks, sign, rune, r1, r2 };
   });
 
   // 김제빵 탁구대 (③): 김제빵이 동쪽 끝에 늘 서 있고 (다른 사람 눈엔 도전하는 사람은 안 보이고 김제빵 혼자), 위에 '🔥 N명 도전 중' 표지판
@@ -242,6 +272,7 @@ export function createPlazaView(world, handlers) {
     ndc.set(((px - rect.left) / rect.width) * 2 - 1, -((py - rect.top) / rect.height) * 2 + 1);
     world.camera.updateMatrixWorld();
     ray.setFromCamera(ndc, world.camera);
+    if (frame.on) ray.ray.applyMatrix4(frame.inv); // 경기장 거품 안: 세상 좌표 → 광장 좌표
     let best = null, bd = Infinity;
     for (const b of boxes) {
       if (ray.ray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = { shop: b.s }; } }
@@ -325,6 +356,10 @@ export function createPlazaView(world, handlers) {
   }, { passive: false });
 
   const tmpV = new THREE.Vector3();
+  // 경기장 거품: 탁구대 t가 세상 원점(경기 좌표)에 오도록 광장을 돌려 놓는다 (광장 배경·사람·카메라 모두)
+  const frame = { on: false, m: new THREE.Matrix4(), inv: new THREE.Matrix4(), t: -1 };
+  const toWorld = (v) => (frame.on ? v.applyMatrix4(frame.m) : v);
+  let filter = null, camOff = false, plazaBits = true;
   return {
     root,
     figs,
@@ -356,9 +391,10 @@ export function createPlazaView(world, handlers) {
       f.bubT = performance.now() / 1000;
     },
     // 탁구대 하나의 모습: seats = ['empty'|'taken'|'ready'] ×4, lines = 표지판 글자 [큰 줄, 작은 줄], color = 표지판 테두리
-    setTable(t, { seats, lines, color = '#ffd23f' }) {
+    setTable(t, { seats, lines, color = '#ffd23f', busy = false }) {
       const T = tables[t];
       if (!T) return;
+      T.rune.visible = busy;
       seats.forEach((st, i) => {
         const m = T.marks[i];
         m.fill.material.opacity = st === 'empty' ? 0.18 : st === 'ready' ? 0.85 : 0.55;
@@ -378,6 +414,22 @@ export function createPlazaView(world, handlers) {
     // 불려 온 김제빵들 [{ key, seat, face, at, bye }]
     setKimRuns(list) { runners.sync(list); },
     get kimRuns() { return runners.count; },
+    // 경기장 거품 좌표: t = 탁구대 번호 | null(광장 그대로). 광장 배경(world.plaza.root)도 같이
+    setFrame(t) {
+      const roots = [root, world.plaza?.root].filter(Boolean);
+      if (t == null) { frame.on = false; frame.t = -1; for (const r of roots) { r.rotation.y = 0; r.position.set(0, 0, 0); r.updateMatrixWorld(true); } return; }
+      const T = PLAZA.tables[t];
+      frame.on = true; frame.t = t;
+      for (const r of roots) { r.rotation.y = Math.PI / 2; r.position.set(-T.z, 0, T.x); r.updateMatrixWorld(true); }
+      frame.m.copy(root.matrixWorld); frame.inv.copy(frame.m).invert();
+    },
+    get frameT() { return frame.on ? frame.t : null; },
+    // 보일 사람 고르기 (거품 안에서는 원 안 사람만): fn(id, [x, z]) → true/false. null이면 모두
+    setFilter(fn) { filter = fn; },
+    // 관중석에 앉아 있는 동안은 카메라를 경기 쪽(관전 시점)이 정한다
+    setCamOff(on) { camOff = on; },
+    // 탁구대 자리 칸·표지판·김제빵·걷기 표시 (광장 것: 거품 안에서는 숨김)
+    setPlazaBits(on) { for (const T of tables) { T.sign.sp.visible = on && T.sign.sp.visible; for (const m of T.marks || []) m.g.visible = on; if (T.rune) T.rune.visible = on && T.rune.visible; } kim.c.group.visible = on; plazaBits = on; },
     showMarker(x, z) { marker.position.set(x, 0.02, z); marker.visible = true; markerT = performance.now() / 1000; },
     // 카메라를 내 캐릭터 뒤로 바로 (처음 들어올 때)
     resetCam() { cam.init = false; cam.manual = false; },
@@ -395,6 +447,7 @@ export function createPlazaView(world, handlers) {
         if (e > 3) { f.disp[0] = tx; f.disp[1] = tz; } else { const k = 1 - Math.exp(-dt * 10); f.disp[0] += ex * k; f.disp[1] += ez * k; }
         const g = f.c.group;
         g.position.set(f.disp[0], 0, f.disp[1]);
+        g.visible = !filter || f.me || filter(f, f.disp);
         const left = Math.hypot(f.w.to[0] - f.disp[0], f.w.to[1] - f.disp[1]);
         const moving = left > 0.04;
         if (moving) {
@@ -419,7 +472,7 @@ export function createPlazaView(world, handlers) {
         f.c.body.rotation.x += ((moving ? -0.13 : 0) - f.c.body.rotation.x) * (1 - Math.exp(-dt * 10));
         f.c.body.rotation.z = walkK * Math.sin(f.phase) * 0.05;
         // 먼 사람은 간단히 (이름표 생략·옷 효과 멈춤)
-        const dist = tmpV.set(f.disp[0], 1, f.disp[1]).distanceTo(camP);
+        const dist = toWorld(tmpV.set(f.disp[0], 1, f.disp[1])).distanceTo(camP);
         const near = f.me || dist < (f.near ? NEAR_TAG + 1 : NEAR_TAG - 1);
         if (near !== f.near) { f.near = near; f.c.setTag(near ? f.nick : null, f.me, f.title); }
         if (f.me || dist < NEAR_TICK) f.c.tickOutfit(now, dt);
@@ -437,7 +490,9 @@ export function createPlazaView(world, handlers) {
       kim.c.tickOutfit(now, dt);
       // 카메라 바로 앞의 탁구대 표지판은 흐리게 (화면을 가리지 않게)
       for (const T of tables) {
-        const d = T.sign.sp.position.distanceTo(camP);
+        if (T.rune?.visible) { T.r1.rotation.z = now * 0.25; T.r2.rotation.z = -now * 0.4; }
+        if (!plazaBits) { T.sign.sp.visible = false; continue; }
+        const d = toWorld(tmpV.copy(T.sign.sp.position)).distanceTo(camP);
         T.sign.sp.material.opacity = Math.min(1, Math.max(0, (d - 3.5) / 3));
         T.sign.sp.visible = T.sign.sp.material.opacity > 0.02;
       }
@@ -475,11 +530,13 @@ export function createPlazaView(world, handlers) {
       cam.look.lerp(look, cam.init ? k : 1);
       if (!cam.init) cam.look.copy(look);
       cam.init = true;
+      if (camOff) return;
       world.camera.position.copy(cam.pos);
+      toWorld(world.camera.position);
       // 세로로 긴 화면(휴대폰)은 가게 3개가 다 들어오게 화각을 넓힌다
       const fov = Math.min(80, Math.max(55, (2 * Math.atan(Math.tan(0.4) / world.camera.aspect) * 180) / Math.PI));
       if (Math.abs(world.camera.fov - fov) > 0.01) { world.camera.fov = fov; world.camera.updateProjectionMatrix(); }
-      world.camera.lookAt(cam.look);
+      world.camera.lookAt(toWorld(tmpV.copy(cam.look)));
     },
   };
 }

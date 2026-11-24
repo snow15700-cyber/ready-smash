@@ -26,7 +26,7 @@ import { endRoom, room } from './ui/room.js';
 import { show, stopGame } from './ui/screen.js';
 import { $, ease, game, lerp3, match, preview, world } from './ui/state.js';
 import { plazaDebug, plazaFrame } from './ui/plaza.js';
-import { endWatch, watch } from './ui/watch.js';
+import { bubbleArena, bubbleLook, bubbleSeated } from './ui/plazaBubble.js';
 
 const lobbyDemo = createLobbyDemo();
 const LOBBY_QUIET = 0.4; // 로비 배경 랠리 소리 크기 (경기 중 소리를 1로 볼 때)
@@ -47,8 +47,7 @@ if (!ONLINE) $('login-offline').classList.remove('hidden');
 
 function exitGame() {
   playUI('click');
-  if (watch) endWatch();
-  else if (room) endRoom('quit'); // 경기 중에 나가면 광장으로 (탁구대 자리에서도 내려온다)
+  if (room) endRoom('quit'); // 경기 중에 나가면 광장으로 (탁구대 자리에서도 내려온다)
   else {
     stopGame();
     show('lobby');
@@ -57,7 +56,7 @@ function exitGame() {
 }
 $('exit').addEventListener('click', exitGame);
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && game && (!room || watch)) exitGame();
+  if (e.key === 'Escape' && game && !room) exitGame();
 });
 // 꾸미기 카메라: 랠리하는 내 캐릭터의 등 뒤 가까이 (x: 패널을 피해 캐릭터를 화면 왼쪽으로 비키는 정도)
 // follow: 캐릭터가 좌우로 움직일 때 카메라가 따라가는 빠르기, blend: 로비↔꾸미기 카메라가 옮겨 가는 시간(초)
@@ -87,7 +86,7 @@ function loop() {
     if (!(intro && introFrame(now))) game.update(now + game.offset); // 연출 중엔 introFrame이 그린다
   }
   else if (inPlaza) {
-    setQuiet(LOBBY_QUIET);
+    setQuiet(bubbleArena() ? 1 : LOBBY_QUIET); // 경기장 거품 안: 경기 소리 그대로
     world.setFocus(0);
     setEcho(0);
     const cp = world.camera.position, e = world.camera.matrixWorld.elements;
@@ -152,12 +151,12 @@ function loop() {
   loop.last = now;
   for (const side of world.team) for (const c of side) if (c.group.visible) c.tickOutfit(now, odt);
   // 배경: 방(대기실·경기)에서는 방장이 장착한 배경을 모두에게, 그 밖(로비·꾸미기·혼자 하기)은 내 것(입어 보는 중이면 그것)
-  const arenaLook = room ? room.hostM?.look : watch ? watch.hostM?.look : preview && !game ? preview.look : myEquip();
+  const arenaLook = room ? room.hostM?.look : bubbleLook() || (preview && !game ? preview.look : myEquip()); // 경기장 거품 안이면 그 경기 방장 것
   world.setArena(arenaOf(arenaLook));
   world.setBallSkin(ballOf(arenaLook)); // 탁구공도 배경처럼: 방에서는 방장 것
   world.setTable(tableOf(arenaLook)); // 탁구대도 (방장 것)
 
-  world.crowd.setShown(!!game); // 관중석은 경기 화면에서만 (대기실 무대엔 안 세움)
+  world.crowd.setShown(!!game || bubbleSeated()); // 관중석은 경기 화면에서만 (경기장 거품에서는 관중석에 앉았을 때만)
   world.crowd.update(now); // 관중석 (관중이 없으면 바로 끝남)
   world.render();
   if (perf) perf.frame(now);

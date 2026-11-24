@@ -10,6 +10,18 @@ import { makeCharacter } from './scene.js';
 export const KIM_RUN = 6; // 뛰는 속도 (m/s)
 export const KIM_READY_MS = 4500; // 부른 뒤 이만큼 지나면 '준비 완료'로 친다 (뛰어오는 중에 경기가 시작되지 않게)
 const SAY_IN = '빵 굽다 왔어요! 🥖', SAY_OUT = '앗, 빵 타겠다! 🔥';
+// 방장이 '김제빵 내보내기'를 누르면: '이번엔 ○○을(를) 만들어 볼까나...' (어떤 빵인지는 방장이 정한 번호 b — 모든 PC가 같은 말)
+export const BREADS = [
+  '소금빵', '명란 소금빵', '초코칩 소금빵', '에멘탈치즈 소금빵', '사워도우', '깜빠뉴', '치아바타', '포카치아',
+  '바게트', '명란바게트', '무화과바게트', '솔티바게트', '앙버터', '크루아상', '퀸아망', '크루키', '크로플',
+  '블루베리 베이글', '대파 베이글', '쪽파 베이글', '어니언 베이글', '생식빵', '밤식빵', '탕종식빵', '우유식빵',
+  '저당빵', '통곡물빵', '호밀빵', '소보로빵', '튀김소보로', '단팥빵', '맘모스빵', '슈크림빵', '모카번',
+  '마늘빵', '육쪽마늘빵', '메론빵', '휘낭시에', '마들렌', '까눌레', '에그타르트', '스콘', '생크림도넛', '꽈배기',
+  '시나몬롤', '판타롱부추빵', '사라다빵',
+];
+// 받침이 있으면 '을', 없으면 '를'
+const eulReul = (w) => { const c = w.charCodeAt(w.length - 1) - 0xac00; return c >= 0 && c < 11172 && c % 28 ? '을' : '를'; };
+export const breadLine = (b) => { const w = BREADS[((b % BREADS.length) + BREADS.length) % BREADS.length]; return `이번엔 ${w}${eulReul(w)} 만들어 볼까나... 🥐`; };
 
 function baguette() {
   const g = new THREE.Group();
@@ -81,11 +93,11 @@ export function createKimRunners(root, { path, bubble, blob }) {
   }
   let lastPuff = 0;
   return {
-    // list = [{ key, seat:[x,z], face(yaw), at(ms, 이 PC 시계), bye(ms|null) }]
+    // list = [{ key, seat:[x,z], face(yaw), at(ms, 이 PC 시계), bye(ms|null), b(내보낼 때 빵 번호 | null) }]
     sync(list) {
       const keep = new Set(list.map((k) => k.key));
       for (const key of [...runs.keys()]) if (!keep.has(key)) drop(key);
-      for (const k of list) { let r = runs.get(k.key); if (!r) { r = make(k.key, k); runs.set(k.key, r); } r.at = k.at; r.bye = k.bye; r.face = k.face; }
+      for (const k of list) { let r = runs.get(k.key); if (!r) { r = make(k.key, k); runs.set(k.key, r); } r.at = k.at; r.bye = k.bye; r.face = k.face; r.out = k.b != null ? breadLine(k.b) : SAY_OUT; }
     },
     get count() { return runs.size; },
     update(nowS, dt) {
@@ -96,8 +108,8 @@ export function createKimRunners(root, { path, bubble, blob }) {
         let mode, d = 0, back = false;
         if (r.bye && ms >= r.bye) {
           const e = ms - r.bye;
-          if (e < 1000) mode = 'leaving';
-          else { mode = 'run'; back = true; d = ((e - 1000) / 1000) * KIM_RUN; if (d >= r.len) { drop(key); continue; } }
+          if (e < 1800) mode = 'leaving'; // 말할 시간 (빵 이름이 길어서 조금 더)
+          else { mode = 'run'; back = true; d = ((e - 1800) / 1000) * KIM_RUN; if (d >= r.len) { drop(key); continue; } }
         } else if (ms - r.at < runT) { mode = 'run'; d = Math.max(0, ((ms - r.at) / 1000) * KIM_RUN); }
         else mode = 'here';
         const pos = mode === 'run' ? along(r, d, back) : { p: r.pts[r.pts.length - 1], dir: null };
@@ -122,8 +134,8 @@ export function createKimRunners(root, { path, bubble, blob }) {
         }
         // 말
         if (mode === 'here' && since < 2600) say(r, SAY_IN, nowS);
-        if (mode === 'leaving' || (back && d < 3)) say(r, SAY_OUT, nowS);
-        if (r.bub.visible && nowS - r.bubT > 2.6) r.bub.visible = false;
+        if (mode === 'leaving' || (back && d < 3)) say(r, r.out || SAY_OUT, nowS);
+        if (r.bub.visible && nowS - r.bubT > 3.2) r.bub.visible = false;
         if (mode === 'here') r.c.tickOutfit(nowS, dt);
         // 밀가루 폴폴 (뛸 때)
         if (mode === 'run' && nowS - lastPuff > 0.06) {
