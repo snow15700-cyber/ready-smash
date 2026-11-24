@@ -61,6 +61,7 @@ export function joinRoom(code, me, handlers, { listen = false, rtc = false } = {
     setHandlers(nh) { h = nh; },
     members: () => last,
     direct: () => !!p2p?.open(), // 한 명이라도 직접 연결
+    rtcInfo: () => (p2p ? p2p.info() : null), // 직접 연결 진단 (경기 화면 연결 표시를 누르면 보임)
   };
 }
 
@@ -84,12 +85,19 @@ function makeP2P(myId, sig, deliver, onDirect) {
     if (key !== lastKey) { lastKey = key; onDirect({ n, of: listed.size }); }
   };
   const signal = (to, m) => sig({ k: '_rtc', to, from: myId, ...m });
+  // 진단 (상대 id → 무엇을 주고받았나). 직접 연결이 안 붙을 때 어디서 멈췄는지 보려고 (11/24 사용자 제보: 1대1이 서버 경유로만)
+  const diag = new Map();
+  const dg = (id) => { if (!diag.has(id)) diag.set(id, { role: myId < id ? '거는 쪽' : '받는 쪽', tries: 0, offer: '', answer: '', sent: {}, got: {}, state: '', err: '' }); return diag.get(id); };
+  const typ = (c) => (/ typ (\w+)/.exec(c?.candidate || '') || [])[1] || '?';
+  const early = new Map(); // 상대 id → 연결 요청(offer)보다 먼저 온 주소 정보(ice) (서버 소식 순서가 바뀔 때 버리지 않게)
+  const WATCH = 9000; // 연결을 걸고 이만큼 안 열리면 다시 건다 (소식이 하나 빠졌을 때)
 
   function drop(id) {
     const p = peers.get(id);
     if (!p) return;
     peers.delete(id);
     clearTimeout(p.retry);
+    clearTimeout(p.watch);
     try { p.pc.close(); } catch { /* 무시 */ }
     report();
   }
@@ -99,9 +107,18 @@ function makeP2P(myId, sig, deliver, onDirect) {
     const pc = new RTCPeerConnection({ iceServers: ICE });
     p = { pc, dc: null, q: Promise.resolve() };
     peers.set(id, p);
-    pc.onicecandidate = (e) => { if (e.candidate) signal(id, { t: 'ice', c: e.candidate.toJSON() }); };
+    pc.onicecandidate = (e) => {
+      if (!e.candidate) return;
+      const d = dg(id), k = e.candidate.type || typ(e.candidate);
+      d.sent[k] = (d.sent[k] || 0) + 1;
+      signal(id, { t: 'ice', c: e.candidate.toJSON() });
+    };
     pc.ondatachannel = (e) => useDc(id, p, e.channel);
+    const st = () => { dg(id).state = `${pc.connectionState}/${pc.iceConnectionState}`; };
+    pc.oniceconnectionstatechange = st;
     pc.onconnectionstatechange = () => {
+      st();
+      if (pc.connectionState === 'failed' || pc.connectionState === 'connected') console.info('[직접 연결]', id, pc.connectionState, JSON.stringify(dg(id)));
       if (pc.connectionState === 'failed' && peers.get(id) === p) { drop(id); if (myId < id && !closed) p.retry = setTimeout(() => call(id).catch(() => {}), 3000); }
       report();
     };
@@ -118,10 +135,19 @@ function makeP2P(myId, sig, deliver, onDirect) {
     const n = (tries.get(id) || 0) + 1;
     if (n > 3) return;
     tries.set(id, n);
+    const d = dg(id);
+    d.tries = n; d.offer = '보냄'; d.answer = ''; d.got = {}; d.sent = {};
     const p = peer(id);
     useDc(id, p, p.pc.createDataChannel('m')); // 순서대로·빠짐없이 (같은 와이파이에선 다시 보내기도 빠름)
     await p.pc.setLocalDescription(await p.pc.createOffer());
     signal(id, { t: 'offer', sdp: p.pc.localDescription.toJSON() });
+    // 지켜보기: 소식 하나가 빠져서 멈춰 있으면 처음부터 다시 건다 (3번까지)
+    p.watch = setTimeout(() => {
+      if (closed || peers.get(id) !== p || p.dc?.readyState === 'open') return;
+      dg(id).err = `${WATCH / 1000}초 안에 안 열림 → 다시 걸기`;
+      drop(id);
+      call(id).catch(() => {});
+    }, WATCH);
   }
   return {
     // 명단이 바뀌면: 새 선수에게 연결 걸기(내 id가 작을 때), 나간 선수 연결 끊기
@@ -135,17 +161,44 @@ function makeP2P(myId, sig, deliver, onDirect) {
     },
     signal(m) {
       if (closed || !m.from) return;
+      const d = dg(m.from);
+      if (m.t === 'ice') { const k = typ(m.c); d.got[k] = (d.got[k] || 0) + 1; }
       if (m.t === 'offer' && peers.has(m.from) && peers.get(m.from).pc.remoteDescription) drop(m.from); // 상대가 다시 걸어옴
+      if (m.t === 'offer') { d.offer = '받음'; d.answer = ''; d.tries++; }
+      if (m.t === 'answer') d.answer = '받음';
+      // 연결 요청보다 먼저 온 주소 정보는 모아 뒀다가 요청을 받은 뒤에 쓴다
+      if (m.t === 'ice' && !peers.has(m.from)) { const a = early.get(m.from) || []; a.push(m); early.set(m.from, a.slice(-30)); return; }
       const p = m.t === 'offer' ? peer(m.from) : peers.get(m.from);
       if (!p) return;
-      p.q = p.q.then(async () => {
-        if (m.t === 'offer') {
-          await p.pc.setRemoteDescription(m.sdp);
+      const run = async (x) => {
+        if (x.t === 'offer') {
+          await p.pc.setRemoteDescription(x.sdp);
           await p.pc.setLocalDescription(await p.pc.createAnswer());
-          signal(m.from, { t: 'answer', sdp: p.pc.localDescription.toJSON() });
-        } else if (m.t === 'answer') await p.pc.setRemoteDescription(m.sdp);
-        else if (m.t === 'ice') await p.pc.addIceCandidate(m.c);
-      }).catch(() => { /* 직접 연결이 안 되면 서버 길만 쓴다 */ });
+          signal(x.from, { t: 'answer', sdp: p.pc.localDescription.toJSON() });
+          d.answer = '보냄';
+        } else if (x.t === 'answer') await p.pc.setRemoteDescription(x.sdp);
+        else if (x.t === 'ice') await p.pc.addIceCandidate(x.c);
+      };
+      const later = m.t === 'offer' ? early.get(m.from) || [] : [];
+      if (m.t === 'offer') early.delete(m.from);
+      for (const x of [m, ...later]) p.q = p.q.then(() => run(x)).catch((e) => { d.err = `${x.t}: ${e?.message || e}`.slice(0, 120); }); // 직접 연결이 안 되면 서버 길만 쓴다
+    },
+    // 진단 글자 (상대마다 한 줄 묶음)
+    info() {
+      const cnt = (o) => Object.entries(o).map(([k, v]) => `${k} ${v}`).join(', ') || '없음';
+      return [...listed].map((id) => {
+        const d = dg(id), p = peers.get(id);
+        const open = p?.dc?.readyState === 'open';
+        let why = '';
+        if (open) why = '직접 연결됨';
+        else if (d.role === '거는 쪽' && d.offer === '보냄' && !d.answer) why = '연결 요청을 보냈는데 상대 답이 안 옴 (서버 소식이 안 감/상대가 직접 연결을 못 씀)';
+        else if (d.role === '받는 쪽' && !d.offer) why = '상대의 연결 요청이 안 옴';
+        else if (!Object.keys(d.got).length) why = '상대 주소 정보(ice)가 하나도 안 옴';
+        else if (!Object.keys(d.sent).length) why = '내 주소 정보를 못 만듦 (브라우저 설정·네트워크)';
+        else if (/failed|disconnected|checking/.test(d.state)) why = '주소는 주고받았는데 서로 닿지 않음 (와이파이가 기기끼리 막음·다른 네트워크·mDNS 막힘)';
+        else why = '연결 중…';
+        return `${d.role} · 시도 ${d.tries}번 · 요청 ${d.offer || '-'} · 답 ${d.answer || '-'}\n보낸 주소: ${cnt(d.sent)} · 받은 주소: ${cnt(d.got)}\n상태: ${p ? d.state || '시작 전' : '끊김'}${d.err ? ' · ' + d.err : ''}\n→ ${why}`;
+      }).join('\n\n') || '상대가 경기 채널 명단에 아직 없음';
     },
     stamp: (payload) => ({ ...payload, _f: `${myId}.${nonce}`, _s: ++seq }),
     sendDirect(payload) {

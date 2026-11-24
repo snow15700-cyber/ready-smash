@@ -616,6 +616,10 @@ async function browserChecks() {
       for (const p of [page, guest]) must(await p.evaluate(() => !window.__smash.plaza.mwave.on && !document.body.classList.contains('mwave') && !window.__smash.world.plaza.root.visible && window.__smash.world.arena.root.visible && window.__smash.plaza.view.frameT === null), '경기 시작 물결이 끝나지 않았거나 광장이 남아 있어요');
       // 선수끼리 WebRTC 직접 연결 (같은 브라우저 탭끼리도 붙음) → 경기 화면에 '⚡ 직접 연결'
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.room?.link.direct() && /직접 연결/.test(document.querySelector('#net-pill').textContent) && !document.querySelector('#net-pill').classList.contains('hidden'), null, 15000, "WebRTC 직접 연결 '⚡ 직접 연결' 표시");
+      // 연결 표시를 누르면 진단 (왜 서버 경유인지 보려고)
+      await page.evaluate(() => document.querySelector('#net-pill').click());
+      await waitFor(page, () => !document.querySelector('#net-diag').classList.contains('hidden') && /직접 연결됨/.test(document.querySelector('#net-diag').textContent) && /보낸 주소: (?!없음)/.test(document.querySelector('#net-diag').textContent), null, 5000, '연결 진단 창');
+      await page.evaluate(() => document.querySelector('#net-pill').click());
       const startedAt = Date.now();
       // 관전: 세 번째 탭이 광장에서 경기 중인 2번 탁구대를 누르면 중계 화면
       viewer = await ctx.newPage();

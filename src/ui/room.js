@@ -249,6 +249,7 @@ function netPill(d) {
   const el = $('net-pill');
   if (!el) return;
   el.classList.toggle('hidden', !d);
+  if (!d) $('net-diag').classList.add('hidden');
   if (!d) return;
   const all = d.of > 0 && d.n === d.of;
   el.classList.toggle('on', all);
@@ -316,3 +317,19 @@ export function h2hOf(pid) {
   }
   return h2hCache.get(pid) || undefined;
 }
+
+// 연결 표시를 누르면 직접 연결 진단 (왜 서버 경유인지). 열려 있는 동안 1초마다 고침
+let diagT = 0;
+function renderDiag() {
+  const box = $('net-diag');
+  if (box.classList.contains('hidden') || !room) { clearInterval(diagT); diagT = 0; box.classList.add('hidden'); return; }
+  box.textContent = room.link.rtcInfo?.() || '직접 연결을 안 쓰는 경기예요 (주소 끝 ?rtc=0 이거나 혼자 하기)';
+}
+for (const ev of ['pointerdown', 'mousedown', 'touchstart']) $('net-pill').addEventListener(ev, (e) => e.stopPropagation()); // 눌러도 스윙이 안 되게
+$('net-pill').addEventListener('click', () => {
+  const box = $('net-diag');
+  box.classList.toggle('hidden');
+  renderDiag();
+  clearInterval(diagT);
+  if (!box.classList.contains('hidden')) diagT = setInterval(renderDiag, 1000);
+});

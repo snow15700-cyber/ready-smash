@@ -1073,7 +1073,8 @@ body.spectating .spec-acts { display: flex; }
 #exit { display: inline-flex; align-items: center; gap: 4px; color: #fff; background: var(--hud-bg); border: 1px solid var(--hud-line); box-shadow: 0 4px 14px rgba(0,0,0,.2); opacity: .9; }
 #exit:active:not(:disabled) { box-shadow: 0 2px 8px rgba(0,0,0,.2); transform: scale(.97); }
 /* 연결 표시 (src/ui/room.js netPill): 선수끼리 WebRTC 직접 연결 ⚡ / 서버 경유 🌐 */
-.net-pill { position: absolute; top: 60px; left: 14px; margin: 0; font-size: 13px; color: rgba(255,255,255,.85); background: var(--hud-bg); border: 1px solid var(--hud-line); padding: 3px 10px; border-radius: 999px; white-space: nowrap; pointer-events: none; }
+.net-pill { position: absolute; top: 60px; left: 14px; margin: 0; font-size: 13px; color: rgba(255,255,255,.85); background: var(--hud-bg); border: 1px solid var(--hud-line); padding: 3px 10px; border-radius: 999px; white-space: nowrap; pointer-events: auto; cursor: pointer; }
+.net-diag { position: absolute; top: 90px; left: 14px; margin: 0; max-width: min(460px, calc(100vw - 28px)); font: 12px/1.5 var(--font-ui, system-ui); white-space: pre-wrap; color: #fff; background: rgba(14,26,58,.88); border: 1px solid var(--hud-line); border-radius: 12px; padding: 8px 12px; z-index: 5; pointer-events: auto; }
 .net-pill.on { color: #fff; border-color: rgba(61,220,132,.7); }
 .net-pill.part { color: #fff; border-color: rgba(255,210,63,.7); }
 /* 점수판 */
