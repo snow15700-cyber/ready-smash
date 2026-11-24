@@ -442,6 +442,7 @@ export function createPlazaView(world, handlers) {
     // instant: 날아가지 않고 바로 그 자리 (광장이 막 보이기 시작했을 때 — 예: 첫 화면 로그인)
     setFocus(f, instant = false) {
       if (!f) { focus.want = null; return; }
+      focus.rate = f.rate || 5; // 목표가 바뀔 때 따라가는 빠르기
       focus.to.pos.set(...f.pos); focus.to.look.set(...f.look);
       if (instant || (!focus.want && focus.p <= 0)) { focus.cur.pos.copy(focus.to.pos); focus.cur.look.copy(focus.to.look); }
       if (instant) focus.p = 1;
@@ -555,7 +556,7 @@ export function createPlazaView(world, handlers) {
       // 창을 여닫을 때: 3인칭 카메라 ↔ 그 창의 카메라 자리 (부드럽게 출발·도착)
       focus.p = Math.min(1, Math.max(0, focus.p + (focus.want ? dt : -dt) / FOCUS_DUR));
       const fk = focus.p * focus.p * (3 - 2 * focus.p);
-      if (focus.want) { const k2 = 1 - Math.exp(-dt * 5); focus.cur.pos.lerp(focus.to.pos, k2); focus.cur.look.lerp(focus.to.look, k2); }
+      if (focus.want) { const k2 = 1 - Math.exp(-dt * (focus.rate || 5)); focus.cur.pos.lerp(focus.to.pos, k2); focus.cur.look.lerp(focus.to.look, k2); }
       world.camera.position.copy(cam.pos).lerp(focus.cur.pos, fk);
       toWorld(world.camera.position);
       // 세로로 긴 화면(휴대폰)은 가게 3개가 다 들어오게 화각을 넓힌다

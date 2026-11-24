@@ -322,10 +322,6 @@ introHooks.waveFrame = (ti, now) => {
 };
 introHooks.waveStop = () => { if (mw.on && mw.enter) finishWave(); };
 // 경기 끝: 광장으로 돌아올 때 (plaza.js roomHooks.onEnd). look = 그 경기 방장 꾸미기 (물결 동안 그 경기장 그대로)
-// 탁구대에 서 있는 동안 광장 물결 준비를 미리 (처음 준비할 때 그래픽 카드가 잠깐 멈출 수 있어서 경기 시작 순간을 피함)
-export function matchWavePrep() {
-  if (world.plaza && !world.plaza.root.userData.wave) prepWave(world.plaza.root);
-}
 export function matchWaveOut(t, look) {
   if (mw.on) finishWave();
   if (!view || !world.plaza || !world.arena || t == null || !PLAZA.tables[t] || bub.phase !== 'off') return;

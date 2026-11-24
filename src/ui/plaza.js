@@ -19,14 +19,15 @@ import { joinPlaza, makeCode } from '../net.js';
 import { cleanWalk, createPlazaView, planWalk, posAt } from '../plaza.js';
 import { createPlazaSky } from '../plazaSky.js';
 import { AI_LOOK, startAI } from './ai.js';
-import { dressTabNow, openDress } from './dress.js';
+import { dressHooks, dressTabNow, openDress } from './dress.js';
+import * as THREE from 'three';
 import { hud } from './hud.js';
 import { lobbyRooms } from './lobbyList.js';
 import { TEAM_NAME, enterTable, h2hOf, leaveRoom, myId, myStreak, room, roomHooks } from './room.js';
 import { curScreen, show } from './screen.js';
 import { $, IS_MOBILE, MOBILE_MSG, esc, game, myNemesis, myNick, preview, world } from './state.js';
 import { BUBBLE_IN } from '../arena-plaza.js';
-import { bub, bubbleArena, bubbleClip, bubbleFrame, bubbleHooks, bubbleLeave, bubbleSeated, matchWaveDebug, matchWaveOut, matchWavePrep, rememberPlazaEnv, setSeated, stop as bubbleStop } from './plazaBubble.js';
+import { bub, bubbleArena, bubbleClip, bubbleFrame, bubbleHooks, bubbleLeave, bubbleSeated, matchWaveDebug, matchWaveOut, rememberPlazaEnv, setSeated, stop as bubbleStop } from './plazaBubble.js';
 
 export const PLAZA_MAX = 40;
 const SAY_GAP = 2; // 한 사람 2초에 한 번
@@ -698,7 +699,8 @@ function windowFrame(p) {
   }
   const login = curScreen === 'login';
   view.setMeHidden(login);
-  if (login) {
+  if (gm) view.setFocus(gachaCam(performance.now() / 1000));
+  else if (login) {
     const L = WIN_CAM.login, a = L.base + Math.sin(performance.now() / 1000 * L.speed) * L.sway;
     const sx = Math.sin(a), cz = Math.cos(a);
     // 보는 점을 카메라 왼쪽으로 옮기면 광장이 화면 오른쪽에 보인다 (카메라 오른쪽 = (-cz, sx)... 휴대폰은 가운데)
@@ -772,11 +774,11 @@ export function plazaFrame(now) {
     else if (pz.pending) { const f = pz.pending; pz.pending = null; f(); }
   }
   renderTables();
-  if (pz.seat) matchWavePrep(); // 경기 시작 물결 준비 (한 번)
   windowFrame(p);
   view.update(now, myId);
   sky ||= createPlazaSky(world);
   sky.update(now);
+  gachaFrame(now);
   if (now - skyLabelT > 1) { skyLabelT = now; $('pz-wx').textContent = sky.label(); }
   // 경기장 거품 (plaza.md 16장): 경기 중인 탁구대 원(7m) 안으로 들어가면 그 경기장으로, 9m 밖이면 광장으로
   const busy = PLAZA.tables.map((_, t) => lobbyRooms.find((r) => r.pt === t && r.play && r.pl) || null);
@@ -785,6 +787,87 @@ export function plazaFrame(now) {
   bubbleFrame(view, now, dt, p, busy, !!pz.link && !room && !pz.seat, rememberPlazaEnv());
   return true;
 }
+
+// ───── ⓒ 뽑기 기계 (plaza.md 19장): 동전 → 손잡이가 드르륵 → 캡슐이 굴러 나오고 카메라가 다가가서 → 번쩍 → 탁구공 깨기 화면 ─────
+// 내 화면에서만 (네트워크 없음). 서버 뽑기 요청은 그동안 같이 간다 (dress.js doGacha)
+const GA = { knob0: 0.3, knob1: 1.0, roll: 0.95, dive: 1.05, flash: 1.6, end: 1.8 }; // 시간표 (초)
+const CAP_COLS = [0xff4d5a, 0xffd23f, 0x3fb6ff, 0x7ad35a, 0xa77bff];
+let gm = null; // { t0, caps: [{ g, delay, x }], resolve, ticks }
+let gmLeft = []; // 연출 화면이 덮은 뒤에 치울 캡슐 (치우는 장면이 보이지 않게)
+const capGeoT = new THREE.SphereGeometry(0.17, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), capGeoB = new THREE.SphereGeometry(0.17, 20, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+const capWhite = new THREE.MeshStandardMaterial({ color: 0xfdf7ee, roughness: 0.35 });
+function makeCap(col) {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(capGeoT, new THREE.MeshStandardMaterial({ color: col, roughness: 0.3, metalness: 0.05 })), new THREE.Mesh(capGeoB, capWhite));
+  return g;
+}
+const OUT = (() => { const s = PLAZA.shops.find((x) => x.id === 'shop'); return { x: s.x + 1.55, z: s.front }; })(); // 캡슐 나오는 곳 (광장 좌표)
+// 캡슐 하나의 자리: 받침에서 굴러 떨어져 앞으로 (u = 굴러 나온 뒤 초)
+function capAt(u, dx) {
+  const run = Math.min(u, 1.2);
+  const z = OUT.z + 0.18 + run * 1.5 - run * run * 0.35; // 점점 느려짐
+  const y = z < OUT.z + 0.32 ? 0.52 : Math.max(0.17, 0.52 - (z - OUT.z - 0.32) * 1.6) + Math.abs(Math.sin(run * 9)) * Math.max(0, 0.12 - run * 0.1); // 받침 → 바닥에 통통
+  return [OUT.x + dx, y, z];
+}
+function gachaCam(now) {
+  const t = now - gm.t0;
+  const c = gm.caps[0] ? capAt(Math.max(0, t - GA.roll), 0) : [OUT.x, 0.4, OUT.z + 0.6];
+  if (t < GA.dive) return { pos: [OUT.x + 0.7, 1.35, OUT.z + 2.5], look: [OUT.x - 0.1, 0.95, OUT.z] }; // 손잡이·나오는 곳 가까이
+  const k = Math.min(1, (t - GA.dive) / (GA.flash - GA.dive)), r = 1.3 - 0.75 * k * k; // 점점 가까이
+  return { pos: [c[0] + 0.1 * r, 0.2 + 0.45 * r, c[2] + r], look: [c[0], 0.17, c[2]], rate: 12 }; // 굴러 나온 캡슐로 쏙
+}
+function gachaFrame(now) {
+  if (!gm) {
+    if (gmLeft.length && !document.body.classList.contains('gacha-on')) { for (const g of gmLeft) g.removeFromParent(); gmLeft = []; }
+    return;
+  }
+  const t = now - gm.t0;
+  const knob = world.plaza?.knob;
+  // 손잡이 한 바퀴 반 (빨라졌다 느려짐) + 드르륵
+  const k = Math.min(1, Math.max(0, (t - GA.knob0) / (GA.knob1 - GA.knob0)));
+  if (knob) knob.rotation.z += -k * k * (3 - 2 * k) * Math.PI * 3;
+  while (gm.ticks < 4 && t > GA.knob0 + gm.ticks * 0.17) { gm.ticks++; playUI('tap'); }
+  for (const c of gm.caps) {
+    const u = t - GA.roll - c.delay;
+    c.g.visible = u > 0;
+    if (u <= 0) continue;
+    if (!c.popped) { c.popped = true; playUI('pop'); }
+    c.g.position.set(...capAt(u, c.x));
+    c.g.rotation.x = u * 9;
+  }
+  if (t > GA.flash && !gm.flashed) {
+    gm.flashed = true;
+    flash.animate([{ opacity: 0 }, { opacity: 1, offset: 0.3 }, { opacity: 0 }], { duration: 650, easing: 'ease-out' });
+    playUI('shine');
+  }
+  if (t > GA.end) endGachaIntro();
+}
+function endGachaIntro() {
+  if (!gm) return;
+  gmLeft.push(...gm.caps.map((c) => c.g));
+  const r = gm.resolve;
+  gm = null;
+  r();
+}
+const flash = Object.assign(document.createElement('div'), { className: 'pz-flash' });
+document.body.appendChild(flash);
+dressHooks.gachaIntro = (count) => {
+  if (gm || !plazaShown() || curScreen !== 'dress' || dressTabNow() !== 'gacha' || !world.plaza?.knob) return null;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
+  const n = count >= 10 ? 3 : 1; // 10회는 캡슐 셋이 우르르
+  const caps = Array.from({ length: n }, (_, i) => {
+    const g = makeCap(CAP_COLS[(Math.random() * CAP_COLS.length) | 0]);
+    g.visible = false;
+    world.plaza.root.add(g);
+    return { g, delay: i * 0.12, x: (i - (n - 1) / 2) * 0.3 };
+  });
+  document.body.classList.add('pz-gacha'); // 꾸미기 창을 잠깐 숨김 (뽑기 연출이 끝나 나가면 dress.js가 되돌림)
+  playUI('coin');
+  return new Promise((resolve) => {
+    gm = { t0: performance.now() / 1000, caps, resolve, ticks: 0 };
+    setTimeout(() => { if (gm?.resolve === resolve) endGachaIntro(); }, 4000); // 화면이 멈춰 있어도(다른 탭 등) 연출 화면은 열리게
+  });
+};
 
 // 점검·디버그용
 export const plazaDebug = {

@@ -1267,3 +1267,7 @@ body.pz-seated .lobby.plaza-on .lb-free, body.pz-bubble .lobby.plaza-on .lb-free
 
 /* 경기 시작 물결 (plaza.md 19장 ⓑ): 첫 1초 어두운 막 대신 광장 → 경기장 물결이 보이게 */
 body.mwave .vs-intro.dim .vi-dim { opacity: 0; }
+
+/* 뽑기 기계 연출 (plaza.md 19장 ⓒ): 캡슐이 굴러 나오는 동안 꾸미기 창은 잠깐 숨기고, 마지막에 하얗게 번쩍 → 탁구공 깨기 화면 */
+body.pz-gacha #dress { opacity: 0; pointer-events: none; transition: opacity .25s; }
+.pz-flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 9999; }

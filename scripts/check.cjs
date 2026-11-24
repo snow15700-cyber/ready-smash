@@ -404,6 +404,8 @@ async function browserChecks() {
       await click('#btn-test-coins');
       await waitFor(page, () => !document.querySelector('#btn-gacha-10').disabled, null, 10000, '뽑기 버튼 (시험 코인)');
       await click('#btn-gacha-10');
+      // 광장 뽑기 기계 (plaza.md 19장 ⓒ): 꾸미기 창이 잠깐 숨고 캡슐이 굴러 나온 뒤 연출 화면으로
+      must(await page.evaluate(() => document.body.classList.contains('pz-gacha') || !!window.__gachaTest?.active), '뽑기 기계 연출이 안 시작됐어요');
       // 뽑기 연출 화면: 공 10개가 다 떨어지면 '모두 깨기' → (금빛 공은 직접 깨야 하니) 점검용으로 바로 결과 → 나가기
       await waitFor(page, () => window.__gachaTest?.mode === 'tap', null, 30000, '뽑기 연출: 공 10개');
       await page.evaluate(() => [...document.querySelectorAll('#gacha-show .gs-btns button')].find((b) => b.dataset.act === 'all')?.click());
@@ -412,6 +414,7 @@ async function browserChecks() {
       await waitFor(page, () => !!document.querySelector('#gacha-exit:not(.gs-hide)'), null, 10000, '뽑기 연출: 나가기 버튼');
       await click('#gacha-exit');
       must(!(await page.evaluate(() => window.__gachaTest.active)), '나가기를 눌러도 뽑기 연출 화면이 안 닫혀요');
+      must(await page.evaluate(() => !document.body.classList.contains('pz-gacha')), '뽑기를 나가도 꾸미기 창이 숨어 있어요');
       await waitFor(page, () => document.querySelectorAll('#gacha-result > li').length === 10, null, 15000, '뽑기 10장');
       await waitFor(page, () => !document.querySelector('#btn-gacha-1').disabled, null, 15000, '뽑기 끝');
       await click('#tab-closet');
@@ -498,6 +501,8 @@ async function browserChecks() {
       await b.evaluate(() => document.querySelector('#exit').click());
       await waitFor(a, (id) => window.__smash.plaza.kimN === 0 && window.__smash.plaza.view.figs.has(id), bId, 15000, '혼자 하기를 끝내면 다시 광장에 보임');
       // ⑤ 모집 알림·콕 집어 초대: a가 1번 탁구대에 서서 '구해요' → b 화면 위 띠 / a가 b를 눌러 초대 → b 수락 → 같은 탁구대
+      // 뒤에 있는 탭은 타이머가 느려져서(브라우저 절약) '나 여기 있어요' 신호가 8초 넘게 끊기면 상대 화면에서 잠깐 빠진다 → a를 앞으로 (진짜 PC는 사람마다 창이 따로라 상관없음)
+      await a.bringToFront();
       await a.evaluate(() => window.__smash.plaza.sit(0, 0));
       await waitFor(b, () => window.__smash.plaza.state(0).n === 1, null, 10000, 'b 화면에 a가 1번 탁구대에 섬');
       await a.evaluate(() => window.__smash.plaza.call());
