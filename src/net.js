@@ -1,5 +1,6 @@
 // 실시간 통신: Supabase Realtime Broadcast 채널 (방 코드 = 채널 이름 pingpong-room-XXXX)
 // Supabase 설정이 없으면 같은 브라우저의 탭끼리만 통하는 '로컬 테스트' 통신을 쓴다.
+// 경기 채널의 선수끼리는 WebRTC 직접 연결도 같이 쓴다 (joinRoom의 rtc 옵션, makeP2P — 빠른 길이 먼저 도착).
 import { createClient } from '@supabase/supabase-js';
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
@@ -197,7 +198,7 @@ function joinSupabase(code, me, h, listen) {
 // 로컬 테스트: BroadcastChannel + 1초마다 '나 여기 있어요' 신호로 접속자 목록을 만든다
 function joinLocal(code, me, h, listen) {
   const bc = new BroadcastChannel(`${ROOM_PREFIX}${code}`);
-  const lag = Number(new URLSearchParams(location.search).get('lag') || 0) / 1000; // 지연 흉내 (ms)
+  const lag = Number(new URLSearchParams(location.search).get('lag') || 0) / 1000; // 지연 흉내 (ms). 서버 길만 늦춘다 — 직접 연결(WebRTC)은 안 늦춤 → 예전처럼 시험하려면 ?rtc=0&lag=700
   const members = new Map();
   const seen = new Map();
   let closed = false;

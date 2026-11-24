@@ -22,7 +22,8 @@ export let room = null;
    자리·준비는 광장 명단에서 모든 PC가 같은 규칙으로 정한다 (src/ui/plaza.js). 모두 준비되면 선수마다
    이 경기 채널(pingpong-room-XXXX, XXXX = 방장이 광장 명단에 올려 둔 코드)에 들어온다.
    방장(그 탁구대에 처음 선 사람)은 선수가 다 들어오면 'go' → 지금 경기 화면(방장 배경). 끝나면 채널을 나가 광장으로.
-   경기 중 주고받는 것(ping/pong·go·ev·in·skip)은 예전 방과 똑같다 → 선수 부담 그대로 */
+   경기 중 주고받는 것(ping/pong·go·ev·in·skip)은 예전 방과 똑같다 → 선수 부담 그대로.
+   선수끼리는 WebRTC 직접 연결로도 같이 보낸다 (net.js joinRoom rtc, 먼저 온 것만 씀 — 이 파일의 처리는 그대로) */
 export const myId = Math.random().toString(36).slice(2, 10);
 export const TEAM_NAME = ['A팀', 'B팀'];
 const GO_WAIT = 9000; // 이 시간 안에 경기가 시작되지 않으면 광장으로 (상대 PC가 못 들어옴 등)
