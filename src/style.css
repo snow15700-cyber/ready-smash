@@ -1263,3 +1263,6 @@ body.pz-seated .lobby.plaza-on .lb-free, body.pz-bubble .lobby.plaza-on .lb-free
   @keyframes win-panel-out { to { opacity: 0; transform: translateY(48px) scale(.97); } }
 }
 @media (prefers-reduced-motion: reduce) { .screen.win-in, .screen.win-in > .panel, .screen.win-out, .screen.win-out > .panel { animation-duration: .01s; } }
+
+/* 경기 시작 물결 (plaza.md 19장 ⓑ): 첫 1초 어두운 막 대신 광장 → 경기장 물결이 보이게 */
+body.mwave .vs-intro.dim .vi-dim { opacity: 0; }

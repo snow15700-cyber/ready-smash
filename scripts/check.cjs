@@ -604,6 +604,8 @@ async function browserChecks() {
       must(await page.evaluate(() => !window.__smash.room), '혼자만 준비했는데 시작돼요');
       await guest.evaluate(() => window.__smash.plaza.ready());
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.intro && window.__smash.intro.seg && window.__smash.intro.seg !== 'dim', null, 30000, '연출: VS 소개');
+      // 경기 시작 물결 (plaza.md 19장 ⓑ): 광장 → 방장 경기장 (VS 소개 첫 장면), 늦어도 VS 장면 전에 끝
+      for (const p of [page, guest]) must(await p.evaluate(() => window.__smash.intro.wave === true), '경기 시작 물결이 안 시작됐어요');
       // 경기가 시작되면 선수는 광장 채널에서 빠진다 (선수 부담 0)
       for (const p of [page, guest]) must(await p.evaluate(() => !window.__smash.plaza.pz.link && window.__smash.room?.inGame && window.__smash.room.pt === 1), '경기 중인데 광장 채널에 붙어 있어요');
       await page.evaluate(() => document.querySelector('#vi-skip-btn').click());
@@ -611,6 +613,7 @@ async function browserChecks() {
       await guest.evaluate(() => document.querySelector('#vi-skip-btn').click());
       for (const p of [page, guest]) await waitFor(p, () => !window.__smash.intro || window.__smash.intro.seg.includes('hush'), null, 10000, '모두 건너뛰기 → 정적');
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.game && !window.__smash.intro, null, 30000, '경기 시작');
+      for (const p of [page, guest]) must(await p.evaluate(() => !window.__smash.plaza.mwave.on && !document.body.classList.contains('mwave') && !window.__smash.world.plaza.root.visible && window.__smash.world.arena.root.visible && window.__smash.plaza.view.frameT === null), '경기 시작 물결이 끝나지 않았거나 광장이 남아 있어요');
       // 선수끼리 WebRTC 직접 연결 (같은 브라우저 탭끼리도 붙음) → 경기 화면에 '⚡ 직접 연결'
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.room?.link.direct() && /직접 연결/.test(document.querySelector('#net-pill').textContent) && !document.querySelector('#net-pill').classList.contains('hidden'), null, 15000, "WebRTC 직접 연결 '⚡ 직접 연결' 표시");
       const startedAt = Date.now();
@@ -643,6 +646,8 @@ async function browserChecks() {
       // 경기 끝 → 선수는 광장 그 자리에 그대로 + 결과·코인 + '🔁 한 판 더', 관중도 광장으로
       await page.waitForTimeout(Math.max(0, 27000 - (Date.now() - startedAt))); // 서버는 25초보다 빨리 끝난 경기엔 코인을 안 줌
       await page.evaluate(() => window.__smash.match.emit({ type: 'gameOver', winner: 0, score: [5, 0] }));
+      // 경기 끝 물결 (19장 ⓑ): 경기장이 걷히고 광장으로 (그동안 그 탁구대 좌표, 끝나면 광장 그대로)
+      await waitFor(page, () => window.__smash.plaza.mwave.on && !window.__smash.plaza.mwave.enter && window.__smash.plaza.view.frameT === 1, null, 20000, '경기 끝 → 경기장이 걷히는 물결');
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.world.plazaOn && window.__smash.plaza.pz.link && window.__smash.plaza.pz.seat?.t === 1 && /한 판 더/.test(document.querySelector('#pz-table').textContent), null, 20000, "경기 끝 → 광장 자리에 '한 판 더'");
       await waitFor(page, () => /승리! 5 : 0/.test(document.querySelector('#pz-table').textContent) && /코인/.test(document.querySelector('#pz-table .coins-got').textContent) && !/정산 중/.test(document.querySelector('#pz-table .coins-got').textContent), null, 15000, '방장(로그인) 자리 판에 승리·코인');
       await waitFor(viewer, () => window.__smash.plaza.bubble.phase === 'off' && window.__smash.world.plazaOn && window.__smash.plaza.view.frameT === null && document.querySelector('#pz-bub').classList.contains('hidden'), null, 30000, '경기 끝 → 거품이 걷히고 광장으로');

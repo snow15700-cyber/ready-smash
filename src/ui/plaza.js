@@ -26,7 +26,7 @@ import { TEAM_NAME, enterTable, h2hOf, leaveRoom, myId, myStreak, room, roomHook
 import { curScreen, show } from './screen.js';
 import { $, IS_MOBILE, MOBILE_MSG, esc, game, myNemesis, myNick, preview, world } from './state.js';
 import { BUBBLE_IN } from '../arena-plaza.js';
-import { bub, bubbleArena, bubbleClip, bubbleFrame, bubbleHooks, bubbleLeave, bubbleSeated, rememberPlazaEnv, setSeated, stop as bubbleStop } from './plazaBubble.js';
+import { bub, bubbleArena, bubbleClip, bubbleFrame, bubbleHooks, bubbleLeave, bubbleSeated, matchWaveDebug, matchWaveOut, matchWavePrep, rememberPlazaEnv, setSeated, stop as bubbleStop } from './plazaBubble.js';
 
 export const PLAZA_MAX = 40;
 const SAY_GAP = 2; // 한 사람 2초에 한 번
@@ -375,6 +375,7 @@ roomHooks.onEnd = (r, why) => {
   pz.lastAct = Date.now();
   if (why === 'quit' || why === 'error') unseat();
   if (why === 'end' || why === 'gone') pz.after = r.inGame || r.result ? r : null;
+  if (r.inGame && r.pt != null) matchWaveOut(r.pt, r.hostM?.look || null); // 경기장이 걷히고 광장으로 (plaza.md 19장 ⓑ)
   kimBye(2000); // 경기가 끝나면 김제빵은 '앗, 빵 타겠다!' 하고 돌아감 (다시 하려면 다시 부름)
   view.put(myFig());
   sendInfo();
@@ -771,6 +772,7 @@ export function plazaFrame(now) {
     else if (pz.pending) { const f = pz.pending; pz.pending = null; f(); }
   }
   renderTables();
+  if (pz.seat) matchWavePrep(); // 경기 시작 물결 준비 (한 번)
   windowFrame(p);
   view.update(now, myId);
   sky ||= createPlazaSky(world);
@@ -787,5 +789,5 @@ export function plazaFrame(now) {
 // 점검·디버그용
 export const plazaDebug = {
   pz, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list), fakeState: (m) => onState(m), get kimN() { return pz.kimN; },
-  bubble: bub, seat: setSeated, call: sendCall, callKim, person: onPerson, invite: sendInvite, sit: onSeat, table: onTable, kim: onKim, ready: toggleReady, unseat, state: tableState, afk: () => { pz.lastAct -= AFK_MS + 1000; },
+  bubble: bub, get mwave() { return matchWaveDebug(); }, seat: setSeated, call: sendCall, callKim, person: onPerson, invite: sendInvite, sit: onSeat, table: onTable, kim: onKim, ready: toggleReady, unseat, state: tableState, afk: () => { pz.lastAct -= AFK_MS + 1000; },
 };

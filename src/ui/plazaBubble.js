@@ -18,6 +18,7 @@ import { fireBand } from '../plaza.js';
 import { measureWalls } from '../arenaWalls.js';
 import { CHAR_Z } from '../scene.js';
 import { CHEERS, cheerHooks, cheerState, crowdJoin, crowdLeave, pickCheerTeam, sendCheer } from './cheer.js';
+import { INTRO, introHooks } from './intro.js';
 import { myId } from './room.js';
 import { $, esc, myNemesis, myNick, world } from './state.js';
 
@@ -28,9 +29,13 @@ export const bub = {
   t: -1, r: null, code: '', q: 0, link: null, game: null, members: [], hostM: null, sawHost: false,
   offs: [], live: false, seated: false, score: [0, 0], over: null, joinAt: 0, gone: 0,
 };
+// 선수 물결 (plaza.md 19장 ⓑ): 경기 시작 = 광장 → 방장 경기장(VS 소개 첫 2초), 끝 = 경기장 → 광장. 그 탁구대 가운데에서.
+// 관전자 거품과 같은 효과(불꽃 띠·물건 하나둘). 네트워크는 0 (각자 PC에서, 'go'를 받은 시각 기준)
+let mw = { on: false, enter: true, t: -1, q: 0, look: null, env: null, cam: null };
+const mwOut = () => mw.on && !mw.enter;
 export const bubbleOn = () => bub.phase !== 'off';
-export const bubbleArena = () => bub.phase === 'in' || bub.phase === 'inside' || bub.phase === 'out'; // 경기장을 그리는 중
-export const bubbleLook = () => (bubbleArena() || bub.phase === 'join' ? bub.hostM?.look || null : null);
+export const bubbleArena = () => bub.phase === 'in' || bub.phase === 'inside' || bub.phase === 'out' || mwOut(); // 경기장을 그리는 중
+export const bubbleLook = () => (mwOut() ? mw.look : bubbleArena() || bub.phase === 'join' ? bub.hostM?.look || null : null);
 export const bubbleSeated = () => bub.phase === 'inside' && bub.seated;
 let view = null;
 // plaza.js가 연결: walk(광장 좌표) = 거기로 걷기 (원 안에 들어왔는데 벽 밖이면 방 안으로)
@@ -265,10 +270,99 @@ export function rememberPlazaEnv() {
   return { bg: s.background.clone(), fog: [s.fog?.near ?? 35, s.fog?.far ?? 85], hc: hemi.color.clone(), hg: hemi.groundColor.clone(), hi: hemi.intensity, sc: sun.color.clone(), si: sun.intensity };
 }
 
+// 물결 한 장면: q = 0~1, enter = 광장 → 경기장(아니면 반대), fire = 불꽃 띠·불티
+function drawWave(q, enter, now, env, fire) {
+  const R = waveR(q);
+  if (pw && aw) {
+    applyWave(pw, R, enter ? 'go' : 'come');
+    applyWave(aw, R, enter ? 'come' : 'go');
+  }
+  // 경기장 탁구대도 물결과 함께 (가운데라 제일 먼저)
+  if (world.table) {
+    const k = Math.min(1, Math.max(0, R / 3));
+    const s = enter ? (k > 0 ? back(k) : 0) : 1 - ease(k);
+    world.table.visible = s > 0.01;
+    world.table.scale.setScalar(Math.max(0.001, s));
+  }
+  world.plaza.root.visible = !(enter && q >= 1);
+  world.arena.root.visible = !(!enter && q >= 1);
+  sun.castShadow = q >= 1 || q <= 0; // 물결 중엔 그림자를 잠깐 끔 (줄어드는 물건 그림자가 남지 않게)
+  mixEnv(enter ? q : 1 - q, env);
+  fireFront(R, now, fire);
+  return R;
+}
+
+// ───── 선수 물결 (plaza.md 19장 ⓑ) ─────
+const WAVE_LATEST = INTRO.p3; // 늦어도 VS 장면 전에 끝
+let lastEnv = null; // 마지막으로 본 광장 하늘·빛 (경기 시작 물결은 광장을 더 안 그리니까)
+// 경기 시작: VS 소개가 시작될 때 (intro.js). t = 탁구대 번호. 카메라는 광장 3인칭 자리에서 출발
+introHooks.waveStart = (t) => {
+  if (!view || !world.plaza || !world.arena || !lastEnv || t == null || !PLAZA.tables[t] || bub.phase !== 'off') return false;
+  if (mw.on) finishWave();
+  const cp = view.cam.pos.clone(), cl = view.cam.look.clone(), fov = world.camera.fov;
+  view.setFrame(t); // 광장을 그 탁구대가 원점에 오게 돌려 놓음 (경기 좌표)
+  const m = world.plaza.root.matrixWorld;
+  mw = { on: true, enter: true, t, q: 0, look: null, env: lastEnv, cam: { pos: cp.applyMatrix4(m).toArray(), look: cl.applyMatrix4(m).toArray(), fov } };
+  prep();
+  document.body.classList.add('mwave');
+  playUI('rare');
+  return true;
+};
+// VS 소개 매 프레임: ti = 소개 시작부터 초. 물결 중이면 출발 카메라 { pos, look, fov }를 준다 (끝났으면 null)
+// 물결은 프레임마다 조금씩(멈칫해도 건너뛰지 않게 — 처음 그릴 때 그래픽 카드가 잠깐 멈출 수 있음), 늦어도 VS 장면(p3) 전에 끝
+introHooks.waveFrame = (ti, now) => {
+  if (!mw.on || !mw.enter) return null;
+  mw.q = Math.min(1, mw.q + Math.min(0.05, now - (mw.last ?? now)) / WAVE_DUR);
+  mw.last = now;
+  if (ti >= WAVE_LATEST) mw.q = 1;
+  const q = mw.q;
+  drawWave(q, true, now, mw.env, q < 1);
+  if (q >= 1) { finishWave(); return null; }
+  return mw.cam;
+};
+introHooks.waveStop = () => { if (mw.on && mw.enter) finishWave(); };
+// 경기 끝: 광장으로 돌아올 때 (plaza.js roomHooks.onEnd). look = 그 경기 방장 꾸미기 (물결 동안 그 경기장 그대로)
+// 탁구대에 서 있는 동안 광장 물결 준비를 미리 (처음 준비할 때 그래픽 카드가 잠깐 멈출 수 있어서 경기 시작 순간을 피함)
+export function matchWavePrep() {
+  if (world.plaza && !world.plaza.root.userData.wave) prepWave(world.plaza.root);
+}
+export function matchWaveOut(t, look) {
+  if (mw.on) finishWave();
+  if (!view || !world.plaza || !world.arena || t == null || !PLAZA.tables[t] || bub.phase !== 'off') return;
+  mw = { on: true, enter: false, t, q: 0, look, env: null, cam: null };
+  view.setFrame(t);
+  prep();
+  playUI('rare');
+}
+function finishWave() {
+  const { enter, env } = mw;
+  mw = { on: false, enter: true, t: -1, q: 0, look: null, env: null, cam: null };
+  document.body.classList.remove('mwave');
+  resetWave();
+  fireFront(-1, 0, false);
+  sun.castShadow = true;
+  view?.setFrame(null);
+  view?.setFilter(null);
+  view?.setPlazaBits(true);
+  if (enter) { world.plaza.root.visible = false; world.arena.root.visible = true; if (world.table) world.table.visible = true; if (env) mixEnv(1, env); }
+}
+
 // ───── 매 프레임 (광장이 보일 때, src/ui/plaza.js plazaFrame) ─────
 // me = 내 자리(광장 좌표), busy[t] = 경기 중 정보, ok = 거품에 들어갈 수 있는 상태(광장 채널·탁구대에 안 섬 등), plazaEnv = 광장 하늘·빛
 export function bubbleFrame(v, now, dt, me, busy, ok, plazaEnv) {
   view = v;
+  // 경기가 끝나 광장으로 돌아오는 물결 (선수): 경기장이 걷히고 광장이 그 탁구대에서부터 다시
+  if (mwOut()) {
+    mw.q = Math.min(1, mw.q + dt / WAVE_DUR);
+    const R = drawWave(mw.q, false, now, plazaEnv, mw.q < 1);
+    view.setPlazaBits(mw.q > 0.7);
+    const T = PLAZA.tables[mw.t];
+    view.setFilter((f, p) => Math.hypot(p[0] - T.x, p[1] - T.z) < R); // 광장 사람은 물결이 지나간 곳부터 보임
+    for (const side of world.team) for (const c of side) c.group.visible = false; // 경기 캐릭터 대신 광장의 나·사람들
+    if (mw.q >= 1) finishWave();
+    return;
+  }
+  if (bub.phase === 'off') lastEnv = plazaEnv; // 광장일 때 하늘·빛 기억 (경기 시작 물결용)
   const dist = (t) => Math.hypot(me[0] - PLAZA.tables[t].x, me[1] - PLAZA.tables[t].z);
   // 들어가기
   bub.mePos = me;
@@ -296,23 +390,7 @@ export function bubbleFrame(v, now, dt, me, busy, ok, plazaEnv) {
   if (bub.phase === 'in' || bub.phase === 'out') bub.q = Math.min(1, bub.q + dt / WAVE_DUR);
   const enter = bub.phase !== 'out';
   const q = bub.phase === 'inside' ? 1 : bub.q;
-  const R = waveR(q);
-  if (pw && aw) {
-    applyWave(pw, R, 'go'.replace('go', enter ? 'go' : 'come'));
-    applyWave(aw, R, enter ? 'come' : 'go');
-  }
-  // 경기장 탁구대도 물결과 함께 (가운데라 제일 먼저)
-  if (world.table) {
-    const k = Math.min(1, Math.max(0, R / 3));
-    const s = enter ? (k > 0 ? back(k) : 0) : 1 - ease(k);
-    world.table.visible = s > 0.01;
-    world.table.scale.setScalar(Math.max(0.001, s));
-  }
-  world.plaza.root.visible = !(enter && q >= 1);
-  world.arena.root.visible = !(!enter && q >= 1);
-  sun.castShadow = q >= 1 || q <= 0; // 물결 중엔 그림자를 잠깐 끔 (줄어드는 물건 그림자가 남지 않게)
-  mixEnv(enter ? q : 1 - q, plazaEnv);
-  fireFront(R, now, bub.phase === 'in' || bub.phase === 'out');
+  drawWave(q, enter, now, plazaEnv, bub.phase === 'in' || bub.phase === 'out');
   view.setPlazaBits(!(enter && q > 0.3) && !(bub.phase === 'out' && q < 0.7));
   // 원 안에서는 원 안 사람만 보인다 (광장에 있는 사람이 경기장 위에 떠 보이지 않게)
   const T = PLAZA.tables[bub.t];
@@ -369,3 +447,4 @@ export function setSeated(on) {
   renderBar();
 }
 export const bubbleDebug = bub;
+export const matchWaveDebug = () => mw; // 점검용: 선수 물결 상태

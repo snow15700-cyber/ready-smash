@@ -27,6 +27,9 @@ export const INTRO = {
   swing: 0.2, gap: 0.22, far: 2.3, near: 1.85, y: 1.35, lookY: 1.0, fov: 45, wide: 5.2, wideY: 2.7, wideLook: 0.15,
 };
 export let intro = null;
+// 경기 시작 물결 (plaza.md 19장 ⓑ, plazaBubble.js가 연결): 첫 1초 '어둠 속 심장 소리' 대신 광장 → 방장 경기장 물결(2초),
+// 카메라는 광장 3인칭 자리에서 VS 소개 첫 자리로 날아감. 전체 길이(INTRO.len)는 그대로
+export const introHooks = { waveStart: null, waveFrame: null, waveStop: null };
 
 // spec: 관중(관전 6단계)이 보는 연출. 방(room)은 이미 경기 관전으로 넘겨줬으니 넘기기 전에 모아 둔 이름·꾸미기·칭호·연승을 쓴다
 //   { names, looks, tpill(id), streak(id) }. 관중은 '나/상대' 대신 A팀/B팀, 건너뛰기 버튼 없음(선수들이 누른 건 보임)
@@ -37,6 +40,7 @@ export function startIntro(players, mySide, mode, spec = null) {
     .sort((a, b) => a.side - b.side || a.slot - b.slot);
   intro = { spec: !!spec, t0: performance.now() / 1000, mySide, mode, seats, seg: '', num: 0, beatAt: 0, skips: new Set(), swung: new Set(), fov: world.camera.fov };
   if (game) game.paused = true;
+  intro.wave = !spec && room?.pt != null && !!introHooks.waveStart?.(room.pt);
   document.body.classList.add('intro');
   const card = (s) => {
     const st = stOf(s.id);
@@ -218,7 +222,17 @@ export function introFrame(now) {
       look = lerp3(look, [x0 * 0.5, C.lookY, m * C.lookZ], kc);
     }
   }
-  world.camera.fov = I.fov;
+  let fov = I.fov;
+  // 경기 시작 물결: 광장 카메라 자리 → VS 소개 첫 자리 (살짝 위로 떠오르며)
+  const wc = intro.wave ? introHooks.waveFrame?.(t, now) : null;
+  if (wc) {
+    const k = ease(Math.min(1, t / I.vs));
+    pos = lerp3(wc.pos, pos, k);
+    pos[1] += Math.sin(Math.PI * k) * 0.9;
+    look = lerp3(wc.look, look, k);
+    fov = wc.fov + (I.fov - wc.fov) * k;
+  }
+  world.camera.fov = fov;
   world.camera.updateProjectionMatrix();
   world.camera.position.set(...pos);
   world.camera.lookAt(...look);
@@ -248,6 +262,7 @@ function serveRoutine(t, now) {
 // 소개를 끝내고 경기로 (start=false: 경기가 중간에 취소됨)
 export function endIntro(start = true) {
   if (!intro) return;
+  introHooks.waveStop?.();
   const { mode, fov } = intro;
   intro = null;
   document.body.classList.remove('intro');
