@@ -604,6 +604,8 @@ async function browserChecks() {
       await guest.evaluate(() => document.querySelector('#vi-skip-btn').click());
       for (const p of [page, guest]) await waitFor(p, () => !window.__smash.intro || window.__smash.intro.seg.includes('hush'), null, 10000, '모두 건너뛰기 → 정적');
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.game && !window.__smash.intro, null, 30000, '경기 시작');
+      // 선수끼리 WebRTC 직접 연결 (같은 브라우저 탭끼리도 붙음) → 경기 화면에 '⚡ 직접 연결'
+      for (const p of [page, guest]) await waitFor(p, () => window.__smash.room?.link.direct() && /직접 연결/.test(document.querySelector('#net-pill').textContent) && !document.querySelector('#net-pill').classList.contains('hidden'), null, 15000, "WebRTC 직접 연결 '⚡ 직접 연결' 표시");
       const startedAt = Date.now();
       // 관전: 세 번째 탭이 광장에서 경기 중인 2번 탁구대를 누르면 중계 화면
       viewer = await ctx.newPage();
@@ -651,7 +653,7 @@ async function browserChecks() {
       await waitFor(guest, () => !window.__smash.plaza.pz.seat && /자리|내려왔어요/.test(document.querySelector('#toast').textContent), null, 5000, '자리 비움 → 내려옴');
       } finally { for (const p of [viewer, guest]) await p?.close().catch(() => {}); } // 실패해도 탭을 닫아 다음 점검이 느려지지 않게
       flush();
-      return '서기·같은 칸 다툼·준비·경기 중 광장에서 빠짐·경기장 거품 관전·응원·관중석에 앉기·한 판 더·자리 비움';
+      return '서기·같은 칸 다툼·준비·WebRTC 직접 연결·경기 중 광장에서 빠짐·경기장 거품 관전·응원·관중석에 앉기·한 판 더·자리 비움';
     });
 
     await step('화면: 탁구대 19종 짓기·바꾸기 (튀기·득점 연출)', async () => {

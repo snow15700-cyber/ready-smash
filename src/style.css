@@ -1072,6 +1072,9 @@ body.spectating .spec-acts { display: flex; }
 #judge, .vi-vs, .vi-num { font-family: var(--font-ui); }
 #exit { display: inline-flex; align-items: center; gap: 4px; color: #fff; background: var(--hud-bg); border: 1px solid var(--hud-line); box-shadow: 0 4px 14px rgba(0,0,0,.2); opacity: .9; }
 #exit:active:not(:disabled) { box-shadow: 0 2px 8px rgba(0,0,0,.2); transform: scale(.97); }
+/* 연결 표시 (src/ui/room.js netPill): 선수끼리 WebRTC 직접 연결 ⚡ / 서버 경유 🌐 */
+.net-pill { position: absolute; top: 60px; left: 14px; margin: 0; font-size: 13px; color: rgba(255,255,255,.85); background: var(--hud-bg); border: 1px solid var(--hud-line); padding: 3px 10px; border-radius: 999px; white-space: nowrap; pointer-events: none; }
+.net-pill.on { color: #fff; border-color: rgba(61,220,132,.7); }
 /* 점수판 */
 .sb { border-radius: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
 .sb.t0 { background: linear-gradient(135deg, var(--tt-red-hi), #B81E25); }

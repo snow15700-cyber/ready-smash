@@ -33,17 +33,131 @@ export const normalizeCode = (s) => s.toUpperCase().replace(/[^A-Z0-9]/g, '').sl
 // 돌려주는 link: send · leave · setHandlers(새 handlers: 관전 ↔ 대기실 관전 사이에 채널을 넘겨줄 때) · members(마지막 명단)
 //   · ask(payload): 듣기만 하는 관중이 딱 한 번 '지금 팀 알려 줘요'를 보낼 때 · join(me): 관중 → 참가자 (채널을 나가지 않고 명단에 들어감)
 // 채널을 나갔다가 같은 이름으로 바로 다시 들어가면 서버 명단에서 빠지는 일이 있어서, 넘겨주기·바꾸기로 다시 들어가지 않는다
-export function joinRoom(code, me, handlers, { listen = false } = {}) {
-  let h = handlers, last = [];
+//   · direct(): 선수끼리 WebRTC로 바로 이어졌는지 (rtc 옵션을 켰을 때)
+// rtc: 선수끼리 WebRTC 직접 연결도 쓴다 (docs/dev/gameplay.md 'WebRTC 직접 연결'). 모든 소식을 서버(채널)와 직접 길로 같이 보내고,
+//   받는 쪽은 먼저 온 것만 쓴다 → 직접 연결이 안 붙어도 지금처럼 서버로 된다. 관중(listen)은 서버로만 듣는다.
+//   handlers.onDirect(bool): 직접 연결이 열리거나 닫힐 때. 주소창 ?rtc=0 이면 끔 (비교 시험용)
+export function joinRoom(code, me, handlers, { listen = false, rtc = false } = {}) {
+  let h = handlers, last = [], p2p = null;
   const route = {
-    onMsg: (m) => h.onMsg(m),
-    onMembers: (list) => { last = list; h.onMembers(list); },
+    onMsg: (m) => {
+      if (m.k === '_rtc') { if (p2p && m.to === me.id) p2p.signal(m); return; }
+      if (p2p && !p2p.fresh(m)) return; // 다른 길로 이미 받은 소식
+      h.onMsg(m);
+    },
+    onMembers: (list) => { last = list; p2p?.members(list); h.onMembers(list); },
     onStatus: (st, text) => h.onStatus(st, text),
   };
-  const link = ONLINE ? joinSupabase(code, me, route, listen) : joinLocal(code, me, route, listen);
-  link.setHandlers = (nh) => { h = nh; };
-  link.members = () => last;
-  return link;
+  const base = ONLINE ? joinSupabase(code, me, route, listen) : joinLocal(code, me, route, listen);
+  if (rtc && !listen && RTC_ON) p2p = makeP2P(me.id, (m) => base.send(m), (m) => route.onMsg(m), (on) => h.onDirect?.(on));
+  return {
+    ...base,
+    send(payload) {
+      if (p2p) { payload = p2p.stamp(payload); p2p.sendDirect(payload); }
+      base.send(payload);
+    },
+    leave() { p2p?.close(); p2p = null; base.leave(); },
+    setHandlers(nh) { h = nh; },
+    members: () => last,
+    direct: () => !!p2p?.open(),
+  };
+}
+
+// ───────── 선수끼리 WebRTC 직접 연결 (경기 채널로 연결 정보를 주고받음) ─────────
+const RTC_ON = typeof RTCPeerConnection !== 'undefined' && new URLSearchParams(location.search).get('rtc') !== '0';
+const ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
+// myId: 내 id. sig(m): 서버 길로 보내기. deliver(m): 직접 길로 받은 소식. onDirect(bool)
+// 상대마다 연결 하나 (1대1이면 하나). id가 작은 쪽이 먼저 연결을 건다(offer).
+function makeP2P(myId, sig, deliver, onDirect) {
+  const peers = new Map(); // 상대 id → { pc, dc, q(받은 순서대로 처리) }
+  const tries = new Map(); // 상대 id → 연결 건 횟수 (실패하면 3초 뒤 다시, 3번까지)
+  let listed = new Set(); // 지난 명단 (명단에 있다가 빠진 사람만 끊는다 — 명단보다 연결 요청이 먼저 올 수 있어서)
+  const seen = new Map(); // 보낸 사람 id → 받은 번호 Set (두 길로 온 같은 소식 걸러내기)
+  let seq = 0, closed = false, wasOpen = false;
+  const nonce = Math.random().toString(36).slice(2, 8); // 새로고침해도 번호가 겹치지 않게
+  const anyOpen = () => [...peers.values()].some((p) => p.dc?.readyState === 'open');
+  const report = () => { const o = anyOpen(); if (o !== wasOpen) { wasOpen = o; onDirect(o); } };
+  const signal = (to, m) => sig({ k: '_rtc', to, from: myId, ...m });
+
+  function drop(id) {
+    const p = peers.get(id);
+    if (!p) return;
+    peers.delete(id);
+    clearTimeout(p.retry);
+    try { p.pc.close(); } catch { /* 무시 */ }
+    report();
+  }
+  function peer(id) {
+    let p = peers.get(id);
+    if (p) return p;
+    const pc = new RTCPeerConnection({ iceServers: ICE });
+    p = { pc, dc: null, q: Promise.resolve() };
+    peers.set(id, p);
+    pc.onicecandidate = (e) => { if (e.candidate) signal(id, { t: 'ice', c: e.candidate.toJSON() }); };
+    pc.ondatachannel = (e) => useDc(id, p, e.channel);
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed' && peers.get(id) === p) { drop(id); if (myId < id && !closed) p.retry = setTimeout(() => call(id).catch(() => {}), 3000); }
+      report();
+    };
+    return p;
+  }
+  function useDc(id, p, dc) {
+    p.dc = dc;
+    dc.onopen = report;
+    dc.onclose = report;
+    dc.onmessage = (e) => { if (closed) return; try { deliver(JSON.parse(e.data)); } catch { /* 깨진 소식은 버림 */ } };
+  }
+  async function call(id) {
+    if (closed || peers.has(id)) return;
+    const n = (tries.get(id) || 0) + 1;
+    if (n > 3) return;
+    tries.set(id, n);
+    const p = peer(id);
+    useDc(id, p, p.pc.createDataChannel('m')); // 순서대로·빠짐없이 (같은 와이파이에선 다시 보내기도 빠름)
+    await p.pc.setLocalDescription(await p.pc.createOffer());
+    signal(id, { t: 'offer', sdp: p.pc.localDescription.toJSON() });
+  }
+  return {
+    // 명단이 바뀌면: 새 선수에게 연결 걸기(내 id가 작을 때), 나간 선수 연결 끊기
+    members(list) {
+      if (closed) return;
+      const ids = new Set(list.map((m) => m.id).filter((id) => id && id !== myId));
+      for (const id of [...peers.keys()]) if (listed.has(id) && !ids.has(id)) drop(id);
+      listed = ids;
+      for (const id of ids) if (myId < id) call(id).catch(() => {});
+    },
+    signal(m) {
+      if (closed || !m.from) return;
+      if (m.t === 'offer' && peers.has(m.from) && peers.get(m.from).pc.remoteDescription) drop(m.from); // 상대가 다시 걸어옴
+      const p = m.t === 'offer' ? peer(m.from) : peers.get(m.from);
+      if (!p) return;
+      p.q = p.q.then(async () => {
+        if (m.t === 'offer') {
+          await p.pc.setRemoteDescription(m.sdp);
+          await p.pc.setLocalDescription(await p.pc.createAnswer());
+          signal(m.from, { t: 'answer', sdp: p.pc.localDescription.toJSON() });
+        } else if (m.t === 'answer') await p.pc.setRemoteDescription(m.sdp);
+        else if (m.t === 'ice') await p.pc.addIceCandidate(m.c);
+      }).catch(() => { /* 직접 연결이 안 되면 서버 길만 쓴다 */ });
+    },
+    stamp: (payload) => ({ ...payload, _f: `${myId}.${nonce}`, _s: ++seq }),
+    sendDirect(payload) {
+      const txt = JSON.stringify(payload);
+      for (const p of peers.values()) if (p.dc?.readyState === 'open') try { p.dc.send(txt); } catch { /* 서버 길로도 가니까 괜찮음 */ }
+    },
+    // 처음 받는 소식이면 true. 두 길 모두 순서대로 오므로 번호가 조금씩 엇갈릴 뿐이라 최근 것만 기억
+    fresh(m) {
+      if (!m._f) return true;
+      let s = seen.get(m._f);
+      if (!s) seen.set(m._f, (s = new Set()));
+      if (s.has(m._s)) return false;
+      s.add(m._s);
+      if (s.size > 400) { const cut = m._s - 300; for (const n of s) if (n < cut) s.delete(n); }
+      return true;
+    },
+    open: anyOpen,
+    close() { closed = true; for (const id of [...peers.keys()]) drop(id); },
+  };
 }
 
 function joinSupabase(code, me, h, listen) {

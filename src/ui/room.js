@@ -10,7 +10,7 @@ import { hud } from './hud.js';
 import { addSkip, startIntro } from './intro.js';
 import { announceRoom } from './lobbyList.js';
 import { show, stopGame } from './screen.js';
-import { IS_MOBILE, MOBILE_MSG, game, match, myNemesis, myNick, setGame, setMatch, tpill, world } from './state.js';
+import { $, IS_MOBILE, MOBILE_MSG, game, match, myNemesis, myNick, setGame, setMatch, tpill, world } from './state.js';
 import { gotAch, runAchCheck } from './titles.js';
 
 // 내 연승 (로그인했을 때만, 서버가 준 값). 다른 선수 것은 경기 채널 명단의 'streak' (보여 주기만, 코인과 무관)
@@ -43,11 +43,14 @@ export function enterTable(code, host, mode, t, players, h2h = {}) {
     lag: {}, // 방장: 참가자 id → 그 PC까지 소식이 가는 시간(초, 편도). 참가자가 ping에 실어 보냄 (match.js RECV_LAG_MAX)
   };
   const r0 = room;
+  const useRtc = humans(players).length === 2; // 선수끼리 WebRTC 직접 연결: 지금은 1대1만 (2대2는 다음 단계)
   room.link = joinRoom(code, me, {
     onMsg: onRoomMsg,
     onMembers,
     onStatus: (st, text) => { if (room === r0 && st === 'error') endRoom('error', text); },
-  });
+    onDirect: (on) => { if (room === r0) netPill(on); },
+  }, { rtc: useRtc });
+  netPill(useRtc ? false : null);
   crowdJoin(code); // 관중석 채널: 선수는 듣기만 (관중 수·응원)
   // 참가자 PC: 방장과 시계 맞추기
   room.timer = setInterval(() => {
@@ -66,6 +69,7 @@ export function leaveRoom() {
   clearTimeout(room.goT);
   room.link.leave();
   room = null;
+  netPill(null);
   stopGame();
   announceRoom();
 }
@@ -236,6 +240,15 @@ function startGuestGame(mode, players, mine, mid) {
   game.offset = room.offset;
   hud.stats(game.stats);
   startIntro(players, mine.side, mode);
+}
+
+// 경기 화면 왼쪽 위 연결 표시: true ⚡ 직접 연결 · false 🌐 서버 경유 · null 숨김
+function netPill(on) {
+  const el = $('net-pill');
+  if (!el) return;
+  el.classList.toggle('hidden', on === null);
+  el.classList.toggle('on', on === true);
+  el.textContent = on ? '⚡ 직접 연결' : '🌐 서버 경유';
 }
 
 // 참가자 PC: 방장 소식이 보통 몇 초 걸려 오는지 (최근 ping 왕복 시간의 75% 지점 ÷ 2).
