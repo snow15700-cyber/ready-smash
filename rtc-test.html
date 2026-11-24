@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>연결 속도 측정</title>
+  <style>
+    :root { --bg: #0b1633; --card: rgba(255,255,255,.07); --line: rgba(255,255,255,.14); --text: #fff; --dim: rgba(255,255,255,.6);
+      --accent: #FF8A1F; --good: #3ddc84; --bad: #ff5c5c; --mid: #ffd23f; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 'Pretendard Variable', system-ui, sans-serif; }
+    main { max-width: 640px; margin: 0 auto; padding: 20px 16px 40px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    p.sub { color: var(--dim); margin: 0 0 16px; font-size: 14px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    input { font: 600 18px system-ui; width: 110px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,.3); color: var(--text); text-transform: uppercase; letter-spacing: 2px; }
+    button { font: 600 15px system-ui; color: #fff; border: 0; border-radius: 99px; padding: 9px 16px; cursor: pointer; background: var(--accent); }
+    button:disabled { background: rgba(255,255,255,.15); color: var(--dim); cursor: default; }
+    button.ghost { background: rgba(255,255,255,.14); }
+    .status div { margin: 2px 0; }
+    .k { color: var(--dim); display: inline-block; min-width: 92px; }
+    .good { color: var(--good); } .bad { color: var(--bad); } .mid { color: var(--mid); }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { padding: 7px 6px; text-align: right; border-bottom: 1px solid var(--line); }
+    th:first-child, td:first-child { text-align: left; }
+    th { color: var(--dim); font-weight: 500; font-size: 13px; }
+    #verdict { font-size: 17px; font-weight: 700; }
+    #log { color: var(--dim); font-size: 12px; max-height: 140px; overflow: auto; white-space: pre-wrap; margin: 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>📶 연결 속도 측정</h1>
+    <p class="sub">두 기기에서 이 페이지를 열고 <b>같은 코드</b>를 넣으세요. 지금 방식(Supabase 서버 경유)과 WebRTC(기기끼리 직접)를 동시에 재서 비교합니다.</p>
+
+    <div class="card row">
+      <input id="code" maxlength="4" placeholder="코드" />
+      <button id="join">입장</button>
+      <button id="start" disabled>측정 시작 (20초)</button>
+    </div>
+
+    <div class="card status">
+      <div><span class="k">상대</span><span id="peer">아직 없음</span></div>
+      <div><span class="k">WebRTC</span><span id="rtc">-</span></div>
+      <div><span class="k">연결 종류</span><span id="kind">-</span></div>
+      <div><span class="k">측정</span><span id="prog">-</span></div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr><th>왕복 시간 (ms)</th><th>보통</th><th>느릴 때</th><th>최악</th><th>유실</th></tr></thead>
+        <tbody>
+          <tr><td>지금 방식 (Supabase)</td><td id="s-med">-</td><td id="s-p90">-</td><td id="s-max">-</td><td id="s-loss">-</td></tr>
+          <tr><td>WebRTC 직접</td><td id="r-med">-</td><td id="r-p90">-</td><td id="r-max">-</td><td id="r-loss">-</td></tr>
+        </tbody>
+      </table>
+      <p class="sub" style="margin:8px 0 0">보통 = 중간값, 느릴 때 = 10번 중 가장 느린 1번 수준, 유실 = 답이 안 온 비율</p>
+    </div>
+
+    <div class="card"><div id="verdict">측정 전</div></div>
+
+    <div class="card"><pre id="log"></pre></div>
+  </main>
+  <script type="module" src="/src/rtcTest.js"></script>
+</body>
+</html>

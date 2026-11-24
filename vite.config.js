@@ -13,6 +13,7 @@ export default defineConfig({
         hats: fileURLToPath(new URL('./hats.html', import.meta.url)),
         gacha: fileURLToPath(new URL('./gacha.html', import.meta.url)),
         bubble: fileURLToPath(new URL('./bubble.html', import.meta.url)),
+        rtcTest: fileURLToPath(new URL('./rtc-test.html', import.meta.url)), // 와이파이 연결 속도 측정 (WebRTC 시험)
       },
       // three.js는 자주 안 바뀌므로 따로 묶어 두면 게임만 고쳐 올렸을 때 브라우저가 three를 다시 안 받는다
       output: {
