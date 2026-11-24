@@ -360,7 +360,7 @@ export function createPlazaView(world, handlers) {
   // 경기장 거품: 탁구대 t가 세상 원점(경기 좌표)에 오도록 광장을 돌려 놓는다 (광장 배경·사람·카메라 모두)
   const frame = { on: false, m: new THREE.Matrix4(), inv: new THREE.Matrix4(), t: -1 };
   const toWorld = (v) => (frame.on ? v.applyMatrix4(frame.m) : v);
-  let filter = null, camOff = false, plazaBits = true, camClamp = null, inputOn = true;
+  let filter = null, camOff = false, plazaBits = true, camClamp = null, inputOn = true, meHidden = false;
   // 창(랭킹·꾸미기)을 여는 동안 카메라가 날아갈 곳 (plaza.md 19장): want = { pos, look } (광장 좌표) | null.
   // p: 0 = 3인칭 카메라, 1 = 그 자리 (FOCUS_DUR초 동안 부드럽게). 날아가는 중 목표가 바뀌면(얼굴 보기 등) cur가 따라감
   const focus = { want: null, p: 0, cur: { pos: new THREE.Vector3(), look: new THREE.Vector3() }, to: { pos: new THREE.Vector3(), look: new THREE.Vector3() } };
@@ -439,12 +439,16 @@ export function createPlazaView(world, handlers) {
     // 걷기·돌리기·휠 받기 (창이 떠 있는 동안은 끔)
     setInput(on) { inputOn = on; if (!on) { ptrs.clear(); canvas.style.cursor = ''; } },
     // 카메라 날아가기: f = { pos: [x, y, z], look: [x, y, z] } (광장 좌표) | null(3인칭으로 돌아오기)
-    setFocus(f) {
+    // instant: 날아가지 않고 바로 그 자리 (광장이 막 보이기 시작했을 때 — 예: 첫 화면 로그인)
+    setFocus(f, instant = false) {
       if (!f) { focus.want = null; return; }
       focus.to.pos.set(...f.pos); focus.to.look.set(...f.look);
-      if (!focus.want && focus.p <= 0) { focus.cur.pos.copy(focus.to.pos); focus.cur.look.copy(focus.to.look); }
+      if (instant || (!focus.want && focus.p <= 0)) { focus.cur.pos.copy(focus.to.pos); focus.cur.look.copy(focus.to.look); }
+      if (instant) focus.p = 1;
       focus.want = f;
     },
+    // 내 캐릭터 숨기기 (로그인 화면: 아직 누군지 모름)
+    setMeHidden(on) { meHidden = on; },
     get focusP() { return focus.p; },
     showMarker(x, z) { marker.position.set(x, 0.02, z); marker.visible = true; markerT = performance.now() / 1000; },
     // 카메라를 내 캐릭터 뒤로 바로 (처음 들어올 때)
@@ -463,7 +467,7 @@ export function createPlazaView(world, handlers) {
         if (e > 3) { f.disp[0] = tx; f.disp[1] = tz; } else { const k = 1 - Math.exp(-dt * 10); f.disp[0] += ex * k; f.disp[1] += ez * k; }
         const g = f.c.group;
         g.position.set(f.disp[0], 0, f.disp[1]);
-        g.visible = !filter || f.me || filter(f, f.disp);
+        g.visible = f.me ? !meHidden : !filter || filter(f, f.disp);
         const left = Math.hypot(f.w.to[0] - f.disp[0], f.w.to[1] - f.disp[1]);
         const moving = left > 0.04;
         if (moving) {

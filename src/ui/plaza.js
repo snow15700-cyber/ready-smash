@@ -664,7 +664,7 @@ function renderCount() {
 // 꾸미기에서 배경·탁구대·탁구공을 입어 보는 동안만 예전처럼 그 경기장을 보여 준다
 const ARENA_CATS = ['bg', 'table', 'ball'];
 const arenaPreview = () => curScreen === 'dress' && !!preview && ARENA_CATS.some((c) => (preview.look?.[c] || null) !== (myEquip()[c] || null));
-export const plazaShown = () => !game && ['lobby', 'dress', 'rank'].includes(curScreen) && !arenaPreview();
+export const plazaShown = () => !game && ['lobby', 'dress', 'rank', 'login', 'pin-change'].includes(curScreen) && !arenaPreview(); // 로그인 화면 배경도 광장 (19장 ⓐ')
 
 // ───── 창을 여는 동안 카메라 (plaza.md 19장) ─────
 // 랭킹: 시상대·트로피를 비춘다 (창은 오른쪽 → 시상대는 화면 왼쪽)
@@ -674,6 +674,9 @@ export const WIN_CAM = {
   // 뽑기 탭: 커다란 뽑기 기계 (유리 공이 보이게 조금 높이)
   gacha: { pos: [GACHA_SHOP.x + 1.2, 2.6, GACHA_SHOP.front + 6.4], look: [GACHA_SHOP.x + 2.7, 2.2, GACHA_SHOP.front - 1] },
   // 꾸미기: 내 캐릭터가 지금 카메라 쪽으로 돌아서고, 카메라는 비스듬히 앞에서 (얼굴을 고르면 정면 가까이 — 사용자 확정)
+  // 로그인 화면: 광장 남쪽 높은 곳에서 가게·탁구대를 내려다보며 천천히 좌우로 (창은 왼쪽 → 광장은 화면 오른쪽).
+  // 로그인하면 여기서 내 캐릭터 등 뒤로 날아 내려간다
+  login: { r: 17, y: 7.5, cz: -1, sway: 0.32, speed: 0.07, base: 0.18, shift: 3.2 },
   dress: { r: 2.7, y: 1.45, lookY: 0.85, side: 0.75, angle: 0.6 },
   face: { r: 1.85, y: 1.32, lookY: 0.98, side: 0.5, angle: 0 },
 };
@@ -692,7 +695,16 @@ function windowFrame(p) {
     win.scr = scr;
     view.put(myFig());
   }
-  if (scr === 'dress' && dressTabNow() === 'gacha') view.setFocus(WIN_CAM.gacha);
+  const login = curScreen === 'login';
+  view.setMeHidden(login);
+  if (login) {
+    const L = WIN_CAM.login, a = L.base + Math.sin(performance.now() / 1000 * L.speed) * L.sway;
+    const sx = Math.sin(a), cz = Math.cos(a);
+    // 보는 점을 카메라 왼쪽으로 옮기면 광장이 화면 오른쪽에 보인다 (카메라 오른쪽 = (-cz, sx)... 휴대폰은 가운데)
+    const sh = innerWidth < 760 ? 0 : L.shift;
+    const lx = -cz * sh, lz = L.cz + sx * sh;
+    view.setFocus({ pos: [lx + sx * L.r, L.y, lz + cz * L.r], look: [lx, 1.2, lz] }, win.fresh);
+  } else if (scr === 'dress' && dressTabNow() === 'gacha') view.setFocus(WIN_CAM.gacha);
   else if (scr === 'dress') {
     const lk = JSON.stringify(myLook());
     if (lk !== win.look) { win.look = lk; view.put(myFig()); }
@@ -704,6 +716,7 @@ function windowFrame(p) {
     view.setFocus({ pos: [lx + ux * C.r, C.y, lz + uz * C.r], look: [lx, C.lookY, lz] });
   } else if (scr === 'rank') view.setFocus(WIN_CAM.rank);
   else { view.setFocus(null); win.look = ''; }
+  win.fresh = false;
 }
 
 // 매 프레임 (main.js): 광장 채널 붙기/빠지기 + 광장이 보이면 그리기. 광장을 그렸으면 true
@@ -736,6 +749,7 @@ export function plazaFrame(now) {
   if (shown !== pz.shown) {
     pz.shown = shown;
     view.setVisible(shown);
+    win.fresh = shown; // 광장이 막 보이기 시작함 → 카메라를 날리지 않고 바로 그 자리에
     if (shown) {
       view.put(myFig());
       world.setBall([0, -9, 0], false);

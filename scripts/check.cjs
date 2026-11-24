@@ -267,6 +267,9 @@ async function browserChecks() {
       await page.evaluate(() => { try { localStorage.setItem('smash-howto-seen', '1'); } catch {} document.querySelector('#howto')?.classList.add('hidden'); });
       const login = await page.isVisible('#login');
       must(login, '로그인 화면이 안 보여요');
+      // 로그인 화면 배경도 광장 (plaza.md 19장 ⓐ'): 광장 그리기 + 카메라는 위에서 내려다봄 + 내 캐릭터 숨김 + 광장 채널엔 안 붙음
+      await waitFor(page, () => window.__smash.world.plazaOn && window.__smash.plaza.view.focusP === 1 && window.__smash.world.camera.position.y > 5, null, 15000, '로그인 화면 뒤 광장');
+      must(await page.evaluate(() => !window.__smash.plaza.pz.link && [...window.__smash.plaza.view.figs.values()].every((f) => !f.me || !f.c.group.visible)), '로그인 화면에서 광장 채널에 붙었거나 내 캐릭터가 보여요');
       flush();
       return `${((Date.now() - t0) / 1000).toFixed(1)}초`;
     });
