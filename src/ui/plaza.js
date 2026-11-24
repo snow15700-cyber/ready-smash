@@ -12,7 +12,8 @@ import { account, myEquip, myTitle } from '../account.js';
 import { titleText } from '../achievements.js';
 import { initAudio, playUI } from '../audio.js';
 import { PLAZA } from '../arena-plaza.js';
-import { AI_NAME } from '../match.js';
+import { AI_NAME, KIM_ID } from '../match.js';
+import { KIM_READY_MS } from '../plazaKim.js';
 import { ic } from '../icons.js';
 import { joinPlaza, makeCode } from '../net.js';
 import { cleanWalk, createPlazaView, planWalk, posAt } from '../plaza.js';
@@ -64,8 +65,10 @@ const pz = {
   list: [], states: new Map(), known: new Set(), resendT: 0, beatT: 0, // 명단(presence) · 받은 상태 'st'(id → 걷기·자리·준비) · 이미 본 id
   // 탁구대: 내 자리 {t, s, at} · 준비 · 경기 채널 코드(내가 방장이면 이걸로) · 방금 끝난 경기(결과·코인) · 경기 채널로 가는 중
   seat: null, rdy: false, code: makeCode(), after: null, going: false, readyAt: 0, lastAct: Date.now(), tableT: 0, panelKey: '',
+  // ⑤ 내가 부른 김제빵 {t, s, at, bye} (방장일 때) · 탁구대별 마지막 '사람 구해요' 시각 · 초대 보낸/받은 시각 · 김제빵 시각을 처음 본 때
+  kim: null, callT: {}, invT: new Map(), invGotT: new Map(), kimSeen: new Map(), popFor: null,
 };
-const view = createPlazaView(world, { onGround: (pt) => walkTo(pt), onShop: goShop, onTable, onSeat, onKim });
+const view = createPlazaView(world, { onGround: (pt) => walkTo(pt), onShop: goShop, onTable, onSeat, onKim, onPerson });
 let sky = null; // 시간·날씨 (src/plazaSky.js), 광장을 처음 켤 때 만든다
 let skyLabelT = -9;
 
@@ -75,7 +78,7 @@ const myPid = () => (account.loggedIn ? account.player?.id ?? null : null);
 const inAI = () => game?.mode === 'ai';
 const myInfo = () => ({ id: myId, nick: myNick(), title: myTitle(), titleX: myNemesis(), look: myEquip(), at: pz.at, mob: IS_MOBILE, kim: inAI() });
 // 자주 바뀌는 것은 메시지로: 걷기·탁구대 자리·준비·경기 채널 코드·연승·선수 번호
-const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid() });
+const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid(), kc: pz.kim });
 const tagOf = (nick, rdy) => (rdy ? `${nick} ✅` : nick);
 const myFig = () => ({ id: myId, nick: tagOf(myNick(), pz.seat && pz.rdy), title: titleText(myTitle(), myNemesis()), look: myEquip(), w: pz.myW, me: true, face: pz.seat ? faceOf(pz.seat) : null });
 const figOf = (p) => ({ ...p, nick: tagOf(p.nick, p.seat && p.rdy), face: p.seat ? faceOf(p.seat) : null });
@@ -129,6 +132,11 @@ function cleanSeat(v) {
   if (!v || !Number.isInteger(v.t) || v.t < 0 || v.t >= NT || !Number.isInteger(v.s) || v.s < 0 || v.s > 3 || !fin(v.at)) return null;
   return { t: v.t, s: v.s, at: v.at };
 }
+// 불려 온 김제빵 정보 {t, s, at, bye} (방장의 상태). 'kim'(혼자 하기 중 표시, true)과 구별
+function cleanKim(v) {
+  if (!v || typeof v !== 'object' || !Number.isInteger(v.t) || v.t < 0 || v.t >= NT || !Number.isInteger(v.s) || v.s < 0 || v.s > 3 || !fin(v.at)) return null;
+  return { t: v.t, s: v.s, at: v.at, bye: fin(v.bye) ? v.bye : null };
+}
 function onList(link, list) {
   if (link !== pz.link) return;
   pz.list = list;
@@ -136,14 +144,16 @@ function onList(link, list) {
   const ids = new Set(list.map((m) => m?.id).filter((id) => typeof id === 'string'));
   if ([...ids].some((id) => !pz.known.has(id))) resendSoon();
   pz.known = ids.add(myId);
-  for (const id of pz.states.keys()) if (!ids.has(id)) pz.states.delete(id); // 나간 사람 상태는 버림
+  // 나간 사람 상태는 2분 뒤에 버림 (명단에서 잠깐 빠졌다 돌아오는 사람은 바로 다시 보이게 — 상태 메시지는 15초마다만 다시 옴)
+  const old = Date.now() - 120000;
+  for (const [id, st] of pz.states) if (!ids.has(id) && st._t < old) pz.states.delete(id);
   rebuild();
 }
 // 받은 상태 'st' 다듬어 두기 (명단에 아직 없는 사람 것도 잠시 둔다: 메시지가 명단보다 먼저 올 수 있음)
 function onState(m) {
   if (typeof m.id !== 'string' || !m.id || m.id.length > 16 || m.id === myId) return;
   if (pz.states.size > 120 && !pz.states.has(m.id)) return;
-  pz.states.set(m.id, m);
+  pz.states.set(m.id, { ...m, _t: Date.now() });
   rebuild();
 }
 // 명단 + 상태 → 광장 사람들
@@ -162,7 +172,7 @@ function rebuild() {
       w: m.id === myId ? null : cleanWalk(m.w, now),
       seat: mob ? null : cleanSeat(m.seat), rdy: !!m.rdy, code: typeof m.code === 'string' && /^[A-Z0-9]{4}$/.test(m.code) ? m.code : null,
       pid: (typeof m.pid === 'string' && m.pid.length <= 64) || Number.isInteger(m.pid) ? m.pid : null,
-      kim: !!m.kim,
+      kim: m0.kim === true, called: cleanKim(m.kc),
     });
   }
   // 40명까지: 먼저 들어온 순서 (들어온 시각 → id 순, 모든 PC가 같은 규칙)
@@ -187,6 +197,8 @@ function plazaFull() {
 function onMsg(link, m) {
   if (link !== pz.link || !m) return;
   if (m.k === 'st') { onState(m); return; }
+  if (m.k === 'call') { onCall(m); return; }
+  if (m.k === 'inv') { onInvite(m); return; }
   if (m.k !== 'say' || typeof m.id !== 'string') return;
   const c = String(m.c);
   if (!Object.hasOwn(PHRASES, c) || !pz.people.has(m.id)) return; // 목록에 있는 문구·광장에 있는 사람만
@@ -241,17 +253,32 @@ function tableState(t) {
   const seats = [null, null, null, null], losers = [];
   for (const p of all) { if (seats[p.seat.s]) losers.push(p); else seats[p.seat.s] = p; }
   const owners = all.filter((p) => !losers.includes(p));
+  const host = owners[0] || null, humans = owners.length;
+  // ⑤ 방장이 부른 김제빵 (빈칸에, 돌아가는 중이 아닐 때). 뛰어오는 동안은 준비 전
+  const kc = host && (host.me ? pz.kim : host.called);
+  if (kc && kc.t === t && !kc.bye && !seats[kc.s]) {
+    const k = { id: KIM_ID, nick: AI_NAME, kim: true, rdy: Date.now() - kimLocal(host.id, kc.at) > KIM_READY_MS, seat: { t, s: kc.s, at: kc.at } };
+    seats[kc.s] = k;
+    owners.push(k);
+  }
   const n0 = (seats[0] ? 1 : 0) + (seats[1] ? 1 : 0), n1 = (seats[2] ? 1 : 0) + (seats[3] ? 1 : 0);
   const mode = n0 === 1 && n1 === 1 ? '1v1' : n0 === 2 && n1 === 2 ? '2v2' : null;
   const live = lobbyRooms.filter((r) => r.pt === t);
   return {
-    t, seats, owners, losers, n: owners.length, n0, n1, mode,
-    host: owners[0] || null, // 처음 선 사람 = 방장
+    t, seats, owners, losers, n: owners.length, n0, n1, mode, humans,
+    host, // 처음 선 사람 = 방장
+    kim: seats.some((p) => p?.kim),
     ready: owners.length > 0 && owners.every((p) => p.rdy),
     nReady: owners.filter((p) => p.rdy).length,
     busy: live.find((r) => r.play) || null, // 경기 중 (방장이 로비 채널에 올림)
     soon: live.some((r) => !r.play),
   };
+}
+// 김제빵 시각(방장 PC 시계)을 이 PC 시계로: 처음 본 때보다 늦을 수는 없게 (시계가 앞선 PC가 보내도 바로 뛰어오게)
+function kimLocal(id, at) {
+  const key = id + ':' + at;
+  if (!pz.kimSeen.has(key)) { if (pz.kimSeen.size > 50) pz.kimSeen.clear(); pz.kimSeen.set(key, Date.now()); }
+  return Math.min(at, pz.kimSeen.get(key));
 }
 function onSeat(t, s) {
   if (room) return; // 경기 채널로 가는 중
@@ -261,7 +288,7 @@ function onSeat(t, s) {
   const st = tableState(t);
   if (st.busy) { hud.toast(`${t + 1}번 탁구대는 경기 중이에요 · 탁구대를 누르면 관전`, 2400); return; }
   const owner = st.seats[s];
-  if (owner && !owner.me) { hud.toast('그 자리에는 이미 누가 서 있어요', 1800); return; }
+  if (owner && !owner.me) { hud.toast(owner.kim ? '김제빵이 선 자리예요' : '그 자리에는 이미 누가 서 있어요', 1800); return; }
   if (!(pz.seat?.t === t && pz.seat.s === s)) {
     pz.seat = { t, s, at: Date.now() };
     pz.rdy = false;
@@ -294,6 +321,7 @@ function onTable(t) {
 }
 // 자리에서 내려오기 (경기 채널로 가는 중이었으면 그것도 그만)
 function unseat() {
+  kimBye(0);
   if (!pz.seat) return;
   pz.seat = null;
   pz.rdy = false;
@@ -335,11 +363,145 @@ roomHooks.onEnd = (r, why) => {
   pz.lastAct = Date.now();
   if (why === 'quit' || why === 'error') unseat();
   if (why === 'end' || why === 'gone') pz.after = r.inGame || r.result ? r : null;
+  kimBye(2000); // 경기가 끝나면 김제빵은 '앗, 빵 타겠다!' 하고 돌아감 (다시 하려면 다시 부름)
   view.put(myFig());
   sendInfo();
   renderTables(true);
 };
 roomHooks.onResult = (r) => { if (pz.after === r) renderTables(true); };
+
+// ───── ⑤ 모집 알림·콕 집어 초대·김제빵 부르기 (plaza.md 4·5장) ─────
+const CALL_GAP = 15000; // 같은 탁구대 '사람 구해요'는 15초에 한 번 (보내는 쪽 잠금 + 받는 쪽도 무시)
+const INV_GAP = 15000; // 같은 사람에게 초대는 15초에 한 번
+const KIM_WAIT = 10000; // '사람 구해요'를 보내고 이만큼 아무도 안 오면 '김제빵 부르기'
+const need = (st) => (st.n <= 1 ? 1 : 4 - st.n); // 1명이면 1대1 상대 1명, 그 밖엔 2대2까지
+const needText = (st) => (st.n <= 1 ? '1대1, 1명' : `2대2, ${4 - st.n}명`);
+function sendCall() {
+  const st = pz.seat && tableState(pz.seat.t);
+  if (!st || st.busy || room || st.n >= 4) return;
+  if (Date.now() - (pz.callT[st.t] || 0) < CALL_GAP) return;
+  playUI('click');
+  pz.callT[st.t] = Date.now();
+  pz.link?.send({ k: 'call', id: myId, t: st.t });
+  hud.toast(`📣 광장에 '${st.t + 1}번 탁구대 ${needText(st)} 구해요!'를 알렸어요`, 2200);
+  renderTables(true);
+}
+let callTimer = 0;
+function onCall(m) {
+  const p = pz.people.get(m.id);
+  if (!p || !Number.isInteger(m.t) || p.seat?.t !== m.t) return; // 그 탁구대에 선 사람이 보낸 것만
+  if (Date.now() - (pz.callT[m.t] || 0) < CALL_GAP * 0.9) return; // 같은 탁구대는 15초에 한 번
+  pz.callT[m.t] = Date.now();
+  const st = tableState(m.t);
+  if (IS_MOBILE || pz.seat?.t === m.t || st.busy || st.n >= 4) return;
+  const el = $('pz-call');
+  el.innerHTML = `🏓 <b>${m.t + 1}번 탁구대</b> ${needText(st)} 구해요! <button type="button" data-go="${m.t}">가기</button>`;
+  el.classList.remove('hidden');
+  playUI('turn');
+  clearTimeout(callTimer);
+  callTimer = setTimeout(() => el.classList.add('hidden'), 8000);
+}
+$('pz-call').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-go]');
+  if (!b) return;
+  $('pz-call').classList.add('hidden');
+  onTable(+b.dataset.go);
+});
+// 다른 사람을 누르면: 이름 + '초대하기' (내가 빈자리 있는 탁구대에 서 있을 때)
+function onPerson(id) {
+  const p = pz.people.get(id);
+  if (!p) return;
+  playUI('click');
+  pz.popFor = id;
+  const st = pz.seat && tableState(pz.seat.t);
+  const cool = Date.now() - (pz.invT.get(id) || 0) < INV_GAP;
+  let why = '';
+  if (!st) why = '탁구대에 먼저 서야 초대할 수 있어요';
+  else if (st.busy || room) why = '경기를 시작하는 중이에요';
+  else if (st.n >= 4) why = '탁구대 자리가 다 찼어요';
+  else if (p.seat?.t === st.t) why = '이미 같은 탁구대에 있어요';
+  else if (p.mob) why = '휴대폰은 사람 대결을 못 해요';
+  else if (cool) why = '방금 초대했어요 (15초에 한 번)';
+  $('pz-pop').innerHTML = `<b>${esc(p.nick)}</b>${p.title ? `<small>${esc(p.title)}</small>` : ''}`
+    + `<button type="button" class="big" data-inv ${why ? 'disabled' : ''}>🏓 ${st ? `${st.t + 1}번 탁구대로 ` : ''}초대하기</button>${why ? `<p>${why}</p>` : ''}<button type="button" class="small" data-x>닫기</button>`;
+  $('pz-pop').classList.remove('hidden');
+}
+function sendInvite() {
+  const id = pz.popFor, st = pz.seat && tableState(pz.seat.t);
+  $('pz-pop').classList.add('hidden');
+  if (!id || !st || Date.now() - (pz.invT.get(id) || 0) < INV_GAP) return;
+  pz.invT.set(id, Date.now());
+  pz.link?.send({ k: 'inv', id: myId, to: id, t: st.t });
+  hud.toast(`${pz.people.get(id)?.nick || '상대'}님에게 초대를 보냈어요`, 1800);
+}
+let invTimer = 0;
+function onInvite(m) {
+  if (m.to !== myId) return;
+  const p = pz.people.get(m.id);
+  if (!p || !Number.isInteger(m.t) || p.seat?.t !== m.t || IS_MOBILE) return;
+  if (Date.now() - (pz.invGotT.get(m.id) || 0) < INV_GAP * 0.9) return; // 같은 사람 15초에 한 번
+  pz.invGotT.set(m.id, Date.now());
+  const el = $('pz-invite');
+  el.innerHTML = `<p>📩 <b>${esc(p.nick)}</b>님이 <b>${m.t + 1}번 탁구대</b>로 초대했어요!</p><div><button type="button" class="big" data-ok="${m.t}">🏓 수락</button><button type="button" class="small" data-no>🙏 다음에</button></div>`;
+  el.classList.remove('hidden');
+  playUI('turn');
+  clearTimeout(invTimer);
+  invTimer = setTimeout(() => el.classList.add('hidden'), 12000);
+}
+$('pz-pop').addEventListener('click', (e) => {
+  if (e.target.closest('[data-inv]')) sendInvite();
+  else if (e.target.closest('[data-x]')) { playUI('click'); $('pz-pop').classList.add('hidden'); }
+});
+$('pz-invite').addEventListener('click', (e) => {
+  const ok = e.target.closest('[data-ok]');
+  if (ok) { $('pz-invite').classList.add('hidden'); onTable(+ok.dataset.ok); return; }
+  if (e.target.closest('[data-no]')) { $('pz-invite').classList.add('hidden'); say('9'); } // 머리 위에 '🙏 다음에 해요'
+});
+// 김제빵 부르기: 방장만, 2대2 탁구대에 사람 3명(한쪽 2·한쪽 1)이고 '사람 구해요'를 보낸 뒤 10초 동안 아무도 안 왔을 때
+function kimCan(st) {
+  if (!st || !st.host?.me || st.kim || st.busy || room || st.humans !== 3) return null;
+  if (!((st.n0 === 2 && st.n1 === 1) || (st.n0 === 1 && st.n1 === 2))) return null;
+  const s = [0, 1, 2, 3].find((i) => !st.seats[i]);
+  return s == null ? null : s;
+}
+function callKim() {
+  const st = pz.seat && tableState(pz.seat.t), s = kimCan(st);
+  if (s == null || Date.now() - (pz.callT[st.t] || 0) < KIM_WAIT) return;
+  playUI('click');
+  pz.kim = { t: st.t, s, at: Date.now(), bye: null };
+  pz.lastAct = Date.now();
+  sendInfo();
+  renderTables(true);
+}
+// 김제빵 돌려보내기 (경기가 끝났거나, 사람이 3명이 아니게 됐거나, 방장이 내려옴)
+function kimBye(delay = 0) {
+  if (!pz.kim || pz.kim.bye) return;
+  pz.kim = { ...pz.kim, bye: Date.now() + delay };
+  sendInfo();
+  const k = pz.kim;
+  setTimeout(() => { if (pz.kim === k) { pz.kim = null; sendInfo(); } }, delay + 9000); // 다 뛰어간 뒤 지움
+}
+function kimCheck() {
+  const k = pz.kim;
+  if (!k || k.bye || room) { pz.kimBad = 0; return; }
+  const st = pz.seat?.t === k.t ? tableState(k.t) : null;
+  if (st && st.host?.me && st.humans === 3) { pz.kimBad = 0; return; }
+  if (!st) { kimBye(0); return; } // 방장이 내려옴
+  pz.kimBad ||= Date.now();
+  if (Date.now() - pz.kimBad > 2500) kimBye(0); // 사람이 3명이 아니게 된 지 2.5초 (명단이 잠깐 흔들린 건 무시)
+}
+// 화면의 뛰어오는 김제빵들 (모든 사람의 상태에서)
+function syncKimRuns() {
+  const list = [];
+  const add = (id, k) => {
+    if (!k) return;
+    const T = PLAZA.tables[k.t];
+    list.push({ key: `${id}:${k.at}`, seat: T.seats[k.s], face: faceOf({ t: k.t, s: k.s }), at: kimLocal(id, k.at), bye: k.bye ? kimLocal(id + 'b', k.bye) : null });
+  };
+  add(myId, pz.kim);
+  for (const p of pz.people.values()) add(p.id, p.called);
+  view.setKimRuns(list);
+}
 
 // 경기 채널 붙기·시작 확인 + 탁구대 모습·내 자리 판 (0.2초마다, 명단이 바뀌면 바로)
 function renderTables(force = false) {
@@ -347,6 +509,8 @@ function renderTables(force = false) {
   if (!force && now - pz.tableT < 0.2) return;
   pz.tableT = now;
   view.setKim(AI_LOOK, AI_NAME, pz.link ? pz.kimN : 0);
+  kimCheck();
+  syncKimRuns();
   for (let t = 0; t < NT; t++) {
     const st = tableState(t);
     const off = !!st.busy;
@@ -412,8 +576,21 @@ function renderPanel(st) {
   const btn = busyNow ? '<button class="big" data-pzt="ready" disabled>🏓 곧 시작해요…</button>'
     : pz.rdy ? '<button class="big on" data-pzt="ready">✅ 준비 완료 <small>누르면 취소</small></button>'
     : `<button class="big" data-pzt="ready">${r ? '🔁 한 판 더' : '✋ 준비'}</button>`;
+  // ⑤ 사람 구하기 · 김제빵 부르기
+  let extra = '';
+  if (!busyNow && !st.busy && st.n < 4) {
+    const left = Math.ceil((CALL_GAP - (Date.now() - (pz.callT[st.t] || 0))) / 1000);
+    extra += left > 0 ? `<button class="small" data-pzt="call" disabled>📣 ${left}초 뒤 다시 알릴 수 있어요</button>` : `<button class="small" data-pzt="call">📣 ${needText(st)} 구해요 알리기</button>`;
+    const ks = kimCan(st);
+    if (ks != null) {
+      const wait = Math.ceil((KIM_WAIT - (Date.now() - (pz.callT[st.t] || 0))) / 1000);
+      extra += !pz.callT[st.t] ? '<small class="pzt-kimtip">📣 알리고 10초 동안 아무도 안 오면 김제빵을 부를 수 있어요</small>'
+        : wait > 0 ? `<small class="pzt-kimtip">🤖 ${wait}초 뒤 김제빵을 부를 수 있어요</small>` : '<button class="small kim" data-pzt="kim">🤖 김제빵 불러서 2대2</button>';
+    } else if (!st.host?.me && st.humans === 3 && !st.kim && !st.mode) extra += '<small class="pzt-kimtip">🤖 방장이 김제빵을 부를 수 있어요</small>';
+  }
+  if (st.kim) extra += '<small class="pzt-kimtip">🤖 김제빵이 한 자리를 채웠어요 · 전적엔 안 남고 코인은 보통 2대2와 같아요</small>';
   const html = `<div class="pzt-head"><b>${ic('table')} ${st.t + 1}번 탁구대</b><span class="pzt-mode">${label}${st.host?.me ? ` · ${ic('crown')} 내가 방장 (내 배경으로 경기)` : ''}</span><button class="small" data-pzt="leave">내려오기</button></div>`
-    + `<div class="pzt-seats">${side(0)}<i class="pzt-vs">VS</i>${side(1)}</div>${res}${btn}<p class="pzt-tip">${tip}</p>`;
+    + `<div class="pzt-seats">${side(0)}<i class="pzt-vs">VS</i>${side(1)}</div>${res}${btn}${extra ? `<div class="pzt-extra">${extra}</div>` : ''}<p class="pzt-tip">${tip}</p>`;
   if (html === pz.panelKey) return;
   pz.panelKey = html;
   el.innerHTML = html;
@@ -427,6 +604,8 @@ $('pz-table').addEventListener('click', (e) => {
   if (!b || b.disabled) return;
   if (b.dataset.pzt === 'ready') toggleReady();
   else if (b.dataset.pzt === 'leave') { playUI('click'); unseat(); }
+  else if (b.dataset.pzt === 'call') sendCall();
+  else if (b.dataset.pzt === 'kim') callKim();
 });
 // 자리 비움: 탁구대에 서 있는 동안 누르기·키 입력이 있으면 '아직 있어요'
 for (const ev of ['pointerdown', 'keydown', 'wheel']) addEventListener(ev, () => { if (pz.seat) pz.lastAct = Date.now(); }, { passive: true });
@@ -549,5 +728,5 @@ export function plazaFrame(now) {
 // 점검·디버그용
 export const plazaDebug = {
   pz, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list), fakeState: (m) => onState(m), get kimN() { return pz.kimN; },
-  live: liveInfo, sit: onSeat, table: onTable, kim: onKim, ready: toggleReady, unseat, state: tableState, afk: () => { pz.lastAct -= AFK_MS + 1000; },
+  live: liveInfo, call: sendCall, callKim, person: onPerson, invite: sendInvite, sit: onSeat, table: onTable, kim: onKim, ready: toggleReady, unseat, state: tableState, afk: () => { pz.lastAct -= AFK_MS + 1000; },
 };

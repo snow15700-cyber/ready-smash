@@ -101,7 +101,7 @@ function joinLocal(code, me, h, listen) {
   const hb = setInterval(() => {
     post({ k: '_hb', me });
     const now = performance.now();
-    for (const [id, t] of seen) if (now - t > 3500) { members.delete(id); seen.delete(id); }
+    for (const [id, t] of seen) if (now - t > 8000) { members.delete(id); seen.delete(id); } // 느린 PC(점검용 탭 여러 개)에서 신호가 늦어도 나간 걸로 안 치게
     emitMembers();
   }, 1000);
   // Supabase처럼 처음에는 '나를 뺀' 목록이 먼저 온다 (실제 서버와 같은 순서로 테스트하려고)
@@ -215,7 +215,7 @@ function lobbyLocal(chName, onList, onMsg = null) {
     hb();
     const now = performance.now();
     let changed = false;
-    for (const [k, o] of others) if (now - o.t > 3500) { others.delete(k); changed = true; }
+    for (const [k, o] of others) if (now - o.t > 8000) { others.delete(k); changed = true; }
     if (changed) emit();
   }, 1000);
   const bye = () => { if (mine) post({ k: 'bye', key }); };

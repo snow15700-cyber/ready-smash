@@ -4,6 +4,7 @@ import { initAudio, playUI } from '../audio.js';
 import { Game } from '../game.js';
 import { applyLook } from '../items.js';
 import { joinRoom } from '../net.js';
+import { AI_LOOK, AI_NAME, KIM_ID } from '../match.js';
 import { crowdJoin, renderCheerBar } from './cheer.js';
 import { hud } from './hud.js';
 import { addSkip } from './intro.js';
@@ -90,7 +91,7 @@ export function randomWatch() {
 
 // 선수 이름 (쪽별, 2v2는 'A1·A2'), 이름표용 [side][slot]
 function watchNames(w) {
-  const nick = (id) => w.members.find((m) => m.id === id)?.nick || '선수';
+  const nick = (id) => (id === KIM_ID ? AI_NAME : w.members.find((m) => m.id === id)?.nick || '선수');
   const names = [0, 1].map((s) => w.pl.filter((p) => p.side === s).sort((a, b) => a.slot - b.slot).map((p) => nick(p.id)).join('·'));
   const per = [[], []], tl = [[], []];
   for (const p of w.pl) {
@@ -117,7 +118,7 @@ function onWatchMembers(w, list) {
   game.names = n.names;
   game.playerNames = n.per;
   game.playerTitles = n.tl;
-  for (const p of w.pl) applyLook(world.team[p.side][p.slot], list.find((m) => m.id === p.id)?.look);
+  for (const p of w.pl) applyLook(world.team[p.side][p.slot], p.id === KIM_ID ? AI_LOOK : list.find((m) => m.id === p.id)?.look);
   hud.score(game.score);
   renderCheerBar();
 }

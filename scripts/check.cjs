@@ -169,6 +169,20 @@ async function sqlCheck() {
   // 24 세트: 위에서 19·21을 다시 실행해 세트가 빠진 함수로 돌아갔으니 24를 다시 → 세트 칭호·코인
   psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '24_sets.sql'), 'utf8'));
   psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '26_ai_coins_up.sql'), 'utf8')); // 26: 혼자 하기 3번에 1코인
+  psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '27_kim_match.sql'), 'utf8')); // 27: 24를 다시 실행해 덮인 경기 정산을 김제빵 판 규칙으로
+  // 27 김제빵 낀 2대2: 전적(승수)·연승은 그대로, 코인은 보통 2대2와 같게(참여+승리), '김제빵' 줄
+  {
+    const km = '00000000-0000-4000-8000-000000000027';
+    const before = psql(DB, `select wins_2v2 || ',' || win_streak from public.pingpong_players where nick = '점검봇';`);
+    const s2 = json(`public.pingpong_signup('점검빵친구', '1234')`);
+    const j1 = json(`public.pingpong_match_join(${tk}, '${km}', '2v2', 0)`), j2 = json(`public.pingpong_match_join('${s2.token}', '${km}', '2v2', 1)`);
+    must(j1.status === 'ok' && j2.status === 'ok', '김제빵 판 입장 실패: ' + JSON.stringify([s2.status, j1, j2]));
+    must(json(`public.pingpong_match_kim(${tk}, '${km}')`).status === 'ok', '김제빵 판 표시 실패');
+    psql(DB, `update public.pingpong_matches set started_at = now() - interval '2 minutes' where id = '${km}';`);
+    const kf = json(`public.pingpong_match_finish(${tk}, '${km}', true, 0, 0)`);
+    const after = psql(DB, `select wins_2v2 || ',' || win_streak from public.pingpong_players where nick = '점검봇';`);
+    must(kf.status === 'ok' && after === before && kf.coins.items.some((i) => /김제빵/.test(i.label)) && kf.coins.items.some((i) => i.label === '승리' && i.coins === 10), '김제빵 판 정산이 이상해요: ' + JSON.stringify({ before, after, items: kf.coins?.items }).slice(0, 300));
+  }
   psql(DB, `insert into public.pingpong_inventory(player_id, item_id) select id, x from public.pingpong_players, unnest(array['head_nightcap', 'body_starpj', 'face_sleepy']) x where nick = '점검봇' on conflict do nothing;`);
   for (const [c, i] of [['head', 'head_nightcap'], ['body', 'body_starpj'], ['face', 'face_sleepy']]) json(`public.pingpong_equip(${tk}, '${c}', '${i}')`);
   const setAch = json(`public.pingpong_achievements(${tk})`).new.map((n) => n.id);
@@ -476,6 +490,59 @@ async function browserChecks() {
       await waitFor(a, (id) => window.__smash.plaza.kimN === 1 && !window.__smash.plaza.view.figs.has(id) && window.__smash.plaza.view.kimN === 1, bId, 15000, "상대 화면: 도전자는 안 보이고 '🔥 1명 도전 중'");
       await b.evaluate(() => document.querySelector('#exit').click());
       await waitFor(a, (id) => window.__smash.plaza.kimN === 0 && window.__smash.plaza.view.figs.has(id), bId, 15000, '혼자 하기를 끝내면 다시 광장에 보임');
+      // ⑤ 모집 알림·콕 집어 초대: a가 1번 탁구대에 서서 '구해요' → b 화면 위 띠 / a가 b를 눌러 초대 → b 수락 → 같은 탁구대
+      await a.evaluate(() => window.__smash.plaza.sit(0, 0));
+      await waitFor(b, () => window.__smash.plaza.state(0).n === 1, null, 10000, 'b 화면에 a가 1번 탁구대에 섬');
+      await a.evaluate(() => window.__smash.plaza.call());
+      await waitFor(b, () => !document.querySelector('#pz-call').classList.contains('hidden') && /1번 탁구대/.test(document.querySelector('#pz-call').textContent), null, 10000, "b 화면에 '1번 탁구대 … 구해요!' 띠");
+      must(await a.evaluate(() => document.querySelector('#pz-table [data-pzt="call"]').disabled), "'구해요'를 보낸 뒤 15초 동안 버튼이 잠기지 않아요");
+      await a.evaluate((id) => { window.__smash.plaza.person(id); window.__smash.plaza.invite(); }, bId);
+      await waitFor(b, () => !document.querySelector('#pz-invite').classList.contains('hidden'), null, 10000, 'b가 초대를 받음');
+      await b.evaluate(() => document.querySelector('#pz-invite [data-ok]').click());
+      await waitFor(a, () => window.__smash.plaza.state(0).n === 2, null, 15000, '초대 수락 → 같은 탁구대에 섬');
+      await b.evaluate(() => window.__smash.plaza.unseat());
+      await a.evaluate(() => window.__smash.plaza.unseat());
+      // 김제빵 부르기 (사람 3명 흉내: 가짜 두 명을 같은 탁구대에) → 김제빵 자리·뛰어오기 → 사람이 줄면 돌아감
+      const kimOk = await a.evaluate(async () => {
+        const P = window.__smash.plaza, me = [...P.view.figs.entries()].find(([, f]) => f.me)[0], now = Date.now();
+        P.sit(2, 0);
+        let two = true; // 진짜 광장 명단이 와도 가짜 두 명이 계속 있게 (0.2초마다 다시)
+        const fk = () => {
+          P.fakeList([{ id: me, nick: 'me', at: P.pz.at }, { id: 'kf1', nick: '가짜1', at: 1 }, ...(two ? [{ id: 'kf2', nick: '가짜2', at: 1 }] : [])]);
+          P.fakeState({ k: 'st', id: 'kf1', w: { from: [-10, 4], to: [-10, 4], t: now }, seat: { t: 2, s: 1, at: now + 5 } });
+          if (two) P.fakeState({ k: 'st', id: 'kf2', w: { from: [-6, 4], to: [-6, 4], t: now }, seat: { t: 2, s: 2, at: now + 6 } });
+          else P.fakeState({ k: 'st', id: 'kf2', w: { from: [-6, 4], to: [-6, 4], t: now }, seat: null });
+        };
+        fk();
+        const iv = setInterval(fk, 200);
+        P.pz.callT[2] = now - 11000;
+        let btn = false;
+        for (let i = 0; i < 40 && !btn; i++) { await new Promise((r) => setTimeout(r, 150)); btn = !!document.querySelector('#pz-table [data-pzt="kim"]'); } // 느린 PC: 자리 판이 다시 그려질 때까지
+        fk(); // 진짜 광장 명단이 그사이 가짜를 덮었을 수 있어서 바로 앞에 다시
+        P.callKim();
+        await new Promise((r) => setTimeout(r, 400));
+        fk();
+        const s = P.state(2), kimSeat = s.seats.findIndex((x) => x?.kim);
+        const runner = P.view.kimRuns;
+        // 사람이 2명이 되면 2.5초 뒤 김제빵이 돌아감
+        two = false;
+        await new Promise((r) => setTimeout(r, 3500));
+        const bye = !!P.pz.kim?.bye;
+        clearInterval(iv);
+        P.unseat();
+        return { btn, kimSeat, runner, bye };
+      });
+      must(kimOk.btn && kimOk.kimSeat === 3 && kimOk.runner === 1 && kimOk.bye, '김제빵 부르기가 이상해요: ' + JSON.stringify(kimOk));
+      // 김제빵 자리는 방장 PC의 경기 로직이 대신 침 (스스로 토스·서브)
+      const botOk = await a.evaluate(async () => {
+        const { Match } = await import('/src/match.js');
+        const evs = [];
+        const m = new Match({ mode: '2v2', emit: (e) => evs.push(e.type + ':' + (e.side ?? '') + ':' + (e.slot ?? '')), bots: [{ side: 1, slot: 1 }] });
+        m.turn = 3; m.server = 1; m.readyServe(0);
+        for (let t = 0; t < 4; t += 0.02) m.update(t);
+        return evs.join(' ');
+      });
+      must(/toss:1:1/.test(botOk) && /shot:1:1/.test(botOk), '김제빵 자리가 스스로 서브를 안 해요: ' + botOk);
       // 40명 제한: 먼저 온 40명 뒤에 내가 있으면 '꽉 찼어요' → 혼자 광장 (광장 채널에서 빠짐)
       await a.evaluate(() => {
         const me = window.__smash.plaza.pz;
@@ -496,7 +563,7 @@ async function browserChecks() {
         await waitFor(n, () => window.__smash.plaza.sky && /밤 · 눈/.test(document.querySelector('#pz-wx').textContent), null, 15000, '밤·눈 표시');
         must(await n.evaluate(() => window.__smash.world.plaza.snowLayer.visible && window.__smash.world.scene.background.getHSL({}).l < 0.4), '눈 쌓임·밤 하늘이 안 보여요');
       } finally { await n.close(); }
-      return '서로 보임 · 걷기 · 돌아가기 · 말풍선 · 랭킹 가게 · 김제빵 도전 중 · 40명 제한 · 시간·날씨 (대구 일출 ' + sunOk[0] + '시)';
+      return '서로 보임 · 걷기 · 돌아가기 · 말풍선 · 랭킹 가게 · 김제빵 도전 중 · 구해요 알림·초대·김제빵 부르기 · 40명 제한 · 시간·날씨 (대구 일출 ' + sunOk[0] + '시)';
     });
 
     // 광장 탁구대 (docs/dev/plaza.md ②): 자리에 서기 → 준비 → VS 소개 → 경기(광장 채널에서 빠짐) → 관전 → 끝나면 광장 + '한 판 더' → 다시 시작

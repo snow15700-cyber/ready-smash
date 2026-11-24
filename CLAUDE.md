@@ -16,12 +16,12 @@
 |---|---|---|
 | 경기 규칙·조작·판정·찬스볼·몰입 연출·**동기화 규칙** | `docs/dev/gameplay.md` | main (와이파이 느림 대비·찬스볼 물결 잔상(정점까지) 포함) |
 | 2v2·혼자 하기(AI)·모바일·링크 미리보기·**관전 모드(기획·단계)** | `docs/dev/modes.md` | main (관전 ①~⑤) / 광장 ②(test)에서 방 목록·방 코드·비공개 방·대기실 관전 없앰 |
-| PIN 계정·전적·랭킹·코인·경기 확인·**보안(18)**·업적·칭호·**쉬는 시간 보너스(19)** | `docs/dev/accounts.md` | main (SQL 01~21 실행 완료) — 쉬는 시간 보너스·오늘의 미션 포함 / 출석 도장판 아직 / 혼자 하기 3번에 1코인 main(26 실행 완료) |
+| PIN 계정·전적·랭킹·코인·경기 확인·**보안(18)**·업적·칭호·**쉬는 시간 보너스(19)** | `docs/dev/accounts.md` | main (SQL 01~21 실행 완료) — 쉬는 시간 보너스·오늘의 미션 포함 / 출석 도장판 아직 / 혼자 하기 3번에 1코인 main(26 실행 완료) / 김제빵 낀 2대2 전적 제외 test(**27 실행 필요**) |
 | 상점·꾸미기 공통, 탁구채(전설 포함)·몸·목록 그림·**머리·얼굴·세트(기획)**·**뽑기 연출** | `docs/dev/shop.md` | main / 머리 28·얼굴 16·세트 11 test(**24 실행 필요**) / 뽑기 연출(탁구공 깨기)·**무료 뽑기 50회**(25 실행 필요, 로비 배너 `src/ui/freeGacha.js`) test |
 | 탁구공 | `docs/dev/balls.md` | main |
 | 탁구대(일반 6·고급 7·전설 5) | `docs/dev/tables.md` | 게임·뽑기 연결 test(22 실행 필요) |
 | 배경(경기장)·배경 합치기(성능) | `docs/dev/arenas.md` | main (일반 배경 3종 포함, 20 실행 완료) |
-| **광장 로비**(걷는 3D 메인 화면·탁구대 4대·김제빵 탁구대·모집 알림·정해진 채팅) | `docs/dev/plaza.md` | 기획 확정(11/23) — ① 광장 기본 + 가게 건물 + 시간·날씨 test, **②~④ test**(탁구대 경기·김제빵·광장 관전, 옛 로비·대기실 없앰), ⑤⑥ 아직 / **'경기장 거품' 기획 중**(16장, 효과 시안 `bubble.html`) |
+| **광장 로비**(걷는 3D 메인 화면·탁구대 4대·김제빵 탁구대·모집 알림·정해진 채팅) | `docs/dev/plaza.md` | 기획 확정(11/23) — ① 광장 기본 + 가게 건물 + 시간·날씨 test, **②~⑤ test**(탁구대 경기·김제빵·광장 관전·모집 알림·초대·김제빵 부르기, 옛 로비·대기실 없앰, **27 실행 필요**), ⑥ 아직 / **'경기장 거품' 기획 중**(16장, 효과 = 불꽃 고리 확정, 시안 `bubble.html`) |
 | 화면 디자인(**새 디자인 '탁구 색 + 유리'**: ①~⑤ 모든 화면)·대기실 무대·VS 소개·**업데이트 내역**(`src/updates.js`, main에 합칠 때마다 추가) | `docs/dev/design.md` | 새 디자인 test |
 
 아직 안 한 것(기획서 8장): 궤적 아이템, 출석·미션, 사운드 스킨, 승리 세리머니. 최적화 ①~⑤ 모두 끝(남은 보안 — 계정 두 개로 승수 쌓기, 가입 제한 — 은 사용자가 이번엔 안 하기로).
@@ -30,7 +30,7 @@
 ## 어디서나 지킬 규칙
 - 매 프레임 순서 `game.decideHit` → `match.update` → `game.update`(느린 PC에서 늦은 스윙이 버려지지 않게). 판정·물리는 결정론적(같은 입력 → 같은 결과).
 - 꾸미기 아이템은 **보기만 다름**(판정·네트워크 메시지 그대로).
-- 서버 SQL: 새 파일 `27_...sql`로 추가(사용자가 SQL Editor에서 직접 실행, 여러 번 실행해도 되게). 테이블·함수는 `pingpong_` 접두어(Supabase를 다른 게임과 공유). 표는 RLS로 잠그고 security definer 함수만 anon에. 로컬 PostgreSQL 16으로 01부터 차례로 먼저 시험(`service postgresql start`, `extensions` 스키마·`anon` 역할을 만들어 흉내).
+- 서버 SQL: 새 파일 `28_...sql`로 추가(사용자가 SQL Editor에서 직접 실행, 여러 번 실행해도 되게). 테이블·함수는 `pingpong_` 접두어(Supabase를 다른 게임과 공유). 표는 RLS로 잠그고 security definer 함수만 anon에. 로컬 PostgreSQL 16으로 01부터 차례로 먼저 시험(`service postgresql start`, `extensions` 스키마·`anon` 역할을 만들어 흉내).
 - 서버 규칙을 바꾸면 **로컬 가짜 서버**(`src/account.js`의 `localServer`, 설정 없을 때 쓰임)도 같은 규칙으로.
 - 아이템 목록은 두 곳: `src/items.js`와 SQL insert. 아이템을 추가·수정하면 **`npm run thumbs`**로 목록 그림 다시 찍기.
 - 브라우저가 보낸 숫자는 믿지 않는다(코인·전적·기록은 서버가 계산하거나 상한을 둔다).
@@ -47,7 +47,7 @@
 - `src/account.js` 서버 함수 부르기 + 로컬 가짜 서버. `src/achievements.js` 업적 목록.
 - `src/gachaShow.js` 뽑기 연출 화면(탁구공 깨기, 시안 `gacha.html`과 같은 코드).
 - `src/items.js` 아이템 목록·탁구채 모델·`applyLook`·목록 그림(`src/thumbs/`). `src/outfits.js` 몸. `src/balls.js` 탁구공. `src/fx.js` 효과 파티클.
-- `src/crowd.js` 관중석 캐릭터(관전).
+- `src/crowd.js` 관중석 캐릭터(관전). `src/plaza.js`·`src/plazaKim.js`(광장 3D·뛰어오는 김제빵)·`src/arena-plaza.js`(광장 배경)·`src/plazaSky.js`(시간·날씨).
 - `src/arenas.js` + `src/arena-*.js` 배경. `src/lobbyDemo.js` 로비 배경 랠리. 시안 페이지 `outfits.html`·`balls.html`·`tables.html`·`hats.html`(머리 `src/hats.js`·얼굴 `src/faces.js`). 탁구대 `src/tables.js`(+ `tables-rare.js`·`tables-legend.js`·`table-kit.js`).
 - `supabase/NN_*.sql` 서버(번호 순서대로 실행). `scripts/make-thumbs.cjs` 목록 그림 찍기.
 

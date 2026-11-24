@@ -61,6 +61,8 @@ export function computeShot({ mode, seed, shotIdx, rally, segs, serve, side, t, 
 // 공이 올 때마다 아래 확률로 어떻게 칠지 정한다. 가끔 BAD(약한 공)를 줘서 찬스볼 연습이 되게
 // smash = 내 찬스볼이 오면 스매시로 받아칠 확률, dir = 왼쪽/가운데/오른쪽으로 보낼 확률
 export const AI_NAME = '탁구왕 김제빵';
+export const AI_LOOK = { paddle: 'paddle_pan', head: 'head_chef', body: 'body_apron' }; // 김제빵 꾸미기 (프라이팬·요리사 모자·앞치마)
+export const KIM_ID = 'kim'; // 광장 2대2에서 김제빵이 선 자리의 선수 id (방장 PC의 AI)
 export const AI = { perfect: 0.22, good: 0.42, block: 0.18, bad: 0.18, smash: 0.5, dir: [0.35, 0.3, 0.35] };
 const AI_DT = { perfect: [0, 0.02], good: [0.05, 0.09], bad: [0.11, 0.16], block: [0, 0.04] };
 
@@ -92,8 +94,10 @@ export function hitOrder(mode) {
 export class Match {
   // isRemote(side, slot): 네트워크 너머에 있는 선수인지 (입력이 늦게 도착하므로 판정 대기 시간을 늘림)
   // lagOf(side, slot): 그 선수 PC까지 방장 소식이 가는 데 걸리는 시간(초, 편도). 이 PC 선수는 0
-  constructor({ mode, emit, seed = (Math.random() * 1e9) | 0, isRemote = () => false, lagOf = () => 0 }) {
+  // bots: 김제빵이 대신 치는 자리 [{side, slot}] (광장 2대2에 3명일 때 김제빵 부르기, docs/dev/plaza.md 4장). 방장 PC가 AI로 친다
+  constructor({ mode, emit, seed = (Math.random() * 1e9) | 0, isRemote = () => false, lagOf = () => 0, bots = [] }) {
     this.isRemote = isRemote;
+    this.bots = new Set(bots.map((b) => `${b.side}:${b.slot || 0}`));
     this.lagOf = lagOf;
     this.lets = {}; // 선수('side:slot')별 네트워크 렛 횟수
     this.late = null; // 받는 사람이 '늦게 받았어요'라고 알려 온 공 {side, slot, idx}
@@ -114,6 +118,8 @@ export class Match {
     this.pending = null; // 예약된 다음 동작 {t, fn}
   }
 
+  isBot(side, slot = 0) { return this.bots.has(`${side}:${slot}`); }
+
   start(now) {
     this.emit({ type: 'start', mode: this.mode, seed: this.seed, score: [...this.score], server: this.server, shotIdx: this.shotIdx });
     this.readyServe(now);
@@ -122,6 +128,9 @@ export class Match {
   readyServe(now) {
     if (this.mode === 'ai') this.turn = 0; // AI 모드는 항상 내가 서브
     this.phase = 'serve';
+    // 김제빵 차례면 잠깐 뒤 스스로 토스
+    const who = this.order[this.turn];
+    if (this.isBot(who.side, who.slot)) this.pending = { t: now + 1.3, fn: (n) => this.toss(who.side, n, (Math.random() - 0.5) * 0.4, who.slot) };
     this.segs = null;
     this.expect = null;
     this.rally = 0;
@@ -139,6 +148,7 @@ export class Match {
     this.phase = 'toss';
     this.segs = segs;
     this.expect = { ...ideal, slot, whiffed: false };
+    if (this.isBot(side, slot)) { const pl = aiPlan(null); this.expect.ai = { ...pl, grade: pl.grade === 'perfect' ? 'perfect' : 'good' }; } // 김제빵 서브는 늘 들어감
     this.emit({ type: 'toss', side, slot, t, x });
   }
 
@@ -181,7 +191,7 @@ export class Match {
     const nextSlot = this.order[this.turn].slot;
     this.expect = shot.next ? { ...shot.next, slot: nextSlot, whiffed: false } : null;
     // AI 차례면 이번 공을 어떻게 칠지 미리 정해 둔다
-    if (this.mode === 'ai' && this.expect && this.expect.side === 1) this.expect.ai = aiPlan(this.incoming);
+    if (this.expect && ((this.mode === 'ai' && this.expect.side === 1) || this.isBot(this.expect.side, this.expect.slot))) this.expect.ai = aiPlan(this.incoming);
     this.emit({ type: 'shot', side, slot, turn: this.turn, t, t0: shot.t0, p: shot.from, v: shot.v, sv: shot.sv, grade, rally: this.rally, speedLv: shot.speedLv, idx: shot.shotIdx, kind: shot.kind });
     if (!shot.next) this.pointTo(1 - side, shot.t0 + 0.8, 'fault');
   }
@@ -249,7 +259,7 @@ export class Match {
     if (!ex) return;
     // AI가 받아침 (항상 받아냄)
     if (ex.ai && now >= ex.t + ex.ai.dt) {
-      this.hit(1, ex.t + ex.ai.dt, ex.ai.grade, ex.ai.dir, 0, 0, ex.ai.dt);
+      this.hit(ex.side, ex.t + ex.ai.dt, ex.ai.grade, ex.ai.dir, 0, ex.slot || 0, ex.ai.dt);
       return;
     }
     const margin = this.isRemote(ex.side, ex.slot) ? 0.45 : 0.12; // 네트워크 지연 여유

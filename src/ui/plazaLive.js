@@ -8,6 +8,7 @@ import { titleText } from '../achievements.js';
 import { PLAZA } from '../arena-plaza.js';
 import { applyLook } from '../items.js';
 import { joinRoom } from '../net.js';
+import { AI_LOOK, AI_NAME, KIM_ID } from '../match.js';
 import { CHAR_Z, makeCharacter } from '../scene.js';
 import { HALF_L, ballPos, sideSign, simulate, tossSegs } from '../physics.js';
 import { myId } from './room.js';
@@ -72,7 +73,7 @@ function dress(L) {
       L.g.add(c.group);
       L.chars.set(p.id, c);
     }
-    const m = L.members.find((x) => x.id === p.id);
+    const m = p.id === KIM_ID ? { nick: AI_NAME, look: AI_LOOK } : L.members.find((x) => x.id === p.id);
     applyLook(c, m?.look || {});
     c.group.traverse((o) => { if (o.isMesh) o.castShadow = false; });
     c.setTag(m?.nick || '선수', false, m ? titleText(m.title, m.titleX) : '');

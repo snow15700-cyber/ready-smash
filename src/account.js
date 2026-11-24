@@ -117,6 +117,12 @@ export async function matchJoin(matchId, mode, side) {
   return call('pingpong_match_join', { p_token: token(), p_match: matchId, p_mode: mode, p_side: side });
 }
 
+// 김제빵 낀 2대2 표시 (supabase/27): 전적·랭킹·연승에 안 들어가고 코인은 보통 2대2와 같게
+export async function matchKim(matchId) {
+  if (!account.loggedIn || !matchId) return { status: 'guest' };
+  return call('pingpong_match_kim', { p_token: token(), p_match: matchId });
+}
+
 // 경기 결과 기록 + 코인 정산 (내 결과만, 입장한 경기만). bonus = { perfect3, rally10 } 이번 경기에서 한 횟수
 // 상대 전적·같은 상대 판 수는 서버가 경기 입장 기록으로 정한다
 // 결과 { status, player, h2h, coins: { total, items: [{ label, coins }] } }
@@ -421,6 +427,14 @@ function localServer(fn, a) {
       else if (Object.values(m.players).filter((x) => x.side === a.p_side).length >= (m.mode === '1v1' ? 1 : 2)) out = { status: 'full' };
       else { db.joinSeq = (db.joinSeq || 0) + 1; m.players[p.id] = { side: a.p_side, joined: db.joinSeq }; out = { status: 'ok' }; } // joined = 입장 순서
     }
+  } else if (fn === 'pingpong_match_kim') {
+    const p = me();
+    const m = db.matches?.[a.p_match];
+    if (!p) out = { status: 'no_session' };
+    else if (!m || !m.players[p.id]) out = { status: 'no_match' };
+    else if (m.mode !== '2v2') out = { status: 'mode' };
+    else if (m.at < now - 30000) out = { status: 'late' };
+    else { m.kim = true; out = { status: 'ok' }; }
   } else if (fn === 'pingpong_match_finish') {
     const p = me();
     const m = db.matches?.[a.p_match];
@@ -438,6 +452,9 @@ function localServer(fn, a) {
       if (m.winner == null) m.winner = wonSide; else if (m.winner !== wonSide) m.disputed = true;
       const opps = Object.entries(m.players).filter(([, x]) => x.side !== mp.side).map(([id]) => id).sort();
       const hasOpp = opps.length > 0;
+      // 27: 김제빵 낀 판(표시 + 로그인 입장 3명 이하)은 전적·랭킹·연승 X, 코인은 보통 2대2와 같게
+      const kim = !!m.kim && Object.keys(m.players).length <= 3;
+      const rec = hasOpp && !kim;
       const okey = m.mode + ':' + (opps.join(',') || 'guest');
       const dayStart = Date.parse(new Date(now + 9 * 3600e3).toISOString().slice(0, 10) + 'T00:00:00+09:00');
       const played = Object.values(db.matches).filter((x) => { const y = x.players[p.id]; return y && y.okey === okey && y.at >= dayStart; }).length;
@@ -445,7 +462,7 @@ function localServer(fn, a) {
       const full = played < 5, join = hasOpp ? played < 10 : played < 5;
       p.lastMatch = now;
       const f = (m.mode === '1v1' ? '1' : '2');
-      if (hasOpp) {
+      if (rec) {
         if (a.p_won) p['w' + f] = (p['w' + f] || 0) + 1; else p['l' + f] = (p['l' + f] || 0) + 1;
         p.streak = a.p_won ? (p.streak || 0) + 1 : 0;
       }
@@ -456,10 +473,11 @@ function localServer(fn, a) {
         if (a.p_won) items.push({ label: '승리', coins: 10 });
         if (nPerf) items.push({ label: `퍼펙트 3연속 ×${nPerf}`, coins: 5 * nPerf });
         if (nRally) items.push({ label: `랠리 10회 이상 ×${nRally}`, coins: 5 * nRally });
-        if (hasOpp && a.p_won && p.streak % 3 === 0) items.push({ label: `${p.streak}연승`, coins: 15 });
+        if (rec && a.p_won && p.streak % 3 === 0) items.push({ label: `${p.streak}연승`, coins: 15 });
       } else if (join) items.push({ label: '같은 상대 오늘 6판째부터는 참여 코인만', coins: 0 });
       else items.push({ label: hasOpp ? '같은 상대와는 하루 10판까지만 코인' : '손님 상대는 하루 5판까지만 코인', coins: 0 });
-      if (!hasOpp) items.push({ label: '손님 상대 경기는 승수에 안 들어가요', coins: 0 });
+      if (kim) items.push({ label: '🤖 김제빵 낀 판은 전적·랭킹에 안 들어가요', coins: 0 });
+      else if (!hasOpp) items.push({ label: '손님 상대 경기는 승수에 안 들어가요', coins: 0 });
       // 19: 쉬는 시간 보너스 (경기 시작이나 끝이 평일 쉬는 시간이면 +50%, 올림). 가짜 서버는 ?clock= 시각을 따른다
       // 24: 세트 보너스 (supabase/24_sets.sql과 같은 규칙: 퍼센트는 이 판 코인 합에 붙고 올림, 완전 세트 = 2배)
       const st = setOf(p.equip);
@@ -472,7 +490,7 @@ function localServer(fn, a) {
         else if (k === 'perfect' && full && nPerf > 0 && sum > 0) sb = pctOf(sum);
         else if (k === 'rally' && full && nRally > 0 && sum > 0) sb = pctOf(sum);
         else if (k === 'lose' && !a.p_won && join) sb = amt;
-        else if (k === 'streak' && full && hasOpp && a.p_won && p.streak % 3 === 0) sb = amt;
+        else if (k === 'streak' && full && rec && a.p_won && p.streak % 3 === 0) sb = amt;
         else if (k === 'break') brkPct = 50 + amt;
         if (sb > 0) items.push({ label: setLabel(st.set, st.full) + (k === 'lose' || k === 'streak' ? '' : ` +${amt}%`), coins: sb });
       }

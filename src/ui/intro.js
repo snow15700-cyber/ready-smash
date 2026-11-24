@@ -1,6 +1,7 @@
 import { playCrowd, playHit, playTable, playUI, setEcho } from '../audio.js';
 import { equipped } from '../items.js';
 import { G, HALF_L, R, TY, sideSign } from '../physics.js';
+import { KIM_ID } from '../match.js';
 import { CHAR_Z, PADDLE_OFFSET } from '../scene.js';
 import { crowd } from './cheer.js';
 import { hud } from './hud.js';
@@ -87,17 +88,17 @@ function specStakes(seats, stOf) {
 // 건너뛰기: 선수 모두가 누르면 모든 PC가 각자 정적(hush)으로 넘어간다
 function renderSkip() {
   if (!intro) return;
-  const n = intro.seats.length, k = intro.skips.size, mine = intro.skips.has(myId);
+  const n = intro.seats.filter((s) => s.id !== KIM_ID).length, k = intro.skips.size, mine = intro.skips.has(myId); // 김제빵은 건너뛰기를 안 누름
   const btn = $('vi-skip-btn');
   btn.disabled = mine;
   btn.innerHTML = mine ? '다른 사람 기다리는 중' : '건너뛰기 <span class="ar">▶▶</span>';
   $('vi-skip-dots').innerHTML = Array.from({ length: n }, (_, i) => `<i class="${i < k ? 'on' : ''}"></i>`).join('');
 }
 export function addSkip(id) {
-  if (!intro || intro.skips.has(id) || !intro.seats.some((s) => s.id === id)) return;
+  if (!intro || intro.skips.has(id) || !intro.seats.some((s) => s.id === id && s.id !== KIM_ID)) return;
   intro.skips.add(id);
   renderSkip();
-  if (intro.skips.size >= intro.seats.length) intro.skipNow = true; // 다음 프레임에 정적으로 (그 프레임 시각 기준)
+  if (intro.skips.size >= intro.seats.filter((s) => s.id !== KIM_ID).length) intro.skipNow = true; // 다음 프레임에 정적으로 (그 프레임 시각 기준)
 }
 $('vi-skip-btn').addEventListener('click', (e) => {
   e.stopPropagation();

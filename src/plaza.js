@@ -6,6 +6,7 @@ import { PLAZA } from './arena-plaza.js';
 import { bubble } from './crowd.js';
 import { applyLook } from './items.js';
 import { holdPose } from './ui/stage.js';
+import { createKimRunners } from './plazaKim.js';
 import { makeCharacter } from './scene.js';
 
 export const WALK_SPEED = 4; // m/s
@@ -151,7 +152,7 @@ function drawSign(sg, lines, color) {
   sg.tex.needsUpdate = true;
 }
 
-// handlers: onGround([x, z]) · onShop(shop) · onTable(t) · onSeat(t, s) · onKim()
+// handlers: onGround([x, z]) · onShop(shop) · onTable(t) · onSeat(t, s) · onKim() · onPerson(id)
 export function createPlazaView(world, handlers) {
   const K = PLAZA.kim;
   const root = new THREE.Group();
@@ -200,6 +201,8 @@ export function createPlazaView(world, handlers) {
   kim.sign.sp.position.set(K.x - 0.4, 3.05, K.z); // 김제빵 이름표 위로
   root.add(kim.sign.sp);
   tables.push({ sign: kim.sign }); // 카메라 앞 흐리게 (아래 update)
+  // ⑤ 2대2에 불려 와 뛰어오는 김제빵 (src/plazaKim.js)
+  const runners = createKimRunners(root, { path: planWalk, bubble, blob: blobShadow });
 
   // 사람 한 명 그리기 정보 p = { id, nick(이름표 글자), title(글자), look, w, me, face(서 있을 때 바라볼 쪽, 없으면 null) }
   function put(p) {
@@ -233,6 +236,7 @@ export function createPlazaView(world, handlers) {
   const tBox = (r, h) => new THREE.Box3(new THREE.Vector3(r.x0, 0, r.z0), new THREE.Vector3(r.x1, h, r.z1));
   const tableBoxes = [...PLAZA.tables.map((t, i) => ({ t: i, box: tBox(t.rect, 1.1) })), { t: 'kim', box: tBox(K.rect, 1.1) },
     { t: 'kim', box: tBox({ x0: K.chef[0] - 0.45, x1: K.chef[0] + 0.45, z0: K.z - 0.45, z1: K.z + 0.45 }, 1.9) }]; // 김제빵을 눌러도
+  const pBox = new THREE.Box3();
   function pick(px, py) {
     const rect = world.renderer.domElement.getBoundingClientRect();
     ndc.set(((px - rect.left) / rect.width) * 2 - 1, -((py - rect.top) / rect.height) * 2 + 1);
@@ -244,6 +248,13 @@ export function createPlazaView(world, handlers) {
     }
     for (const b of tableBoxes) {
       if (ray.ray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = b.t === 'kim' ? { kim: true } : { table: b.t }; } }
+    }
+    // 다른 사람 캐릭터 (콕 집어 초대)
+    for (const [id, f] of figs) {
+      if (f.me || !f.c.group.visible) continue;
+      const gp = f.c.group.position;
+      pBox.min.set(gp.x - 0.35, 0, gp.z - 0.35); pBox.max.set(gp.x + 0.35, 1.9, gp.z + 0.35);
+      if (ray.ray.intersectBox(pBox, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = { person: id }; } }
     }
     if (best) return best;
     if (!ray.ray.intersectPlane(ground, hitP)) return null;
@@ -302,6 +313,7 @@ export function createPlazaView(world, handlers) {
     else if (h?.table != null) handlers.onTable?.(h.table);
     else if (h?.seat) handlers.onSeat?.(h.seat[0], h.seat[1]);
     else if (h?.kim) handlers.onKim?.();
+    else if (h?.person) handlers.onPerson?.(h.person);
     else if (h?.ground) handlers.onGround?.(h.ground);
   };
   canvas.addEventListener('pointerup', up);
@@ -363,6 +375,9 @@ export function createPlazaView(world, handlers) {
       drawSign(kim.sign, ['🤖 김제빵 탁구대', n > 0 ? `🔥 ${n}명 도전 중` : '누르면 혼자 하기 · 휴대폰도 OK'], n > 0 ? '#ff8a3d' : '#2f8a4e');
     },
     get kimN() { return kim.n; },
+    // 불려 온 김제빵들 [{ key, seat, face, at, bye }]
+    setKimRuns(list) { runners.sync(list); },
+    get kimRuns() { return runners.count; },
     showMarker(x, z) { marker.position.set(x, 0.02, z); marker.visible = true; markerT = performance.now() / 1000; },
     // 카메라를 내 캐릭터 뒤로 바로 (처음 들어올 때)
     resetCam() { cam.init = false; cam.manual = false; },
@@ -410,6 +425,7 @@ export function createPlazaView(world, handlers) {
         if (f.me || dist < NEAR_TICK) f.c.tickOutfit(now, dt);
         if (f.bub.visible && now - f.bubT > 3) f.bub.visible = false;
       }
+      runners.update(now, dt);
       // 김제빵: 탁구채를 든 채 숨 쉬듯 흔들리고, 가끔 한 번씩 휘두른다 (도전하는 사람이 있으면 자주 — 같이 치는 중)
       if (now > kim.swingAt) {
         kim.c.stSwing = now;

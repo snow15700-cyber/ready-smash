@@ -1,8 +1,8 @@
-import { account, getH2H, matchAch, matchFinish, matchJoin, matchPeople, myEquip, myTitle, newMatchId } from '../account.js';
+import { account, getH2H, matchAch, matchFinish, matchJoin, matchKim, matchPeople, myEquip, myTitle, newMatchId } from '../account.js';
 import { titleText } from '../achievements.js';
 import { initAudio, playUI } from '../audio.js';
 import { Game } from '../game.js';
-import { Match } from '../match.js';
+import { AI_LOOK, AI_NAME, KIM_ID, Match } from '../match.js';
 import { joinRoom } from '../net.js';
 import { checkMatchMissions, missionItems } from './missions.js';
 import { crowdJoin } from './cheer.js';
@@ -85,7 +85,7 @@ function onMembers(list) {
   // 서버는 입장 직후 '나를 빼고' 목록을 먼저 보낼 수 있다. 내가 목록에 들어올 때까지 기다린다
   if (!list.some((m) => m.id === myId)) return;
   const ids = new Set(room.want.map((p) => p.id));
-  const kept = list.filter((m) => ids.has(m.id)); // 이 판 선수만 (다른 사람이 같은 코드로 들어와도 무시)
+  const kept = list.filter((m) => ids.has(m.id) && m.id !== KIM_ID); // 이 판 선수만 (다른 사람이 같은 코드로 들어와도 무시)
   const gone = room.members.filter((m) => !kept.some((k) => k.id === m.id));
   room.members = kept;
   room.hostM = kept.find((m) => m.host) || null;
@@ -95,7 +95,7 @@ function onMembers(list) {
   if (room.inGame && !room.host && room.sawHost && !room.hostM) { endRoom('gone', '방장이 나가서 경기가 끝났어요'); return; }
   if (room.hostM) room.sawHost = true;
   // 방장: 이 판 선수가 모두 들어오면 시작 (참가자 PC가 시계 맞추기를 한 번은 하게 조금 뒤에)
-  if (room.host && !room.inGame && !room.goT && kept.length === room.want.length) {
+  if (room.host && !room.inGame && !room.goT && kept.length === humans(room.want).length) {
     const r0 = room;
     r0.goT = setTimeout(() => { if (room === r0 && !r0.inGame) startOnline(r0.mode, r0.want); }, 500);
   }
@@ -148,8 +148,10 @@ function onRoomMsg(m) {
 }
 
 function nickOf(id) {
+  if (id === KIM_ID) return AI_NAME;
   return room.members.find((m) => m.id === id)?.nick || '상대';
 }
+export const humans = (players) => players.filter((p) => p.id !== KIM_ID); // 김제빵 빼고 (사람만 경기 채널에 들어옴)
 export function playerNames() {
   const out = [[], []];
   for (const p of room.players) out[p.side][p.slot || 0] = nickOf(p.id);
@@ -164,7 +166,7 @@ function titles() {
 // 선수마다 꾸미기 (presence의 look). looks[side][slot]
 export function looks() {
   const out = [[], []];
-  for (const p of room.players) out[p.side][p.slot || 0] = room.members.find((m) => m.id === p.id)?.look || {};
+  for (const p of room.players) out[p.side][p.slot || 0] = p.id === KIM_ID ? AI_LOOK : room.members.find((m) => m.id === p.id)?.look || {};
   return out;
 }
 // 쪽(팀)별 이름. 2v2는 'A1·A2'처럼 두 명을 이어서
@@ -178,7 +180,7 @@ function beginRoomGame(players, mode, mine, mid) {
   room.inGame = true;
   room.players = players;
   room.mid = mid || null;
-  if (mid) matchJoin(mid, mode, mine.side);
+  if (mid) matchJoin(mid, mode, mine.side).then((r) => { if (r?.status === 'ok' && players.some((p) => p.id === KIM_ID)) matchKim(mid); }); // 김제빵 낀 판 표시 (전적 X, supabase/27)
   room.result = '';
   room.coins = null;
   room.score = [0, 0];
@@ -203,7 +205,8 @@ function startOnline(mode, players) {
   }));
   setMatch(new Match({
     mode,
-    isRemote: (side, slot) => !(side === mine.side && slot === (mine.slot || 0)),
+    isRemote: (side, slot) => !(side === mine.side && slot === (mine.slot || 0)) && !players.some((p) => p.id === KIM_ID && p.side === side && (p.slot || 0) === slot),
+    bots: players.filter((p) => p.id === KIM_ID),
     lagOf: (side, slot) => {
       const p = players.find((x) => x.side === side && (x.slot || 0) === slot);
       return p && p.id !== myId ? room?.lag[p.id] || 0 : 0;

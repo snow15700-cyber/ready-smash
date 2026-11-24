@@ -1,7 +1,7 @@
 import { account, aiAch, aiRally, aiStart, myEquip } from '../account.js';
 import { initAudio, playUI } from '../audio.js';
 import { Game } from '../game.js';
-import { AI_NAME, Match } from '../match.js';
+import { AI_LOOK, AI_NAME, Match } from '../match.js';
 import { hud } from './hud.js';
 import { show, stopGame } from './screen.js';
 import { game, match, setGame, setMatch, world } from './state.js';
@@ -11,7 +11,7 @@ import { gotAch, runAchCheck } from './titles.js';
 const GUEST_BEST_KEY = 'smash-ai-best'; // 손님의 최고 랠리 기록 (이 브라우저에만)
 const guestBest = () => { try { return +localStorage.getItem(GUEST_BEST_KEY) || 0; } catch { return 0; } };
 
-export const AI_LOOK = { paddle: 'paddle_pan', head: 'head_chef', body: 'body_apron' };
+export { AI_LOOK };
 
 export let aiCoins = 0; // 이번 혼자 하기에서 받은 코인
 export const clearAiCoins = () => { aiCoins = 0; };
