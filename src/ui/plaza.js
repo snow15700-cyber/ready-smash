@@ -15,6 +15,9 @@ import { PLAZA } from '../arena-plaza.js';
 import { toWorld } from '../campusLayout.js';
 import { AI_NAME, KIM_ID } from '../match.js';
 import { BREADS, KIM_READY_MS } from '../plazaKim.js';
+import { breadLine, KIM_FUNNY } from '../breads.js';
+import { breakLines } from '../breaks.js';
+import { boardsFrame } from './plazaBoards.js';
 import { ic } from '../icons.js';
 import { joinPlaza, makeCode } from '../net.js';
 import { cleanWalk, createPlazaView, planWalk, posAt } from '../plaza.js';
@@ -70,7 +73,7 @@ const pz = {
   // ⑤ 내가 부른 김제빵 {t, s, at, bye} (방장일 때) · 탁구대별 마지막 '사람 구해요' 시각 · 초대 보낸/받은 시각 · 김제빵 시각을 처음 본 때
   kim: null, callT: {}, invT: new Map(), invGotT: new Map(), kimSeen: new Map(), popFor: null,
 };
-const view = createPlazaView(world, { onGround: (pt) => walkTo(pt), onShop: goShop, onTable, onSeat, onKim, onPerson });
+const view = createPlazaView(world, { onGround: (pt) => walkTo(pt), onShop: goShop, onSpot, onTable, onSeat, onKim, onPerson });
 let sky = null; // 시간·날씨 (src/plazaSky.js), 광장을 처음 켤 때 만든다
 let skyLabelT = -9;
 
@@ -241,6 +244,40 @@ function stepWalk(from, to, nowMs) {
   pz.myW = { from: [from[0], from[1]], to: [to[0], to[1]], t: nowMs };
   view.put(myFig());
   sendInfo();
+}
+// 눌러서 뭔가 되는 곳 (광장 20장 ②)
+//  · 빵집: 김제빵이 빵집 위에서 말함 — 보통은 '이번엔 ○○을 만들어 볼까나...'(2대2 김제빵 내보내기와 같은 말), 10%는 재밌는 대사 (내 화면에서만)
+//  · 게시판: 누른 종이로 걸어가서 업데이트 / 오늘의 미션 / 치는 방법
+//  · 시계탑: 쉬는 시간 안내 알림
+let lastKimLine = '';
+function onSpot(sp, at) {
+  playUI('click');
+  if (sp.id === 'bakery') {
+    let line;
+    do line = Math.random() < 0.1 ? KIM_FUNNY[(Math.random() * KIM_FUNNY.length) | 0] : breadLine((Math.random() * BREADS.length) | 0);
+    while (line === lastKimLine);
+    lastKimLine = line;
+    view.spotSay(sp, '👨‍🍳 ' + line);
+  } else if (sp.id === 'board') {
+    const note = at[0] < -0.48 ? 0 : at[0] < 0.48 ? 1 : 2; // 왼쪽 업데이트 · 가운데 미션 · 오른쪽 치는 방법
+    const open = () => {
+      if (note === 0) $('btn-updates').click();
+      else if (note === 2) $('btn-howto').click();
+      else showMissions();
+    };
+    const p = posAt(pz.myW, Date.now()), f = sp.front([-0.95, 0, 0.95][note]);
+    if (Math.hypot(p[0] - f[0], p[1] - f[1]) < 1.6) open();
+    else walkTo(f, { then: open });
+  } else if (sp.id === 'clock') {
+    hud.toast(breakLines().join(' · '), 2600);
+  }
+}
+// 오늘의 미션 카드: 접혀 있으면 펼치고 반짝
+function showMissions() {
+  const el = $('lb-missions');
+  if (!el || el.classList.contains('hidden')) { hud.toast('오늘의 미션은 오른쪽 위 내 카드에 있어요', 2200); return; }
+  if (el.classList.contains('folded')) el.querySelector('.lm-head')?.click();
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
 }
 // 가게: 문 앞으로 걸어가서, 도착하면 그 화면을 연다 (이미 문 앞이면 바로)
 function goShop(s) {
@@ -789,6 +826,7 @@ export function plazaFrame(now) {
   sky ||= createPlazaSky(world);
   sky.update(now);
   gachaFrame(now);
+  boardsFrame(now); // 시계탑·쉬는 시간 판·전광판 글자 (광장 20장 ②)
   if (now - skyLabelT > 1) { skyLabelT = now; $('pz-wx').textContent = sky.label(); }
   // 경기장 거품 (plaza.md 16장): 경기 중인 탁구대 원(7m) 안으로 들어가면 그 경기장으로, 9m 밖이면 광장으로
   const busy = PLAZA.tables.map((_, t) => lobbyRooms.find((r) => r.pt === t && r.play && r.pl) || null);
@@ -884,6 +922,6 @@ dressHooks.gachaIntro = (count) => {
 
 // 점검·디버그용
 export const plazaDebug = {
-  pz, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list), fakeState: (m) => onState(m), get kimN() { return pz.kimN; },
+  pz, spot: onSpot, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list), fakeState: (m) => onState(m), get kimN() { return pz.kimN; },
   bubble: bub, get mwave() { return matchWaveDebug(); }, seat: setSeated, call: sendCall, callKim, person: onPerson, invite: sendInvite, sit: onSeat, table: onTable, kim: onKim, ready: toggleReady, unseat, state: tableState, afk: () => { pz.lastAct -= AFK_MS + 1000; },
 };

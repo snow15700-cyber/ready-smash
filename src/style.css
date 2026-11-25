@@ -1371,3 +1371,7 @@ body.is-test .lobby.plaza-on .pz-invite { top: 148px; }
   body:has(#break-banner:not(.hidden)) .lobby.plaza-on .pz-call { top: 146px; }
   .lobby.plaza-on .pz-invite, body.is-test .lobby.plaza-on .pz-invite { top: 150px; }
 }
+
+/* 광장 게시판 '오늘의 미션'을 누르면 미션 카드가 반짝 (광장 20장 ②) */
+.lb-missions.flash { animation: lm-flash 1.4s ease-out; }
+@keyframes lm-flash { 0%, 40% { box-shadow: 0 0 0 4px #ffd23f, 0 0 24px 6px rgba(255, 210, 63, .7); } 100% { box-shadow: 0 0 0 0 rgba(255, 210, 63, 0); } }

@@ -140,7 +140,7 @@ export function buildCampus({ game = false } = {}) {
     g.fillStyle = '#9fe0ff'; g.font = FONT(56); g.fillText('🏆 오늘의 1등  박OO  12승', w / 2, 270);
   });
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(15, 5.6), new THREE.MeshBasicMaterial({ map: scr }));
-  screen.position.set(-16, 17.2, hall.frontA + 0.42); root.add(screen); // 세로 핀(0.06+0.11) 앞으로
+  screen.position.set(-16, 17.2, hall.frontA + 0.42); root.add(screen); screen.name = 'scoreboard'; screen.userData.noBake = true; // 실제 광장: 경기 점수·랭킹 1등 (ui/plazaBoards.js) // 세로 핀(0.06+0.11) 앞으로
   addBox(root, 15.5, 6.1, 0.2, std(0x15191c, { metalness: 0.4, roughness: 0.4 }), -16, 17.2, hall.frontA + 0.3); // 전광판 틀
 
   // 분수 + 가게 반원 (분수 (0,2) 둘레 반지름 약 8.5)

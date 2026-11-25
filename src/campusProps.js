@@ -117,7 +117,8 @@ export function clockTower(anim) {
   for (let i = 0; i < 4; i++) { const a = (i * Math.PI) / 2; const sl = box(g, 0.12, 5.0, 0.05, slitM, Math.sin(a) * 0.86, 0.4 + 3.6, Math.cos(a) * 0.86); sl.rotation.y = a; }
   // 쉬는 시간 전광판 (앞면, 눈높이 조금 위)
   box(g, 1.5, 0.75, 0.1, std(0x111418), 0, 3.0, 0.9, 0.03);
-  plate(g, ['⏰ 쉬는 시간', '6분 남음'], 1.35, 0.6, 0, 3.0, 0.96, { bg: '#0b1020', color: '#ffe08a', font: FONT(56), px: 360 });
+  const pl = plate(g, ['⏰ 쉬는 시간', '6분 남음'], 1.35, 0.6, 0, 3.0, 0.96, { bg: '#0b1020', color: '#ffe08a', font: FONT(56), px: 360 });
+  pl.name = 'clock-plate'; pl.userData.noBake = true; // 실제 광장: 쉬는 시간 안내 (ui/plazaBoards.js가 다시 그림)
   // 위 유리 상자 + 세로 핀 + 시계 4면
   const Y = 0.4 + 6.6 + 1.3;
   const gl = new THREE.MeshStandardMaterial({ color: 0x3f8588, roughness: 0.08, metalness: 0.55, emissive: 0x0a2a2c, emissiveIntensity: 0.3 });
@@ -130,6 +131,7 @@ export function clockTower(anim) {
   for (let i = 0; i < 4; i++) {
     const a = (i * Math.PI) / 2, sx = Math.sin(a), cz = Math.cos(a);
     const face = new THREE.Mesh(new THREE.CircleGeometry(0.92, 40), faceM); face.position.set(sx * 1.36, Y, cz * 1.36); face.rotation.y = a; g.add(face);
+    face.name = 'clock-face'; face.userData.noBake = true; // 실제 광장: 한국 시간 (ui/plazaBoards.js)
     const rim = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.07, 10, 40), MAT.gold); rim.position.copy(face.position); rim.rotation.y = a; g.add(rim);
     // 움직이는 초침 (빨강)
     const hand = new THREE.Group(); hand.position.set(sx * 1.39, Y, cz * 1.39); hand.rotation.y = a; g.add(hand);
@@ -140,7 +142,7 @@ export function clockTower(anim) {
   box(g, 2.3, 0.18, 2.3, MAT.white, 0, Y + 1.62, 0, 0.04);
   cyl(g, 0.06, 0.06, 0.9, MAT.alu, 0, Y + 2.15, 0, 8);
   sphere(g, 0.25, std(0xff8a3d, { roughness: 0.35 }), 0, Y + 2.7, 0, 20);
-  anim.push((t) => { for (const h of hands) h.rotation.z = -((t / 60) % 1) * Math.PI * 2; });
+  anim.push(() => { const sec = (Date.now() / 1000) % 60; for (const h of hands) h.rotation.z = -(sec / 60) * Math.PI * 2; }); // 진짜 초침
   return g;
 }
 

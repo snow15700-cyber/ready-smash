@@ -121,6 +121,40 @@ export function planWalk(from, to) {
   return best || [clipWalk(from, end)]; // 못 찾으면(도착점이 건물 안 등) 막히는 곳 앞까지
 }
 
+// 장소 위 말풍선 (긴 말도 두 줄로): 화면 크기 고정(멀어도 읽히게), 빵색 테두리
+function spotBubble() {
+  const c = document.createElement('canvas');
+  c.width = 1024; c.height = 256;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
+  sp.renderOrder = 22;
+  sp.scale.set(0.5, 0.125, 1);
+  sp.center.set(0.5, 0);
+  sp.visible = false;
+  sp.draw = (text) => {
+    const g = c.getContext('2d');
+    g.clearRect(0, 0, c.width, c.height);
+    g.font = 'bold 54px Jua, sans-serif';
+    // 너무 길면 가운데쯤 띄어쓰기에서 두 줄로
+    let lines = [text];
+    if (g.measureText(text).width > 900) {
+      const mid = text.length / 2, sps = [...text.matchAll(/ /g)].map((m) => m.index);
+      const cut = sps.length ? sps.reduce((a, b) => (Math.abs(b - mid) < Math.abs(a - mid) ? b : a)) : Math.floor(mid);
+      lines = [text.slice(0, cut), text.slice(cut).trim()];
+    }
+    const w = Math.min(1000, Math.max(...lines.map((l) => g.measureText(l).width)) + 80), h = lines.length * 66 + 54;
+    const x = (c.width - w) / 2, y = c.height - h - 26;
+    g.fillStyle = 'rgba(255,250,240,.97)'; g.strokeStyle = '#a0522d'; g.lineWidth = 8;
+    g.beginPath(); g.roundRect(x, y, w, h, 40); g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(c.width / 2 - 20, y + h - 2); g.lineTo(c.width / 2, c.height - 4); g.lineTo(c.width / 2 + 20, y + h - 2); g.fillStyle = '#a0522d'; g.fill();
+    g.fillStyle = '#5a3418'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    lines.forEach((l, i) => g.fillText(l, c.width / 2, y + 27 + 33 + i * 66, 940));
+    tex.needsUpdate = true;
+  };
+  return sp;
+}
+
 // 발밑 동그란 그림자 (진짜 그림자 대신: 사람이 많아도 가볍게)
 let BLOB = null;
 function blobShadow() {
@@ -210,7 +244,7 @@ export function fireBand(inner, outer, dashes) {
   return m;
 }
 
-// handlers: onGround([x, z]) · onShop(shop) · onTable(t) · onSeat(t, s) · onKim() · onPerson(id)
+// handlers: onGround([x, z]) · onShop(shop) · onSpot(spot, 맞은 점[안쪽 x, y, z]) · onTable(t) · onSeat(t, s) · onKim() · onPerson(id)
 export function createPlazaView(world, handlers) {
   const K = PLAZA.kim;
   const root = new THREE.Group();
@@ -265,6 +299,7 @@ export function createPlazaView(world, handlers) {
   root.add(kim.sign.sp);
   tables.push({ sign: kim.sign }); // 카메라 앞 흐리게 (아래 update)
   // ⑤ 2대2에 불려 와 뛰어오는 김제빵 (src/plazaKim.js)
+  const spotBubs = new Map(); // 장소 말풍선 (spotSay)
   const runners = createKimRunners(root, { path: planWalk, bubble, blob: blobShadow, home: PLAZA.kimHome });
   const camObs = [...PLAZA.shops.map((s) => ({ ...s.rect, y1: s.h + 3 })), ...(PLAZA.camBlocks || [])];
 
@@ -299,6 +334,12 @@ export function createPlazaView(world, handlers) {
     return { s, box: new THREE.Box3(new THREE.Vector3(r.x0, 0, r.z0), new THREE.Vector3(r.x1, s.h + 2.6, r.z1 + 1.2)), inv: m.invert() };
   });
   const lray = new THREE.Ray();
+  // 눌러서 뭔가 되는 곳 (빵집·게시판·시계탑, 광장 20장 ②): 가게처럼 안쪽 좌표로 잼, 맞은 점(안쪽 좌표)도 같이 넘김
+  const spotBoxes = (PLAZA.spots || []).map((sp) => {
+    const [x0, x1, z0, z1, h] = sp.box;
+    const m = new THREE.Matrix4().makeRotationY(sp.yaw || 0).setPosition(sp.x, 0, sp.z);
+    return { sp, box: new THREE.Box3(new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x1, h, z1)), inv: m.invert() };
+  });
   // 탁구대 상자 (판 + 표지판 높이까지): 사람 대결용 t = 0~2, 김제빵 = 'kim'
   const tBox = (r, h) => new THREE.Box3(new THREE.Vector3(r.x0, 0, r.z0), new THREE.Vector3(r.x1, h, r.z1));
   const tableBoxes = [...PLAZA.tables.map((t, i) => ({ t: i, box: tBox(t.rect, 1.1) })), { t: 'kim', box: tBox(K.rect, 1.1) },
@@ -316,6 +357,11 @@ export function createPlazaView(world, handlers) {
       // 카메라가 건물 상자 안(건물 앞 바로 앞)에 있으면 그 건물은 건너뜀 — 안 그러면 어디를 눌러도 건물이 눌림
       if (b.box.containsPoint(lray.origin)) continue;
       if (lray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(lray.origin); if (d < bd) { bd = d; best = { shop: b.s }; } } // 돌림만 해서 거리는 그대로
+    }
+    for (const b of spotBoxes) {
+      lray.copy(ray.ray).applyMatrix4(b.inv);
+      if (b.box.containsPoint(lray.origin)) continue;
+      if (lray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(lray.origin); if (d < bd) { bd = d; best = { spot: b.sp, at: [hitP.x, hitP.y, hitP.z] }; } }
     }
     for (const b of tableBoxes) {
       if (ray.ray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = b.t === 'kim' ? { kim: true } : { table: b.t }; } }
@@ -381,6 +427,7 @@ export function createPlazaView(world, handlers) {
     if (!active() || p.moved || p.btn !== 0 || performance.now() - p.t0 > 900) return;
     const h = pick(e.clientX, e.clientY);
     if (h?.shop) handlers.onShop?.(h.shop);
+    else if (h?.spot) handlers.onSpot?.(h.spot, h.at);
     else if (h?.table != null) handlers.onTable?.(h.table);
     else if (h?.seat) handlers.onSeat?.(h.seat[0], h.seat[1]);
     else if (h?.kim) handlers.onKim?.();
@@ -432,6 +479,13 @@ export function createPlazaView(world, handlers) {
       f.bub.draw(text);
       f.bub.visible = true;
       f.bubT = performance.now() / 1000;
+    },
+    // 장소 위 말풍선 (빵집을 누르면 김제빵 대사 등, 내 화면에서만): 약 4초
+    spotSay(sp, text, y = 6.6) {
+      let b = spotBubs.get(sp.id);
+      if (!b) { b = spotBubble(); root.add(b); spotBubs.set(sp.id, b); }
+      b.position.set(sp.x, y, sp.z);
+      b.draw(text); b.visible = true; b.userData.t = performance.now() / 1000;
     },
     // 탁구대 하나의 모습: seats = ['empty'|'taken'|'ready'] ×4, lines = 표지판 글자 [큰 줄, 작은 줄], color = 표지판 테두리
     setTable(t, { seats, lines, color = '#ffd23f', busy = false }) {
@@ -506,7 +560,7 @@ export function createPlazaView(world, handlers) {
         const ex = tx - f.disp[0], ez = tz - f.disp[1], e = Math.hypot(ex, ez);
         if (e > 3) { f.disp[0] = tx; f.disp[1] = tz; } else { const k = 1 - Math.exp(-dt * 10); f.disp[0] += ex * k; f.disp[1] += ez * k; }
         const g = f.c.group;
-        g.position.set(f.disp[0], 0, f.disp[1]);
+        g.position.set(f.disp[0], PLAZA.heightAt?.(f.disp[0], f.disp[1]) || 0, f.disp[1]); // 전망대 데크 위면 조금 높이
         g.visible = f.me ? !meHidden : !filter || filter(f, f.disp);
         const left = Math.hypot(f.w.to[0] - f.disp[0], f.w.to[1] - f.disp[1]);
         const moving = left > 0.04;
@@ -538,6 +592,7 @@ export function createPlazaView(world, handlers) {
         if (f.me || dist < NEAR_TICK) f.c.tickOutfit(now, dt);
         if (f.bub.visible && now - f.bubT > 3) f.bub.visible = false;
       }
+      for (const b of spotBubs.values()) if (b.visible && now - b.userData.t > 4) b.visible = false;
       runners.update(now, dt);
       // 김제빵: 탁구채를 든 채 숨 쉬듯 흔들리고, 가끔 한 번씩 휘두른다 (도전하는 사람이 있으면 자주 — 같이 치는 중)
       if (now > kim.swingAt) {
@@ -577,10 +632,11 @@ export function createPlazaView(world, handlers) {
         }
       }
       const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw); // 카메라가 보는 방향
-      const look = tmpV.set(me.disp[0] + fx * 1.2, CAM.lookY, me.disp[1] + fz * 1.2);
+      const lookY = CAM.lookY + (PLAZA.heightAt?.(me.disp[0], me.disp[1]) || 0);
+      const look = tmpV.set(me.disp[0] + fx * 1.2, lookY, me.disp[1] + fz * 1.2);
       const h = Math.cos(cam.pitch) * cam.dist;
       let px = me.disp[0] - fx * h, pz = me.disp[1] - fz * h;
-      let py = CAM.lookY + Math.sin(cam.pitch) * cam.dist;
+      let py = lookY + Math.sin(cam.pitch) * cam.dist;
       if (camClamp) { const k = camClamp(me.disp, [px, pz]); px = me.disp[0] + (px - me.disp[0]) * k; pz = me.disp[1] + (pz - me.disp[1]) * k; py = CAM.lookY + (py - CAM.lookY) * Math.max(0.8, k); }
       // 카메라가 건물(가게·본관 기둥·유리 막대·빵집 등) 안으로 들어가지 않게: 들어가면 내 쪽으로 당긴다
       { let k = 1;

@@ -507,6 +507,24 @@ async function browserChecks() {
       must(await a.evaluate(async () => { const { WIN_CAM } = await import('/src/ui/plaza.js'); const [x, y, z] = WIN_CAM.rank.pos; return window.__smash.world.camera.position.distanceTo({ x, y, z }) < 0.6; }), '랭킹 카메라가 명예의 전당 앞이 아니에요');
       await a.evaluate(() => document.querySelector('#btn-rank-back').click());
       await waitFor(a, () => window.__smash.world.plazaOn && !document.querySelector('#lobby').classList.contains('hidden') && window.__smash.plaza.view.focusP === 0, null, 10000, '랭킹 → 광장 (카메라가 내 뒤로)');
+      // 광장 20장 ② 눌러서 되는 곳: 빵집 → 김제빵 말풍선, 게시판 오른쪽 종이 → 치는 방법 창, 시계탑 → 쉬는 시간 알림, 전광판·시계 글자, 데크 위 높이
+      const spotOk = await a.evaluate(async () => {
+        const { PLAZA } = await import('/src/arena-plaza.js');
+        const { boardsDebug } = await import('/src/ui/plazaBoards.js');
+        const P = window.__smash.plaza, sp = (id) => PLAZA.spots.find((x) => x.id === id);
+        P.spot(sp('bakery'), [0, 2, 3]);
+        P.spot(sp('clock'), [0, 3, 1]);
+        const toast = document.querySelector('#toast').textContent;
+        await new Promise((r) => setTimeout(r, 1500));
+        const k = boardsDebug.keys, o = boardsDebug.objs;
+        return { toast, faces: o.faces.length, plate: !!o.plate, board: !!o.board, keys: !!(k.clockKey && k.plateKey && k.boardKey), deckH: PLAZA.heightAt(13, 34), groundH: PLAZA.heightAt(0, 10) };
+      });
+      must(/쉬는 시간|주말|다음|끝/.test(spotOk.toast), '시계탑을 눌렀는데 쉬는 시간 안내가 안 나와요: ' + spotOk.toast);
+      must(spotOk.faces === 4 && spotOk.plate && spotOk.board && spotOk.keys, '시계탑·전광판 글자판을 못 찾았거나 안 그려요: ' + JSON.stringify(spotOk));
+      must(spotOk.deckH > 0.2 && spotOk.groundH === 0, '전망대 데크 높이가 이상해요');
+      await a.evaluate(async () => { const { PLAZA } = await import('/src/arena-plaza.js'); window.__smash.plaza.spot(PLAZA.spots.find((x) => x.id === 'board'), [1, 1.5, 0.4]); });
+      await waitFor(a, () => !document.querySelector('#howto').classList.contains('hidden'), null, 20000, '게시판 오른쪽 종이 → 걸어가서 치는 방법 창');
+      await a.evaluate(() => document.querySelector('#btn-howto-close').click());
       // 걷는 길이 탁구대에 막히면 모서리를 돌아서 간다 (1번 탁구대 건너편 자리 → 탁구대 앞에서 멈추지 않음)
       const around = await b.evaluate(async () => {
         const { planWalk } = await import('/src/plaza.js');

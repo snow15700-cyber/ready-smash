@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { addBox, std } from './arena-kit.js';
 import { buildCampus } from './campusMock.js';
 import { fillProps } from './campusModels.js';
-import { FOUNTAIN, KIM_SPOT, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS, toWorld } from './campusLayout.js';
+import { DECK, FOUNTAIN, heightAt, KIM_SPOT, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS, toWorld } from './campusLayout.js';
 import { GACHA_OUT, SHOP_D } from './campusShops.js';
 
 // 탁구대 (② 탁구대에 서서 경기, plaza.md 2장): 긴 쪽이 x. A팀(side 0) = 서쪽(x−) 끝, B팀(side 1) = 동쪽(x+) 끝.
@@ -42,7 +42,8 @@ const GACHA = SHOPS.find((s) => s.id === 'shop');
 
 // 걸을 수 있는 곳 (m)
 export const PLAZA = {
-  minX: -21.5, maxX: 21.5, minZ: -10, maxZ: 32,
+  minX: -21.5, maxX: 21.5, minZ: -10, maxZ: DECK.z1 - 0.35, // 남쪽은 전망대 데크 위까지 (데크 옆은 아래 blocks로 막음)
+  heightAt, // 서 있는 바닥 높이 (데크 위 0.25m)
   spawn: SPAWN, // 처음 서는 곳 (분수 남쪽, 북쪽 가게를 바라봄). 가게 문까지 약 13m(걸어서 3초)
   shops: SHOPS,
   tables: TABLES,
@@ -59,7 +60,11 @@ export const PLAZA = {
     box(SPOTS.truck, -2.4, 2.9, -1.15, 3.0),
     box(SPOTS.vending, -0.6, 3.0, -0.45, 0.45),
     box(SPOTS.bakery, -2.85, 2.85, -2.35, 3.4),
-    flat(6, 20, 31, 35.6), // 바다 전망대 데크
+    // 바다 전망대: 데크 위는 걸어 다님. 데크 양옆(광장 바닥 끝 너머)·망원경·벤치·안내 판은 막음
+    flat(-22, DECK.x0, 32.2, 36), flat(DECK.x1, 22, 32.2, 36),
+    { x: SPOTS.deck.x - 3, z: SPOTS.deck.z + 1.5, r: 0.4 }, { x: SPOTS.deck.x + 3, z: SPOTS.deck.z + 1.5, r: 0.4 },
+    flat(SPOTS.deck.x - 6.15, SPOTS.deck.x - 4.25, SPOTS.deck.z + 0.05, SPOTS.deck.z + 0.75), flat(SPOTS.deck.x + 4.25, SPOTS.deck.x + 6.15, SPOTS.deck.z + 0.05, SPOTS.deck.z + 0.75),
+    flat(SPOTS.deck.x - 0.85, SPOTS.deck.x + 0.85, SPOTS.deck.z - 2.1, SPOTS.deck.z - 1.8),
   ],
   // 카메라가 못 들어가는 곳 (가게·건물·본관 기둥·유리 막대). 가게는 따로 더함
   camBlocks: [
@@ -67,6 +72,12 @@ export const PLAZA = {
     box(SPOTS.bakery, -2.85, 2.85, -2.35, 2.4, { y1: 6 }),
     flat(-7.5, -0.5, -28.5, -19.5), flat(10, 16, -24, -16), flat(-34, -30, -27, -21), // 본관 검은 돌 기둥
     { ...flat(-36.3, 8.3, -30.3, -16.7), y0: 12.6, y1: 26.5 }, { ...flat(-0.3, 40.3, -25.3, -14.2), y0: 8.1, y1: 19.5 }, // 유리 막대 ①·②
+  ],
+  // 눌러서 뭔가 되는 곳 (광장 20장 ② 기능): 안쪽 좌표 클릭 상자 [x0, x1, z0, z1, 높이] — plaza.js pick → ui/plaza.js onSpot
+  spots: [
+    { id: 'bakery', ...SPOTS.bakery, box: [-2.9, 2.9, -2.4, 3.5, 6.2] }, // 김제빵 대사
+    { id: 'board', ...SPOTS.board, box: [-1.85, 1.85, -0.5, 0.6, 3.3], front: (lx) => toWorld(SPOTS.board, lx, 1.4) }, // 업데이트·미션·치는 방법
+    { id: 'clock', ...SPOTS.clock, box: [-1.4, 1.4, -1.4, 1.4, 11.5] }, // 쉬는 시간 안내
   ],
   // 김제빵이 뛰어나오는 곳 (빵집 문 앞) — plazaKim.js
   kimHome: toWorld(SPOTS.bakery, -1.45, FZ + 1.3),

@@ -24,6 +24,9 @@ export const SPOTS = {
 export const TABLE_SPOTS = [[-14, 13], [14, 13], [0, 25]];
 export const KIM_SPOT = [-14, 27];
 export const SPAWN = [0, 10.5];
+// 바다 전망대 나무 데크 (사용자 요청 11/25: 올라갈 수 있게): 광장 좌표 네모 + 바닥 높이
+export const DECK = { x0: 6, x1: 20, z0: 31.05, z1: 35.5, h: 0.25 };
+export const heightAt = (x, z) => (x > DECK.x0 && x < DECK.x1 && z > DECK.z0 && z < DECK.z1 ? DECK.h : 0);
 // 그룹 안(로컬) 점 → 광장 점. three.js rotation.y = yaw 와 같은 돌림
 export function toWorld(o, lx, lz) {
   const c = Math.cos(o.yaw || 0), s = Math.sin(o.yaw || 0);
