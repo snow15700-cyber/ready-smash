@@ -5,7 +5,7 @@ import { addBox, canvasTex, std } from '../../arena-kit.js';
 
 export const SEA_Y = -12;
 // 선착장: 해변(z 48)에서 바다 쪽으로 다리 약 14m → 끝 넓은 판 (사람 4~5명)
-export const PIER = { x: 13, z0: 47, z1: 62, w: 2.2, head: { x0: 7.5, x1: 18.5, z0: 62, z1: 66.5 }, y: -10.35 };
+export { PIER } from '../../campusLayout.js'; // 자리는 광장 배치 파일 한곳에서
 import { STAND } from './rules.js';
 export { STAND, CAST_MIN, CAST_MAX, CAST_ANG, castDist, landingPoint } from './rules.js'; // 던지기 계산은 rules.js (서버와 같게)
 
@@ -22,53 +22,8 @@ export function seaHeight(x, z, t) {
 
 const wood = std(0xa8794a, { roughness: 0.85 }), woodDark = std(0x6e4a2b, { roughness: 0.9 }), rope = std(0xd9c9a0);
 
-export function buildPier() {
-  const g = new THREE.Group();
-  const P = PIER, top = P.y;
-  // 다리: 해변 쪽은 낮게 시작해서 경사 → 평평
-  const plank = (x, z, w, d, y) => { const b = addBox(g, w, 0.08, d, Math.random() < 0.5 ? wood : std(0xb3855a, { roughness: 0.85 }), x, y, z); b.receiveShadow = true; b.castShadow = true; return b; };
-  for (let z = P.z0; z < P.z1; z += 0.5) {
-    const y = z < 51 ? -11.75 + ((z - P.z0) / 4) * (top - -11.75) : top;
-    plank(P.x, z + 0.25, P.w, 0.505, y);
-  }
-  for (let x = P.head.x0; x < P.head.x1 - 0.01; x += 0.5) plank(x + 0.25, (P.head.z0 + P.head.z1) / 2, 0.505, P.head.z1 - P.head.z0, top);
-  // 기둥 (물속으로)
-  const post = (x, z, h = 3.2) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, h, 10), woodDark); c.position.set(x, top - h / 2 + 0.25, z); c.castShadow = true; g.add(c); return c; };
-  for (let z = 52; z <= P.z1; z += 3.3) for (const sx of [-1, 1]) post(P.x + sx * (P.w / 2 + 0.05), z);
-  for (let x = P.head.x0; x <= P.head.x1 + 0.01; x += (P.head.x1 - P.head.x0) / 4) for (const z of [P.head.z0, P.head.z1]) post(x, z);
-  // 다리 난간 (밧줄) — 끝 판 앞쪽은 낚시하려고 비워 둠
-  for (const sx of [-1, 1]) {
-    for (let z = 51.5; z <= P.z1; z += 2.1) post(P.x + sx * (P.w / 2 + 0.05), z, 1.2).position.y = top + 0.6;
-    addBox(g, 0.04, 0.04, P.z1 - 51.5, rope, P.x + sx * (P.w / 2 + 0.05), top + 1.05, (51.5 + P.z1) / 2);
-  }
-  // 끝 판 양옆·뒤 낮은 턱
-  for (const x of [P.head.x0, P.head.x1]) addBox(g, 0.14, 0.18, P.head.z1 - P.head.z0, woodDark, x, top + 0.1, (P.head.z0 + P.head.z1) / 2);
-  addBox(g, P.head.x1 - P.head.x0, 0.14, 0.14, woodDark, (P.head.x0 + P.head.x1) / 2, top + 0.08, P.head.z1);
-  // 작은 표지판
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.5), new THREE.MeshBasicMaterial({ map: canvasTex(320, 100, (c) => { c.fillStyle = '#fff6e4'; c.fillRect(0, 0, 320, 100); c.strokeStyle = '#6e4a2b'; c.lineWidth = 8; c.strokeRect(4, 4, 312, 92); c.fillStyle = '#5a3418'; c.font = 'bold 50px Jua, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🎣 낚시터', 160, 54); }) }));
-  sign.position.set(P.x - P.w / 2 - 0.6, top + 1.3, 50.5); sign.rotation.y = Math.PI; g.add(sign);
-  post(P.x - P.w / 2 - 0.6, 50.5, 1.4).position.y = top + 0.4 - 1.4;
-  // 전망대(데크 동쪽 끝)에서 해변으로 내려오는 나무 계단 (꺾임 2번)
-  const steps = [[19.3, 35.6, 0.25, 19.3, 40.5, -5.2], [19.3, 40.5, -5.2, 16.2, 40.5, -5.2], [16.2, 40.5, -5.2, 16.2, 46.5, -11.85]];
-  for (const [x0, z0, y0, x1, z1, y1] of steps) {
-    const len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(Math.abs(y1 - y0) / 0.22) || Math.round(len / 0.5));
-    const ang = Math.atan2(x1 - x0, z1 - z0);
-    for (let i = 0; i < n; i++) {
-      const k = (i + 0.5) / n;
-      const s = addBox(g, 1.4, 0.1, len / n + 0.02, wood, x0 + (x1 - x0) * k, y0 + (y1 - y0) * k, z0 + (z1 - z0) * k);
-      s.rotation.y = ang; s.castShadow = true;
-    }
-    for (const sx of [-1, 1]) { // 손잡이
-      const mx = (x0 + x1) / 2 + Math.cos(ang) * sx * 0.7, mz = (z0 + z1) / 2 - Math.sin(ang) * sx * 0.7;
-      const r = addBox(g, 0.05, 0.05, Math.hypot(len, y1 - y0), woodDark, mx, (y0 + y1) / 2 + 0.95, mz);
-      r.rotation.order = 'YXZ'; r.rotation.y = ang; r.rotation.x = Math.atan2(y0 - y1, len);
-    }
-    if (y0 === y1) { const lf = addBox(g, 4, 0.12, 1.6, wood, (x0 + x1) / 2, y0, z0); lf.castShadow = true; } // 꺾이는 곳 판
-    // 받침 기둥
-    for (let k = 0; k <= 1; k += 0.5) { const y = y0 + (y1 - y0) * k; const h = y - -12.2; const c = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, h, 8), woodDark); c.position.set(x0 + (x1 - x0) * k, y - h / 2, z0 + (z1 - z0) * k); g.add(c); }
-  }
-  return g;
-}
+// 선착장·계단은 이제 광장 장면(buildCampus → src/campusPier.js)에 들어 있음 — 시안에서 따로 안 더함
+export function buildPier() { return new THREE.Group(); }
 
 // ── 낚싯대: 마디 8개가 이어져 있어서 끝으로 갈수록 휜다
 export function makeRod() {

@@ -36,3 +36,9 @@ export function toLocal(o, x, z) {
   const dx = x - o.x, dz = z - o.z, c = Math.cos(o.yaw || 0), s = Math.sin(o.yaw || 0);
   return [dx * c - dz * s, dx * s + dz * c];
 }
+// 낚시터 (docs/dev/fishing.md 11장, 사용자 확정 11/25): 전망대 옆 돌계단 → 전망대 바로 밑 바위 턱(땅) → 그 땅에 붙은 나무 선착장.
+// 끝 판(head)·서는 곳은 서버(28_fishing.sql)·rules.js STAND와 맞춰 둔 자리라 옮기지 않는다.
+export const CLIFF = { x0: 2, x1: 24, face: 39, shelfZ: 47 }; // 절벽 벽(광장 땅 끝 z = face) · 바위 턱 z face~shelfZ
+export const PIER = { x: 13, z0: 47, z1: 62, w: 2.2, head: { x0: 7.5, x1: 18.5, z0: 62, z1: 66.5 }, y: -10.35 }; // y = 나무 판 높이(바위 턱도 같음)
+// 돌계단: 입구 판(광장 높이, 전망대 동쪽 옆) → 위 계단(z1, 동→서) → 꺾임 판(turnX0~xL) → 아래 계단(z2, 서→동) → 바위 턱
+export const PIER_STAIRS = { top: { x0: 20.2, z0: 33 }, zTop: 39, xR: 22, xL: 9.5, turnX0: 7.5, z1: 39.75, z2: 41.4, w: 1.5 };

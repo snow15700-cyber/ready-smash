@@ -9,6 +9,7 @@ import { buildCampus } from './campusMock.js';
 import { fillProps } from './campusModels.js';
 import { DECK, FOUNTAIN, heightAt, KIM_SPOT, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS, toWorld } from './campusLayout.js';
 import { GACHA_OUT, SHOP_D } from './campusShops.js';
+import { buildPier } from './games/fishing/world.js';
 
 // 탁구대 (② 탁구대에 서서 경기, plaza.md 2장): 긴 쪽이 x. A팀(side 0) = 서쪽(x−) 끝, B팀(side 1) = 동쪽(x+) 끝.
 // 자리 4칸: 0·1 = A팀 1번·2번, 2·3 = B팀 1번·2번 (각 팀이 탁구대를 볼 때 1번이 왼쪽)
@@ -136,6 +137,16 @@ export function buildPlaza() {
   // 탁구대 4대 (사람 대결용 3대 + 김제빵 탁구대). 움직이지 않으니 합친다. 이름표·자리 칸·상태 표지판·김제빵은 src/plaza.js
   for (const t of PLAZA.tables) root.add(plazaTable(t, 0x2a5db0));
   root.add(plazaTable(PLAZA.kim, 0x2f8a4e));
+  // 낚시 4단계(docs/dev/fishing.md 11장): 전망대 → 해변 나무 계단 + 나무 선착장 (낚시 시안과 같은 모양, src/games/fishing/world.js)
+  // 널빤지 색이 무작위 재질 여러 개라 같은 색끼리 재질 하나로 모음 → 합치면 그리기 몇 번
+  const pier = buildPier(), pierMat = new Map();
+  pier.traverse((o) => {
+    if (!o.isMesh || o.material.map) return;
+    const k = o.material.color.getHex() + ':' + o.material.roughness;
+    if (!pierMat.has(k)) pierMat.set(k, o.material);
+    o.material = pierMat.get(k);
+  });
+  pier.name = 'pier'; root.add(pier);
   // 재질 가볍게 (느린 PC): 진짜 같은 빛 계산 재질(MeshStandard)은 픽셀마다 계산이 많아 광장 전체에 쓰면 느린 PC가 힘듦 → 실제 광장은 가벼운 재질로 (시안 페이지는 그대로)
   root.traverse((o) => { if (o.isMesh && !o.isInstancedMesh) o.material = Array.isArray(o.material) ? o.material.map(lightMat) : lightMat(o.material); });
   // 그림자는 큰 것만 (작은 부품 — 전구·캡슐·손잡이·빵 등 — 까지 그림자를 그리면 그리기가 두 배로 늘어 느린 PC가 힘듦)

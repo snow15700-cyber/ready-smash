@@ -6,6 +6,7 @@ import { buildMainHall } from './campusBuilding.js';
 import { closetShop, fameShop, gachaShop } from './campusShops.js';
 import { addLampGlow, makeDolphins, makeSea } from './campusFx.js';
 import { FOUNTAIN, KIM_SPOT, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS } from './campusLayout.js';
+import { buildPierArea } from './campusPier.js';
 import { bakery, board, clockTower, deck, foodTruck, fountain, photoZone, vending } from './campusProps.js';
 
 const FONT = (px) => `bold ${px}px Jua, sans-serif`;
@@ -96,7 +97,8 @@ export function buildCampus({ game = false } = {}) {
   for (let i = 0; i < 40; i++) {
     const t = i / 40, a = t * Math.PI * 2;
     const x = Math.cos(a) * 36 - 1, z = Math.sin(a) * 36 + 4;
-    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(4 + rnd() * 2, 0), slope); b.position.set(x, -5 + rnd(), z); b.scale.y = 0.8; root.add(b); // 전망대 데크 위로 안 솟게 낮춤
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(4 + rnd() * 2, 0), slope); b.position.set(x, -5 + rnd(), z); b.scale.y = 0.8; // 전망대 데크 위로 안 솟게 낮춤
+    if (!(x > 2 && x < 22 && z > 25)) root.add(b); // 전망대 아래는 절벽 벽·낚시터 계단 (campusPier.js)
   }
   // 바다 (남·동쪽 아래)
   const sea = makeSea(-12); root.add(sea.group); anim.push(sea.update); // 물결 (src/campusFx.js)
@@ -159,6 +161,7 @@ export function buildCampus({ game = false } = {}) {
   place(foodTruck(), SPOTS.truck);
   place(vending(), SPOTS.vending);
   place(deck(), SPOTS.deck);
+  root.add(buildPierArea()); // 전망대 옆 돌계단 · 바로 밑 바위 턱 · 나무 선착장 (낚시터)
   // 가장자리 가로등·벤치·소나무
   for (const sx of [-1, 1]) {
     for (const z of [-6, 6, 18, 30]) { const l = lamp(); l.position.set(sx * 22.3, 0, z); l.rotation.y = sx > 0 ? Math.PI : 0; root.add(l); }
