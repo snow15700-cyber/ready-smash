@@ -129,40 +129,68 @@ export function makeLine() {
   return { line, set, mat };
 }
 
-// ── 찌: 위 빨강·아래 흰색 + 안테나
-export function makeBobber() {
-  const g = new THREE.Group();
-  const top = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xff3d2a, emissive: 0x551005 }));
-  const bot = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xf7f7f2 }));
-  const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.3, 6), new THREE.MeshBasicMaterial({ color: 0xffe14a }));
-  ant.position.y = 0.2;
-  g.add(top, bot, ant);
-  return g;
+// ── 던지는 자리: 방향 3개(−1 왼쪽 · 0 가운데 · 1 오른쪽, 화면 기준) × 거리 3단계(가까움·중간·멂)
+// 바다(+z)를 보고 서 있어서 화면 오른쪽 = 세계 −x
+export const CAST_D = [7.5, 12, 17];
+export const CAST_ANG = 0.36;
+export function landingPoint(standX, dir, tier) {
+  const d = CAST_D[tier], a = -dir * CAST_ANG;
+  return { x: standX + Math.sin(a) * d, z: STAND.z + Math.cos(a) * d };
 }
 
-// ── 물고기 그림자 (물 위에 어둡게 비치는 모양). 크기로 짐작
-let SHADOW_TEX = null;
-function shadowTex() {
-  if (SHADOW_TEX) return SHADOW_TEX;
-  SHADOW_TEX = canvasTex(256, 128, (c) => {
-    c.filter = 'blur(6px)';
-    c.fillStyle = 'rgba(5,25,40,1)';
-    c.beginPath(); c.ellipse(140, 64, 80, 30, 0, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.moveTo(70, 64); c.lineTo(22, 34); c.lineTo(28, 94); c.closePath(); c.fill();
-  });
-  return SHADOW_TEX;
-}
-export function makeShadow(fish) {
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.5), new THREE.MeshBasicMaterial({ map: shadowTex(), transparent: true, opacity: 0.6, depthWrite: false, color: fish.grade === 'legend' ? 0x3a3000 : 0x000000 }));
-  m.rotation.x = -Math.PI / 2; m.renderOrder = 2;
-  m.scale.setScalar(fish.shadow);
-  const g = new THREE.Group(); g.add(m);
-  if (fish.grade === 'legend') { // 전설은 그림자 속에 금빛이 살짝 반짝
-    const glint = new THREE.Mesh(new THREE.CircleGeometry(0.5, 16), new THREE.MeshBasicMaterial({ color: 0xffd34a, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
-    glint.rotation.x = -Math.PI / 2; glint.position.y = 0.01; glint.renderOrder = 3; g.add(glint); g.userData.glint = glint;
-  }
-  g.userData.plane = m;
+// ── 긴 막대찌 + 빛나는 끝 (사용자 확정 11/25): 잠기면 막대가 쏙 사라짐. 원점 = 물에 뜨는 자리(물 높이)
+export function makeBobber() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.5, 10), new THREE.MeshLambertMaterial({ color: 0xff4a2a, emissive: 0x401006 }));
+  body.position.y = 0.1; // 물 위로 0.35m, 아래 0.15m
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.037, 0.06, 10), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+  band.position.y = 0.2;
+  const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, 0.45, 8), new THREE.MeshBasicMaterial({ color: 0xfff36a }));
+  ant.position.y = 0.57;
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 8), new THREE.MeshBasicMaterial({ color: 0xfffbd0 }));
+  tip.position.y = 0.8;
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), color: 0xfff36a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  glow.scale.setScalar(0.5); glow.position.y = 0.8;
+  g.add(body, band, ant, tip, glow);
+  g.userData.glow = glow;
   return g;
+}
+let GLOW = null;
+function glowTex() {
+  if (!GLOW) GLOW = canvasTex(64, 64, (c) => { const gr = c.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.3, 'rgba(255,255,255,.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, 64, 64); });
+  return GLOW;
+}
+
+// ── 기포: 밝은 물빛 동그라미 + 보글보글 올라오는 방울 + 작은 물결 고리
+export function makeBubbleFx(scene, fx) {
+  const discGeo = new THREE.CircleGeometry(1.6, 32);
+  const discs = [];
+  const ballGeo = new THREE.SphereGeometry(0.06, 8, 6), ballMat = new THREE.MeshBasicMaterial({ color: 0xf2fbff, transparent: true, opacity: 0.9 });
+  const balls = [];
+  for (let i = 0; i < 70; i++) { const m = new THREE.Mesh(ballGeo, ballMat); m.visible = false; scene.add(m); balls.push({ m, life: 0, x: 0, z: 0, y: 0, v: 0 }); }
+  let bi = 0, ringT = 0;
+  const update = (list, t, dt, seaH) => {
+    while (discs.length < list.length) { const d = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color: 0xbff3ff, transparent: true, opacity: 0, depthWrite: false })); d.rotation.x = -Math.PI / 2; d.renderOrder = 2; scene.add(d); discs.push(d); }
+    discs.forEach((d, i) => {
+      const b = list[i];
+      d.visible = !!b;
+      if (!b) return;
+      const y = seaH(b.x, b.z, t);
+      d.position.set(b.x, y + 0.04, b.z);
+      d.material.opacity = 0.4 * b.fade * (0.8 + 0.2 * Math.sin(t * 3 + i));
+      // 방울 (기포 하나에 1초에 약 14개)
+      if (Math.random() < dt * 14 * b.fade) {
+        const o = balls[bi++ % balls.length];
+        const r = Math.random() * 1.1, a = Math.random() * 6.28;
+        o.x = b.x + Math.cos(a) * r; o.z = b.z + Math.sin(a) * r; o.y = y - 0.1; o.v = 0.5 + Math.random() * 0.6; o.life = 0.5 + Math.random() * 0.4;
+        o.m.visible = true; o.m.scale.setScalar(0.6 + Math.random() * 1.2);
+      }
+    });
+    ringT -= dt;
+    if (ringT <= 0 && list.length) { ringT = 0.35; const b = list[(Math.random() * list.length) | 0]; fx.ring(b.x + (Math.random() - 0.5) * 1.4, seaH(b.x, b.z, t), b.z + (Math.random() - 0.5) * 1.4, 0.35); }
+    for (const o of balls) if (o.life > 0) { o.life -= dt; o.y += o.v * dt; o.m.position.set(o.x, Math.min(o.y, seaH(o.x, o.z, t) + 0.12), o.z); if (o.life <= 0) o.m.visible = false; }
+  };
+  return { update };
 }
 
 // ── 물고기 모형 (튀어 오를 때·잡았을 때). 머리가 +x

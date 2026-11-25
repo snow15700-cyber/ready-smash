@@ -1,162 +1,167 @@
-// 낚시 화면 글자·링 (2D 캔버스, 3D 위에 겹침) — '소리 없이도 손맛'(fishing.md 5-2장)
-//  입질 링(톡: 작고 빠름 / 가짜 풍덩: 닫히기 전에 깨짐 / 진짜: 끝까지 닫힘) · 의성어 · 판정 · 집중선 컷인
-//  장력 게이지·거리 · 펌핑 링(낚싯줄을 타고 옴) · 줄 불꽃 · 가장자리 빨간 맥동 · 도장 '쾅' · 결과 카드
+// 낚시 화면 (2D 캔버스, 3D 위에 겹침) — 리듬 방식 (fishing.md 8장)
+//  준비: 던질 자리 3×3 점 · 세기 3칸 · 기포 표시 / 입질: 찌 확대 창 테두리 · '!' / 줄다리기: 가운데 기본 원 + 줄어드는 원 · 거리 게이지
+//  공통: 의성어 · 판정 · 집중선 컷인 · 도장 '쾅' · 결과 카드 (소리 없이도 손맛)
 import * as THREE from 'three';
 import { GRADE } from './data.js';
-import { seaHeight } from './world.js';
+import { landingPoint, seaHeight } from './world.js';
 
 const JUA = (px) => `${Math.round(px)}px Jua, 'Pretendard Variable', sans-serif`;
 const UI = (w, px) => `${w} ${Math.round(px)}px 'Pretendard Variable', system-ui, sans-serif`;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const v = new THREE.Vector3();
+const TIER = ['가까이', '중간', '멀리'];
 
-export function drawHud(g, W, H, { S, TUNE, camera, tipW, caught, best }) {
+// 찌 확대 창 자리 (오른쪽 아래, 화면 좌표 · 위에서부터)
+export function zoomRect(W, H) {
+  const s = Math.round(clamp(Math.min(W, H) * 0.3, 130, 220));
+  return { x: W - s - 16, y: H - s - (W < 560 ? 130 : 100), s };
+}
+// 줄다리기 기본 원 자리 (화면 가운데 조금 아래, 사용자 확정)
+const baseAt = (W, H) => ({ x: W / 2, y: H * 0.6 });
+
+export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
   g.clearRect(0, 0, W, H);
   const m = Math.min(W, H), u = clamp(m / 720, 0.7, 1.3);
-  const proj = (p) => { v.copy(p).project(camera); return { x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H, ok: v.z < 1 }; };
-  const T = S.fight ? S.fight.T : 0;
+  const proj = (p, cam = camera, rect = null) => {
+    v.copy(p).project(cam);
+    if (rect) return { x: rect.x + (v.x + 1) / 2 * rect.s, y: rect.y + (1 - v.y) / 2 * rect.s, ok: v.z < 1 };
+    return { x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H, ok: v.z < 1 };
+  };
+  const out = (txt, x, y, px, col, lw = 6) => { g.font = JUA(px); g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = lw; g.strokeStyle = 'rgba(10,25,45,.75)'; g.strokeText(txt, x, y); g.fillStyle = col; g.fillText(txt, x, y); };
 
-  // 장력 80% 넘으면 화면 가장자리 빨간 맥동
-  if (S.mode === 'fight' && T >= 0.8) {
-    const a = (0.25 + 0.25 * Math.sin(S.now * 18)) * (T - 0.75) * 4;
-    const gr = g.createRadialGradient(W / 2, H / 2, m * 0.35, W / 2, H / 2, Math.hypot(W, H) * 0.6);
-    gr.addColorStop(0, 'rgba(255,30,30,0)'); gr.addColorStop(1, `rgba(255,30,30,${clamp(a, 0, 0.6)})`);
-    g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  // 기포 표시 (모두가 보는 곳) + 남은 시간
+  for (const b of S.mode === 'result' ? [] : S.bubbles) {
+    const p = proj(new THREE.Vector3(b.x, seaHeight(b.x, b.z, S.now) + 1.6, b.z));
+    if (!p.ok) continue;
+    g.globalAlpha = b.fade;
+    out(`🫧 ${Math.ceil(b.left)}초`, p.x, p.y + Math.sin(S.now * 2) * 3, 18 * u, '#e6fbff', 4);
+    g.globalAlpha = 1;
+  }
+  if (S.bubbleNote) {
+    const a = clamp(Math.min(S.bubbleNote.t * 4, (3 - S.bubbleNote.t) * 2), 0, 1);
+    g.globalAlpha = a;
+    const txt = '🫧 기포가 올라와요! 근처에 던지면 귀한 물고기가 잘 와요';
+    g.font = UI(700, clamp(m * 0.026, 12, 16)); const tw = g.measureText(txt).width + 28;
+    glass(g, W / 2 - tw / 2, 58, tw, 34, 17); g.fillStyle = '#bff3ff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, W / 2, 76);
+    g.globalAlpha = 1;
   }
 
-  // 준비: 그림자 위에 ↖ ↑ ↗
+  // 준비: 던질 자리 3×3 점 (끄는 중이면 지금 방향·세기를 밝게)
   if (S.mode === 'ready') {
-    for (const sh of S.shadows) {
-      if (sh.flee) continue;
-      const p = proj(new THREE.Vector3(sh.x, seaHeight(sh.x, sh.z, S.now) + 1.2, sh.z));
+    const tier = S.power < 0.34 ? 0 : S.power < 0.72 ? 1 : 2;
+    for (const dir of [-1, 0, 1]) for (const t of [0, 1, 2]) {
+      const L = landingPoint(S.standX, dir, t);
+      const p = proj(new THREE.Vector3(L.x, seaHeight(L.x, L.z, S.now), L.z));
       if (!p.ok) continue;
-      const ang = -Math.atan2(sh.x - S.standX, sh.z - 65.6); // 화면 오른쪽 = −x
-      const arrow = ang < -0.19 ? '↖' : ang > 0.19 ? '↗' : '↑';
-      g.globalAlpha = 0.55 + 0.25 * Math.sin(S.now * 3 + sh.ph);
-      g.font = JUA(26 * u); g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.lineWidth = 5; g.strokeStyle = 'rgba(10,30,50,.55)'; g.strokeText(arrow, p.x, p.y); g.fillStyle = '#fff'; g.fillText(arrow, p.x, p.y);
-      g.globalAlpha = 1;
+      const on = S.drag && dir === S.aim.dir && t === tier;
+      const r = (on ? 9 : 5) * u * (1.2 - t * 0.2);
+      g.fillStyle = on ? '#FF8A1F' : 'rgba(255,255,255,.55)'; g.strokeStyle = 'rgba(10,25,45,.5)'; g.lineWidth = 2;
+      g.beginPath(); g.ellipse(p.x, p.y, r, r * 0.45, 0, 0, 7); g.fill(); g.stroke();
     }
-  }
-
-  // 입질 링
-  const bobP = proj(S.bob);
-  const E = S.ev;
-  if (S.mode === 'wait' && E && bobP.ok) {
-    const t = S.t;
-    const big = E.kind !== 'tok';
-    const R0 = (big ? 96 : 48) * u, Rt = (big ? 26 : 17) * u;
-    const closeT = E.kind === 'tok' ? E.close : E.sink + TUNE.win; // 가짜 풍덩도 진짜와 같은 빠르기로 좁혀짐
-    const p = clamp((t - E.st) / (closeT - E.st), 0, 1);
-    const cx = bobP.x, cy = bobP.y;
-    // 시작 순간 파동
-    const age = t - E.st;
-    if (age < 0.45) { g.strokeStyle = `rgba(255,255,255,${0.8 * (1 - age / 0.45)})`; g.lineWidth = 3; g.beginPath(); g.arc(cx, cy, Rt + age * 260 * u, 0, 7); g.stroke(); }
-    if (E.broken) { // 깨진 링: 조각이 흩어짐
-      const k = (t - E.broken) / 0.35;
-      if (k < 1) {
-        const r = Rt + (R0 - Rt) * (1 - p);
-        g.lineWidth = 5 * u; g.strokeStyle = `rgba(255,225,74,${1 - k})`;
-        for (let i = 0; i < 8; i++) { const a0 = (i / 8) * Math.PI * 2, dr = k * 40 * u; g.beginPath(); g.arc(cx + Math.cos(a0 + 0.3) * dr, cy + Math.sin(a0 + 0.3) * dr, r, a0 + 0.08, a0 + 0.62); g.stroke(); }
+    // 세기 3칸 (끄는 동안)
+    if (S.drag || S.power > 0.01) {
+      const cw = 54 * u, ch = 14 * u, gap = 6, tw = cw * 3 + gap * 2, x0 = W / 2 - tw / 2, y0 = H - 128;
+      glass(g, x0 - 10, y0 - 26, tw + 20, ch + 36, 12);
+      g.font = UI(700, 12); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(`세기: ${TIER[tier]}`, W / 2, y0 - 13);
+      for (let i = 0; i < 3; i++) {
+        const fill = clamp((S.power - [0, 0.34, 0.72][i]) / [0.34, 0.38, 0.28][i], 0, 1);
+        g.fillStyle = 'rgba(255,255,255,.18)'; rr(g, x0 + i * (cw + gap), y0, cw, ch, 6); g.fill();
+        g.fillStyle = ['#7fe3a0', '#ffd23a', '#FF8A1F'][i]; rr(g, x0 + i * (cw + gap), y0, cw * fill, ch, 6); g.fill();
       }
-    } else if (t <= closeT + 0.12) {
-      const r = Rt + (R0 - Rt) * (1 - p);
-      const fade = t > closeT ? 1 - (t - closeT) / 0.12 : 1;
-      g.globalAlpha = fade;
-      // 과녁(닫히는 자리)
-      g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,.55)'; g.setLineDash([4, 4]); g.beginPath(); g.arc(cx, cy, Rt, 0, 7); g.stroke(); g.setLineDash([]);
-      // 좁혀지는 링 (어두운 테두리 + 밝은 링 = 고대비)
-      g.lineWidth = (big ? 9 : 6) * u; g.strokeStyle = 'rgba(10,25,45,.55)'; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke();
-      const col = E.kind === 'tok' ? '#cfe8ff' : E.done.sink ? '#ffb02e' : '#ffffff';
-      g.lineWidth = (big ? 5 : 3.5) * u; g.strokeStyle = col; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke();
-      g.globalAlpha = 1;
     }
   }
 
-  // 펄쩍 링 (Bad 뒤)
-  if (S.mode === 'jump' && S.jump?.model?.visible && S.jump.close) {
-    const p0 = proj(S.jump.model.position);
-    const k = clamp((S.t - S.jump.st) / (S.jump.close - S.jump.st), 0, 1);
-    const r = 30 * u + 70 * u * (1 - k);
-    if (S.t <= S.jump.close + 0.12) {
-      g.lineWidth = 8 * u; g.strokeStyle = 'rgba(10,25,45,.55)'; g.beginPath(); g.arc(p0.x, p0.y, r, 0, 7); g.stroke();
-      g.lineWidth = 4.5 * u; g.strokeStyle = '#ffb02e'; g.beginPath(); g.arc(p0.x, p0.y, r, 0, 7); g.stroke();
-      g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,.6)'; g.setLineDash([4, 4]); g.beginPath(); g.arc(p0.x, p0.y, 30 * u, 0, 7); g.stroke(); g.setLineDash([]);
-    }
+  // 진짜 입질: 찌 위 '!' (큰 화면)
+  if (S.alertT >= 0 && S.mode === 'wait') {
+    const p = proj(S.bob.clone().add(new THREE.Vector3(0, 1.4, 0)));
+    const s = S.alertT < 0.1 ? 0.5 + S.alertT * 8 : 1 + Math.sin(S.alertT * 40) * 0.06;
+    if (p.ok) { g.save(); g.translate(p.x, p.y); g.scale(s, s); out('!', 0, 0, 72 * u, '#FF8A1F', 10); g.restore(); }
   }
 
-  // 줄다리기
-  if (S.mode === 'fight' && S.fight) {
-    const Fi = S.fight;
-    const tipP = proj(tipW);
-    // 펌핑 링: 찌 → 낚싯줄을 타고 → 대 끝 근처 표시
-    const mark = { x: bobP.x + (tipP.x - bobP.x) * 0.78, y: bobP.y + (tipP.y - bobP.y) * 0.78 };
-    if (S.t > 0.9) {
-      g.lineWidth = 2.5; g.strokeStyle = 'rgba(255,255,255,.75)'; g.setLineDash([5, 4]); g.beginPath(); g.arc(mark.x, mark.y, 24 * u, 0, 7); g.stroke(); g.setLineDash([]);
-      g.font = UI(700, 11 * u); g.fillStyle = 'rgba(255,255,255,.85)'; g.textAlign = 'center'; g.textBaseline = 'top'; g.fillText('펌핑', mark.x, mark.y + 28 * u);
-    }
-    if (Fi.pump) {
-      const k = clamp((S.t - Fi.pump.st) / (Fi.pump.arrive - Fi.pump.st), 0, 1.2);
-      const x = bobP.x + (mark.x - bobP.x) * k, y = bobP.y + (mark.y - bobP.y) * k;
-      const near = Math.abs(S.t - Fi.pump.arrive) <= 0.13;
-      g.lineWidth = 9 * u; g.strokeStyle = 'rgba(10,25,45,.5)'; g.beginPath(); g.arc(x, y, 24 * u, 0, 7); g.stroke();
-      g.lineWidth = 5 * u; g.strokeStyle = near ? '#7fe3a0' : '#ffb02e'; g.beginPath(); g.arc(x, y, 24 * u, 0, 7); g.stroke();
-    }
-    // 줄 불꽃 (80%~)
-    for (const s of S.sparks) {
-      if (s.x === null) { s.x = bobP.x + (tipP.x - bobP.x) * (0.3 + s.k * 0.6); s.y = bobP.y + (tipP.y - bobP.y) * (0.3 + s.k * 0.6); }
-      s.x += s.vx / 60; s.y += s.vy / 60; s.vy += 8;
-      g.fillStyle = `rgba(255,${180 + Math.random() * 70 | 0},90,${clamp(s.life * 3, 0, 1)})`; g.fillRect(s.x - 1.5, s.y - 1.5, 3, 3);
-    }
-    // 장력 게이지 (오른쪽 세로)
-    const bh = Math.min(H * 0.42, 280), bw = 18, bx = W - 46, by = H * 0.47 - bh / 2;
-    glass(g, bx - 11, by - 34, bw + 22, bh + 70, 16);
-    g.fillStyle = 'rgba(255,255,255,.12)'; rr(g, bx, by, bw, bh, 9); g.fill();
-    g.save(); rr(g, bx, by, bw, bh, 9); g.clip();
-    const col = T < 0.41 ? '#9fd2ff' : T < 0.8 ? '#ffb02e' : (Math.sin(S.now * 30) > 0 ? '#ff2d2d' : '#ffd0d0');
-    g.fillStyle = col; g.fillRect(bx, by + bh * (1 - T), bw, bh * T);
-    g.restore();
-    for (const [k, c] of [[0.41, 'rgba(255,255,255,.5)'], [0.8, 'rgba(255,90,90,.9)']]) { g.strokeStyle = c; g.lineWidth = 1.5; g.beginPath(); g.moveTo(bx - 4, by + bh * (1 - k)); g.lineTo(bx + bw + 4, by + bh * (1 - k)); g.stroke(); }
-    g.font = UI(700, 12); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'bottom'; g.fillText('장력', bx + bw / 2, by - 10);
-    g.textBaseline = 'top'; g.fillText(`${Math.round(T * 100)}%`, bx + bw / 2, by + bh + 10);
-    // 거리 (위쪽 가로): 물고기 → 낚싯대
-    const dw = Math.min(320, W - 140), dx = W / 2 - dw / 2, dy = 64;
+  // 찌 확대 창 테두리 (동그랗게: 네모 안쪽 원 밖을 가림)
+  if (zoom) {
+    const z = zoomRect(W, H), cx = z.x + z.s / 2, cy = z.y + z.s / 2, r = z.s / 2 - 2;
+    const jx = (Math.random() - 0.5) * S.zshake * 0.6, jy = (Math.random() - 0.5) * S.zshake * 0.6;
+    g.fillStyle = 'rgba(15,25,50,.9)'; // 네모 귀퉁이를 유리 틀로 가려서 동그란 창
+    g.beginPath(); g.rect(z.x - 1, z.y - 1, z.s + 2, z.s + 2); g.arc(cx, cy, r, 0, Math.PI * 2, true); g.fill('evenodd');
+    g.lineWidth = 5; g.strokeStyle = S.alertT >= 0 ? '#FF8A1F' : 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(cx + jx, cy + jy, r, 0, 7); g.stroke();
+    g.lineWidth = 1.5; g.strokeStyle = 'rgba(10,25,45,.4)'; g.beginPath(); g.arc(cx + jx, cy + jy, r + 3, 0, 7); g.stroke();
+    g.font = UI(700, 11); g.fillStyle = 'rgba(255,255,255,.85)'; g.textAlign = 'center'; g.textBaseline = 'top'; g.fillText('찌 확대', cx, z.y + 3);
+    if (S.alertT >= 0) { const s = 1 + Math.sin(S.alertT * 40) * 0.08; g.save(); g.translate(cx, z.y + z.s * 0.28); g.scale(s, s); out('!', 0, 0, z.s * 0.32, '#FF8A1F', 8); g.restore(); }
+  }
+
+  // 줄다리기: 거리 게이지 + 기본 원 + 줄어드는 원
+  if (S.mode === 'fight' && S.R) {
+    const R = S.R, b = baseAt(W, H), br = 36 * u, appr = 2 * R.spb;
+    // 거리 게이지 (위): 왼쪽 🎣 = 잡음 · 오른쪽 🌊 = 도망
+    const dw = Math.min(320, W - 140), dx = W / 2 - dw / 2, dy = W < 560 ? 100 : 64; // 휴대폰은 위 표시와 안 겹치게
     glass(g, dx - 40, dy - 16, dw + 80, 32, 16);
-    g.fillStyle = 'rgba(255,255,255,.18)'; rr(g, dx, dy - 3, dw, 6, 3); g.fill();
-    const k = clamp(1 - Fi.dist, 0, 1);
-    g.fillStyle = '#7fe3a0'; rr(g, dx, dy - 3, dw * k, 6, 3); g.fill();
-    g.font = JUA(20); g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(S.fish.emoji, dx + dw * k, dy); g.fillText('🎣', dx + dw + 22, dy);
-    if (Fi.dist > 1.05) { g.font = UI(700, 12); g.fillStyle = '#ff8a8a'; g.fillText('너무 멀어져요!', dx + dw / 2, dy + 26); }
+    const grd = g.createLinearGradient(dx, 0, dx + dw, 0); grd.addColorStop(0, '#7fe3a0'); grd.addColorStop(0.6, '#ffd23a'); grd.addColorStop(1, '#ff5a4a');
+    g.fillStyle = grd; g.globalAlpha = 0.85; rr(g, dx, dy - 3, dw, 6, 3); g.fill(); g.globalAlpha = 1;
+    g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 2; g.beginPath(); g.moveTo(dx + dw * 0.6, dy - 8); g.lineTo(dx + dw * 0.6, dy + 8); g.stroke();
+    g.font = JUA(20); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
+    g.fillText('🎣', dx - 22, dy); g.fillText('🌊', dx + dw + 22, dy);
+    R.shown = R.shown === undefined ? R.dist : R.shown + (R.dist - R.shown) * 0.2;
+    g.fillText(S.fish.emoji, dx + dw * clamp(R.shown / 100, 0, 1), dy);
+    if (S.t > 0.4) {
+      // 기본 원 (박자마다 두근)
+      const pr = br * (1 + R.pulse * 0.12);
+      g.fillStyle = 'rgba(15,25,50,.35)'; g.beginPath(); g.arc(b.x, b.y, pr, 0, 7); g.fill();
+      g.lineWidth = 6 * u; g.strokeStyle = 'rgba(10,25,45,.55)'; g.beginPath(); g.arc(b.x, b.y, pr, 0, 7); g.stroke();
+      g.lineWidth = 3.5 * u; g.strokeStyle = '#ffffff'; g.beginPath(); g.arc(b.x, b.y, pr, 0, 7); g.stroke();
+      g.fillStyle = `rgba(255,255,255,${0.25 + R.pulse * 0.5})`; g.beginPath(); g.arc(b.x, b.y, 7 * u, 0, 7); g.fill();
+      // 줄어드는 원 (다가오는 노트들)
+      for (const n of R.notes) {
+        if (n.res) continue;
+        const k = (n.t - S.t) / appr; // 1 → 0
+        if (k > 1 || k < -0.3) continue;
+        const r = br * (1 + Math.max(0, k) * 2.4);
+        const a = clamp((1 - k) * 3, 0, 1);
+        g.globalAlpha = a;
+        g.lineWidth = 7 * u; g.strokeStyle = 'rgba(10,25,45,.5)'; g.beginPath(); g.arc(b.x, b.y, r, 0, 7); g.stroke();
+        g.lineWidth = 4 * u; g.strokeStyle = GRADE[S.fish.grade].color === '#9fb4c8' ? '#ffb02e' : GRADE[S.fish.grade].color; g.beginPath(); g.arc(b.x, b.y, r, 0, 7); g.stroke();
+        g.globalAlpha = 1;
+      }
+      // 판정 글자 (맞춘 노트)
+      for (const n of R.notes) {
+        if (!n.res) continue;
+        const k = (S.t - n.at) / 0.5;
+        g.globalAlpha = 1 - k;
+        const col = n.res === 'Perfect' ? '#ffb02e' : n.res === 'Good' ? '#7fe3a0' : '#c9d3e0';
+        out(n.res, b.x, b.y - br - 22 * u - k * 20, (n.res === 'Perfect' ? 30 : 26) * u, col, 5);
+        if (n.res !== 'Miss') { g.lineWidth = 4; g.strokeStyle = col; g.beginPath(); g.arc(b.x, b.y, br * (1 + k * 0.8), 0, 7); g.stroke(); }
+        g.globalAlpha = 1;
+      }
+    }
   }
 
-  // 의성어·글자
+  // 의성어·글자 (zoom: 찌 확대 창 안 위쪽)
+  const zr = zoom ? zoomRect(W, H) : null;
   for (const x of S.texts) {
     let p;
-    if (x.at) { p = proj(x.at); if (!p.ok) continue; } else p = { x: x.sx * W, y: x.sy * H };
+    if (x.zoom) { if (!zr) continue; p = { x: zr.x + zr.s / 2, y: zr.y + zr.s * 0.22 }; }
+    else if (x.at) { p = proj(x.at); if (!p.ok) continue; } else p = { x: x.sx * W, y: x.sy * H };
     const k = x.t / x.life;
-    const pop = k < 0.12 ? 0.6 + k / 0.12 * 0.5 : k < 0.22 ? 1.1 - (k - 0.12) * 1 : 1;
+    const pop = k < 0.12 ? 0.6 + (k / 0.12) * 0.5 : k < 0.22 ? 1.1 - (k - 0.12) : 1;
     const a = k > 0.65 ? 1 - (k - 0.65) / 0.35 : 1;
     const sx = (Math.random() - 0.5) * x.shake * 2, sy = (Math.random() - 0.5) * x.shake * 2;
     g.save(); g.globalAlpha = a; g.translate(p.x + sx, p.y + sy - k * x.rise); g.scale(pop, pop);
-    g.font = JUA(x.size * u); g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.lineWidth = Math.max(4, x.size * u * 0.16); g.lineJoin = 'round'; g.strokeStyle = 'rgba(10,25,45,.75)'; g.strokeText(x.txt, 0, 0);
-    g.fillStyle = x.color; g.fillText(x.txt, 0, 0);
+    out(x.txt, 0, 0, x.size * u, x.color, Math.max(4, x.size * u * 0.16));
     g.restore();
   }
 
-  // 판정
+  // 판정 (챔질)
   if (S.judge) {
     const J = S.judge, k = J.t;
     const pop = k < 0.1 ? 0.5 + k * 6 : k < 0.2 ? 1.1 - (k - 0.1) : 1;
-    g.save(); g.globalAlpha = k > 0.8 ? 1 - (k - 0.8) / 0.3 : 1; g.translate(W / 2, H * 0.2); g.scale(pop, pop);
-    g.font = JUA(46 * u); g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.lineWidth = 8; g.lineJoin = 'round'; g.strokeStyle = 'rgba(10,25,45,.7)'; g.strokeText(J.txt, 0, 0); g.fillStyle = J.color; g.fillText(J.txt, 0, 0);
-    if (J.sub) { g.font = UI(700, 15 * u); g.lineWidth = 4; g.strokeText(J.sub, 0, 36 * u); g.fillStyle = '#fff'; g.fillText(J.sub, 0, 36 * u); }
+    g.save(); g.globalAlpha = k > 0.8 ? 1 - (k - 0.8) / 0.3 : 1; g.translate(W / 2, H * 0.22); g.scale(pop, pop);
+    out(J.txt, 0, 0, 46 * u, J.color, 8);
+    if (J.sub) { g.font = UI(700, 15 * u); g.lineWidth = 4; g.strokeStyle = 'rgba(10,25,45,.7)'; g.strokeText(J.sub, 0, 36 * u); g.fillStyle = '#fff'; g.fillText(J.sub, 0, 36 * u); }
     g.restore();
   }
 
-  // 집중선 컷인 (희귀·전설이 걸렸을 때)
+  // 집중선 컷인 (희귀·전설)
   if (S.cutin && S.cutin.t < 1.0) {
     const C = S.cutin, k = C.t;
     const a = k < 0.1 ? k / 0.1 : k > 0.8 ? 1 - (k - 0.8) / 0.2 : 1;
@@ -170,9 +175,8 @@ export function drawHud(g, W, H, { S, TUNE, camera, tipW, caught, best }) {
       g.beginPath(); g.moveTo(Math.cos(ang - 0.006) * r0, Math.sin(ang - 0.006) * r0); g.lineTo(Math.cos(ang - 0.02) * r1, Math.sin(ang - 0.02) * r1); g.lineTo(Math.cos(ang + 0.02) * r1, Math.sin(ang + 0.02) * r1); g.closePath(); g.fill();
     }
     const slide = k < 0.15 ? (1 - k / 0.15) * W * 0.6 : 0;
-    g.font = JUA(70 * u); g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.lineWidth = 10; g.lineJoin = 'round'; g.strokeStyle = 'rgba(10,25,45,.85)'; g.strokeText(C.txt, slide, -10 * u); g.fillStyle = C.color; g.fillText(C.txt, slide, -10 * u);
-    g.font = JUA(30 * u); g.lineWidth = 6; g.strokeText(C.sub, -slide, 48 * u); g.fillStyle = '#fff'; g.fillText(C.sub, -slide, 48 * u);
+    out(C.txt, slide, -10 * u, 70 * u, C.color, 10);
+    out(C.sub, -slide, 48 * u, 30 * u, '#fff', 6);
     g.restore();
   }
 
@@ -188,12 +192,12 @@ export function drawHud(g, W, H, { S, TUNE, camera, tipW, caught, best }) {
   }
 
   // 안내 문구 (아래)
+  const E = S.ev;
   const hints = {
-    ready: S.hint?.txt || (matchMedia('(pointer: coarse)').matches ? '노리는 그림자를 톡 눌러 던지기' : '마우스를 누른 채 위로 휘둘러 던지기  ↖ ↑ ↗'),
+    ready: S.drag ? '위로 쭉! 빠를수록 멀리' : S.hint?.txt || '누른 채 위로 끌어올려 던지기 · ↖ ↑ ↗ · 빠를수록 멀리',
     cast: '',
-    wait: !E ? '기다려요… 톡·가짜 풍덩은 참기' : E.kind === 'real' && E.done.sink ? '지금! 링이 닫힐 때' : '참을까? 누를까?',
-    jump: '펄쩍! 링이 닫힐 때 누르기',
-    fight: S.t < 0.9 ? '' : T >= 0.8 ? '끼이익! 손 떼기' : S.fight?.pump ? '링이 표시에 오면 떼었다 다시 누르기!' : S.holding ? '감는 중… 빨개지면 손 떼기' : '꾹 누르면 감기',
+    wait: S.alertT >= 0 ? '지금!' : E || S.evI >= 0 ? "참기… '!'가 뜨면 누르기" : "기다려요… '!'가 뜨면 누르기",
+    fight: S.R && S.t > S.R.t0 - 2 * S.R.spb ? '원이 닿을 때 누르기 · 박자에 맞춰' : '',
     land: '',
     result: S.t > 0.7 ? '눌러서 다시 던지기' : '',
   };
@@ -202,38 +206,38 @@ export function drawHud(g, W, H, { S, TUNE, camera, tipW, caught, best }) {
     g.font = UI(700, clamp(m * 0.032, 14, 20));
     const tw = g.measureText(hint).width + 34, th = 40, hy = H - 74;
     glass(g, W / 2 - tw / 2, hy - th / 2, tw, th, th / 2);
-    g.fillStyle = /지금|떼기|끼이익/.test(hint) ? '#FF8A1F' : '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(hint, W / 2, hy + 1);
+    g.fillStyle = /지금/.test(hint) ? '#FF8A1F' : '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(hint, W / 2, hy + 1);
   }
 
-  // 결과 카드
-  if (S.mode === 'result' && S.result) drawResult(g, W, H, S, u, best);
+  if (S.mode === 'result' && S.result) drawResult(g, W, H, S, u);
 
-  g.font = UI(600, 12); g.fillStyle = 'rgba(255,255,255,.9)'; g.textAlign = 'right'; g.textBaseline = 'bottom';
-  g.fillText(`잡은 물고기 ${caught}마리`, W - 16, H - 14);
+  g.font = UI(600, 12); g.fillStyle = 'rgba(255,255,255,.9)'; g.textAlign = 'left'; g.textBaseline = 'top';
+  g.fillText(`잡은 물고기 ${caught}마리`, 18, 52);
 
   if (S.flash > 0) { g.fillStyle = `rgba(255,255,255,${S.flash * 0.5})`; g.fillRect(0, 0, W, H); }
 }
 
-function drawResult(g, W, H, S, u, best) {
+function drawResult(g, W, H, S, u) {
   const R = S.result;
   const a = clamp(S.t * 4, 0, 1), pop = 0.9 + 0.1 * Math.min(1, S.t * 5);
-  const cw = Math.min(340, W - 32), ch = R.ok ? 240 : 160;
+  const cw = Math.min(340, W - 32), ch = R.ok ? 250 : 160;
   g.save(); g.globalAlpha = a; g.translate(W / 2, H * 0.45); g.scale(pop, pop);
   glass(g, -cw / 2, -ch / 2, cw, ch, 24);
   g.textAlign = 'center'; g.textBaseline = 'middle';
   if (R.ok) {
     const gr = GRADE[R.fish.grade];
-    g.font = UI(800, 13); const gt = gr.label; const gw = g.measureText(gt).width + 18;
+    g.font = UI(800, 13); const gt = gr.label + (R.near ? ' · 🫧 기포' : ''); const gw = g.measureText(gt).width + 18;
     g.fillStyle = gr.color; rr(g, -gw / 2, -ch / 2 + 16, gw, 22, 11); g.fill();
     g.fillStyle = R.fish.grade === 'legend' ? '#3a2a00' : '#0b1633'; g.fillText(gt, 0, -ch / 2 + 27);
-    g.font = '54px sans-serif'; g.fillText(R.fish.emoji, 0, -30);
-    g.font = JUA(28); g.fillStyle = '#fff'; g.fillText(`${R.fish.name} ${R.cm}cm`, 0, 30);
-    g.font = UI(600, 14); g.fillStyle = 'rgba(255,255,255,.8)';
-    g.fillText(`챔질 ${R.grade}${R.calm ? ` · ✨ 참기 ${R.calm}번` : ''}${R.rec ? '' : ` · 최고 ${R.best}cm`}`, 0, 62);
+    g.font = '54px sans-serif'; g.fillText(R.fish.emoji, 0, -34);
+    g.font = JUA(28); g.fillStyle = '#fff'; g.fillText(`${R.fish.name} ${R.cm}cm`, 0, 24);
+    g.font = UI(600, 13); g.fillStyle = 'rgba(255,255,255,.8)';
+    g.fillText(`챔질 ${R.grade} · 리듬 Perfect ${R.perfects} · Good ${R.hits - R.perfects} · Miss ${R.misses}`, 0, 54);
+    g.fillText(`${R.calm ? `참기 ✨ ${R.calm}번` : ''}${R.calm && !R.rec ? ' · ' : ''}${R.rec ? '' : `최고 ${R.best}cm`}`, 0, 74);
     if (R.rec) {
       g.font = UI(800, 14); const t = '🏆 새 기록!'; const tw = g.measureText(t).width + 22;
-      g.fillStyle = '#FF8A1F'; rr(g, -tw / 2, 80, tw, 26, 13); g.fill();
-      g.fillStyle = '#fff'; g.fillText(t, 0, 93);
+      g.fillStyle = '#FF8A1F'; rr(g, -tw / 2, 88, tw, 26, 13); g.fill();
+      g.fillStyle = '#fff'; g.fillText(t, 0, 101);
     }
   } else {
     g.font = JUA(28); g.fillStyle = '#fff'; g.fillText(R.title, 0, -26);
@@ -243,7 +247,7 @@ function drawResult(g, W, H, S, u, best) {
   g.restore();
 }
 
-function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
+function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, Math.max(0, h), r); }
 function glass(g, x, y, w, h, r) {
   g.fillStyle = 'rgba(15,25,50,.58)'; g.strokeStyle = 'rgba(255,255,255,.2)'; g.lineWidth = 1;
   rr(g, x, y, w, h, r); g.fill(); g.stroke();
