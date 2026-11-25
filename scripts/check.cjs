@@ -692,13 +692,13 @@ async function browserChecks() {
       await waitFor(guest, () => !window.__smash.plaza.pz.seat && /자리|내려왔어요/.test(document.querySelector('#toast').textContent), null, 5000, '자리 비움 → 내려옴');
       } finally {
         for (const p of [viewer, guest]) await p?.close().catch(() => {}); // 실패해도 탭을 닫아 다음 점검이 느려지지 않게
-        await page.evaluate(() => { window.__smashPause = true; }).catch(() => {}); // 이 뒤로는 안 씀 → 쉬게 (헤드리스에서 다른 탭이 느려지지 않게)
       }
       flush();
       return '서기·같은 칸 다툼·준비·WebRTC 직접 연결·경기 중 광장에서 빠짐·경기장 거품 관전·응원·관중석에 앉기·한 판 더·자리 비움';
     });
 
     await step('화면: 탁구대 19종 짓기·바꾸기 (튀기·득점 연출)', async () => {
+      await page.evaluate(() => { window.__smashPause = false; });
       const r = await page.evaluate(async () => {
         const w = window.__smash.world, out = [];
         const I = await import('/src/tables.js');
@@ -750,6 +750,7 @@ async function browserChecks() {
       return '합친 물건 ' + r.out.join(', ');
     });
 
+    await page.evaluate(() => { window.__smashPause = true; }).catch(() => {}); // 시안 페이지를 여는 동안 앞 탭은 쉬게 (헤드리스는 그래픽 카드 없이 그려서 광장 탭이 다른 탭을 느리게 함)
     for (const [file, ready] of [['outfits.html', '몸 꾸미기 시안'], ['balls.html', '탁구공 시안'], ['tables.html', '탁구대 시안'], ['hats.html', '머리·얼굴 꾸미기 시안'], ['gacha.html', '뽑기 시안'], ['bubble.html', '경기장 거품 효과 시안'], ['campus.html', '광장 새 디자인 시안'], ['campus.html?props=1', '광장 시안 + 무료 소품 모델(glb)'], ['rtc-test.html', '연결 속도 측정']]) {
       await step(`화면: ${ready} 페이지 (${file})`, async () => {
         const p = await ctx.newPage();
