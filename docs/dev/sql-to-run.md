@@ -28,3 +28,9 @@ Supabase → SQL Editor → New query → 파일 내용을 통째로 붙여넣�
 | 1 | `supabase/33_close_old_finish.sql` | 옛 경기 결과 함수 닫기 (**합치기 전에 하면 main 배포본 경기 기록이 안 남아요**). 13·18·19·24·27을 다시 실행했으면 이것도 다시 |
 - 30을 실행하기 전에는 test 주소에서 낚시하면 "서버 기록 실패"가 날 수 있어요 (던지기 함수 모양이 바뀌어서).
 - 실행했는지 확인: SQL Editor에서 `select public.pingpong_now();` → `{"ms": ...}`가 나오면 30까지 된 거예요.
+
+## 필요할 때만 (한 번씩, 되돌릴 수 없음)
+`supabase/once/` 폴더에 있어요. 위의 '전부 차례로 실행'에 넣지 마세요.
+| 파일 | 무엇 |
+|---|---|
+| `supabase/once/fish_rank_reset.sql` | 낚시 월척 랭킹(이번 주·역대)만 비우기. 도감·업적·코인은 그대로 |
