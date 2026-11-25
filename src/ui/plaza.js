@@ -668,7 +668,9 @@ function renderCount() {
 // 꾸미기에서 배경·탁구대·탁구공을 입어 보는 동안만 예전처럼 그 경기장을 보여 준다
 const ARENA_CATS = ['bg', 'table', 'ball'];
 const arenaPreview = () => curScreen === 'dress' && !!preview && ARENA_CATS.some((c) => (preview.look?.[c] || null) !== (myEquip()[c] || null));
-export const plazaShown = () => !game && ['lobby', 'dress', 'rank', 'login', 'pin-change'].includes(curScreen) && !arenaPreview(); // 로그인 화면 배경도 광장 (19장 ⓐ')
+// curScreen '' = 막 열려서 자동 로그인을 기다리는 중 (서버 응답 전): 이때도 광장을 로그인 화면처럼 보여 준다
+// (예전엔 이 사이에 옛 체육관 랠리가 잠깐 보였다가 광장으로 바뀌었음 — 11/25 사용자 제보)
+export const plazaShown = () => !game && ['', 'lobby', 'dress', 'rank', 'login', 'pin-change'].includes(curScreen) && !arenaPreview(); // 로그인 화면 배경도 광장 (19장 ⓐ')
 
 // ───── 창을 여는 동안 카메라 (plaza.md 19장) ─────
 // 랭킹: 시상대·트로피를 비춘다 (창은 오른쪽 → 시상대는 화면 왼쪽)
@@ -699,7 +701,7 @@ function windowFrame(p) {
     win.scr = scr;
     view.put(myFig());
   }
-  const login = curScreen === 'login';
+  const login = curScreen === 'login' || curScreen === ''; // '' = 자동 로그인 기다리는 중 (로그인 화면과 같은 카메라)
   view.setMeHidden(login);
   if (gm) view.setFocus(gachaCam(performance.now() / 1000));
   else if (login) {

@@ -12,7 +12,12 @@ const FOLD_KEY = 'smash-missions-fold';
 let loadedAt = 0;
 let loading = false;
 
-const folded = () => { try { return localStorage.getItem(FOLD_KEY) === '1'; } catch { return false; } };
+// 정한 적이 없으면: 휴대폰(좁은 화면)은 접어서 머리줄만, PC는 펼쳐서 (11/25 메뉴 정리 — 휴대폰에서 광장을 가리지 않게)
+const folded = () => {
+  let v = null;
+  try { v = localStorage.getItem(FOLD_KEY); } catch { /* 무시 */ }
+  return v === null ? matchMedia('(max-width: 760px)').matches : v === '1';
+};
 
 const BOXES = ['lb-missions'];
 const paint = (fn) => BOXES.forEach((id) => fn($(id)));

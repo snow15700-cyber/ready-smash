@@ -4,7 +4,7 @@ import { openDress } from './dress.js';
 import { $ } from './state.js';
 
 /* ───────── 무료 뽑기 50회 선물 (supabase/25_free_pulls.sql, 2026-11-23) ─────────
-   로비 오른쪽 아래(꾸미기 아이콘 위)에 크게. 누르면 꾸미기 → 뽑기 탭으로 바로 간다.
+   광장 오른쪽 아래에 금빛 카드(11/25 메뉴 정리로 작게, 휴대폰은 선물 상자 아이콘만). 누르면 꾸미기 → 뽑기 탭으로 바로 간다.
    남은 횟수는 상점 정보(account.shop.free). 다 쓰면 사라진다. 손님에게는 '로그인하면 받아요'. */
 const GIFT = 50;
 let loading = false;
@@ -22,10 +22,12 @@ export function renderFreeGacha() {
   el.classList.toggle('hidden', !show);
   $('btn-closet').classList.toggle('free-dot', show && account.loggedIn);
   if (!show) return;
+  el.dataset.left = account.loggedIn ? left : GIFT; // 휴대폰: 선물 상자 + 숫자 딱지만 (style.css '광장 메뉴 정리')
+  el.title = account.loggedIn ? `무료 뽑기 ${left}회 남음` : '로그인하면 무료 뽑기 50회';
   el.innerHTML = `<span class="lf-gift">🎁</span>`
     + `<span class="lf-text"><span class="lf-tag">🎉 오픈 1주일 기념 선물!</span><b>무료 뽑기 <em>${GIFT}회</em></b>`
     + `<small>${account.loggedIn ? `남은 <i>${left}회</i> · 캐릭터·경기장 합쳐서` : '로그인하면 받을 수 있어요'}</small></span>`
-    + `<span class="lf-go">${account.loggedIn ? '뽑으러<br>가기' : '로그인<br>하기'}</span>`;
+    + `<span class="lf-go">${account.loggedIn ? '뽑기' : '로그인'}</span>`;
 }
 
 // 5초마다 한 번 반짝 + 선물 상자 깡충 (로비가 보일 때만)

@@ -192,11 +192,10 @@
 
     <!-- 무료 뽑기 50회 선물 (src/ui/freeGacha.js, supabase/25_free_pulls.sql) -->
     <button id="lb-free" class="lb-free hidden" type="button"></button>
-    <!-- 오른쪽 아래: 랭킹·꾸미기·업데이트 -->
+    <!-- 랭킹·꾸미기 아이콘: 광장에서는 숨김(가게 건물로 감). plaza.js가 눌러서 창을 연다 -->
     <div class="lb-icons">
       <button id="btn-rank" class="icon-btn"><i><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></i>랭킹</button>
       <button id="btn-closet" class="icon-btn"><i><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg></i>꾸미기</button>
-      <button id="btn-updates" class="icon-btn"><i><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg><b id="upd-dot" class="new-dot hidden">N</b></i>업데이트</button>
     </div>
 
     <!-- 광장 로비 (src/ui/plaza.js): 3D 광장 위에 이 버튼들 -->
@@ -221,9 +220,10 @@
       </div>
     </div>
 
-    <!-- 왼쪽 아래: 치는 방법 -->
+    <!-- 왼쪽 아래: 안내 묶음 (치는 방법 · 업데이트 · 다른 게임) -->
     <div class="lb-bottom">
       <button id="btn-howto" class="lb-help"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg> 치는 방법</button>
+      <button id="btn-updates" class="lb-help lb-upd"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg> 업데이트<b id="upd-dot" class="new-dot hidden">N</b></button>
       <a id="lnk-until09" class="lb-help lb-ext" href="https://until09-5zhx.vercel.app/" target="_blank" rel="noopener">"09시까지 출근하세요" 플레이 <span class="ext"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg></span></a>
     </div>
     <div id="howto" class="howto-pop gx hidden">
