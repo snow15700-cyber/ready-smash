@@ -476,16 +476,18 @@ async function browserChecks() {
       const to = await b.evaluate(() => { window.__smash.plaza.walkTo([4, 6]); return window.__smash.plaza.pz.myW.to; });
       await waitFor(a, ([id, x, z]) => { const f = window.__smash.plaza.view.figs.get(id); return f && Math.hypot(f.c.group.position.x - x, f.c.group.position.z - z) < 0.1; }, [bId, to[0], to[1]], 15000, '상대 화면에서 걸어간 곳에 도착');
       // 건물 안으로는 못 들어감 (가게 앞에서 멈춤)
-      const clip = await b.evaluate(() => { window.__smash.plaza.walkTo([0, -9]); return window.__smash.plaza.pz.myW.to[1]; });
-      must(clip > -6.5, '가게 건물 안으로 걸어 들어가요: z=' + clip);
+      // (광장 20장: 꾸미기 옷가게는 분수 북쪽 (0, −7), 앞면 z 약 −3.95 — 분수를 돌아서 가도 마지막 도착점은 가게 앞)
+      const clip = await b.evaluate(() => { const pz = window.__smash.plaza.pz; window.__smash.plaza.walkTo([0, -9]); const end = pz.route.length ? pz.route[pz.route.length - 1] : pz.myW.to; return end[1]; });
+      must(clip > -4.0, '가게 건물 안으로 걸어 들어가요: z=' + clip);
       // 카메라가 건물 바로 앞(클릭 상자 안)에 있어도 바닥을 누르면 바닥, 옆 가게를 누르면 그 가게 (plaza.md 클릭)
       const camPick = await b.evaluate(() => {
         const { world, plaza } = window.__smash, v = plaza.view, cam = world.camera;
         const p0 = cam.position.clone(), q0 = cam.quaternion.clone();
-        cam.position.set(0, 2.2, -6.1); cam.lookAt(0, 0, 2); cam.updateMatrixWorld();
-        const ground = v.pick(...world.toScreen(0.5, 0, -2));
-        cam.lookAt(5.6, 1.5, -8); cam.updateMatrixWorld();
-        const shop = v.pick(...world.toScreen(5.6, 1.5, -8));
+        // 카메라를 옷가게 클릭 상자 안(문 앞 바로 앞)에 두고: 바닥을 누르면 바닥, 오른쪽 명예의 전당을 누르면 랭킹
+        cam.position.set(0, 2.2, -3.5); cam.lookAt(0.5, 0, 0); cam.updateMatrixWorld();
+        const ground = v.pick(...world.toScreen(0.5, 0, 0));
+        cam.lookAt(7.1, 1.5, -3.5); cam.updateMatrixWorld();
+        const shop = v.pick(...world.toScreen(7.1, 1.5, -3.5));
         cam.position.copy(p0); cam.quaternion.copy(q0); cam.updateMatrixWorld();
         return [ground && Object.keys(ground)[0], shop?.shop?.id];
       });
@@ -496,19 +498,19 @@ async function browserChecks() {
       must(await b.evaluate(() => document.querySelector('#btn-say').disabled), '말하고 바로 또 말할 수 있어요 (2초에 한 번)');
       // 가게: 랭킹 건물을 클릭 → 걸어가서 랭킹 화면 → 돌아오면 다시 광장
       await a.evaluate(() => { document.querySelector('#lb-free')?.classList.add('hidden'); });
-      const pt = await a.evaluate(() => window.__smash.world.toScreen(5.6, 2.2, -7.2));
+      const pt = await a.evaluate(() => window.__smash.world.toScreen(7.1, 2.2, -3.5)); // 명예의 전당 (광장 20장: 분수 북동쪽)
       await a.mouse.click(pt[0], pt[1]);
       await waitFor(a, () => !document.querySelector('#rank').classList.contains('hidden'), null, 20000, '랭킹 가게 → 랭킹 화면');
       must(await a.evaluate(() => !!window.__smash.plaza.pz.link), '랭킹 화면을 보는 동안 광장에서 빠졌어요');
       // 화면 전환 (plaza.md 19장): 랭킹 창 뒤에도 광장 그대로 + 카메라가 시상대로 날아감, 걷기 클릭은 꺼짐
       await waitFor(a, () => window.__smash.world.plazaOn && window.__smash.plaza.view.focusP > 0.99, null, 10000, '랭킹 창 뒤에 광장 + 카메라가 시상대로');
-      must(await a.evaluate(() => window.__smash.world.camera.position.distanceTo({ x: 6.6, y: 2.4, z: 0.1 }) < 0.6), '랭킹 카메라가 시상대 앞이 아니에요');
+      must(await a.evaluate(async () => { const { WIN_CAM } = await import('/src/ui/plaza.js'); const [x, y, z] = WIN_CAM.rank.pos; return window.__smash.world.camera.position.distanceTo({ x, y, z }) < 0.6; }), '랭킹 카메라가 명예의 전당 앞이 아니에요');
       await a.evaluate(() => document.querySelector('#btn-rank-back').click());
       await waitFor(a, () => window.__smash.world.plazaOn && !document.querySelector('#lobby').classList.contains('hidden') && window.__smash.plaza.view.focusP === 0, null, 10000, '랭킹 → 광장 (카메라가 내 뒤로)');
       // 걷는 길이 탁구대에 막히면 모서리를 돌아서 간다 (1번 탁구대 건너편 자리 → 탁구대 앞에서 멈추지 않음)
       const around = await b.evaluate(async () => {
         const { planWalk } = await import('/src/plaza.js');
-        return planWalk([-8, 2], [-18, 2]).length;
+        return planWalk([-8, 13], [-18, 13]).length; // 1번 탁구대 (−14, 13)
       });
       must(around >= 2, '탁구대를 돌아가는 길을 못 찾아요');
       // ③ 김제빵 탁구대: b가 혼자 하기를 시작하면 a 화면에선 b 캐릭터가 사라지고 '🔥 1명 도전 중', 끝나면 다시 보임
