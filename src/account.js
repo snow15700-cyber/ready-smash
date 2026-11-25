@@ -7,6 +7,7 @@ import { ACH, REWARD, GAG_PADDLES } from './achievements.js';
 import { breakAt, nowMs } from './breaks.js';
 import { koreaDay, missionsOf, MISSION_ALL, MISSION_COIN } from './missions.js';
 import { setOf, setAmount, setLabel } from './sets.js';
+import * as FR from './games/fishing/rules.js';
 
 // ?acct=2 처럼 주소에 붙이면 열쇠를 따로 보관한다 (한 브라우저에서 탭마다 다른 계정으로 테스트할 때)
 const ACCT = new URLSearchParams(location.search).get('acct');
@@ -117,15 +118,29 @@ export async function matchJoin(matchId, mode, side) {
   return call('pingpong_match_join', { p_token: token(), p_match: matchId, p_mode: mode, p_side: side });
 }
 
+// 김제빵 낀 2대2 표시 (supabase/27): 전적·랭킹·연승에 안 들어가고 코인은 보통 2대2와 같게
+export async function matchKim(matchId) {
+  if (!account.loggedIn || !matchId) return { status: 'guest' };
+  return call('pingpong_match_kim', { p_token: token(), p_match: matchId });
+}
+
 // 경기 결과 기록 + 코인 정산 (내 결과만, 입장한 경기만). bonus = { perfect3, rally10 } 이번 경기에서 한 횟수
 // 상대 전적·같은 상대 판 수는 서버가 경기 입장 기록으로 정한다
 // 결과 { status, player, h2h, coins: { total, items: [{ label, coins }] } }
-export async function matchFinish(matchId, won, bonus) {
+// 32: 상대 쪽에 로그인한 사람이 있으면 서버가 상대 결과를 기다리며 'wait'를 준다 → 1.5초마다 다시 (서버가 20초 뒤엔 내 말대로 정산)
+// onWait(r): 기다리는 동안 한 번씩 (화면에 '상대 결과 확인 중…')
+export async function matchFinish(matchId, won, bonus, onWait = null) {
   if (!account.loggedIn) return { status: 'guest' };
-  const r = await call('pingpong_match_finish', {
-    p_token: token(), p_match: matchId, p_won: won,
-    p_perfect3: bonus.perfect3 | 0, p_rally10: bonus.rally10 | 0,
-  });
+  let r;
+  for (let i = 0; i < 30; i++) {
+    r = await call('pingpong_match_result', { // 32: 새 함수 (옛 pingpong_match_finish는 main 배포본용, 33로 닫음)
+      p_token: token(), p_match: matchId, p_won: won,
+      p_perfect3: bonus.perfect3 | 0, p_rally10: bonus.rally10 | 0,
+    });
+    if (r.status !== 'wait') break;
+    onWait?.(r);
+    await new Promise((ok) => setTimeout(ok, 1500));
+  }
   if (r.status === 'ok') account.player = { ...EMPTY_STATS, ...r.player };
   return r;
 }
@@ -176,11 +191,15 @@ export const AI_HITS_PER_COIN = 3; // 26: 4 → 3
 export async function aiStart() {
   if (account.loggedIn) await call('pingpong_ai_start', { p_token: token() });
 }
+// 32: 혼자 하기 코인은 하루 AI_DAY_MAX까지 (서버가 셈). 상한에 닿으면 account.aiCapped = true
+export const AI_DAY_MAX = 250;
+account.aiCapped = false;
 export async function aiRally(hits) {
   if (!account.loggedIn || hits < 1) return 0;
   const r = await call('pingpong_ai_rally', { p_token: token(), p_hits: hits });
   if (r.status !== 'ok') return 0;
   account.player = { ...EMPTY_STATS, ...r.player };
+  account.aiCapped = !!r.capped;
   return r.coins || 0;
 }
 
@@ -269,6 +288,125 @@ export const myTitle = () => (account.loggedIn && account.player?.title) || null
 export async function getRanking(kind) {
   const r = await call('pingpong_ranking', { p_kind: kind });
   return Array.isArray(r) ? r : null;
+}
+
+/* ───────── 낚시 (supabase/28_fishing.sql, docs/dev/fishing.md 9장) ───────── */
+// 던지기: 서버가 무엇이 걸릴지 정함. 결과 cast = { id, kind, item, grade, cm, dup, near } 또는 null(손님·실패)
+// 서버 시각 맞추기 (기포는 시각으로 정해서 모든 PC가 같게 — PC 시계가 틀려도): srvNow() = 서버 기준 지금(ms)
+let srvOff = 0, srvSynced = false;
+export const srvNow = () => Date.now() + srvOff;
+export async function syncServerClock() {
+  if (srvSynced || !ONLINE) return;
+  const t0 = Date.now(), r = await call('pingpong_now', {}), t1 = Date.now();
+  const ms = +(r?.ms ?? r);
+  if (!Number.isFinite(ms) || t1 - t0 > 3000) return; // 너무 늦은 답은 믿지 않음 (다음에 다시)
+  srvOff = Math.round(ms - (t0 + t1) / 2); srvSynced = true;
+}
+export async function fishCast(x, aim, power, rain, z) {
+  if (!account.loggedIn) return null;
+  const r = await call('pingpong_fish_cast', { p_token: token(), p_x: x, p_z: z ?? null, p_aim: aim, p_power: power, p_rain: !!rain });
+  return r.status === 'ok' ? r.cast : null;
+}
+// 잡았다/놓쳤다. 결과 { status, caught, coins, bonus, capped, first, rec, best, big, pieces, new: [{id, coins}], player }
+export async function fishFinish(castId, ok, perfect) {
+  if (!account.loggedIn || !castId) return { status: 'guest' };
+  const r = await call('pingpong_fish_finish', { p_token: token(), p_cast: castId, p_ok: !!ok, p_perfect: !!perfect });
+  if (r.player) account.player = { ...EMPTY_STATS, ...r.player };
+  if (r.status === 'ok' && r.new?.length && account.ach) for (const n of r.new) account.ach.got.set(n.id, new Date().toISOString());
+  return r;
+}
+// 도감 (내 기록 + 어종별 기록). 손님은 dex 빈 목록
+export async function fishDex() {
+  const r = await call('pingpong_fish_dex', { p_token: account.loggedIn ? token() : '' });
+  return r.status === 'ok' ? r : null;
+}
+// 월척 랭킹 'week' | 'all'. 결과 [{ rank, nick, title, title_x, value(cm), fish }] 또는 null
+export async function getFishRank(kind) {
+  const r = await call('pingpong_fish_rank', { p_kind: kind });
+  return Array.isArray(r) ? r : null;
+}
+
+// 로컬 가짜 서버의 낚시 (28과 같은 규칙)
+const FISH_ACH = ['fish10', 'fish_all', 'junk_all', 'fish_bread', 'fish_big', 'fish_legend', 'fish_perf10'];
+function localFish(fn, a, p, db, now) {
+  if (fn === 'pingpong_fish_cast') {
+    const sx = Math.min(FR.STAND.xMax, Math.max(FR.STAND.xMin, +a.p_x || 13));
+    const pt = FR.landingPoint(sx, +a.p_aim || 0, a.p_power ?? 0.5, a.p_z == null ? undefined : +a.p_z);
+    const near = FR.bubbleNear(pt.x, pt.z, FR.activeBubbles(nowMs() / 1000, 'normal'));
+    const owned = (p.owned || []).filter((id) => FR.LEGEND_PADDLES.some(([x]) => x === id));
+    const c = FR.rollCatch(near, { owned, cond: { break: !!breakAt(nowMs()), night: FR.isNight(nowMs()), rain: !!a.p_rain } });
+    p.fishCast = { id: Math.random().toString(36).slice(2), kind: c.kind, item: c.id, grade: c.grade, cm: c.kind === 'fish' ? FR.fishSize().cm : 0, dup: !!c.dup, near, at: now };
+    const { at, ...cast } = p.fishCast;
+    return { status: 'ok', cast };
+  }
+  if (fn === 'pingpong_fish_finish') {
+    const c = p.fishCast;
+    if (!c || c.id !== a.p_cast) return { status: 'no_cast' };
+    p.fishCast = null;
+    p.achN ||= {};
+    if (!a.p_ok) { p.achN.fish_pr = 0; return { status: 'ok', caught: false, player: null }; }
+    const stage = c.kind === 'junk' ? 'junk' : c.grade;
+    if ((now - c.at) / 1000 < FR.MIN_SEC[stage]) return { status: 'too_fast' };
+    let base = 0, brk = 0, brkPct = 50;
+    if (c.kind === 'fish') {
+      base = FR.FISH_COINS[c.grade];
+      const st = setOf(p.equip);
+      if (st?.set.kind === 'break') brkPct = 50 + setAmount(st.set, st.full);
+      if (breakAt(nowMs())) brk = Math.ceil((base * brkPct) / 100);
+    }
+    const pocket = Math.min(FR.COIN_POCKET, (p.fishPocket ?? FR.COIN_POCKET) + Math.floor(((now - (p.fishPocketAt || now)) / 60000) * FR.COIN_PER_MIN));
+    let total = base + brk, capped = false;
+    if (total > pocket) { total = pocket; capped = true; }
+    let first = false, rec = false, pieces = 0, best = 0;
+    if (c.kind === 'paddle') {
+      p.owned ||= [];
+      if (p.owned.includes(c.item)) pieces = FR.PADDLE_DUP_PIECES; else p.owned.push(c.item);
+    } else {
+      p.fishDex ||= {};
+      const e = p.fishDex[c.item];
+      first = !e; rec = c.kind === 'fish' && (first || c.cm > e.best);
+      p.fishDex[c.item] = { n: (e?.n || 0) + 1, best: Math.max(e?.best || 0, c.cm), at: rec ? now : e?.at || null };
+      best = p.fishDex[c.item].best;
+      if (c.kind === 'fish') (db.fishLog ||= []).push({ pid: p.id, id: c.item, cm: c.cm, at: now });
+    }
+    const run = a.p_perfect ? (p.achN.fish_pr || 0) + 1 : 0;
+    p.achN.fish_pr = run;
+    p.coins = (p.coins || 0) + total;
+    p.pieces = (p.pieces || 0) + pieces;
+    p.fishPocket = pocket - total; p.fishPocketAt = now;
+    const dex = Object.keys(p.fishDex || {});
+    const ok = {
+      fish10: dex.filter((id) => FR.CATCH[id]?.kind === 'fish').length >= 10,
+      fish_all: FR.SPECIES.every((s) => dex.includes(s.id)), junk_all: FR.JUNK.every((s) => dex.includes(s.id)),
+      fish_bread: c.item === 'baguette', fish_big: c.kind === 'fish' && c.cm >= FR.BIG_CM, fish_legend: c.kind === 'fish' && c.grade === 'legend', fish_perf10: run >= 10,
+    };
+    p.ach ||= {};
+    const fresh = [];
+    for (const id of FISH_ACH) if (ok[id] && !p.ach[id]) { p.ach[id] = new Date(now).toISOString(); p.coins += REWARD[ACH[id].grade]; fresh.push({ id, coins: REWARD[ACH[id].grade] }); }
+    const { at, ...cast } = c;
+    return { status: 'ok', caught: true, cast, coins: total, bonus: Math.min(brk, total), bonus_pct: brkPct, capped, first, rec, best, big: c.kind === 'fish' && c.cm >= FR.BIG_CM, pieces, new: fresh };
+  }
+  if (fn === 'pingpong_fish_dex') {
+    const recs = {};
+    for (const q of Object.values(db.players)) for (const [id, e] of Object.entries(q.fishDex || {})) {
+      if (FR.CATCH[id]?.kind !== 'fish' || !e.best) continue;
+      if (!recs[id] || e.best > recs[id].cm || (e.best === recs[id].cm && (e.at || 0) < recs[id].at)) recs[id] = { id, nick: q.nick, cm: e.best, at: e.at || 0 };
+    }
+    return { status: 'ok', dex: Object.entries(p?.fishDex || {}).map(([id, e]) => ({ id, n: e.n, best: e.best })), records: Object.values(recs).map(({ at, ...r }) => r) };
+  }
+  if (fn === 'pingpong_fish_rank') {
+    if (!['week', 'all'].includes(a.p_kind)) return [];
+    const k = new Date(now + 9 * 3600e3), dow = (k.getUTCDay() + 6) % 7; // 월요일 0
+    const since = a.p_kind === 'week' ? Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate() - dow) - 9 * 3600e3 : -Infinity;
+    const best = {};
+    for (const l of db.fishLog || []) if (l.at >= since && (!best[l.pid] || l.cm > best[l.pid].cm)) best[l.pid] = l;
+    const byId = Object.fromEntries(Object.values(db.players).map((q) => [q.id, q]));
+    const rows = Object.values(best).filter((l) => byId[l.pid]).sort((x, y) => y.cm - x.cm || x.at - y.at).slice(0, 50)
+      .map((l) => { const q = byId[l.pid]; return { nick: q.nick, title: q.title || null, title_x: q.achN?.nemesis || null, value: l.cm, fish: l.id }; });
+    rows.forEach((x, i) => { x.rank = i && rows[i - 1].value === x.value ? rows[i - 1].rank : i + 1; });
+    return rows;
+  }
+  return null;
 }
 
 /* ───────── 로컬 테스트용 가짜 서버 (서버 함수와 같은 규칙) ───────── */
@@ -380,6 +518,14 @@ function localServer(fn, a) {
       a = { p_token: a.p_token, p_mode: m.mode, p_won: won, p_opp: m.mode === '1v1' ? other(false) : null, p_mate: m.mode === '2v2' ? other(true) : null };
     }
   }
+  if (fn.startsWith('pingpong_fish_')) {
+    const p = me();
+    if (!p && fn !== 'pingpong_fish_rank' && fn !== 'pingpong_fish_dex') return { status: 'no_session' };
+    const r = localFish(fn, a, p, db, now);
+    if (r && !Array.isArray(r) && p && fn === 'pingpong_fish_finish' && r.status === 'ok') r.player = pj(p);
+    save();
+    return r;
+  }
   let out;
   if (fn === 'pingpong_login') {
     const p = db.players[key(a.p_nick)];
@@ -421,7 +567,15 @@ function localServer(fn, a) {
       else if (Object.values(m.players).filter((x) => x.side === a.p_side).length >= (m.mode === '1v1' ? 1 : 2)) out = { status: 'full' };
       else { db.joinSeq = (db.joinSeq || 0) + 1; m.players[p.id] = { side: a.p_side, joined: db.joinSeq }; out = { status: 'ok' }; } // joined = 입장 순서
     }
-  } else if (fn === 'pingpong_match_finish') {
+  } else if (fn === 'pingpong_match_kim') {
+    const p = me();
+    const m = db.matches?.[a.p_match];
+    if (!p) out = { status: 'no_session' };
+    else if (!m || !m.players[p.id]) out = { status: 'no_match' };
+    else if (m.mode !== '2v2') out = { status: 'mode' };
+    else if (m.at < now - 30000) out = { status: 'late' };
+    else { m.kim = true; out = { status: 'ok' }; }
+  } else if (fn === 'pingpong_match_result') {
     const p = me();
     const m = db.matches?.[a.p_match];
     const mp = m && p && m.players[p.id];
@@ -431,13 +585,28 @@ function localServer(fn, a) {
     else if (mp.at) out = { status: 'done' };
     else if (m.at > now - 25000) out = { status: 'too_fast' };
     else if (m.at < now - 3600e3) out = { status: 'too_old' };
-    // 18: 이 경기 뒤에 다른 경기에 또 입장했으면 결과를 낼 수 없다
-    else if (Object.entries(db.matches).some(([id, x]) => id !== a.p_match && x.players[p.id]?.joined > (mp.joined || 0))) out = { status: 'stale' };
+    // 18: 이 경기 뒤에 다른 경기에 또 입장했으면 결과를 낼 수 없다 (32: 이미 결과를 말해 두고 기다리던 중이면 그대로)
+    else if (mp.claim == null && Object.entries(db.matches).some(([id, x]) => id !== a.p_match && x.players[p.id]?.joined > (mp.joined || 0))) out = { status: 'stale' };
     else {
-      const wonSide = a.p_won ? mp.side : 1 - mp.side;
+      // 32: 처음 말한 결과만 쓴다. 상대 쪽에 로그인한 사람이 있으면 말이 맞아야 정산 (supabase/32_fair_results.sql과 같은 규칙)
+      if (mp.claim == null) { mp.claim = a.p_won; mp.claimAt = now; }
+      const wonSide = mp.claim ? mp.side : 1 - mp.side;
       if (m.winner == null) m.winner = wonSide; else if (m.winner !== wonSide) m.disputed = true;
       const opps = Object.entries(m.players).filter(([, x]) => x.side !== mp.side).map(([id]) => id).sort();
       const hasOpp = opps.length > 0;
+      const said = Object.values(m.players).filter((x) => x.claim != null);
+      const sideOf = (x) => (x.claim ? x.side : 1 - x.side);
+      const conflict = hasOpp && said.some((x) => sideOf(x) !== wonSide);
+      const agreed = hasOpp && said.some((x) => x.side !== mp.side && sideOf(x) === wonSide);
+      if (hasOpp && !conflict && !agreed && mp.claimAt > now - 20000) {
+        save();
+        return { status: 'wait', left: Math.ceil((20000 - (now - mp.claimAt)) / 1000) };
+      }
+      const disputed = conflict;
+      a = { ...a, p_won: mp.claim && !disputed };
+      // 27: 김제빵 낀 판(표시 + 로그인 입장 3명 이하)은 전적·랭킹·연승 X, 코인은 보통 2대2와 같게
+      const kim = !!m.kim && Object.keys(m.players).length <= 3;
+      const rec = hasOpp && !kim && !disputed; // 32: 결과가 엇갈린 판도 전적·랭킹·연승 X
       const okey = m.mode + ':' + (opps.join(',') || 'guest');
       const dayStart = Date.parse(new Date(now + 9 * 3600e3).toISOString().slice(0, 10) + 'T00:00:00+09:00');
       const played = Object.values(db.matches).filter((x) => { const y = x.players[p.id]; return y && y.okey === okey && y.at >= dayStart; }).length;
@@ -445,7 +614,7 @@ function localServer(fn, a) {
       const full = played < 5, join = hasOpp ? played < 10 : played < 5;
       p.lastMatch = now;
       const f = (m.mode === '1v1' ? '1' : '2');
-      if (hasOpp) {
+      if (rec) {
         if (a.p_won) p['w' + f] = (p['w' + f] || 0) + 1; else p['l' + f] = (p['l' + f] || 0) + 1;
         p.streak = a.p_won ? (p.streak || 0) + 1 : 0;
       }
@@ -456,10 +625,12 @@ function localServer(fn, a) {
         if (a.p_won) items.push({ label: '승리', coins: 10 });
         if (nPerf) items.push({ label: `퍼펙트 3연속 ×${nPerf}`, coins: 5 * nPerf });
         if (nRally) items.push({ label: `랠리 10회 이상 ×${nRally}`, coins: 5 * nRally });
-        if (hasOpp && a.p_won && p.streak % 3 === 0) items.push({ label: `${p.streak}연승`, coins: 15 });
+        if (rec && a.p_won && p.streak % 3 === 0) items.push({ label: `${p.streak}연승`, coins: 15 });
       } else if (join) items.push({ label: '같은 상대 오늘 6판째부터는 참여 코인만', coins: 0 });
       else items.push({ label: hasOpp ? '같은 상대와는 하루 10판까지만 코인' : '손님 상대는 하루 5판까지만 코인', coins: 0 });
-      if (!hasOpp) items.push({ label: '손님 상대 경기는 승수에 안 들어가요', coins: 0 });
+      if (disputed) items.push({ label: '⚠️ 서로 이겼다고 해서 승패 없이 끝났어요', coins: 0 });
+      else if (kim) items.push({ label: '🤖 김제빵 낀 판은 전적·랭킹에 안 들어가요', coins: 0 });
+      else if (!hasOpp) items.push({ label: '손님 상대 경기는 승수에 안 들어가요', coins: 0 });
       // 19: 쉬는 시간 보너스 (경기 시작이나 끝이 평일 쉬는 시간이면 +50%, 올림). 가짜 서버는 ?clock= 시각을 따른다
       // 24: 세트 보너스 (supabase/24_sets.sql과 같은 규칙: 퍼센트는 이 판 코인 합에 붙고 올림, 완전 세트 = 2배)
       const st = setOf(p.equip);
@@ -471,8 +642,8 @@ function localServer(fn, a) {
         if (k === 'win' && a.p_won && sum > 0) sb = pctOf(sum);
         else if (k === 'perfect' && full && nPerf > 0 && sum > 0) sb = pctOf(sum);
         else if (k === 'rally' && full && nRally > 0 && sum > 0) sb = pctOf(sum);
-        else if (k === 'lose' && !a.p_won && join) sb = amt;
-        else if (k === 'streak' && full && hasOpp && a.p_won && p.streak % 3 === 0) sb = amt;
+        else if (k === 'lose' && !a.p_won && !disputed && join) sb = amt;
+        else if (k === 'streak' && full && rec && a.p_won && p.streak % 3 === 0) sb = amt;
         else if (k === 'break') brkPct = 50 + amt;
         if (sb > 0) items.push({ label: setLabel(st.set, st.full) + (k === 'lose' || k === 'streak' ? '' : ` +${amt}%`), coins: sb });
       }
@@ -482,12 +653,12 @@ function localServer(fn, a) {
       const total = items.reduce((s, i) => s + i.coins, 0);
       p.coins = (p.coins || 0) + total;
       Object.assign(mp, { at: now, won: a.p_won, okey });
-      const opp = m.mode === '1v1' ? opps[0] : null;
+      const opp = m.mode === '1v1' && !disputed ? opps[0] : null;
       if (opp) {
         const h = db.h2h[p.id + '>' + opp] ||= [0, 0];
         h[a.p_won ? 0 : 1]++;
       }
-      out = { status: 'ok', player: pj(p), h2h: opp ? h2h(p, opp) : null, coins: { total, items } };
+      out = { status: 'ok', disputed, player: pj(p), h2h: opp ? h2h(p, opp) : null, coins: { total, items } };
     }
   } else if (fn === 'pingpong_daily') {
     const p = me();
@@ -574,7 +745,7 @@ function localServer(fn, a) {
     const p = me();
     if (!p) out = { status: 'no_session' };
     else {
-      const allowed = p.aiAt ? Math.floor((now - p.aiAt) / 1000) + 1 : 0;
+      const allowed = p.aiAt ? Math.floor((now - p.aiAt) / 1200) + 1 : 0; // 32: 1.2초에 1번
       const hits = Math.min(Math.max(a.p_hits | 0, 0), allowed, 1000);
       const total = (p.aiRem || 0) + hits;
       p.best = Math.max(p.best || 0, hits); // 최고 기록도 서버가 인정한 횟수로 (18)
@@ -586,8 +757,13 @@ function localServer(fn, a) {
       const sb = st?.set.kind === 'ai' && got > 0 ? Math.ceil((got * setAmount(st.set, st.full)) / 100) : 0;
       const brkPct = st?.set.kind === 'break' ? 50 + setAmount(st.set, st.full) : 50;
       const brk = got > 0 && breakAt(nowMs()) ? Math.ceil(((got + sb) * brkPct) / 100) : 0; // 19: 쉬는 시간 +50%
-      p.coins = (p.coins || 0) + got + sb + brk;
-      out = { status: 'ok', coins: got + sb + brk, bonus: brk, bonus_pct: brkPct, set: sb ? setLabel(st.set, st.full) : null, set_coins: sb, player: pj(p) };
+      // 32: 하루 AI_DAY_MAX(250)코인까지 (한국 날짜)
+      const today = koreaDay(now), used = p.aiDay === today ? p.aiDayCoins || 0 : 0;
+      const raw = got + sb + brk, give = Math.min(raw, Math.max(AI_DAY_MAX - used, 0));
+      p.aiDay = today; p.aiDayCoins = used + give;
+      p.coins = (p.coins || 0) + give;
+      out = { status: 'ok', coins: give, bonus: give < raw ? 0 : brk, bonus_pct: brkPct, set: sb && give === raw ? setLabel(st.set, st.full) : null, set_coins: give === raw ? sb : 0,
+        day_coins: used + give, day_max: AI_DAY_MAX, capped: give < raw || used + give >= AI_DAY_MAX, player: pj(p) };
     }
   } else if (fn === 'local_test_coins') {
     const p = me();

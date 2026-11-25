@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>광장 새 디자인 시안</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; font-family: Jua, sans-serif; background: #cfe8fb; }
+    #c { display: block; width: 100vw; height: 100vh; cursor: grab; }
+    .bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: calc(100vw - 32px); padding: 8px; border-radius: 18px; background: rgba(255, 250, 240, 0.88); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15); }
+    .bar button { font-family: inherit; font-size: 15px; border: 0; border-radius: 99px; padding: 7px 13px; background: #eadcc4; color: #2b2a33; cursor: pointer; }
+    .bar button.on { background: #ff8a3d; color: #fff; }
+    .bar .gap { width: 10px; }
+    .tag { position: fixed; left: 16px; top: 16px; padding: 8px 14px; border-radius: 14px; background: rgba(255, 250, 240, 0.88); font-size: 15px; color: #2b2a33; }
+    .kim-bubble { position: fixed; z-index: 5; transform: translate(-50%, -100%) scale(0); transform-origin: 50% 100%; max-width: min(320px, calc(100vw - 32px)); padding: 10px 16px; border-radius: 18px; background: #fffaf0; color: #5a3418; font-size: 17px; line-height: 1.35; text-align: center; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22); border: 3px solid #a0522d; pointer-events: none; transition: transform 0.18s ease-out; }
+    .kim-bubble::after { content: ''; position: absolute; left: 50%; bottom: -12px; transform: translateX(-50%); border: 9px solid transparent; border-top-color: #a0522d; border-bottom: 0; }
+    .kim-bubble.pop { transform: translate(-50%, -100%) scale(1); }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="tag">🧪 광장 새 디자인 시안 · 경주캠퍼스 느낌 · 화면을 끌면 빙 돌아봐요 · 🥖 빵집을 눌러 봐요</div>
+  <div class="bar" id="bar">
+    <button data-k="cam" data-v="spawn" class="on">처음 서는 곳</button>
+    <button data-k="cam" data-v="shops">가게 앞</button>
+    <button data-k="cam" data-v="gacha">뽑기방</button>
+    <button data-k="cam" data-v="closet">옷가게</button>
+    <button data-k="cam" data-v="fame">명예의 전당</button>
+    <button data-k="cam" data-v="fountain">분수</button>
+    <button data-k="cam" data-v="clock">시계탑</button>
+    <button data-k="cam" data-v="board">게시판</button>
+    <button data-k="cam" data-v="bakery">빵집</button>
+    <button data-k="cam" data-v="photo">포토존</button>
+    <button data-k="cam" data-v="truck">푸드트럭</button>
+    <button data-k="cam" data-v="deck">전망대</button>
+    <button data-k="cam" data-v="sea">바다</button>
+    <span class="gap"></span>
+    <button data-k="dolphin" data-v="1">🐬 1마리</button>
+    <button data-k="dolphin" data-v="2">🐬🐬 2마리</button>
+    <button data-k="dolphin" data-v="3">🐬🐬🐬 3마리</button>
+    <button data-k="dolphin" data-v="1:d">💃 춤추는 돌고래</button>
+    <button data-k="cam" data-v="top">위에서</button>
+    <button data-k="cam" data-v="south">바다 쪽</button>
+    <button data-k="cam" data-v="building">본관 아래</button>
+    <button data-k="cam" data-v="hall">본관 전체</button>
+    <button data-k="cam" data-v="edge">가장자리</button>
+    <span class="gap"></span>
+    <button data-k="sky" data-v="day" class="on">낮</button>
+    <button data-k="sky" data-v="sunset">노을</button>
+    <button data-k="sky" data-v="night">밤</button>
+    <span class="gap"></span>
+    <button data-k="props">🌳 무료 소품 모델</button>
+    <button data-k="hq">✨ 고화질</button>
+  </div>
+  <script type="module" src="/src/campusPage.js"></script>
+</body>
+</html>

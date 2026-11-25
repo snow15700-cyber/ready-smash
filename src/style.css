@@ -230,7 +230,7 @@ button.big small { display: block; font-size: 14px; opacity: .92; }
    색은 탁구용품에서: 빨강(러버) = 가장 중요한 버튼, 파랑(탁구대) = 두 번째, 흰 반투명 유리 = 패널, 공 주황 = 코인.
    배경 3D는 로비에서만 색을 빼고 어둡게 + 남색으로 덮어서 유리가 또렷하게 보이게 한다. */
 #c { transition: filter .4s; }
-body:has(#lobby:not(.hidden), #rank:not(.hidden), #login:not(.hidden), #pin-change:not(.hidden), #join:not(.hidden)) #c { filter: saturate(.55) brightness(.78) contrast(1.05); }
+body:has(#lobby:not(.hidden):not(.plaza-on), #pin-change:not(.hidden), #join:not(.hidden)) #c { filter: saturate(.55) brightness(.78) contrast(1.05); }
 .screen.lobby { display: block; padding: 0; overflow: auto; backdrop-filter: none; color: #fff; font-family: var(--font-ui);
   background: linear-gradient(90deg, var(--night-62) 0%, var(--night-30) 38%, var(--night-08) 60%), linear-gradient(0deg, rgba(14,26,58,.4), rgba(14,26,58,0) 35%), linear-gradient(180deg, rgba(14,26,58,.35), rgba(14,26,58,0) 30%); }
 .lobby button, .lobby a { font-family: var(--font-ui); letter-spacing: -0.01em; transition: transform .15s, background .15s, box-shadow .15s; }
@@ -769,6 +769,8 @@ html.lite-glass .gx.howto-pop, html.lite-glass .gx.screen { backdrop-filter: non
 .seg button:active:not(:disabled) { transform: none; box-shadow: none; }
 .seg button.on { background: #fff; color: var(--orange-ink); box-shadow: 0 2px 8px rgba(80,50,20,.15); }
 .rank-desc { margin: -2px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+.rank-desc .rank-sub { font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 99px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); color: inherit; cursor: pointer; }
+.rank-desc .rank-sub.on { background: #FF8A1F; border-color: #FF8A1F; color: #fff; }
 
 .podium { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding-top: 6px; }
 .pod { flex: 1; max-width: 150px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; animation: rise .45s ease-out backwards; }
@@ -1037,7 +1039,6 @@ button.rl-row.off { cursor: default; background: #f6efe3; box-shadow: none; tran
 .rl-act.watch { background: var(--blue); }
 button.watch-ok { margin-left: auto; font-size: 14px; padding: 6px 12px; border-radius: 999px; }
 button.watch-ok.off { background: #eee5d6; color: var(--muted); }
-.watch-bar { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 16px; border-radius: 999px; background: rgba(43,42,51,.62); color: #fff; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
 .watch-who { font-size: 15px; }
 .watch-views { display: flex; gap: 4px; }
 .watch-views button { padding: 6px 12px; border-radius: 999px; font-size: 14px; box-shadow: none; background: rgba(255,255,255,.2); color: #fff; }
@@ -1050,24 +1051,10 @@ body.watching #hint { bottom: 78px; }
 button.rl-random { margin-left: auto; font-size: 13px; padding: 5px 10px; border-radius: 999px; background: var(--blue); color: #fff; box-shadow: 0 3px 0 var(--blue-d); }
 .watch-hop { padding: 6px 10px; border-radius: 999px; font-size: 14px; box-shadow: none; background: rgba(255,255,255,.2); color: #fff; }
 .watch-hop:disabled { opacity: .35; }
-.watch-bar { padding-left: 8px; }
 
 /* ───────── 관전 4단계: 관중 수 · 응원 ───────── */
-/* 경기 화면 연결 표시 (선수끼리 직접 연결, src/ui/room.js netPill) */
-.net-pill { position: absolute; top: 60px; left: 14px; margin: 0; font-size: 13px; color: rgba(255,255,255,.85); background: rgba(43,42,51,.5); border: 1px solid rgba(255,255,255,.2); padding: 3px 10px; border-radius: 999px; white-space: nowrap; pointer-events: auto; cursor: pointer; }
-.net-diag { position: absolute; top: 90px; left: 14px; margin: 0; max-width: min(460px, calc(100vw - 28px)); font: 12px/1.5 var(--font-ui, system-ui); white-space: pre-wrap; color: #fff; background: rgba(14,26,58,.88); border: 1px solid rgba(255,255,255,.2); border-radius: 12px; padding: 8px 12px; z-index: 5; pointer-events: auto; }
-.net-pill.on { color: #fff; border-color: rgba(61,220,132,.7); }
-.net-pill.part { color: #fff; border-color: rgba(255,210,63,.7); }
 .crowd-pill { position: absolute; top: 78px; left: 50%; transform: translateX(-50%); margin: 0; font-size: 14px; color: #fff; background: rgba(43,42,51,.5); padding: 4px 12px; border-radius: 999px; white-space: nowrap; }
-.cheer-bar { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 5px 6px; border-radius: 999px; background: rgba(255,250,240,.92); white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.16); }
-.cheer-bar button { padding: 6px 12px; border-radius: 999px; font-size: 15px; box-shadow: none; background: #f2e9da; }
-.cheer-bar button:disabled { opacity: .4; }
-.cheer-bar .cb-team span { display: inline-block; max-width: 90px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
-.cheer-bar .cb-team[data-team="0"].on { background: var(--orange); color: #fff; }
-.cheer-bar .cb-team[data-team="1"].on { background: var(--blue); color: #fff; }
-.cheer-bar .cb-sep { width: 1px; height: 22px; background: #d9c9ad; margin: 0 4px; }
 body.watching #hint { bottom: 128px; }
-@media (max-width: 600px) { .cheer-bar [data-cheer] span, .cheer-bar .cb-team span { display: none; } .cheer-bar button { padding: 6px 9px; } .crowd-pill { top: 118px; } }
 
 /* ───────── 관전 6단계: 대기실 관전 (참가·알려 줘요·다른 경기) + 대기실의 관중 수 ───────── */
 .room-eyes { font-size: 14px; font-weight: 600; color: #fff; background: rgba(255,255,255,.12); border-radius: 999px; padding: 5px 12px; white-space: nowrap; }
@@ -1087,6 +1074,11 @@ body.spectating .spec-acts { display: flex; }
 #judge, .vi-vs, .vi-num { font-family: var(--font-ui); }
 #exit { display: inline-flex; align-items: center; gap: 4px; color: #fff; background: var(--hud-bg); border: 1px solid var(--hud-line); box-shadow: 0 4px 14px rgba(0,0,0,.2); opacity: .9; }
 #exit:active:not(:disabled) { box-shadow: 0 2px 8px rgba(0,0,0,.2); transform: scale(.97); }
+/* 연결 표시 (src/ui/room.js netPill): 선수끼리 WebRTC 직접 연결 ⚡ / 서버 경유 🌐 */
+.net-pill { position: absolute; top: 60px; left: 14px; margin: 0; font-size: 13px; color: rgba(255,255,255,.85); background: var(--hud-bg); border: 1px solid var(--hud-line); padding: 3px 10px; border-radius: 999px; white-space: nowrap; pointer-events: auto; cursor: pointer; }
+.net-diag { position: absolute; top: 90px; left: 14px; margin: 0; max-width: min(460px, calc(100vw - 28px)); font: 12px/1.5 var(--font-ui, system-ui); white-space: pre-wrap; color: #fff; background: rgba(14,26,58,.88); border: 1px solid var(--hud-line); border-radius: 12px; padding: 8px 12px; z-index: 5; pointer-events: auto; }
+.net-pill.on { color: #fff; border-color: rgba(61,220,132,.7); }
+.net-pill.part { color: #fff; border-color: rgba(255,210,63,.7); }
 /* 점수판 */
 .sb { border-radius: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
 .sb.t0 { background: linear-gradient(135deg, var(--tt-red-hi), #B81E25); }
@@ -1125,13 +1117,7 @@ body.spectating .spec-acts { display: flex; }
 .vi-card .nm.t1 { background: linear-gradient(135deg, #2F66C2, var(--tt-blue-lo)); }
 .vi-go b { color: var(--tt-red-glow); text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 24px rgba(255,59,66,.6); }
 /* 관전 막대·응원·다음 판 */
-.watch-bar, .crowd-pill { background: var(--hud-bg); border: 1px solid var(--hud-line); }
 .watch-who { font-weight: 600; }
-.cheer-bar { background: var(--hud-bg); border: 1px solid var(--hud-line); }
-.cheer-bar button { color: #fff; background: rgba(255,255,255,.12); }
-.cheer-bar .cb-team[data-team="0"].on { background: var(--tt-red); }
-.cheer-bar .cb-team[data-team="1"].on { background: var(--tt-blue-hi); }
-.cheer-bar .cb-sep { background: rgba(255,255,255,.25); }
 .watch-next { color: #fff; background: rgba(16,22,40,.92); border: 1px solid var(--hud-line); box-shadow: 0 16px 40px rgba(0,0,0,.35); }
 .watch-next b { color: #fff; font-weight: 800; }
 .watch-next p { color: rgba(255,255,255,.65); }
@@ -1156,3 +1142,238 @@ html.lite-glass .break-banner { backdrop-filter: none; -webkit-backdrop-filter: 
 .spot-set { margin-top: 6px; font-size: 12px; line-height: 1.5; color: #ffd9a8; }
 .spot-set b { font-weight: 600; color: #e9e3ff; }
 .spot-set b.on { color: #9effb0; }
+
+/* ───────── 광장 로비 (src/ui/plaza.js, docs/dev/plaza.md) ─────────
+   로비 화면 위에 3D 광장: 메뉴(왼쪽)·랭킹·꾸미기 아이콘은 숨기고(가게 건물로), 내 정보·미션·쉬는 시간 알림·업데이트는 그대로.
+   화면 자체는 클릭을 통과시켜 바닥을 누를 수 있게 하고, 버튼·카드만 누를 수 있다 */
+.screen.lobby.plaza-on { display: block; padding: 0; overflow: hidden; background: linear-gradient(180deg, rgba(14,26,58,.28), rgba(14,26,58,0) 22%); pointer-events: none; }
+.lobby.plaza-on > * { pointer-events: auto; }
+.lobby.plaza-on > .plaza-ui { pointer-events: none; }
+.plaza-ui > * > * { pointer-events: auto; }
+.lobby.plaza-on .lb-left, .lobby.plaza-on #btn-rank, .lobby.plaza-on #btn-closet, .lobby.plaza-on .lb-to-plaza { display: none; }
+.lobby:not(.plaza-on) .plaza-ui { display: none; }
+.plaza-ui { position: absolute; inset: 0; }
+.pz-top { position: absolute; top: 24px; left: clamp(16px, 2.5vw, 32px); display: flex; gap: 8px; flex-wrap: wrap; }
+.pz-pill { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 999px; font: 600 15px var(--font-ui); color: #fff;
+  background: rgba(28,38,66,.62); border: 1px solid var(--glass-line); box-shadow: 0 8px 22px rgba(0,0,0,.2); white-space: nowrap; }
+button.pz-pill:hover:not(:disabled) { background: rgba(28,38,66,.8); }
+.pz-chat { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.lobby button.pz-say { height: 52px; padding: 0 26px; border-radius: 999px; font: 700 18px var(--font-ui); color: #fff; background: var(--tt-blue-hi); box-shadow: 0 6px 18px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.25); }
+.lobby button.pz-say:disabled { opacity: .55; }
+.pz-help { margin: 0; font: 500 13px var(--font-ui); color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.55); white-space: nowrap; }
+.pz-phrases { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 10px; width: min(460px, calc(100vw - 32px)); border-radius: 18px; background: rgba(28,38,66,.92); border: 1px solid var(--glass-line); box-shadow: 0 16px 40px rgba(0,0,0,.3); }
+.lobby .pz-phrases button { font: 600 15px var(--font-ui); color: #2b2a33; background: #fffaf0; box-shadow: none; border-radius: 12px; padding: 10px 8px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lobby .pz-phrases button:hover { background: #ffe9c9; }
+/* 경기장 거품 안 (src/ui/plazaBubble.js): 점수·관전자 수 + 관중석에 앉기·응원 (말하기 버튼 위) */
+.pz-bub { position: absolute; left: 50%; bottom: 100px; transform: translateX(-50%); pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 10px;
+  border-radius: 18px; color: #fff; font-family: var(--font-ui); background: rgba(28,38,66,.8); border: 1px solid var(--glass-line); box-shadow: 0 10px 28px rgba(0,0,0,.28); white-space: nowrap; max-width: calc(100vw - 24px); }
+.pzb-top { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.pzb-t { font-weight: 700; color: #ffd23f; }
+.pzb-sc b { font-size: 18px; margin: 0 4px; } .pzb-sc em { font-style: normal; font-weight: 600; } .pzb-sc em.t0 { color: #ffb27a; } .pzb-sc em.t1 { color: #8fbaff; }
+.pzb-eye { font-size: 13px; color: rgba(255,255,255,.8); } .pzb-over { color: #ffd23f; }
+.pzb-row { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+.lobby .pz-bub button.small { padding: 6px 10px; border-radius: 999px; font: 600 14px var(--font-ui); color: #fff; background: rgba(255,255,255,.14); box-shadow: none; }
+.lobby .pz-bub button.small.on { background: var(--tt-red, #e0333c); }
+.lobby .pz-bub button.pzb-seat { background: #2f8a4e; }
+.lobby .pz-bub button:disabled { opacity: .45; }
+/* ⑤ 모집 알림 띠(위 가운데) · 사람 누르면 초대 · 받은 초대 */
+.pz-call { position: absolute; top: 76px; left: 50%; transform: translateX(-50%); pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 18px; border-radius: 999px;
+  font: 600 16px var(--font-ui); color: #fff; background: linear-gradient(180deg, #ff8a3d, #e8590c); box-shadow: 0 10px 26px rgba(0,0,0,.3); white-space: nowrap; animation: pzDrop .35s ease-out; }
+.lobby .pz-call button { font: 700 15px var(--font-ui); color: #e8590c; background: #fff; border-radius: 999px; padding: 7px 16px; box-shadow: none; }
+@keyframes pzDrop { from { transform: translate(-50%, -20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+.pz-pop { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(320px, calc(100vw - 32px));
+  padding: 14px; border-radius: 20px; color: #fff; font-family: var(--font-ui); background: rgba(28,38,66,.92); border: 1px solid var(--glass-line); box-shadow: 0 16px 40px rgba(0,0,0,.3); }
+.pz-pop > b { font-size: 18px; } .pz-pop > small { font-size: 12px; color: #c9d3ff; } .pz-pop p { margin: 0; font-size: 13px; color: rgba(255,255,255,.75); text-align: center; }
+.lobby .pz-pop button.big { width: 100%; height: 46px; border-radius: 14px; font: 700 16px var(--font-ui); color: #fff; background: var(--tt-red, #e0333c); }
+.lobby .pz-pop button.big:disabled { opacity: .5; }
+.lobby .pz-pop button.small { font-size: 13px; padding: 6px 14px; border-radius: 999px; color: #fff; background: rgba(255,255,255,.14); box-shadow: none; }
+.pz-invite { bottom: auto; top: 130px; animation: pzDrop .35s ease-out; }
+.pz-invite p { font-size: 15px; color: #fff; }
+.pz-invite > div { display: flex; gap: 8px; width: 100%; } .pz-invite > div .big { flex: 1; }
+.pzt-extra { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.lobby .pz-table button.small.kim { background: #2f8a4e; box-shadow: none; }
+.pzt-kimtip { font-size: 12px; color: rgba(255,255,255,.7); text-align: center; width: 100%; }
+/* 탁구대 자리 판 (src/ui/plaza.js renderPanel): 자리에 서 있을 때만, 왼쪽 아래(치는 방법 위) — 가운데 탁구대·상대를 가리지 않게 */
+.pz-table { position: absolute; left: clamp(16px, 2.5vw, 32px); bottom: 84px; width: min(440px, calc(100vw - 32px)); pointer-events: auto;
+  display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 10px; border-radius: 20px; color: #fff;
+  background: rgba(28,38,66,.86); border: 1px solid var(--glass-line); box-shadow: 0 16px 40px rgba(0,0,0,.3); font-family: var(--font-ui); }
+body.pz-seated .lobby.plaza-on .lb-free, body.pz-bubble .lobby.plaza-on .lb-free { display: none; }
+.pzt-head { display: flex; align-items: center; gap: 8px; }
+.pzt-head b { font-size: 17px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pzt-mode { flex: 1; min-width: 0; font-size: 13px; color: rgba(255,255,255,.75); display: inline-flex; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pzt-mode .ic { width: 14px; height: 14px; color: #ffd23f; }
+.lobby .pz-table button.small { font-size: 13px; padding: 6px 12px; border-radius: 999px; color: #fff; background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
+.pzt-seats { display: flex; align-items: stretch; gap: 8px; }
+.pzt-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.pzt-side em { font-style: normal; font-size: 12px; font-weight: 700; }
+.pzt-side em.t0, .pzt-seat.t0 { --tc: #ff8a3d; } .pzt-side em.t1, .pzt-seat.t1 { --tc: #3d8bff; }
+.pzt-side em { color: var(--tc); }
+.pzt-seat { display: flex; align-items: center; gap: 4px; min-height: 30px; padding: 4px 10px; border-radius: 10px; font-size: 14px; font-weight: 600; background: rgba(255,255,255,.1); border-left: 4px solid var(--tc); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pzt-seat .ic { width: 14px; height: 14px; color: #ffd23f; flex: none; }
+.pzt-seat small { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: rgba(255,255,255,.2); }
+.pzt-seat.empty { color: rgba(255,255,255,.45); font-weight: 500; background: rgba(255,255,255,.04); }
+.pzt-seat.me { background: rgba(255,255,255,.2); }
+.pzt-seat.rdy { box-shadow: inset 0 0 0 1px rgba(91,227,138,.6); }
+.pzt-vs { align-self: center; font-style: normal; font: 800 15px var(--font-ui); color: rgba(255,255,255,.6); }
+.pzt-res { text-align: center; }
+.pzt-result { margin: 0; font-size: 18px; font-weight: 800; }
+.pz-table .coins-got b { color: #ffd23f; font-size: 18px; }
+.pz-table .coins-got { margin: 2px 0 0; font-size: 13px; color: rgba(255,255,255,.85); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.lobby .pz-table button.big { height: 50px; border-radius: 16px; font: 700 18px var(--font-ui); color: #fff; background: var(--tt-red, #e0333c); box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+.lobby .pz-table button.big.on { background: #2e9b4f; }
+.lobby .pz-table button.big small { font-size: 12px; opacity: .8; margin-left: 6px; }
+.lobby .pz-table button.big:disabled { opacity: .7; }
+.pzt-tip { margin: 0; text-align: center; font-size: 13px; color: rgba(255,255,255,.78); }
+@media (max-width: 760px), (max-height: 560px) {
+  .pz-table { left: 50%; transform: translateX(-50%); bottom: 96px; padding: 10px; gap: 6px; }
+  .pzt-mode { display: none; }
+}
+/* 밝은 광장 위에서는 유리 패널이 하얗게 떠서 글자가 안 읽힌다 → 광장에서는 진한 남색 유리 */
+.lobby.plaza-on .me-chip, .lobby.plaza-on .me-stats span, .lobby.plaza-on .lb-help, .lobby.plaza-on button.icon-btn i, .lobby.plaza-on .lb-missions { background: rgba(28,38,66,.66); }
+/* 광장에서는 '무료 뽑기' 선물을 말하기 버튼 위가 아니라 오른쪽 아래(업데이트 아이콘 위)에 */
+.lobby.plaza-on .lb-free { bottom: 120px; }
+@media (max-width: 760px), (max-height: 560px) {
+  .screen.lobby.plaza-on { display: block; padding: 0; background: linear-gradient(180deg, rgba(14,26,58,.3), rgba(14,26,58,0) 26%); }
+  .lobby.plaza-on .lb-me { position: absolute; top: 10px; right: 10px; align-items: flex-end; }
+  .lobby.plaza-on .me-stats { display: none; }
+  .lobby.plaza-on .me-box { width: min(230px, 56vw); }
+  .lobby.plaza-on .me-name { font-size: 15px; }
+  .lobby.plaza-on .lb-icons { position: absolute; right: 10px; bottom: 96px; }
+  .lobby.plaza-on button.icon-btn i { width: 52px; height: 52px; font-size: 24px; border-radius: 16px; }
+  .lobby.plaza-on .lb-bottom { position: absolute; left: 10px; bottom: 96px; flex-direction: column; align-items: flex-start; }
+  .lobby.plaza-on .lb-help { height: 38px; padding: 0 14px; font-size: 13px; }
+  .lobby.plaza-on .lb-ext { display: none; }
+  .lobby.plaza-on .lb-free { position: absolute; left: 10px; right: 10px; bottom: 160px; width: auto; }
+  .lobby.plaza-on .break-banner { position: absolute; top: 64px; left: 50%; transform: translateX(-50%) scale(.82); transform-origin: top center; white-space: nowrap; }
+  .pz-top { top: 10px; left: 10px; }
+  .pz-pill { height: 36px; padding: 0 12px; font-size: 13px; }
+  .pz-chat { bottom: 14px; }
+  .pz-help { font-size: 11px; }
+}
+
+/* ───────── 광장 위에 뜨는 창 (랭킹·꾸미기) 여닫기 — plaza.md 19장 ─────────
+   카메라가 먼저 날아가기 시작하고(0.9초) 창은 조금 늦게 오른쪽에서 쑥. 닫을 땐 오른쪽으로 쏙 (screen.js WIN_OUT_MS) */
+@keyframes win-bg-in { from { opacity: 0; } }
+@keyframes win-panel-in { from { opacity: 0; transform: translateX(56px) scale(.96); } }
+@keyframes win-bg-out { to { opacity: 0; } }
+@keyframes win-panel-out { to { opacity: 0; transform: translateX(56px) scale(.96); } }
+.screen.win-in { animation: win-bg-in .4s ease-out; }
+.screen.win-in > .panel { animation: win-panel-in .45s cubic-bezier(.2,.85,.25,1) .15s both; }
+.screen.win-out { animation: win-bg-out .2s ease-in forwards; pointer-events: none; }
+.screen.win-out > .panel { animation: win-panel-out .2s ease-in forwards; }
+@media (max-width: 760px) {
+  @keyframes win-panel-in { from { opacity: 0; transform: translateY(48px) scale(.97); } }
+  @keyframes win-panel-out { to { opacity: 0; transform: translateY(48px) scale(.97); } }
+}
+@media (prefers-reduced-motion: reduce) { .screen.win-in, .screen.win-in > .panel, .screen.win-out, .screen.win-out > .panel { animation-duration: .01s; } }
+
+/* 경기 시작 물결 (plaza.md 19장 ⓑ): 첫 1초 어두운 막 대신 광장 → 경기장 물결이 보이게 */
+body.mwave .vs-intro.dim .vi-dim { opacity: 0; }
+
+/* 뽑기 기계 연출 (plaza.md 19장 ⓒ): 캡슐이 굴러 나오는 동안 꾸미기 창은 잠깐 숨기고, 마지막에 하얗게 번쩍 → 탁구공 깨기 화면 */
+body.pz-gacha #dress { opacity: 0; pointer-events: none; transition: opacity .25s; }
+.pz-flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 9999; }
+
+/* ───────── 광장 메뉴 정리 (11/25 사용자 요청: "버튼 배치가 난잡해") — docs/dev/design.md '광장 메뉴 정리' ─────────
+   자리마다 하는 일을 하나로 정한다:
+   · 왼쪽 위 = 광장 상태 (사람 수 · 날씨를 알약 하나로)   · 위 가운데 = 알림 (쉬는 시간 · 모집 · 초대, 한 줄짜리)
+   · 오른쪽 위 = 나 (이름·코인·전적·오늘의 미션을 카드 하나로)
+   · 왼쪽 아래 = 안내 (치는 방법 · 업데이트 · 다른 게임, 조용한 작은 알약)   · 가운데 아래 = 말하기   · 오른쪽 아래 = 선물(무료 뽑기)
+   바닥 줄 세 묶음은 가운데 높이를 맞춘다. 경기 HUD·대기실은 건드리지 않음 (.lobby.plaza-on 안에서만) */
+.lobby.plaza-on { --pz-edge: clamp(16px, 2.2vw, 28px); --pz-bot: 22px; }
+/* 왼쪽 위: 알약 하나 (안에 구분선) */
+.lobby.plaza-on .pz-top { top: var(--pz-edge); left: var(--pz-edge); gap: 0; flex-wrap: nowrap; align-items: center; height: 40px; padding: 0 4px; border-radius: 999px;
+  background: rgba(28,38,66,.62); border: 1px solid var(--glass-line); box-shadow: 0 8px 22px rgba(0,0,0,.2); }
+.lobby.plaza-on .pz-top .pz-pill { background: none; border: 0; box-shadow: none; height: 38px; padding: 0 12px; font-size: 14px; }
+.lobby.plaza-on .pz-top .pz-pill:not(:first-child):not(.hidden)::before { content: ''; width: 1px; height: 16px; margin: 0 12px 0 -12px; background: rgba(255,255,255,.25); }
+.lobby.plaza-on .pz-top .pz-pill.hidden { display: none; }
+#mode-note { color: #ffe08a; }
+
+/* 오른쪽 위: 내 카드 (이름·코인·⚙ / 전적 3칸 / 오늘의 미션) — 따로 떠 있던 4장을 유리 카드 한 장으로 */
+.lobby.plaza-on .lb-me { top: var(--pz-edge); right: var(--pz-edge); width: 280px; gap: 0; align-items: stretch; padding: 6px; border-radius: 22px;
+  background: rgba(28,38,66,.66); border: 1px solid var(--glass-line); box-shadow: 0 16px 40px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.18); }
+.lobby.plaza-on .me-chip { background: none; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 2px 2px 2px 12px; max-width: none; }
+.lobby.plaza-on .me-name { flex: 1; font-size: 17px; }
+.lobby.plaza-on .me-coins { font-size: 15px; padding: 3px 10px 3px 8px; }
+.lobby.plaza-on button.gear { width: 34px; height: 34px; font-size: 17px; background: rgba(255,255,255,.12); }
+.lobby.plaza-on .me-box { width: auto; max-width: none; gap: 0; }
+.lobby.plaza-on .me-stats { gap: 0; margin: 6px 0 2px; padding: 6px 0; border-radius: 14px; background: rgba(255,255,255,.07); }
+.lobby.plaza-on .me-stats span { flex: 1; min-width: 0; padding: 0 4px; border-radius: 0; background: none; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; font-size: 11.5px; color: rgba(255,255,255,.65); }
+.lobby.plaza-on .me-stats span + span { border-left: 1px solid rgba(255,255,255,.14); }
+.lobby.plaza-on .me-stats b { font-size: 17px; }
+.lobby.plaza-on .me-stats span.guest { font-size: 12.5px; padding: 2px 8px; white-space: normal; }
+.lobby.plaza-on .lb-missions { background: none; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; border-radius: 0; padding: 2px 0 0; margin-top: 4px; border-top: 1px solid rgba(255,255,255,.12); }
+.lobby.plaza-on .lb-missions.folded { padding-bottom: 0; }
+.lobby.plaza-on .lm-title { font-size: 14px; }
+.lobby.plaza-on .lm-list li { font-size: 13px; padding: 5px 8px; background: rgba(255,255,255,.07); }
+.lobby.plaza-on .lm-note { font-size: 11.5px; }
+
+/* 위 가운데: 알림은 한 줄짜리 알약으로 (쉬는 시간 → 그 아래 모집 → 초대) */
+.lobby.plaza-on .break-banner { top: var(--pz-edge); gap: 10px; padding: 7px 16px 7px 10px; border-radius: 999px; animation: none; box-shadow: 0 0 0 1.5px rgba(255,190,90,.75), 0 8px 22px rgba(0,0,0,.22); }
+.lobby.plaza-on .break-banner > div { display: flex; align-items: baseline; gap: 10px; }
+.lobby.plaza-on .break-banner .bb-ico { font-size: 22px; }
+.lobby.plaza-on .break-banner .bb-main { font-size: 16px; }
+.lobby.plaza-on .break-banner .bb-main b { font-size: 18px; }
+.lobby.plaza-on .break-banner .bb-sub { font-size: 12.5px; margin: 0; }
+body.is-test .lobby.plaza-on .break-banner { top: 40px; }
+.lobby.plaza-on .pz-call { top: calc(var(--pz-edge) + 52px); }
+.lobby.plaza-on .pz-invite { top: calc(var(--pz-edge) + 108px); }
+body.is-test .lobby.plaza-on .pz-call { top: 92px; }
+body.is-test .lobby.plaza-on .pz-invite { top: 148px; }
+
+/* 왼쪽 아래: 안내 묶음 — 조용한 작은 알약 (말하기·선물보다 눈에 덜 띄게) */
+.lobby.plaza-on .lb-bottom { left: var(--pz-edge); bottom: calc(var(--pz-bot) + 4px); gap: 8px; flex-wrap: nowrap; align-items: center; }
+.lobby.plaza-on .lb-help { height: 40px; padding: 0 15px; font-size: 14px; font-weight: 500; gap: 7px; color: rgba(255,255,255,.92); }
+.lobby.plaza-on .lb-upd { position: relative; }
+.lobby.plaza-on .lb-upd .new-dot { top: -5px; right: -5px; width: 18px; height: 18px; font-size: 10px; border-width: 1.5px; }
+.lobby.plaza-on .lb-icons { display: none; } /* 랭킹·꾸미기는 광장 건물로 (버튼은 plaza.js가 대신 누름) */
+
+/* 가운데 아래: 말하기 (광장의 주인공 버튼). 조작 안내는 처음 10초만 보이고 사라짐 (로비에 올 때마다 다시) */
+.lobby.plaza-on .pz-chat { bottom: var(--pz-bot); gap: 6px; }
+.lobby.plaza-on .pz-help { position: absolute; bottom: calc(100% + 8px); padding: 5px 12px; border-radius: 999px; background: rgba(14,22,44,.55); font-size: 12px; text-shadow: none;
+  animation: pzHintOut .8s ease 10s forwards; pointer-events: none; }
+.lobby.plaza-on .pz-phrases:not(.hidden) ~ .pz-help, body.pz-seated .lobby.plaza-on .pz-help, body.pz-bubble .lobby.plaza-on .pz-help { display: none; }
+@keyframes pzHintOut { to { opacity: 0; visibility: hidden; } }
+
+/* 오른쪽 아래: 무료 뽑기 선물 — 큰 광고판 대신 한 줄 카드 */
+.lobby.plaza-on .lb-free { right: var(--pz-edge); bottom: var(--pz-bot); width: 300px; gap: 10px; padding: 8px 8px 8px 10px; border-radius: 20px;
+  box-shadow: 0 0 0 2px #ffc93c, 0 0 18px rgba(255,190,60,.35), 0 10px 24px rgba(120,70,0,.3); }
+.lobby.plaza-on .lb-free .lf-gift { font-size: 34px; }
+.lobby.plaza-on .lb-free .lf-tag { font-size: 10.5px; padding: 1px 7px; margin-bottom: 1px; }
+.lobby.plaza-on .lb-free b { font-size: 19px; }
+.lobby.plaza-on .lb-free small { font-size: 11.5px; }
+.lobby.plaza-on .lb-free .lf-go { font-size: 14px; padding: 10px 14px; border-radius: 14px; }
+
+/* 휴대폰(좁은 화면): 위 = [광장 알약] … [내 카드(접힌 미션)] / 아래 한 줄 = [❓][📢]  [💬 말하기]  [🎁50] */
+@media (max-width: 760px), (max-height: 560px) {
+  .lobby.plaza-on { --pz-edge: 10px; --pz-bot: 14px; }
+  .lobby.plaza-on .pz-top { height: 36px; }
+  .lobby.plaza-on .pz-top .pz-pill { height: 34px; padding: 0 10px; font-size: 13px; }
+  .lobby.plaza-on #pz-wx, .lobby.plaza-on #mode-note { display: none; }
+  .lobby.plaza-on .lb-me { position: absolute; top: var(--pz-edge); right: var(--pz-edge); width: min(230px, 58vw); padding: 4px; border-radius: 18px; }
+  .lobby.plaza-on .me-name { font-size: 15px; }
+  .lobby.plaza-on .lb-missions .lm-head { padding: 4px 6px; }
+  .lobby.plaza-on .lb-bottom { position: absolute; left: var(--pz-edge); bottom: calc(var(--pz-bot) + 4px); flex-direction: row; align-items: center; }
+  .lobby.plaza-on .lb-help { width: 44px; height: 44px; padding: 0; justify-content: center; font-size: 0; }
+  .lobby.plaza-on .lb-help .ic { font-size: 19px; }
+  .lobby.plaza-on .lb-ext { display: none; }
+  .lobby.plaza-on .lb-free { position: absolute; left: auto; right: var(--pz-edge); bottom: var(--pz-bot); width: 52px; height: 52px; padding: 0; justify-content: center; border-radius: 16px; overflow: visible; }
+  .lobby.plaza-on .lb-free .lf-text, .lobby.plaza-on .lb-free .lf-go { display: none; }
+  .lobby.plaza-on .lb-free .lf-gift { font-size: 30px; }
+  .lobby.plaza-on .lb-free::after { content: attr(data-left); position: absolute; top: -7px; right: -7px; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box; border-radius: 999px;
+    font: 800 11px/20px var(--font-ui); text-align: center; color: #fff; background: #ff3b42; border: 1.5px solid #fff; }
+  .lobby.plaza-on .lb-free::before { display: none; }
+  /* 알림은 내 카드 아래로 차례로 (휴대폰은 위가 좁아서) */
+  .lobby.plaza-on .break-banner, body.is-test .lobby.plaza-on .break-banner { top: 100px; left: var(--pz-edge); right: var(--pz-edge); transform: none; justify-content: center; white-space: nowrap; padding: 6px 12px 6px 8px; }
+  .lobby.plaza-on .break-banner .bb-sub em { display: none; }
+  .lobby.plaza-on .break-banner .bb-main { font-size: 14px; } .lobby.plaza-on .break-banner .bb-main b { font-size: 15px; }
+  .lobby.plaza-on .break-banner .bb-sub { font-size: 11.5px; }
+  .lobby.plaza-on .pz-help { display: none; }
+  .lobby.plaza-on .pz-call, body.is-test .lobby.plaza-on .pz-call { top: 100px; }
+  body:has(#break-banner:not(.hidden)) .lobby.plaza-on .pz-call { top: 146px; }
+  .lobby.plaza-on .pz-invite, body.is-test .lobby.plaza-on .pz-invite { top: 150px; }
+}
+
+/* 광장 게시판 '오늘의 미션'을 누르면 미션 카드가 반짝 (광장 20장 ②) */
+.lb-missions.flash { animation: lm-flash 1.4s ease-out; }
+@keyframes lm-flash { 0%, 40% { box-shadow: 0 0 0 4px #ffd23f, 0 0 24px 6px rgba(255, 210, 63, .7); } 100% { box-shadow: 0 0 0 0 rgba(255, 210, 63, 0); } }

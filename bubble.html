@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>경기장 거품 시안</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1633; }
+    #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    .bar { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 18px; z-index: 5;
+      background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.14); font: 13px 'Pretendard Variable', system-ui, sans-serif; color: rgba(255,255,255,.75); white-space: nowrap; }
+    .bar button { font: 600 13px 'Pretendard Variable', system-ui, sans-serif; color: #fff; border: 0; border-radius: 99px; padding: 6px 12px; cursor: pointer; background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
+    .bar button.on { background: #FF8A1F; box-shadow: none; }
+    #info { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); padding: 7px 14px; border-radius: 99px; background: rgba(0,0,0,.45); color: #fff; font: 600 14px 'Pretendard Variable', system-ui, sans-serif; white-space: nowrap; z-index: 5; }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="bar">경기장 거품 시안
+    <button data-fx="1">1 하나둘</button>
+    <button data-fx="2">2 섞은 것 (불꽃 고리)</button>
+  </div>
+  <div id="info"></div>
+  <script type="module" src="/src/bubble-page.js"></script>
+</body>
+</html>

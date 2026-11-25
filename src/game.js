@@ -594,7 +594,9 @@ export class Game {
 
     // 카메라 / 소리 위치
     const cam = w.camera;
-    if (this.spectator) {
+    if (this.spectator && this.view === 'free') {
+      // 광장 '경기장 거품' 관전 (src/ui/plazaBubble.js): 카메라·소리 위치는 걸어 다니는 3인칭 카메라가 정한다
+    } else if (this.spectator) {
       // 관전: 옆 중계 화면, 또는 A쪽/B쪽 선수 어깨 뒤 (그 쪽에서 다음에 칠 사람)
       w.crowd.setFirstPerson(this.view === 'me');
       if (this.view === 'me') {

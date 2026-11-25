@@ -1,6 +1,7 @@
 import { playCrowd, playHit, playTable, playUI, setEcho } from '../audio.js';
 import { equipped } from '../items.js';
 import { G, HALF_L, R, TY, sideSign } from '../physics.js';
+import { KIM_ID } from '../match.js';
 import { CHAR_Z, PADDLE_OFFSET } from '../scene.js';
 import { crowd } from './cheer.js';
 import { hud } from './hud.js';
@@ -8,11 +9,11 @@ import { account } from '../account.js';
 import { breakAt } from '../breaks.js';
 import { ic } from '../icons.js';
 import { TEAM_NAME, looks, myId, playerNames, room, roomTpill, streakOf } from './room.js';
-import { holdPose, stage, stageFrame, stageOff } from './stage.js';
+import { holdPose } from './stage.js';
 import { $, ease, esc, game, lerp3, match, world } from './state.js';
 
 /* ───────── 경기 시작 전 연출 (약 10초, 1v1·2v2) ─────────
-   ① 대기실이 스르륵 어두워지고 심장 소리 (1초) → ② VS 소개 5초: 상대 팀 → 우리 팀을 차례로 비추며
+   ① 경기장(방장 배경)이 어둠 속에서 심장 소리 (1초) → ② VS 소개 5초: 상대 팀 → 우리 팀을 차례로 비추며
    각자 탁구채를 한 번 휘두르고 (그 탁구채 소리), 마지막에 옆에서 크게 보며 VS →
    ③ 3·2·1 카운트다운 (심장 소리가 빨라짐) → 정적 '준비하시고…' → '스매시!' + 함성.
    모든 PC가 'go'를 받은 순간부터 같은 시간표. 선수 모두가 오른쪽 아래 '건너뛰기'를 누르면
@@ -26,6 +27,9 @@ export const INTRO = {
   swing: 0.2, gap: 0.22, far: 2.3, near: 1.85, y: 1.35, lookY: 1.0, fov: 45, wide: 5.2, wideY: 2.7, wideLook: 0.15,
 };
 export let intro = null;
+// 경기 시작 물결 (plaza.md 19장 ⓑ, plazaBubble.js가 연결): 첫 1초 '어둠 속 심장 소리' 대신 광장 → 방장 경기장 물결(2초),
+// 카메라는 광장 3인칭 자리에서 VS 소개 첫 자리로 날아감. 전체 길이(INTRO.len)는 그대로
+export const introHooks = { waveStart: null, waveFrame: null, waveStop: null };
 
 // spec: 관중(관전 6단계)이 보는 연출. 방(room)은 이미 경기 관전으로 넘겨줬으니 넘기기 전에 모아 둔 이름·꾸미기·칭호·연승을 쓴다
 //   { names, looks, tpill(id), streak(id) }. 관중은 '나/상대' 대신 A팀/B팀, 건너뛰기 버튼 없음(선수들이 누른 건 보임)
@@ -34,12 +38,10 @@ export function startIntro(players, mySide, mode, spec = null) {
   const tpOf = spec ? spec.tpill : roomTpill, stOf = spec ? spec.streak : streakOf;
   const seats = players.map((p) => ({ side: p.side, slot: p.slot || 0, id: p.id, name: nm[p.side][p.slot || 0], look: lk[p.side][p.slot || 0] }))
     .sort((a, b) => a.side - b.side || a.slot - b.slot);
-  intro = { spec: !!spec, t0: performance.now() / 1000, mySide, mode, seats, seg: '', num: 0, beatAt: 0, skips: new Set(), swung: new Set(), fov: stage.on ? stage.fov : world.camera.fov, roomShown: true };
+  intro = { spec: !!spec, t0: performance.now() / 1000, mySide, mode, seats, seg: '', num: 0, beatAt: 0, skips: new Set(), swung: new Set(), fov: world.camera.fov };
   if (game) game.paused = true;
+  intro.wave = !spec && room?.pt != null && !!introHooks.waveStart?.(room.pt);
   document.body.classList.add('intro');
-  // ① 동안은 대기실을 그대로 보여 주고 (누를 수는 없게) 그 위를 어둡게 덮는다
-  $('room').classList.remove('hidden');
-  $('room').classList.add('leaving');
   const card = (s) => {
     const st = stOf(s.id);
     const fire = st >= 2 ? `<div class="vi-streak">${ic('flame')}${st}연승 중</div>` : '';
@@ -60,7 +62,7 @@ export function startIntro(players, mySide, mode, spec = null) {
 }
 
 // '이 판에 걸린 것' (내 쪽에서 본 것, PC마다 다름): 상대 전적 → 상대 연승 → 내 연승 → 쉬는 시간 코인. 최대 3개
-// 상대 전적은 대기실이 불러 둔 room.h2h (1v1, 둘 다 로그인), 연승은 streakOf (보여 주기만)
+// 상대 전적은 광장에서 미리 불러 둔 room.h2h (1v1, 둘 다 로그인), 연승은 streakOf (보여 주기만)
 function stakes(seats, mySide, mode) {
   const out = [];
   const opps = seats.filter((s) => s.side !== mySide);
@@ -90,17 +92,17 @@ function specStakes(seats, stOf) {
 // 건너뛰기: 선수 모두가 누르면 모든 PC가 각자 정적(hush)으로 넘어간다
 function renderSkip() {
   if (!intro) return;
-  const n = intro.seats.length, k = intro.skips.size, mine = intro.skips.has(myId);
+  const n = intro.seats.filter((s) => s.id !== KIM_ID).length, k = intro.skips.size, mine = intro.skips.has(myId); // 김제빵은 건너뛰기를 안 누름
   const btn = $('vi-skip-btn');
   btn.disabled = mine;
   btn.innerHTML = mine ? '다른 사람 기다리는 중' : '건너뛰기 <span class="ar">▶▶</span>';
   $('vi-skip-dots').innerHTML = Array.from({ length: n }, (_, i) => `<i class="${i < k ? 'on' : ''}"></i>`).join('');
 }
 export function addSkip(id) {
-  if (!intro || intro.skips.has(id) || !intro.seats.some((s) => s.id === id)) return;
+  if (!intro || intro.skips.has(id) || !intro.seats.some((s) => s.id === id && s.id !== KIM_ID)) return;
   intro.skips.add(id);
   renderSkip();
-  if (intro.skips.size >= intro.seats.length) intro.skipNow = true; // 다음 프레임에 정적으로 (그 프레임 시각 기준)
+  if (intro.skips.size >= intro.seats.filter((s) => s.id !== KIM_ID).length) intro.skipNow = true; // 다음 프레임에 정적으로 (그 프레임 시각 기준)
 }
 $('vi-skip-btn').addEventListener('click', (e) => {
   e.stopPropagation();
@@ -162,14 +164,7 @@ export function introFrame(now) {
     intro.beatAt = t + (t >= I.cd ? I.beatFast : I.beat);
   }
 
-  // ① 대기실 그대로 (위에 어두운 막만)
-  if (seg === 'dim') { stageFrame(now); return true; }
-  stageOff();
-  if (intro.roomShown) {
-    intro.roomShown = false;
-    $('room').classList.remove('leaving');
-    $('room').classList.add('hidden');
-  }
+  // ① 어두운 막 아래로 상대 팀을 비추기 시작하는 자리 (VS 소개 첫 장면 그대로)
   const ph = t < I.p2 ? 1 : t < I.p3 ? 2 : 3;
   world.setFocus(0);
   setEcho(0);
@@ -209,7 +204,7 @@ export function introFrame(now) {
   let pos, look;
   if (ph < 3) {
     const side = ph === 1 ? 1 - intro.mySide : intro.mySide;
-    const k = ease(ph === 1 ? (t - I.vs) / (I.p2 - I.vs) : (t - I.p2) / (I.p3 - I.p2));
+    const k = ease(Math.max(0, ph === 1 ? (t - I.vs) / (I.p2 - I.vs) : (t - I.p2) / (I.p3 - I.p2)));
     const m = sideSign(side);
     const d = I.far + (I.near - I.far) * k;
     pos = [(0.3 - 0.6 * k) * m, I.y, m * (CHAR_Z - d)];
@@ -227,7 +222,17 @@ export function introFrame(now) {
       look = lerp3(look, [x0 * 0.5, C.lookY, m * C.lookZ], kc);
     }
   }
-  world.camera.fov = I.fov;
+  let fov = I.fov;
+  // 경기 시작 물결: 광장 카메라 자리 → VS 소개 첫 자리 (살짝 위로 떠오르며)
+  const wc = intro.wave ? introHooks.waveFrame?.(t, now) : null;
+  if (wc) {
+    const k = ease(Math.min(1, t / I.vs));
+    pos = lerp3(wc.pos, pos, k);
+    pos[1] += Math.sin(Math.PI * k) * 0.9;
+    look = lerp3(wc.look, look, k);
+    fov = wc.fov + (I.fov - wc.fov) * k;
+  }
+  world.camera.fov = fov;
   world.camera.updateProjectionMatrix();
   world.camera.position.set(...pos);
   world.camera.lookAt(...look);
@@ -257,13 +262,10 @@ function serveRoutine(t, now) {
 // 소개를 끝내고 경기로 (start=false: 경기가 중간에 취소됨)
 export function endIntro(start = true) {
   if (!intro) return;
+  introHooks.waveStop?.();
   const { mode, fov } = intro;
-  const shown = intro.roomShown;
   intro = null;
   document.body.classList.remove('intro');
-  $('room').classList.remove('leaving');
-  if (shown) $('room').classList.add('hidden');
-  stageOff();
   $('vs-intro').className = 'vs-intro hidden';
   for (const side of world.team) for (const c of side) c.setHold(false);
   world.camera.fov = fov;

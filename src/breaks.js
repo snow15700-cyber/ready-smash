@@ -31,3 +31,17 @@ export function breakAt(ms = nowMs()) {
   const b = BREAKS.find(([s, e]) => min >= s && min < e);
   return b ? { end: ms + (b[1] - min) * 60e3 } : null;
 }
+
+// 쉬는 시간 안내 글자 (광장 시계탑, ui/plazaBoards.js): [위 줄, 아래 줄]
+const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.floor(m % 60)).padStart(2, '0')}`;
+export function breakLines(ms = nowMs()) {
+  const b = breakAt(ms);
+  if (b) return ['☕ 쉬는 시간', `${Math.max(1, Math.ceil((b.end - ms) / 60000))}분 남음 · +50%`];
+  const d = new Date(ms + 9 * 3600e3);
+  const dow = d.getUTCDay();
+  if (dow === 0 || dow === 6) return ['😴 주말이에요', `평일 ${hhmm(BREAKS[0][0])}부터`];
+  const min = d.getUTCHours() * 60 + d.getUTCMinutes();
+  const next = BREAKS.find(([s]) => s > min);
+  if (next) return ['⏰ 다음 쉬는 시간', `${hhmm(next[0])} (${next[0] - min}분 뒤)`];
+  return ['🌙 오늘 쉬는 시간 끝', dow === 5 ? '다음 주 월요일에!' : `내일 ${hhmm(BREAKS[0][0])}`];
+}

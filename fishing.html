@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>낚시 손맛 시안</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe2f7; touch-action: none; user-select: none; -webkit-user-select: none; font-family: 'Pretendard Variable', system-ui, sans-serif; }
+    #c, #hud { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+    #hud { pointer-events: none; }
+    .tag { position: fixed; left: 16px; top: 14px; padding: 7px 13px; border-radius: 14px; background: rgba(15, 25, 50, .5); border: 1px solid rgba(255, 255, 255, .2); backdrop-filter: blur(8px); color: #fff; font-size: 13px; font-weight: 600; max-width: calc(100vw - 90px); }
+    .tag b { color: #FF8A1F; }
+    @media (max-width: 560px) { .tag span { display: none; } }
+    #gear { position: fixed; right: 16px; top: 12px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .25); background: rgba(15, 25, 50, .5); backdrop-filter: blur(8px); color: #fff; font-size: 19px; cursor: pointer; }
+    #dexBtn { position: fixed; right: 64px; top: 12px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .25); background: rgba(15, 25, 50, .5); backdrop-filter: blur(8px); color: #fff; font-size: 19px; cursor: pointer; }
+    #panel { position: fixed; right: 16px; top: 60px; width: min(300px, calc(100vw - 32px)); padding: 12px; border-radius: 18px; background: rgba(15, 25, 50, .72); border: 1px solid rgba(255, 255, 255, .18); backdrop-filter: blur(10px); color: rgba(255, 255, 255, .8); font-size: 12px; display: none; }
+    #panel.open { display: block; }
+    #panel .row { margin-bottom: 9px; }
+    #panel .row > div { margin-bottom: 4px; font-weight: 600; }
+    #panel button { font: 600 12px 'Pretendard Variable', system-ui, sans-serif; color: #fff; border: 0; border-radius: 99px; padding: 5px 9px; margin: 0 3px 3px 0; cursor: pointer; background: rgba(255, 255, 255, .14); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); }
+    #panel button.on { background: #FF8A1F; box-shadow: none; }
+    #move { position: fixed; left: 16px; bottom: 16px; display: flex; gap: 8px; }
+    #move button { width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .25); background: rgba(15, 25, 50, .45); backdrop-filter: blur(8px); color: #fff; font-size: 18px; }
+    #move.hide { display: none; }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <canvas id="hud"></canvas>
+  <div class="tag">🧪 <b>낚시 손맛 시안</b><span> · 리듬 방식 · 기록은 이 브라우저에만</span></div>
+  <button id="gear" title="시험 설정">⚙️</button>
+  <button id="dexBtn" title="도감">📖</button>
+  <div id="panel">
+    <div class="row"><div>물고기</div>
+      <button data-k="fish" data-v="random">랜덤</button><button data-k="fish" data-v="mackerel">🐟 고등어</button><button data-k="fish" data-v="seabream">🐠 참돔</button><button data-k="fish" data-v="goldball">🏓 황금</button><button data-k="fish" data-v="junk">🥾 잡동사니</button><button data-k="fish" data-v="paddle">🏓 전설 탁구채(1%)</button></div>
+    <div class="row"><div>크기 (시험)</div>
+      <button data-k="size" data-v="random">랜덤</button><button data-k="size" data-v="40">40cm</button><button data-k="size" data-v="95">🏆 95</button><button data-k="size" data-v="125">🐋 125</button><button data-k="size" data-v="180">👑 180</button><button data-k="size" data-v="300">👑 300</button></div>
+    <div class="row"><div>조건 물고기 (자동 = 실제 쉬는 시간·밤)</div>
+      <button data-k="cond" data-v="auto">자동</button><button data-k="cond" data-v="break">☕ 쉬는 시간</button><button data-k="cond" data-v="night">🌙 밤</button><button data-k="cond" data-v="rain">🌧️ 비</button></div>
+    <div class="row"><div>기포 (기획: 3.5분에 1~2곳, 40초)</div>
+      <button data-k="bubbles" data-v="normal">기획대로</button><button data-k="bubbles" data-v="often">자주(시험용)</button></div>
+    <div class="row"><div>챔질: '!' 뒤 Perfect까지</div>
+      <button data-k="perfect" data-v="0.25">0.25초</button><button data-k="perfect" data-v="0.3">0.3초</button><button data-k="perfect" data-v="0.35">0.35초</button></div>
+    <div class="row"><div>가짜(톡·꿈틀) 비율</div>
+      <button data-k="fake" data-v="0">적게</button><button data-k="fake" data-v="1">보통</button><button data-k="fake" data-v="2">많이</button></div>
+    <div class="row"><div>리듬 판정 폭 (Good)</div>
+      <button data-k="noteG" data-v="0.1">좁게</button><button data-k="noteG" data-v="0.13">보통</button><button data-k="noteG" data-v="0.17">넓게</button></div>
+    <div class="row"><div>소리 (꺼도 손맛이 나는지 보기)</div>
+      <button data-k="sound" data-v="true">켬</button><button data-k="sound" data-v="false">끔</button></div>
+  </div>
+  <div id="move"><button data-d="-1">◀</button><button data-d="1">▶</button></div>
+  <script type="module" src="/src/games/fishing/page.js"></script>
+</body>
+</html>

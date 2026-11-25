@@ -29,7 +29,7 @@ const prefer = (team) => SLOTS.map((s, i) => i).sort((a, b) => {
 });
 
 // 응원 말풍선 (이름표 바로 위, 거리와 상관없이 같은 크기)
-function bubble() {
+export function bubble() {
   const c = document.createElement('canvas');
   c.width = 512; c.height = 128;
   const tex = new THREE.CanvasTexture(c);

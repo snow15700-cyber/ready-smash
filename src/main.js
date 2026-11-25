@@ -10,22 +10,24 @@ import './ui/lobbyList.js';
 import './ui/breakPill.js';
 import './ui/missions.js';
 import './ui/freeGacha.js';
+import './ui/plaza.js';
 import { autoLogin, buyItem, equipItem, gacha, myEquip, testCoins } from './account.js';
 import { initAudio, playUI, setEcho, setListener, setQuiet } from './audio.js';
 import { applyLook, arenaOf, ballOf, tableOf } from './items.js';
 import { LOBBY_CAM, createLobbyDemo } from './lobbyDemo.js';
-import { IS_TEST, ONLINE, makeCode } from './net.js';
+import { IS_TEST, ONLINE } from './net.js';
 import { CHAR_Z } from './scene.js';
-import { aiCoins, clearAiCoins, startAI } from './ui/ai.js';
+import { aiCoins, clearAiCoins } from './ui/ai.js';
 import { crowd } from './ui/cheer.js';
 import { hud } from './ui/hud.js';
 import { INTRO, intro, introFrame } from './ui/intro.js';
 import { checkDaily, showLobby, showLogin } from './ui/login.js';
-import { enterRoom, leaveRoom, room } from './ui/room.js';
+import { endRoom, room } from './ui/room.js';
 import { show, stopGame } from './ui/screen.js';
-import { STAGE, stageFrame, stageOff } from './ui/stage.js';
 import { $, ease, game, lerp3, match, preview, world } from './ui/state.js';
-import { endWatch, watch } from './ui/watch.js';
+import { plazaDebug, plazaFrame } from './ui/plaza.js';
+import { fishAfterRender, fishDebug } from './ui/fishing.js'; // 광장 낚시 (fishing.md 12장)
+import { aiWaveCam, bubbleArena, bubbleLook, bubbleSeated } from './ui/plazaBubble.js';
 
 const lobbyDemo = createLobbyDemo();
 const LOBBY_QUIET = 0.4; // 로비 배경 랠리 소리 크기 (경기 중 소리를 1로 볼 때)
@@ -40,17 +42,13 @@ if (IS_TEST) {
   tag.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:9999;padding:4px 12px;border-radius:999px;background:#ffcc00;color:#222;font:bold 13px sans-serif;pointer-events:none;';
   document.body.appendChild(tag);
 }
-if (!ONLINE) $('mode-note').textContent = '⚠️ 서버 설정이 없어 로컬 테스트 모드예요 (같은 브라우저의 탭끼리만 연결)';
+if (!ONLINE) { $('mode-note').classList.remove('hidden'); $('mode-note').title = '서버 설정이 없어 로컬 테스트 모드예요 (같은 브라우저의 탭끼리만 연결)'; }
 if (!ONLINE) $('login-offline').classList.remove('hidden');
 /* ───────── 버튼 ───────── */
-$('btn-ai').addEventListener('click', () => startAI());
-$('btn-create-1v1').addEventListener('click', () => enterRoom(makeCode(), true, '1v1'));
-$('btn-create-2v2').addEventListener('click', () => enterRoom(makeCode(), true, '2v2'));
 
 function exitGame() {
   playUI('click');
-  if (watch) endWatch();
-  else if (room) { leaveRoom(); show('lobby'); }
+  if (room) endRoom('quit'); // 경기 중에 나가면 광장으로 (탁구대 자리에서도 내려온다)
   else {
     stopGame();
     show('lobby');
@@ -59,7 +57,7 @@ function exitGame() {
 }
 $('exit').addEventListener('click', exitGame);
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && game && (!room || watch)) exitGame();
+  if (e.key === 'Escape' && game && !room) exitGame();
 });
 // 꾸미기 카메라: 랠리하는 내 캐릭터의 등 뒤 가까이 (x: 패널을 피해 캐릭터를 화면 왼쪽으로 비키는 정도)
 // follow: 캐릭터가 좌우로 움직일 때 카메라가 따라가는 빠르기, blend: 로비↔꾸미기 카메라가 옮겨 가는 시간(초)
@@ -74,26 +72,45 @@ const camBlend = { p: 0, f: 0, x: 0, last: 0 }; // p: 0 = 로비 카메라, 1 = 
   else showLogin(r === 'error' ? '서버에 연결하지 못해 자동 로그인을 못 했어요. 다시 로그인하거나 손님으로 해 주세요' : '');
 })();
 /* ───────── 매 프레임 ───────── */
+let shadowT = -9;
 function loop() {
   // 뽑기 연출 화면(src/gachaShow.js)이 화면을 다 덮는 동안에는 뒤의 3D 장면을 쉬게 한다 (느린 PC)
   if (!game && !match && document.body.classList.contains('gacha-on')) { requestAnimationFrame(loop); return; }
+  // 점검용(scripts/check.cjs): 쉬고 있는 탭은 그리기를 멈춤 — 헤드리스 브라우저는 그래픽 카드 없이 그려서 여러 탭이 동시에 광장을 그리면 다른 탭이 멈춘다. 일반 사용자는 안 씀
+  if (window.__smashPause) { requestAnimationFrame(loop); return; }
   const now = performance.now() / 1000;
   // 내 스윙 판단을 먼저 끝내고 나서 경기 판정 (느린 PC에서도 늦게 친 공이 버려지지 않게)
   if (game) game.decideHit(now + game.offset);
   if (match) match.update(now);
+  // 광장 로비 (src/ui/plaza.js): 광장 채널 붙기/빠지기는 매 프레임 확인, 광장이 보이면 광장을 그린다
+  const inPlaza = plazaFrame(now);
+  // 광장만 보일 때는 그림자를 0.5초마다만 다시 그린다: 광장 물건은 거의 안 움직이고(사람은 발밑 동그라미 그림자) 그림자 그리기가 매 프레임 장면을 한 번 더 그리는 일이라서 (느린 PC, 광장 20장)
+  const sm = world.renderer.shadowMap;
+  if (inPlaza && !game && !bubbleArena() && !world.arena?.root.visible) { sm.autoUpdate = false; if (now - shadowT > 0.5 || now < shadowT) { shadowT = now; sm.needsUpdate = true; } }
+  else sm.autoUpdate = true;
   // 위치가 있는 소리 크기: 경기·대기실(연습 스윙)은 그대로, 로비·꾸미기 배경 랠리는 작게
   if (game) {
     setQuiet(1);
-    if (!(intro && introFrame(now))) { stageOff(); game.update(now + game.offset); } // 연출 중엔 introFrame이 대기실 무대를 직접 켜고 끈다
+    if (!(intro && introFrame(now))) {
+      game.update(now + game.offset); // 연출 중엔 introFrame이 그린다
+      aiWaveCam(now); // 김제빵 혼자 하기 시작 물결: 광장 카메라 → 경기 카메라 (plaza.md 19장 ⓓ)
+    }
   }
-  else if (room && !room.inGame && !$('room').classList.contains('hidden')) { setQuiet(1); stageFrame(now); }
+  else if (inPlaza) {
+    setQuiet(bubbleArena() ? 1 : LOBBY_QUIET); // 경기장 거품 안: 경기 소리 그대로
+    world.setFocus(0);
+    setEcho(0);
+    const cp = world.camera.position, e = world.camera.matrixWorld.elements;
+    setListener([cp.x, cp.y, cp.z], [e[0], e[1], e[2]]); // 카메라 자리에서 듣기 (오른쪽 = 카메라 x축)
+  }
   else {
     setQuiet(LOBBY_QUIET);
-    stageOff();
     // 로비 배경: 두 캐릭터가 랠리를 주고받고, 카메라는 옆에서 천천히 흔들린다
     // 꾸미기 화면에서도 랠리는 계속되고, 카메라만 내 캐릭터 등 뒤로 스르륵 옮겨 간다
     world.setFocus(0);
     setEcho(0);
+    // 광장(꾸미기 창)에서 배경을 입어 보러 막 넘어왔으면 카메라는 바로 꾸미기 자리에 (로비에서 날아오지 않게)
+    if (now - camBlend.last > 0.3) { camBlend.p = preview ? 1 : 0; camBlend.f = preview?.front ? 1 : 0; camBlend.x = world.team[0][0].group.position.x; }
     const dt = Math.min(0.1, now - camBlend.last || 0.016);
     camBlend.last = now;
     const L = LOBBY_CAM;
@@ -147,14 +164,15 @@ function loop() {
   loop.last = now;
   for (const side of world.team) for (const c of side) if (c.group.visible) c.tickOutfit(now, odt);
   // 배경: 방(대기실·경기)에서는 방장이 장착한 배경을 모두에게, 그 밖(로비·꾸미기·혼자 하기)은 내 것(입어 보는 중이면 그것)
-  const arenaLook = room ? room.hostM?.look : watch ? watch.hostM?.look : preview && !game ? preview.look : myEquip();
+  const arenaLook = room ? room.hostM?.look : bubbleLook() || (preview && !game ? preview.look : myEquip()); // 경기장 거품 안이면 그 경기 방장 것
   world.setArena(arenaOf(arenaLook));
   world.setBallSkin(ballOf(arenaLook)); // 탁구공도 배경처럼: 방에서는 방장 것
   world.setTable(tableOf(arenaLook)); // 탁구대도 (방장 것)
 
-  world.crowd.setShown(!!game); // 관중석은 경기 화면에서만 (대기실 무대엔 안 세움)
+  world.crowd.setShown(!!game || bubbleSeated()); // 관중석은 경기 화면에서만 (경기장 거품에서는 관중석에 앉았을 때만)
   world.crowd.update(now); // 관중석 (관중이 없으면 바로 끝남)
   world.render();
+  fishAfterRender(); // 낚시 중: 찌 확대 창·낚시 화면 글자
   if (perf) perf.frame(now);
   glassGuard(now);
   requestAnimationFrame(loop);
@@ -210,4 +228,4 @@ const perf = new URLSearchParams(location.search).has('fps') ? (() => {
   };
 })() : null;
 requestAnimationFrame(loop);
-window.__smash = { PV, STAGE, INTRO, world, shop: { testCoins, gacha, buyItem, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; }, get crowd() { return crowd; } };
+window.__smash = { plaza: plazaDebug, fish: fishDebug, PV, INTRO, world, shop: { testCoins, gacha, buyItem, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; }, get crowd() { return crowd; } };

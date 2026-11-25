@@ -6,6 +6,22 @@ import { renderMe, updSeen } from './login.js';
 import { $, game, setGame, setMatch, setPreview, world } from './state.js';
 
 export let curScreen = '';
+const WINDOWS = ['dress', 'rank'];
+// 창 닫기: 창이 오른쪽으로 쏙 들어간 뒤 광장으로 (카메라는 그때부터 내 등 뒤로 돌아온다)
+let closing = 0;
+export function closeWindow() {
+  const scr = curScreen;
+  if (!WINDOWS.includes(scr) || closing) return;
+  const el = $(scr);
+  el.classList.remove('win-in');
+  el.classList.add('win-out');
+  closing = setTimeout(() => {
+    closing = 0;
+    el.classList.remove('win-out');
+    if (curScreen === scr) show('lobby');
+  }, WIN_OUT_MS);
+}
+export const WIN_OUT_MS = 200;
 export const HOWTO_KEY = 'smash-howto-seen'; // 치는 방법 창을 본 적 있는지 (처음 온 사람에게 한 번 자동으로 띄움)
 export function show(screen) {
   if (screen === 'lobby') {
@@ -16,9 +32,16 @@ export function show(screen) {
     $('upd-dot').classList.toggle('hidden', updSeen());
   }
   if (screen !== 'dress') setPreview(null);
+  // 광장 위에 뜨는 창(랭킹·꾸미기): 카메라가 먼저 날아가기 시작하고 창이 오른쪽에서 쑥 (plaza.md 19장)
+  if (WINDOWS.includes(screen) && screen !== curScreen) {
+    const el = $(screen);
+    el.classList.remove('win-in', 'win-out');
+    void el.offsetWidth; // 애니메이션 다시 시작
+    el.classList.add('win-in');
+  }
   curScreen = screen;
   syncLobby();
-  for (const id of ['login', 'pin-change', 'rank', 'lobby', 'join', 'room', 'dress']) $(id).classList.toggle('hidden', id !== screen);
+  for (const id of ['login', 'pin-change', 'rank', 'lobby', 'dress']) $(id).classList.toggle('hidden', id !== screen);
   $('hud').classList.toggle('hidden', screen !== 'hud');
 }
 
@@ -34,6 +57,5 @@ export function stopGame(keepCrowd = false) {
   $('stats').textContent = '';
   $('scoreboard').textContent = '';
   $('result').classList.add('hidden');
-  $('cheer-bar').classList.add('hidden'); // 관전이 끝난 뒤 선수로 경기할 때 응원 줄이 남아 있지 않게 (관전 중이면 startWatch가 다시 띄움)
   resetScore();
 }

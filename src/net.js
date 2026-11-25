@@ -51,16 +51,10 @@ export function joinRoom(code, me, handlers, { listen = false, rtc = false } = {
     onStatus: (st, text) => h.onStatus(st, text),
   };
   const base = ONLINE ? joinSupabase(code, me, route, listen) : joinLocal(code, me, route, listen);
-  // 선수가 되면(처음부터, 또는 관중 → 참가 join) 직접 연결 시작. 관중(listen)은 서버로만 듣는다
-  const startP2P = (id) => {
-    if (!rtc || p2p) return;
-    loadTurn(); // 출입증이 곧 만료되면 새로 (이번 연결에는 지금 있는 것)
-    if (RTC_ON) { p2p = makeP2P(id, (m) => base.send(m), (m) => route.onMsg(m), (on) => h.onDirect?.(on)); p2p.members(last); }
-  };
-  if (!listen) startP2P(me.id);
+  if (rtc && !listen) loadTurn(); // 출입증이 곧 만료되면 새로 (이번 연결에는 지금 있는 것)
+  if (rtc && !listen && RTC_ON) p2p = makeP2P(me.id, (m) => base.send(m), (m) => route.onMsg(m), (on) => h.onDirect?.(on));
   return {
     ...base,
-    join(m) { base.join(m); startP2P(m.id); },
     send(payload) {
       if (p2p) { payload = p2p.stamp(payload); p2p.sendDirect(payload); }
       base.send(payload);
@@ -351,20 +345,44 @@ export function joinWatch(code, onList, onMsg) {
   return ONLINE ? lobbySupabase(name, onList, onMsg) : lobbyLocal(name, onList, onMsg);
 }
 
+// 광장 로비 채널 (docs/dev/plaza.md 0장): 광장에 있는 사람 명단(presence: 이름·꾸미기, 가끔만 고침) + 메시지(broadcast:
+// 걷기 {from,to,t}·탁구대 자리·준비 'st'와 정해진 채팅 'say'). 걷기는 클릭할 때만 보낸다(매 프레임 위치 전송 없음).
+// 경기 채널과 따로라 경기 중인 선수는 이 채널에 없다. onList([{id, nick, title, titleX, look, at, mob}]), onMsg(payload)
+export const PLAZA_CH = IS_TEST ? 'pingpong-test-plaza' : 'pingpong-plaza';
+export function joinPlaza(onList, onMsg) {
+  return ONLINE ? lobbySupabase(PLAZA_CH, onList, onMsg) : lobbyLocal(PLAZA_CH, onList, onMsg);
+}
+
+// Supabase는 명단 정보(presence track)를 너무 자주 고치면 채널을 끊어 버린다
+// (11/24 실제 서버로 잼: 약 12초 안에 6번째 track에서 CLOSED, 12초 간격이면 괜찮음 — 간격과 상관없는 '짧은 시간 안 횟수' 한도).
+// 그래서 track은 최소 4초 간격으로 묶어서 마지막 정보만 보낸다. 자주 바뀌는 것(광장 걷기·자리·준비)은 track 대신 broadcast로.
+const TRACK_MIN = 4000;
 function lobbySupabase(chName, onList, onMsg = null) {
   const key = Math.random().toString(36).slice(2, 10);
   const ch = getClient().channel(chName, { config: { broadcast: { self: false }, presence: { key } } });
-  let ready = false, want = null, closed = false, healT = 0;
-  // 스스로 고치기: 올려 둔 내 정보(track)가 서버 명단에 없으면 3초 뒤 다시 올린다
+  let ready = false, want = null, sent = null, closed = false, healT = 0, trackT = 0, lastT = 0;
+  const doTrack = () => {
+    trackT = 0;
+    if (closed || !ready || !want || want === sent) return;
+    sent = want;
+    lastT = Date.now();
+    ch.track(want);
+  };
+  const schedule = () => {
+    if (trackT || closed || !ready) return;
+    trackT = setTimeout(doTrack, Math.max(0, lastT + TRACK_MIN - Date.now()));
+  };
+  // 스스로 고치기: 올려 둔 내 정보(track)가 서버 명단에 없으면 다시 올린다
   // (관중이 나갔다 바로 다시 들어올 때 서버 명단에서 빠지는 일이 있었음 → 선수 화면에 관중이 안 보임)
   const heal = () => {
     if (healT || closed) return;
     healT = setTimeout(() => {
       healT = 0;
       if (closed || !ready || !want || ch.presenceState()[key]) return;
-      ch.track(want);
+      sent = null;
+      schedule();
       heal();
-    }, 3000);
+    }, 5000);
   };
   ch.on('presence', { event: 'sync' }, () => {
     onList(Object.values(ch.presenceState()).map((arr) => arr[0]).filter(Boolean));
@@ -374,13 +392,14 @@ function lobbySupabase(chName, onList, onMsg = null) {
   ch.subscribe((status) => {
     if (status !== 'SUBSCRIBED' || closed) return;
     ready = true;
-    if (want) { ch.track(want); heal(); }
+    sent = null; // 다시 붙었으면(서버가 끊었다 다시 이음) 내 정보를 다시 올린다
+    if (want) { schedule(); heal(); }
   });
   return {
-    track(info) { want = info; if (ready) { ch.track(info); heal(); } },
-    untrack() { if (!want) return; want = null; if (ready) ch.untrack(); },
+    track(info) { want = info; schedule(); },
+    untrack() { if (!want) return; want = null; sent = null; clearTimeout(trackT); trackT = 0; if (ready) { lastT = Date.now(); ch.untrack(); } },
     send(payload) { if (ready) ch.send({ type: 'broadcast', event: 'm', payload }); },
-    leave() { closed = true; clearTimeout(healT); getClient().removeChannel(ch); },
+    leave() { closed = true; clearTimeout(healT); clearTimeout(trackT); getClient().removeChannel(ch); },
   };
 }
 
@@ -404,7 +423,7 @@ function lobbyLocal(chName, onList, onMsg = null) {
     hb();
     const now = performance.now();
     let changed = false;
-    for (const [k, o] of others) if (now - o.t > 3500) { others.delete(k); changed = true; }
+    for (const [k, o] of others) if (now - o.t > 8000) { others.delete(k); changed = true; }
     if (changed) emit();
   }, 1000);
   const bye = () => { if (mine) post({ k: 'bye', key }); };

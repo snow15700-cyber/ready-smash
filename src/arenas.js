@@ -2,6 +2,7 @@
 // '09시' 시리즈는 사용자의 다른 게임 '09시까지 출근하세요'(snow15700-cyber/until09_new)의 코스 배경과
 // 같은 모양·색으로 만든다 (그 게임 js/06-scene.js·07-car-models.js·08-pets.js·10-destination.js를 옮겨 옴)
 // 좌표: 탁구대 가운데 = 원점, 탁구대 긴 쪽 = z, A팀(side 0)은 +z에서 -z를 본다. 단위 m
+import { measureWalls } from './arenaWalls.js';
 import * as THREE from 'three';
 import { seeded, canvasTex, glowSprite, std, addBox, petYaw, makeFacade } from './arena-kit.js';
 import { buildCorgi, buildCat } from './arena-pets.js';
@@ -330,6 +331,7 @@ export function buildArena(id) {
   const a = f();
   const buildMs = Math.round(performance.now() - tb);
   a.root.traverse((o) => { if (o.isMesh && !o.castShadow) o.receiveShadow = true; });
+  a.walls = measureWalls(a.root); // 경기장 거품 안 걸을 수 있는 범위 (합치기 전에)
   // 움직이지 않는 것을 재질별로 합쳐 가볍게 (주소에 ?nobake=1이면 비교용으로 끔)
   if (!/[?&]nobake=1/.test(location.search)) {
     const t0 = performance.now();
