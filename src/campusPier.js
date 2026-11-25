@@ -87,7 +87,7 @@ export function buildPierArea() {
     cyl(0.04, 0.04, 0.95, pole, ax, 0.48, S.z0 - 0.45, 6);
     // 노란 포스트잇 (11/25 사용자: 낚시는 시험 중이라 의견을 받음) — 표지판 오른쪽 아래 모서리에 비스듬히
     const note = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4), new THREE.MeshBasicMaterial({ map: noteTex }));
-    note.position.set(ax - 0.5, 0.92, S.z0 - 0.52); note.rotation.set(0, Math.PI, -0.12); // 보는 사람 기준 오른쪽 아래 (글자 안 가리게) g.add(note);
+    note.position.set(ax - 0.5, 0.92, S.z0 - 0.52); note.rotation.set(0, Math.PI, -0.12); g.add(note); // 보는 사람 기준 오른쪽 아래 (글자 안 가리게)
   }
   return g;
 }
