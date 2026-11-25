@@ -281,7 +281,7 @@ export async function saveResult(mode, win, stats, achStats) {
   const mid = r0?.mid;
   const opp = mode === '1v1' ? oppMember() : null;
   const bonus = { perfect3: stats.perfect3, rally10: stats.rally10 };
-  // 31: 상대 결과를 기다리는 동안 결과 아래에 '상대 결과 확인 중…'
+  // 32: 상대 결과를 기다리는 동안 결과 아래에 '상대 결과 확인 중…'
   const onWait = () => { if (r0 && !r0.checking) { r0.checking = true; roomHooks.onResult?.(r0); } };
   const r = mid ? await matchFinish(mid, win, bonus, onWait) : { status: 'no_match' };
   if (r0) r0.checking = false;

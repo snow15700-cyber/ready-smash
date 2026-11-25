@@ -1,4 +1,4 @@
--- 준비하시고, 스매시! — 31단계: 코인·전적 속이기 막기 (docs/dev/accounts.md '31 공정한 결과'). 30 다음에 실행.
+-- 준비하시고, 스매시! — 32단계: 코인·전적 속이기 막기 (docs/dev/accounts.md '32 공정한 결과'). 31 다음에 실행.
 -- Supabase 대시보드 → SQL Editor → 이 파일 내용을 통째로 붙여 넣고 Run. 여러 번 실행해도 괜찮다.
 --
 -- ① 혼자 하기 (pingpong_ai_rally, 26의 것에 두 가지만 더함)
@@ -8,7 +8,7 @@
 --
 -- ② 1대1·2대2 결과 (새 함수 pingpong_match_result = 27의 pingpong_match_finish에 더함)
 --  · test와 main이 같은 서버를 쓰므로 옛 함수 pingpong_match_finish는 그대로 둔다 (main 배포본이 계속 기록되게).
---    test를 main에 합친 뒤 32_close_old_finish.sql로 옛 함수를 닫는다 (그때까지는 옛 함수로 속일 수 있음)
+--    test를 main에 합친 뒤 33_close_old_finish.sql로 옛 함수를 닫는다 (그때까지는 옛 함수로 속일 수 있음)
 --  · 각자 처음 보낸 결과(이겼다/졌다)를 적어 두고, 상대 쪽에 로그인한 사람이 있으면 서로 말이 맞아야 정산한다
 --  · 상대가 아직 안 보냈으면 'wait' → 화면이 1.5초마다 다시 부른다. 내가 보낸 지 20초가 지나도 상대가 안 보내면 내 말대로
 --    (상대가 경기 끝나자마자 창을 닫은 경우)
@@ -37,14 +37,14 @@ declare
   sb int := 0;
   brk_pct int := 50;
   today date := (now() at time zone 'Asia/Seoul')::date;
-  used int;        -- 31: 오늘 이미 받은 혼자 하기 코인
-  raw int;         -- 31: 상한 전 이번 코인
-  give int;        -- 31: 실제로 주는 코인
+  used int;        -- 32: 오늘 이미 받은 혼자 하기 코인
+  raw int;         -- 32: 상한 전 이번 코인
+  give int;        -- 32: 실제로 주는 코인
 begin
   if pl.id is null then return json_build_object('status', 'no_session'); end if;
-  select * into pl from pingpong_players where id = pl.id for update;   -- 31: 동시에 여러 번 불러도 상한이 새지 않게
+  select * into pl from pingpong_players where id = pl.id for update;   -- 32: 동시에 여러 번 불러도 상한이 새지 않게
   allowed := case when pl.ai_at is null then 0
-                  else floor(extract(epoch from now() - pl.ai_at) / 1.2)::int + 1 end;   -- 31: 1초 → 1.2초에 1번
+                  else floor(extract(epoch from now() - pl.ai_at) / 1.2)::int + 1 end;   -- 32: 1초 → 1.2초에 1번
   hits := least(greatest(coalesce(p_hits, 0), 0), allowed, 1000);
   total := pl.ai_rem + hits;
   got := total / 3;  -- 26: 4 → 3
@@ -54,7 +54,7 @@ begin
   if st.kind = 'ai' and got > 0 then sb := (got * st.amount + 99) / 100; end if;
   if st.kind = 'break' then brk_pct := 50 + st.amount; end if;
   if got > 0 and pingpong__is_break(now()) then brk := ((got + sb) * brk_pct + 99) / 100; end if;
-  -- 31: 하루 250코인까지
+  -- 32: 하루 250코인까지
   used := case when pl.ai_day = today then pl.ai_day_coins else 0 end;
   raw := got + sb + brk;
   give := least(raw, greatest(250 - used, 0));
@@ -69,8 +69,8 @@ end $$;
 revoke all on function public.pingpong_ai_rally(text, int) from public;
 grant execute on function public.pingpong_ai_rally(text, int) to anon, authenticated;
 
--- ② 1대1·2대2 결과: 새 함수 pingpong_match_result (27의 pingpong_match_finish + 31 표시한 곳, 받는 값은 같음)
---    main 배포본(옛 화면)은 아직 pingpong_match_finish를 부르므로 그대로 둔다. test를 main에 합친 뒤 32로 옛 함수를 닫는다
+-- ② 1대1·2대2 결과: 새 함수 pingpong_match_result (27의 pingpong_match_finish + 32 표시한 곳, 받는 값은 같음)
+--    main 배포본(옛 화면)은 아직 pingpong_match_finish를 부르므로 그대로 둔다. test를 main에 합친 뒤 33로 옛 함수를 닫는다
 create or replace function public.pingpong_match_result(
   p_token text, p_match uuid, p_won boolean, p_perfect3 int, p_rally10 int) returns json
 language plpgsql security definer set search_path = public, extensions as $$
@@ -82,10 +82,10 @@ declare
   okey text;
   has_opp boolean;
   kim boolean;     -- 27: 김제빵 낀 2대2 (전적·랭킹·연승 X, 코인은 보통 2대2와 같게)
-  v_won boolean;   -- 31: 내가 처음 말한 결과 (p_won 대신 이걸 씀, 엇갈리면 false)
-  conflict boolean := false;  -- 31: 이 경기에서 누군가 나와 다른 승자를 말함
-  agreed boolean := false;    -- 31: 상대 쪽 누군가가 나와 같은 승자를 말함
-  disputed boolean := false;  -- 31: 결과가 엇갈림 → 승패 없이 (승리 보상 X)
+  v_won boolean;   -- 32: 내가 처음 말한 결과 (p_won 대신 이걸 씀, 엇갈리면 false)
+  conflict boolean := false;  -- 32: 이 경기에서 누군가 나와 다른 승자를 말함
+  agreed boolean := false;    -- 32: 상대 쪽 누군가가 나와 같은 승자를 말함
+  disputed boolean := false;  -- 32: 결과가 엇갈림 → 승패 없이 (승리 보상 X)
   rec boolean;     -- 27: 전적에 넣을 판인지
   played int;
   full_coins boolean;
@@ -114,12 +114,12 @@ begin
   if m.started_at < now() - interval '1 hour' then return json_build_object('status', 'too_old'); end if;
   if me.claim is null then
     -- 이 경기 뒤에 다른 경기에 또 입장했으면 이 경기는 결과를 낼 수 없다 (동시에 여러 경기 막기)
-    -- 31: 이미 결과를 말해 두고 확인을 기다리던 중이면 (그사이 '한 판 더'로 새 경기에 들어가도) 그대로 정산
+    -- 32: 이미 결과를 말해 두고 확인을 기다리던 중이면 (그사이 '한 판 더'로 새 경기에 들어가도) 그대로 정산
     if exists (select 1 from pingpong_match_players o
                 where o.player_id = pl.id and o.match_id <> m.id and o.joined_at > me.joined_at) then
       return json_build_object('status', 'stale');
     end if;
-    -- 31: 내 말(이겼다/졌다)을 먼저 적어 둔다. 처음 말한 것만 쓴다 (상대 말을 보고 바꿀 수 없게)
+    -- 32: 내 말(이겼다/졌다)을 먼저 적어 둔다. 처음 말한 것만 쓴다 (상대 말을 보고 바꿀 수 없게)
     update pingpong_match_players set claim = p_won, claimed_at = now()
       where match_id = m.id and player_id = pl.id returning * into me;
   end if;
@@ -136,7 +136,7 @@ begin
     from pingpong_match_players where match_id = m.id and side <> me.side;
   has_opp := okey is not null;
 
-  -- 31: 상대 쪽에 로그인한 사람이 있으면 서로 말이 맞아야 승리 보상을 준다
+  -- 32: 상대 쪽에 로그인한 사람이 있으면 서로 말이 맞아야 승리 보상을 준다
   --  · 상대 쪽 누군가가 같은 승자를 말함 → 그대로 정산
   --  · 누군가(상대·팀원) 다른 승자를 말함 → 승패 없이 (아무도 승리 보상 X, 참여 코인 등은 그대로)
   --  · 아직 아무도 말 안 함 → 'wait' (화면이 잠시 뒤 다시 부름). 내가 말한 지 20초가 지나면 내 말대로 (상대가 창을 닫은 경우)
@@ -152,7 +152,7 @@ begin
   end if;
   -- 27: 김제빵 판 = 표시가 있고, 로그인해서 입장한 사람이 3명 이하 (사람 4명이 다 입장한 판은 표시가 있어도 보통 판)
   kim := m.kim and (select count(*) from pingpong_match_players where match_id = m.id) <= 3;
-  rec := has_opp and not kim and not disputed;   -- 31: 결과가 엇갈린 판도 전적·랭킹·연승 X
+  rec := has_opp and not kim and not disputed;   -- 32: 결과가 엇갈린 판도 전적·랭킹·연승 X
   okey := m.mode || ':' || coalesce(okey, 'guest');
   select count(*) into played from pingpong_match_players
     where player_id = pl.id and opp_key = okey and reported_at >= day_start;
@@ -164,7 +164,7 @@ begin
     full_coins := played < 5;
     join_coins := played < 5;
   end if;
-  if disputed then v_won := false; end if;   -- 31: 엇갈린 판은 '이긴 것'으로 치지 않음 (승리 코인·업적·미션 X)
+  if disputed then v_won := false; end if;   -- 32: 엇갈린 판은 '이긴 것'으로 치지 않음 (승리 코인·업적·미션 X)
   won_n := v_won and rec;
   streak := case when not rec then pl.win_streak when v_won then pl.win_streak + 1 else 0 end;
 
@@ -234,7 +234,7 @@ begin
   where id = pl.id returning * into pl;
 
   -- 1대1 상대 전적: 상대가 실제로 이 경기에 입장했을 때만
-  if m.mode = '1v1' and not disputed then   -- 31: 결과가 엇갈린 판은 상대 전적에 안 셈
+  if m.mode = '1v1' and not disputed then   -- 32: 결과가 엇갈린 판은 상대 전적에 안 셈
     select player_id into opp from pingpong_match_players where match_id = m.id and side <> me.side;
     if opp is not null then
       insert into pingpong_h2h(player_id, opp_id, wins, losses)

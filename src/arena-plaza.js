@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { addBox, std } from './arena-kit.js';
 import { buildCampus } from './campusMock.js';
 import { fillProps } from './campusModels.js';
-import { DECK, FOUNTAIN, heightAt, KIM_SPOT, onPier, PIER, PIER_STAIRS, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS, toWorld } from './campusLayout.js';
+import { DECK, FOUNTAIN, heightAt, KIM_SPOT, onPier, PIER, SHOP_SPOTS, STAIRS, SPAWN, SPOTS, TABLE_SPOTS, toWorld } from './campusLayout.js';
 import { DECK_TELE_Z } from './campusProps.js';
 import { GACHA_OUT, SHOP_D } from './campusShops.js';
 
@@ -44,10 +44,11 @@ const GACHA = SHOPS.find((s) => s.id === 'shop');
 // 걸을 수 있는 곳 (m)
 export const PLAZA = {
   minX: -21.5, maxX: 21.5, minZ: -10, maxZ: PIER.z1 - 0.35, // 남쪽은 전망대 밑 낚시 판까지 (데크 서쪽·데크 난간·계단 옆은 아래 blocks로 막음, 낚시 12장)
+  floorMin: PIER.y, // 가장 낮은 바닥 (바닥 클릭 계산용)
   heightAt, // 서 있는 바닥 높이 (데크 위 0.25m · 계단 · 낚시 판 −4.35m)
   onPier, // 낚시 판 위인지 (4단계 ②: '🎣 낚시하기' 버튼)
-  // 돌계단 (plaza.js planWalk: 광장 ↔ 낚시 판은 계단 입구 top · 계단 아래 bottom을 지나감)
-  stairs: { ...PIER_STAIRS, top: [(PIER_STAIRS.x0 + PIER_STAIRS.x1) / 2, PIER_STAIRS.z0 - 0.7], bottom: [(PIER_STAIRS.x0 + PIER_STAIRS.x1) / 2, PIER_STAIRS.z1 + 0.5] },
+  // 돌계단 2개 — 데크 서쪽·동쪽 (plaza.js planWalk: 광장 ↔ 낚시 판은 가까운 계단의 입구 top · 계단 아래 bottom을 지나감)
+  stairs: STAIRS.map((S) => ({ ...S, top: [(S.x0 + S.x1) / 2, S.z0 - 0.7], bottom: [(S.x0 + S.x1) / 2, S.z1 + 0.5] })),
   spawn: SPAWN, // 처음 서는 곳 (분수 남쪽, 북쪽 가게를 바라봄). 가게 문까지 약 13m(걸어서 3초)
   shops: SHOPS,
   tables: TABLES,
@@ -65,8 +66,9 @@ export const PLAZA = {
     box(SPOTS.vending, -0.6, 3.0, -0.45, 0.45),
     box(SPOTS.bakery, -2.85, 2.85, -2.35, 3.4),
     // 바다 전망대: 데크 위는 걸어 다님. 데크 양옆(광장 바닥 끝 너머)·망원경·벤치·안내 판은 막음
-    // 낚시터(12장): 데크 서쪽(광장 끝 너머 + 판 서쪽 바다) · 데크 바다 쪽 난간(판으로 떨어지지 않게) · 계단 서쪽 옆(판에서 계단 옆구리로 못 오르게). 데크 동쪽 풀밭 → 계단 → 판은 걸어감
-    flat(-22, DECK.x0, 32.2, PIER.z1 + 1), flat(DECK.x0, PIER_STAIRS.x0, DECK.z1 - 0.2, DECK.z1 + 0.2), flat(PIER_STAIRS.x0 - 0.2, PIER_STAIRS.x0, DECK.z1, PIER_STAIRS.z1 - 0.3),
+    // 낚시터(12장): 서쪽 계단 너머(광장 끝 너머 + 판 서쪽 바다) · 데크 바다 쪽 난간(판으로 떨어지지 않게) · 두 계단의 데크 쪽 옆(판에서 계단 옆구리로 못 오르게). 데크 양옆 풀밭 → 계단 → 판은 걸어감
+    flat(-22, STAIRS[0].x0, 32.2, PIER.z1 + 1), flat(STAIRS[0].x1, STAIRS[1].x0, DECK.z1 - 0.2, DECK.z1 + 0.2),
+    flat(STAIRS[0].x1, STAIRS[0].x1 + 0.2, DECK.z1, STAIRS[0].z1 - 0.3), flat(STAIRS[1].x0 - 0.2, STAIRS[1].x0, DECK.z1, STAIRS[1].z1 - 0.3),
     { x: SPOTS.deck.x - 3, z: SPOTS.deck.z + DECK_TELE_Z(DECK.z1 - DECK.z0), r: 0.4 }, { x: SPOTS.deck.x + 3, z: SPOTS.deck.z + DECK_TELE_Z(DECK.z1 - DECK.z0), r: 0.4 },
     flat(SPOTS.deck.x - 6.15, SPOTS.deck.x - 4.25, SPOTS.deck.z + 0.05, SPOTS.deck.z + 0.75), flat(SPOTS.deck.x + 4.25, SPOTS.deck.x + 6.15, SPOTS.deck.z + 0.05, SPOTS.deck.z + 0.75),
     flat(SPOTS.deck.x - 0.85, SPOTS.deck.x + 0.85, SPOTS.deck.z - (DECK.z1 - DECK.z0) / 2 + 0.15, SPOTS.deck.z - (DECK.z1 - DECK.z0) / 2 + 0.45),

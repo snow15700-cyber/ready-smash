@@ -7,8 +7,9 @@ import * as THREE from 'three';
 import { account, fishDex, myEquip, srvNow, syncServerClock } from '../account.js';
 import { PLAZA } from '../arena-plaza.js';
 import { applyLook } from '../items.js';
-import { CATCH, LEGEND_PADDLES } from '../games/fishing/rules.js';
-import { makeBobber, makeLine, makeRod, seaHeight } from '../games/fishing/world.js';
+import { activeBubbles, CATCH, LEGEND_PADDLES } from '../games/fishing/rules.js';
+import { makeBobber, makeBubbleFx, makeLine, makeRod, makeSplashes, seaHeight } from '../games/fishing/world.js';
+import { PIER, STAIRS } from '../campusLayout.js';
 import { fishHooks, plazaApi } from './plaza.js';
 import { hud as toastHud } from './hud.js';
 import { curScreen } from './screen.js';
@@ -75,7 +76,7 @@ async function start() {
     });
   }
   const f = plazaApi.view.figs.get(plazaApi.myId());
-  const p = f?.disp || [PLAZA.stairs.bottom[0], PLAZA.stairs.bottom[1]];
+  const p = f?.disp || [...PLAZA.stairs.at(-1).bottom];
   F.standAt(p[0], p[1]);
   applyLook(F.me, myEquip());
   F.me.group.traverse((o) => { if (o.isMesh) o.castShadow = false; });
@@ -235,12 +236,34 @@ fishHooks.onSay = (p, text) => { if (p) addChat(p.nick, text); };
 // ── 광장(ui/plaza.js)이 부르는 것
 fishHooks.on = () => on;
 fishHooks.state = () => (on ? { b: me.b } : null);
-fishHooks.hidden = () => { if (on) stop(); $('fish-start').classList.add('hidden'); };
+fishHooks.hidden = () => { if (on) stop(); $('fish-start').classList.add('hidden'); pierBubbles(0, null); };
+
+// ── 낚시 안 할 때도 낚시터(계단에 들어선 순간부터 판 위)에서는 기포가 보임 (11/25 사용자: 그래야 자리를 옮겨 다님)
+//  낚시 중에는 낚시 화면(session.js)이 같은 기포를 그림. 시각 = 서버 시각(모든 사람이 같은 곳·같은 때)
+const inPierZone = (p) => p[1] > STAIRS[0].z0 - 0.3 && p[0] > PIER.x0 - 0.5 && p[0] < PIER.x1 + 0.5;
+let pb = null, pbSync = false;
+const pbSeen = new Set();
+function pierBubbles(now, p) {
+  const zone = !!p && !on && curScreen === 'lobby' && inPierZone(p);
+  if (!pb) { if (!zone) return; const fx = makeSplashes(world.scene); pb = { fx, bfx: makeBubbleFx(world.scene, fx), last: now, was: false }; }
+  if (!zone) { // 낚시터를 떠나면(낚시 시작·광장 화면을 떠남 포함) 기포·방울을 한 번에 치움
+    if (pb.was) { pb.bfx.update([], now, 10, seaHeight); pb.fx.update(10); pb.was = false; }
+    return;
+  }
+  if (!pbSync) { pbSync = true; syncServerClock().catch(() => {}); }
+  const dt = Math.min(0.05, Math.max(0, now - pb.last));
+  pb.last = now; pb.was = true;
+  const list = activeBubbles(srvNow() / 1000);
+  pb.bfx.update(list, now, dt, seaHeight);
+  pb.fx.update(dt);
+  for (const b of list) if (!pbSeen.has(b.id)) { pbSeen.add(b.id); toastHud.toast(`🫧 기포가 올라왔어요! ${Math.ceil(b.left)}초 동안 — 기포 위로 던지면 잘 잡혀요`, 2600); }
+}
 fishHooks.frame = (now, p, walking) => {
   // 버튼: 낚시 판 위에 서 있으면 (걷는 중·탁구대 자리·창이 떠 있으면 안 보임)
   const can = !on && curScreen === 'lobby' && !plazaApi.seat() && !walking && PLAZA.onPier(p[0], p[1]);
   $('fish-start').classList.toggle('hidden', !can);
   if (others.size || [...plazaApi.people().values()].some((q) => q.fi)) othersFrame(now);
+  pierBubbles(now, p);
   if (!on) return;
   if (curScreen !== 'lobby' || plazaApi.seat()) { stop(); return; }
   const rdt = lastT ? Math.min(0.05, now - lastT) : 0.016;

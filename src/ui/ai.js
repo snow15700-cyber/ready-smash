@@ -21,7 +21,7 @@ export function startAI() {
   playUI('click');
   stopGame();
   aiCoins = 0;
-  let capTold = false; // 31: 하루 상한 알림은 한 번만
+  let capTold = false; // 32: 하루 상한 알림은 한 번만
   aiStart();
   show('hud');
   setGame(new Game(world, {

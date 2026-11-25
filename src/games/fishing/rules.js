@@ -3,7 +3,7 @@
 // ⚠️ 여기를 바꾸면 28_fishing.sql(또는 새 SQL)과 account.js의 로컬 가짜 서버도 같이.
 
 // ── 선착장에서 던지기 (자유 던지기: 부채꼴 ±40°, 6~18m)
-export const STAND = { z: 44.6, xMin: 4.8, xMax: 20.8, zBack: 39.6 }; // 서는 곳: 전망대 밑 넓은 판(30_fish_pier.sql). 앞 끝 z · 판 위 어디서든(zBack~z)
+export const STAND = { z: 44.6, xMin: 1.3, xMax: 20.8, zBack: 39.6 }; // 서는 곳: 전망대 밑 넓은 판(31_fish_pier_wide.sql — 판을 서쪽으로 넓힘). 앞 끝 z · 판 위 어디서든(zBack~z)
 export const CAST_MIN = 6, CAST_MAX = 18, CAST_ANG = 0.7;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 export const castDist = (power) => CAST_MIN + (CAST_MAX - CAST_MIN) * clamp(power, 0, 1);
@@ -13,9 +13,10 @@ export function landingPoint(standX, aim, power, z = STAND.z) {
   return { x: standX + Math.sin(a) * d, z: standZ(z) + Math.cos(a) * d };
 }
 
-// ── 기포 시간표: 시간을 칸(210초)으로 나누고 칸 번호를 씨앗으로 1~2개 (모든 PC·서버가 같은 결과)
-export const BUBBLE_LIFE = 40;
-export const BUBBLE_SLOT = { normal: 210, often: 50 }; // often = 시안 시험용(서버는 normal만)
+// ── 기포 시간표: 시간을 칸(114초)으로 나누고 칸 번호를 씨앗으로 1~2개 (모든 PC·서버가 같은 결과)
+// 11/25 사용자: 1.8~2분마다 1~2곳, 기포는 30초 → 칸 시작 + 0~6초에 나타남(칸끼리 108~120초 간격)
+export const BUBBLE_LIFE = 30, BUBBLE_JITTER = 6;
+export const BUBBLE_SLOT = { normal: 114, often: 50 }; // often = 시안 시험용(서버는 normal만)
 // 서버의 LCG와 같은 난수 (s·1664525 + 1013904223) mod 2³² — 곱이 2⁵³보다 작아서 JS 숫자로도 정확
 export function seeded(seed) {
   let s = seed >>> 0;
@@ -28,7 +29,7 @@ export function slotBubbles(n, len) {
   for (let i = 0; i < count; i++) {
     const standX = STAND.xMin + r() * (STAND.xMax - STAND.xMin);
     const p = landingPoint(standX, r() * 2 - 1, 0.05 + r() * 0.9);
-    const start = n * len + r() * Math.max(1, len - BUBBLE_LIFE - 2);
+    const start = n * len + r() * BUBBLE_JITTER;
     out.push({ id: `${n}-${i}`, x: p.x, z: p.z, start, end: start + BUBBLE_LIFE });
   }
   return out;

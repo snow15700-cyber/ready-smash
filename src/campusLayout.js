@@ -35,20 +35,26 @@ export function toLocal(o, x, z) {
   return [dx * c - dz * s, dx * s + dz * c];
 }
 // ── 바다 전망대 + 낚시터 (docs/dev/fishing.md 12장, 사용자 확정 11/25)
-// 데크는 절벽 끝까지, 바다는 광장보다 6m 아래. 전망대 바로 밑에 넓은 나무 판(선착장) 하나, 데크 동쪽 옆 넓고 가파른 돌계단으로 바로 내려감.
-// 선착장 판·서는 곳은 서버(30_fish_pier.sql)·rules.js STAND와 맞춰 둔 자리 — 옮기면 SQL도 같이.
+// 데크는 절벽 끝까지, 바다는 광장보다 6m 아래. 전망대 바로 밑에 넓은 나무 판(선착장) 하나, 데크 양옆(서·동) 넓고 가파른 돌계단으로 바로 내려감 (11/25 사용자: 계단 양쪽 + 그만큼 판 넓힘).
+// 선착장 판·서는 곳은 서버(31_fish_pier_wide.sql)·rules.js STAND와 맞춰 둔 자리 — 옮기면 SQL도 같이.
 export const SEA_Y = -6;
 export const DECK = { x0: 4, x1: 18, z0: 32.3, z1: 39, h: 0.25 }; // 광장 좌표 네모 + 바닥 높이
-export const CLIFF = { x0: 2, x1: 24, face: 39 }; // 절벽 벽 (광장 땅 끝 z = face)
-export const PIER = { x0: 4, x1: 21.5, z0: 39, z1: 45.5, y: SEA_Y + 1.65 }; // 넓은 판 하나. y = 나무 판 윗면
-// 돌계단: 데크 동쪽 옆(x0~x1), 광장 끝(z0, 높이 0)에서 남쪽으로 곧게 → 선착장 판(z1, 높이 PIER.y)
-export const PIER_STAIRS = { x0: 18.3, x1: 21.5, z0: 39, z1: 43.5 };
-export const stairY = (z) => (PIER.y * Math.min(1, Math.max(0, (z - PIER_STAIRS.z0) / (PIER_STAIRS.z1 - PIER_STAIRS.z0))));
-export const onPier = (x, z) => z > PIER.z0 && z < PIER.z1 + 0.5 && x > PIER.x0 - 0.5 && x < PIER.x1 + 0.5 && !(x > PIER_STAIRS.x0 && z < PIER_STAIRS.z1);
-// 서 있는 바닥 높이 (걷기·카메라·다른 사람 모습이 같이 씀 — 걷기 정보는 x, z만)
+export const CLIFF = { x0: -1.5, x1: 24, face: 39 }; // 절벽 벽 (광장 땅 끝 z = face)
+export const PIER = { x0: 0.5, x1: 21.5, z0: 39, z1: 45.5, y: SEA_Y + 1.65 }; // 넓은 판 하나 (데크 가운데 x 11 기준 좌우 같게). y = 나무 판 윗면
+// 돌계단 2개: 데크 서쪽 옆 · 동쪽 옆(x0~x1), 광장 끝(z0, 높이 0)에서 남쪽으로 곧게 → 선착장 판(z1, 높이 PIER.y)
+export const STAIRS = [
+  { side: 'west', x0: 0.5, x1: 3.7, z0: 39, z1: 43.5 },
+  { side: 'east', x0: 18.3, x1: 21.5, z0: 39, z1: 43.5 },
+];
+export const PIER_STAIRS = STAIRS[1]; // (예전 이름: 동쪽 계단)
+export const stairAt = (x, z) => STAIRS.find((S) => x > S.x0 && x <= S.x1 && z > S.z0 && z < S.z1);
+export const stairY = (z, S = STAIRS[1]) => (PIER.y * Math.min(1, Math.max(0, (z - S.z0) / (S.z1 - S.z0))));
+export const onPier = (x, z) => z > PIER.z0 && z < PIER.z1 + 0.5 && x > PIER.x0 - 0.5 && x < PIER.x1 + 0.5 && !STAIRS.some((S) => x > S.x0 && x <= S.x1 && z < S.z1);
+// 서 있는 바닥 높이 (걷기·카메라·다른 사람 모습·바닥 클릭이 같이 씀 — 걷기 정보는 x, z만)
 export function heightAt(x, z) {
   if (x > DECK.x0 && x < DECK.x1 && z > DECK.z0 && z < DECK.z1) return DECK.h;
-  if (x > PIER_STAIRS.x0 && z > PIER_STAIRS.z0 && z < PIER_STAIRS.z1) return stairY(z);
+  const S = stairAt(x, z);
+  if (S) return stairY(z, S);
   if (z > PIER.z0 - 0.01 && x > PIER.x0 - 1) return PIER.y;
   return 0;
 }

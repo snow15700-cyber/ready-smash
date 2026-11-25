@@ -127,13 +127,13 @@ export async function matchKim(matchId) {
 // 경기 결과 기록 + 코인 정산 (내 결과만, 입장한 경기만). bonus = { perfect3, rally10 } 이번 경기에서 한 횟수
 // 상대 전적·같은 상대 판 수는 서버가 경기 입장 기록으로 정한다
 // 결과 { status, player, h2h, coins: { total, items: [{ label, coins }] } }
-// 31: 상대 쪽에 로그인한 사람이 있으면 서버가 상대 결과를 기다리며 'wait'를 준다 → 1.5초마다 다시 (서버가 20초 뒤엔 내 말대로 정산)
+// 32: 상대 쪽에 로그인한 사람이 있으면 서버가 상대 결과를 기다리며 'wait'를 준다 → 1.5초마다 다시 (서버가 20초 뒤엔 내 말대로 정산)
 // onWait(r): 기다리는 동안 한 번씩 (화면에 '상대 결과 확인 중…')
 export async function matchFinish(matchId, won, bonus, onWait = null) {
   if (!account.loggedIn) return { status: 'guest' };
   let r;
   for (let i = 0; i < 30; i++) {
-    r = await call('pingpong_match_result', { // 31: 새 함수 (옛 pingpong_match_finish는 main 배포본용, 32로 닫음)
+    r = await call('pingpong_match_result', { // 32: 새 함수 (옛 pingpong_match_finish는 main 배포본용, 33로 닫음)
       p_token: token(), p_match: matchId, p_won: won,
       p_perfect3: bonus.perfect3 | 0, p_rally10: bonus.rally10 | 0,
     });
@@ -191,7 +191,7 @@ export const AI_HITS_PER_COIN = 3; // 26: 4 → 3
 export async function aiStart() {
   if (account.loggedIn) await call('pingpong_ai_start', { p_token: token() });
 }
-// 31: 혼자 하기 코인은 하루 AI_DAY_MAX까지 (서버가 셈). 상한에 닿으면 account.aiCapped = true
+// 32: 혼자 하기 코인은 하루 AI_DAY_MAX까지 (서버가 셈). 상한에 닿으면 account.aiCapped = true
 export const AI_DAY_MAX = 250;
 account.aiCapped = false;
 export async function aiRally(hits) {
@@ -585,10 +585,10 @@ function localServer(fn, a) {
     else if (mp.at) out = { status: 'done' };
     else if (m.at > now - 25000) out = { status: 'too_fast' };
     else if (m.at < now - 3600e3) out = { status: 'too_old' };
-    // 18: 이 경기 뒤에 다른 경기에 또 입장했으면 결과를 낼 수 없다 (31: 이미 결과를 말해 두고 기다리던 중이면 그대로)
+    // 18: 이 경기 뒤에 다른 경기에 또 입장했으면 결과를 낼 수 없다 (32: 이미 결과를 말해 두고 기다리던 중이면 그대로)
     else if (mp.claim == null && Object.entries(db.matches).some(([id, x]) => id !== a.p_match && x.players[p.id]?.joined > (mp.joined || 0))) out = { status: 'stale' };
     else {
-      // 31: 처음 말한 결과만 쓴다. 상대 쪽에 로그인한 사람이 있으면 말이 맞아야 정산 (supabase/31_fair_results.sql과 같은 규칙)
+      // 32: 처음 말한 결과만 쓴다. 상대 쪽에 로그인한 사람이 있으면 말이 맞아야 정산 (supabase/32_fair_results.sql과 같은 규칙)
       if (mp.claim == null) { mp.claim = a.p_won; mp.claimAt = now; }
       const wonSide = mp.claim ? mp.side : 1 - mp.side;
       if (m.winner == null) m.winner = wonSide; else if (m.winner !== wonSide) m.disputed = true;
@@ -606,7 +606,7 @@ function localServer(fn, a) {
       a = { ...a, p_won: mp.claim && !disputed };
       // 27: 김제빵 낀 판(표시 + 로그인 입장 3명 이하)은 전적·랭킹·연승 X, 코인은 보통 2대2와 같게
       const kim = !!m.kim && Object.keys(m.players).length <= 3;
-      const rec = hasOpp && !kim && !disputed; // 31: 결과가 엇갈린 판도 전적·랭킹·연승 X
+      const rec = hasOpp && !kim && !disputed; // 32: 결과가 엇갈린 판도 전적·랭킹·연승 X
       const okey = m.mode + ':' + (opps.join(',') || 'guest');
       const dayStart = Date.parse(new Date(now + 9 * 3600e3).toISOString().slice(0, 10) + 'T00:00:00+09:00');
       const played = Object.values(db.matches).filter((x) => { const y = x.players[p.id]; return y && y.okey === okey && y.at >= dayStart; }).length;
@@ -745,7 +745,7 @@ function localServer(fn, a) {
     const p = me();
     if (!p) out = { status: 'no_session' };
     else {
-      const allowed = p.aiAt ? Math.floor((now - p.aiAt) / 1200) + 1 : 0; // 31: 1.2초에 1번
+      const allowed = p.aiAt ? Math.floor((now - p.aiAt) / 1200) + 1 : 0; // 32: 1.2초에 1번
       const hits = Math.min(Math.max(a.p_hits | 0, 0), allowed, 1000);
       const total = (p.aiRem || 0) + hits;
       p.best = Math.max(p.best || 0, hits); // 최고 기록도 서버가 인정한 횟수로 (18)
@@ -757,7 +757,7 @@ function localServer(fn, a) {
       const sb = st?.set.kind === 'ai' && got > 0 ? Math.ceil((got * setAmount(st.set, st.full)) / 100) : 0;
       const brkPct = st?.set.kind === 'break' ? 50 + setAmount(st.set, st.full) : 50;
       const brk = got > 0 && breakAt(nowMs()) ? Math.ceil(((got + sb) * brkPct) / 100) : 0; // 19: 쉬는 시간 +50%
-      // 31: 하루 AI_DAY_MAX(250)코인까지 (한국 날짜)
+      // 32: 하루 AI_DAY_MAX(250)코인까지 (한국 날짜)
       const today = koreaDay(now), used = p.aiDay === today ? p.aiDayCoins || 0 : 0;
       const raw = got + sb + brk, give = Math.min(raw, Math.max(AI_DAY_MAX - used, 0));
       p.aiDay = today; p.aiDayCoins = used + give;

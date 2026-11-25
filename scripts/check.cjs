@@ -125,7 +125,7 @@ async function sqlCheck() {
   const mid = '00000000-0000-4000-8000-000000000019';
   must(json(`public.pingpong_match_join(${tk}, '${mid}', '1v1', 0)`).status === 'ok', '경기 입장 실패');
   psql(DB, `update public.pingpong_matches set started_at = now() - interval '2 minutes' where id = '${mid}';`);
-  const fin = json(`public.pingpong_match_result(${tk}, '${mid}', true, 0, 0)`); // 31 새 함수 (옛 함수는 32가 닫음, 19를 다시 실행하면 다시 열림)
+  const fin = json(`public.pingpong_match_result(${tk}, '${mid}', true, 0, 0)`); // 32 새 함수 (옛 함수는 33이 닫음, 19를 다시 실행하면 다시 열림)
   must(fin.status === 'ok', '경기 정산 실패: ' + JSON.stringify(fin).slice(0, 200));
   // 혼자 하기: 8번 친 랠리 = 2코인 + 쉬는 시간 1코인 (19를 다시 실행하기 전, 아직 '언제나 쉬는 시간')
   json(`public.pingpong_ai_start(${tk})`);
@@ -191,8 +191,8 @@ async function sqlCheck() {
   psql(DB, `update public.pingpong_players set ai_at = now() - interval '100 seconds', ai_rem = 0 where nick = '점검봇';`);
   const setAi = json(`public.pingpong_ai_rally(${tk}, 40)`);
   must(setAi.set_coins === 4 && setAi.coins - setAi.bonus === 17 && /꿀잠/.test(setAi.set), '혼자 하기 40번 = 13코인 + 꿀잠 완전 세트 +30%(4)가 이상해요: ' + JSON.stringify(setAi).slice(0, 200));
-  // 31 공정한 결과: 위에서 19·24·26·27을 다시 실행해 덮였으니 31을 다시 → 혼자 하기 하루 250 · 1.2초에 1번 / 1대1 서로 말이 맞아야 정산
-  psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '31_fair_results.sql'), 'utf8'));
+  // 32 공정한 결과: 위에서 19·24·26·27을 다시 실행해 덮였으니 32를 다시 → 혼자 하기 하루 250 · 1.2초에 1번 / 1대1 서로 말이 맞아야 정산
+  psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '32_fair_results.sql'), 'utf8'));
   {
     const one = json(`public.pingpong_signup('점검혼자', '1234')`), t1 = `'${one.token}'`;
     json(`public.pingpong_ai_start(${t1})`);
@@ -228,31 +228,31 @@ async function sqlCheck() {
     // 둘 다 이겼다고 함 → 둘 다 승패 없이
     const m2 = '00000000-0000-4000-8000-000000000312';
     start(m2);
-    must(fin(ta, m2, true).status === 'wait', '31: 기다림이 안 나와요');
+    must(fin(ta, m2, true).status === 'wait', '32: 기다림이 안 나와요');
     const b2 = fin(tb, m2, true), a2 = fin(ta, m2, true);
     must(b2.disputed && a2.disputed && !won(a2) && !won(b2) && wins('점검결과갑') === 1 && wins('점검결과을') === 0, '서로 이겼다고 했는데 승리가 들어갔어요: ' + JSON.stringify([b2, a2]).slice(0, 300));
     // 처음 말한 것만: 갑 이겼다 → 갑 '졌다'로 바꿔도 이긴 것으로, 을 졌다 → 갑 승리
     const m3 = '00000000-0000-4000-8000-000000000313';
     start(m3);
     fin(ta, m3, true);
-    must(fin(ta, m3, false).status === 'wait', '31: 처음 말한 결과를 바꿀 수 있어요');
+    must(fin(ta, m3, false).status === 'wait', '32: 처음 말한 결과를 바꿀 수 있어요');
     fin(tb, m3, false);
     const a3 = fin(ta, m3, false);
-    must(won(a3) && wins('점검결과갑') === 2, '31: 처음 말한 결과대로 정산되지 않아요: ' + JSON.stringify(a3).slice(0, 200));
+    must(won(a3) && wins('점검결과갑') === 2, '32: 처음 말한 결과대로 정산되지 않아요: ' + JSON.stringify(a3).slice(0, 200));
     // 상대가 20초 동안 안 보냄 → 내 말대로. 기다리는 동안 새 경기에 들어가도 그대로 정산 (stale 아님)
     const m4 = '00000000-0000-4000-8000-000000000314', m5 = '00000000-0000-4000-8000-000000000315';
     start(m4);
     fin(ta, m4, true);
     json(`public.pingpong_match_join(${ta}, '${m5}', '1v1', 0)`);
-    must(fin(ta, m4, true).status === 'wait', '31: 20초 전인데 기다리지 않아요');
+    must(fin(ta, m4, true).status === 'wait', '32: 20초 전인데 기다리지 않아요');
     psql(DB, `update public.pingpong_match_players set claimed_at = now() - interval '25 seconds' where match_id = '${m4}';`);
     const a4 = fin(ta, m4, true);
-    must(a4.status === 'ok' && won(a4) && wins('점검결과갑') === 3, '31: 상대가 안 보내면 20초 뒤 내 말대로 정산해야 해요: ' + JSON.stringify(a4).slice(0, 200));
-    // 32: 옛 함수는 브라우저(anon)에서 못 부름
-    psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '32_close_old_finish.sql'), 'utf8'));
+    must(a4.status === 'ok' && won(a4) && wins('점검결과갑') === 3, '32: 상대가 안 보내면 20초 뒤 내 말대로 정산해야 해요: ' + JSON.stringify(a4).slice(0, 200));
+    // 33: 옛 함수는 브라우저(anon)에서 못 부름
+    psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '33_close_old_finish.sql'), 'utf8'));
     let closed = false;
     try { json(`public.pingpong_match_finish(${ta}, '${m5}', true, 0, 0)`); } catch { closed = true; }
-    must(closed, '32: 옛 경기 결과 함수 pingpong_match_finish가 아직 열려 있어요');
+    must(closed, '33: 옛 경기 결과 함수 pingpong_match_finish가 아직 열려 있어요');
   }
   // 28 낚시: 기포 자리 서버 == 화면(rules.js), 던지기 → 잡기(최소 시간·코인·도감·업적·탁구채) · 랭킹
   {
@@ -610,19 +610,28 @@ async function browserChecks() {
       // (광장 20장: 꾸미기 옷가게는 분수 북쪽 (0, −7), 앞면 z 약 −3.95 — 분수를 돌아서 가도 마지막 도착점은 가게 앞)
       const clip = await b.evaluate(() => { const pz = window.__smash.plaza.pz; window.__smash.plaza.walkTo([0, -9]); const end = pz.route.length ? pz.route[pz.route.length - 1] : pz.myW.to; return end[1]; });
       must(clip > -4.0, '가게 건물 안으로 걸어 들어가요: z=' + clip);
-      // 낚시터(fishing.md 12장): 광장 ↔ 전망대 밑 판은 돌계단으로만, 바닥 높이 · 데크에서 판으로 뛰어내리기·바다로 걷기 막힘
+      // 낚시터(fishing.md 12장): 광장 ↔ 전망대 밑 판은 돌계단(데크 서쪽·동쪽 2개, 가까운 쪽)으로만, 바닥 높이 · 데크에서 판으로 뛰어내리기·바다로 걷기 막힘
       const pier = await b.evaluate(async () => {
         const m = await import('/src/plaza.js'), { PLAZA } = await import('/src/arena-plaza.js'), h = (p) => +PLAZA.heightAt(p[0], p[1]).toFixed(2);
-        const down = m.planWalk([0, 10], [8, 43]), up = m.planWalk([12, 44], [-5, 10]);
-        return { down, up, hDeck: h([11, 36]), hMid: h([20, 41]), hPier: h([8, 43]), jump: m.clipWalk([11, 37], [11, 43])[1], sea: m.planWalk([12, 44], [12, 60]).at(-1)[1], on: PLAZA.onPier(8, 43) && !PLAZA.onPier(11, 36) };
+        const down = m.planWalk([0, 10], [8, 43]), up = m.planWalk([12, 44], [-5, 10]), downE = m.planWalk([16, 20], [19, 44]), upE = m.planWalk([20, 44], [15, 20]);
+        return { down, up, downE, upE, hDeck: h([11, 36]), hMid: h([20, 41]), hMidW: h([2, 41]), hPier: h([8, 43]), hPierW: h([1.5, 44.5]), jump: m.clipWalk([11, 37], [11, 43])[1], sea: m.planWalk([12, 44], [12, 60]).at(-1)[1], west: m.planWalk([2, 44], [-5, 44]).at(-1)[0], on: PLAZA.onPier(8, 43) && PLAZA.onPier(2, 44.5) && !PLAZA.onPier(11, 36) && !PLAZA.onPier(2, 41) };
       });
-      const viaSt = (r) => r.some((p) => p[0] > 18.3 && p[1] > 43) && r.some((p) => p[0] > 18.3 && p[1] < 39);
-      must(viaSt(pier.down) && viaSt(pier.up) && pier.down.at(-1)[1] === 43 && pier.up.at(-1)[0] === -5, '낚시터 계단 길이 이상해요: ' + JSON.stringify(pier));
-      must(pier.hDeck === 0.25 && pier.hMid < -1 && pier.hMid > -4 && pier.hPier === -4.35 && pier.jump < 39 && pier.sea < 45.6 && pier.on, '낚시터 높이·막힘이 이상해요: ' + JSON.stringify(pier));
+      const viaSt = (r, x0, x1) => r.some((p) => p[0] > x0 && p[0] < x1 && p[1] > 43) && r.some((p) => p[0] > x0 && p[0] < x1 && p[1] < 39);
+      must(viaSt(pier.down, 0.5, 3.7) && viaSt(pier.up, 0.5, 3.7) && viaSt(pier.downE, 18.3, 21.6) && viaSt(pier.upE, 18.3, 21.6) && pier.down.at(-1)[1] === 43 && pier.up.at(-1)[0] === -5, '낚시터 계단 길(서쪽·동쪽)이 이상해요: ' + JSON.stringify(pier));
+      must(pier.hDeck === 0.25 && pier.hMid < -1 && pier.hMid > -4 && pier.hMidW === pier.hMid && pier.hPier === -4.35 && pier.hPierW === -4.35 && pier.jump < 39 && pier.sea < 45.6 && pier.west > 0.5 && pier.on, '낚시터 높이·막힘이 이상해요: ' + JSON.stringify(pier));
       // 광장 낚시 (fishing.md 12장): 판 위 '🎣 낚시하기' → 그 자리에서 낚시 · 다른 사람에게 찌가 보임 · 잡으면 말풍선 · 그만하기
       const bHome = await b.evaluate(() => window.__smash.plaza.pz.myW.to.slice());
       await b.evaluate(() => window.__smash.plaza.walkTo([9, 43.6]));
       await waitFor(b, () => !document.querySelector('#fish-start').classList.contains('hidden'), null, 30000, '낚시 판에서 낚시하기 버튼');
+      // 판 위에서 판 바닥을 누르면 그 자리 (높이 0 평면이 아니라 낮은 판 바닥 — 예전엔 그 위 빈 공중이 눌림)
+      const pierPick = await b.evaluate(() => {
+        const { world, plaza } = window.__smash, cam = world.camera, rc = world.renderer.domElement.getBoundingClientRect();
+        return [[6, 44.5], [12, 44.8]].map(([x, z]) => {
+          const v = cam.position.clone().set(x, -4.35, z).project(cam), h = plaza.view.pick(rc.left + (v.x + 1) / 2 * rc.width, rc.top + (1 - v.y) / 2 * rc.height);
+          return h?.ground && Math.hypot(h.ground[0] - x, h.ground[1] - z) < 0.2 ? 'ok' : JSON.stringify(h);
+        });
+      });
+      must(pierPick.every((r) => r === 'ok'), '낚시 판 바닥을 눌러도 그 자리가 안 눌려요: ' + pierPick.join(', '));
       await b.evaluate(() => document.querySelector('#fish-start').click());
       await waitFor(b, () => window.__smash.fish.on && document.body.classList.contains('fishing-on'), null, 20000, '광장 낚시 시작');
       must(await b.evaluate(() => { const S = window.__smash.fish.F.S; return Math.abs(S.standX - 9) < 0.3 && Math.abs(S.standZ - 43.6) < 0.3; }), '누른 자리에서 낚시가 시작되지 않아요');

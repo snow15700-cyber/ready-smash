@@ -17,7 +17,7 @@ import { makeModel } from './models.js';
 import { ITEM, makePaddle, paddleImage } from '../../items.js';
 import { breakAt } from '../../breaks.js';
 import { activeBubbles, bubbleNear } from './bubbles.js';
-import { audioCtx, initSound, snd, tickSound } from './sound.js';
+import { audioCtx, initSound, quietSound, snd, tickSound } from './sound.js';
 import { makePhrase, makeSong, playBeat, playFinish, playMelody } from './rhythm.js';
 import { PIER, SEA_Y, STAND, landingPoint, makeBobber, makeBubbleFx, makeFishModel, makeLine, makeRod, makeSplashes, seaHeight } from './world.js';
 import { drawHud, zoomRect } from './hud.js';
@@ -588,6 +588,7 @@ export function createFishing(opt) {
       if (S.castId) { fishFinish(S.castId, false, false); S.castId = null; }
       toReady();
       bubbleFx.update([], S.now, 0, seaHeight);
+      quietSound(); // 파도 소리 끄기
       line.line.visible = false; bobber.visible = false;
     }
     me.group.visible = on;

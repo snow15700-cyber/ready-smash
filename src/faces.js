@@ -108,7 +108,7 @@ const FACES = {
     frames: 1,
     draw(g) {
       circle(g, EL[0], EL[1], 17, INK);
-      line(g, [[ER[0] - 26, ER[1] - 16], [ER[0] + 14, ER[1]], [ER[0] - 26, ER[1] + 16]], 10);
+      line(g, [[ER[0] + 26, ER[1] - 16], [ER[0] - 14, ER[1]], [ER[0] + 26, ER[1] + 16]], 10);
       smile(g, 26);
       g.beginPath(); g.ellipse(266, MOUTH[1] + 16, 11, 13, 0.2, 0, Math.PI * 2); g.fillStyle = '#ff7a8a'; g.fill();
       line(g, [[266, MOUTH[1] + 8], [268, MOUTH[1] + 22]], 3, '#d9566a');
