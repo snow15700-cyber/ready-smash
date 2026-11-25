@@ -149,7 +149,7 @@ const CAMS = {
   photo: { pos: [-3.6, 2.4, 25.7], look: [-7, 2.4, 19.5] },
   board: { pos: [3.3, 2.0, 14.3], look: [5, 1.7, 9.6] },
   deck: { pos: [9, 3.2, 27], look: [14, 1, 36] },
-  sea: { pos: [13, 2.2, 34], look: [16, -8, 58] }, // 전망대에서 바다 (돌고래)
+  sea: { pos: [13, 3.2, 34], look: [20, -6, 95] }, // 전망대에서 바다 (돌고래)
   edge: { pos: [-10, 3.4, 4], look: [-21, 1.8, 16] }, // 서쪽 가장자리 (나무·가로등·벤치·잔디밭)
   building: { pos: [-15, 1.7, -4], look: [-5, 11, -24] }, // 필로티 아래로 뒤쪽 산
 };
@@ -166,6 +166,7 @@ if (new URLSearchParams(location.search).get('hq') === '1') { setHQ(true); docum
 
 document.getElementById('bar').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.k === 'dolphin') { setCam('sea'); for (const o of document.querySelectorAll('[data-k="cam"]')) o.classList.toggle('on', o.dataset.v === 'sea'); const [n, d] = b.dataset.v.split(':'); dolphins.jumpNow(+n, d === 'd'); return; }
   if (b.dataset.k === 'props') { b.classList.toggle('on', !propsOn); swapProps(!propsOn); return; }
   if (b.dataset.k === 'hq') { b.classList.toggle('on', !hq); setHQ(!hq); return; }
   for (const o of document.querySelectorAll(`[data-k="${b.dataset.k}"]`)) o.classList.toggle('on', o === b);

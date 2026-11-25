@@ -63,59 +63,93 @@ function makeDolphin() {
   return g;
 }
 
-// ── 돌고래 무리: 2~9초마다 한 번, 남쪽·동쪽 바다 어딘가에서 1~2마리가 뛰어오름
+// ── 돌고래 무리 (사용자 요청 11/25): 4~11초마다 한 번, 섬에서 멀리 떨어진 남쪽·동쪽 바다에서 뛰어오름
+//  몇 마리: 1마리 75% · 2마리 동시 20% · 3마리 동시 5%
+//  춤: 1% 확률로 (몇 마리든) 연달아 세 번 뛰며 빙글빙글 몸을 돌리고, 마지막엔 공중에서 한 바퀴 + 음표가 퐁퐁
 export function makeDolphins(y = -12) {
   const g = new THREE.Group();
-  const pool = [makeDolphin(), makeDolphin()];
-  pool.forEach((d) => d.scale.setScalar(2.3)); // 멀리서도 보이게 조금 크게
-  pool.forEach((d) => { d.visible = false; g.add(d); });
+  const pool = [makeDolphin(), makeDolphin(), makeDolphin()];
+  pool.forEach((d) => { d.scale.setScalar(3); d.visible = false; g.add(d); }); // 멀리 뛰니까 크게
   const ringM = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false });
-  const rings = [0, 1, 2, 3].map(() => { const r = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.3, 24), ringM.clone()); r.rotation.x = -Math.PI / 2; r.visible = false; g.add(r); return { m: r, t0: -9 }; });
+  const rings = Array.from({ length: 12 }, () => { const r = new THREE.Mesh(new THREE.RingGeometry(1.0, 1.9, 24), ringM.clone()); r.rotation.x = -Math.PI / 2; r.visible = false; g.add(r); return { m: r, t0: -9 }; });
   const drops = new THREE.Group(); g.add(drops);
   const dropM = new THREE.MeshBasicMaterial({ color: 0xe8f6ff, transparent: true, opacity: 0.9, depthWrite: false });
-  const dropGeo = new THREE.SphereGeometry(0.09, 6, 4);
-  const DUR = 1.9, H = 5, LEN = 12; // 점프 시간(초)·높이·거리(m)
-  let next = 2, jumps = [];
+  const dropGeo = new THREE.SphereGeometry(0.14, 6, 4);
+  // 춤출 때 머리 위로 떠오르는 음표
+  const noteTex = canvasTex(64, 64, (c) => { c.font = 'bold 52px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#ffffff'; c.strokeStyle = '#2f86c4'; c.lineWidth = 6; c.strokeText('♪', 32, 34); c.fillText('♪', 32, 34); });
+  const notes = Array.from({ length: 10 }, () => { const n = new THREE.Sprite(new THREE.SpriteMaterial({ map: noteTex, transparent: true, depthWrite: false })); n.scale.setScalar(2.2); n.visible = false; g.add(n); return { s: n, t0: -9 }; });
+  const DUR = 2.0, H = 6, LEN = 14; // 보통 점프: 시간(초)·높이·거리(m)
+  const DANCE_HOP = 1.5, DANCE_N = 3; // 춤: 한 번 뛰는 시간·몇 번
+  let next = 3, jumps = [], force = null;
   const splash = (x, z, t) => {
     const r = rings.find((q) => t - q.t0 > 1.2) || rings[0];
-    r.t0 = t; r.m.position.set(x, y + 0.6, z); r.m.visible = true;
-    for (let i = 0; i < 10; i++) {
-      const d = new THREE.Mesh(dropGeo, dropM); const a = Math.random() * Math.PI * 2, v = 2 + Math.random() * 2;
-      d.position.set(x, y + 0.5, z); d.userData = { vx: Math.cos(a) * v * 0.5, vz: Math.sin(a) * v * 0.5, vy: 3 + Math.random() * 3, t0: t };
+    r.t0 = t; r.m.position.set(x, y + 0.7, z); r.m.visible = true;
+    for (let i = 0; i < 12; i++) {
+      const d = new THREE.Mesh(dropGeo, dropM); const a = Math.random() * Math.PI * 2, v = 2.5 + Math.random() * 2.5;
+      d.position.set(x, y + 0.5, z); d.userData = { vx: Math.cos(a) * v * 0.5, vz: Math.sin(a) * v * 0.5, vy: 4 + Math.random() * 4, t0: t };
       drops.add(d);
     }
   };
+  const note = (x, yy, z, t) => { const n = notes.find((q) => t - q.t0 > 1.6) || notes[0]; n.t0 = t; n.base = [x + (Math.random() - 0.5) * 2, yy, z]; n.s.visible = true; };
   function start(t) {
-    // 어디서: 남쪽 바다(전망대 앞) 또는 동쪽 바다, 섬 가까이 (보이는 곳)
+    // 어디서: 섬 가장자리(약 40m)에서 충분히 떨어진 바다 — 남쪽 z 85~115 또는 동쪽 x 85~115
     const south = Math.random() < 0.65;
-    const x = south ? -5 + Math.random() * 45 : 56 + Math.random() * 20;
-    const z = south ? 56 + Math.random() * 14 : 0 + Math.random() * 40; // 섬 가장자리에 안 가리게 조금 먼 바다
+    const x = south ? -20 + Math.random() * 70 : 85 + Math.random() * 30;
+    const z = south ? 85 + Math.random() * 30 : -20 + Math.random() * 70;
     const yaw = Math.random() * Math.PI * 2;
-    const n = Math.random() < 0.35 ? 2 : 1;
+    const r = Math.random();
+    let n = r < 0.05 ? 3 : r < 0.25 ? 2 : 1;
+    let dance = Math.random() < 0.01;
+    if (force) { n = force.n; dance = force.dance; force = null; }
     jumps = [];
-    for (let i = 0; i < n; i++) jumps.push({ d: pool[i], t0: t + i * 0.35, x: x + i * 1.6 * Math.cos(yaw + 1.2), z: z + i * 1.6 * Math.sin(yaw + 1.2), yaw, inS: false, outS: false });
+    // 여럿이면 나란히(옆으로 4m씩) 거의 동시에(0.15초씩 늦게)
+    const sx = Math.cos(yaw), sz = -Math.sin(yaw);
+    for (let i = 0; i < n; i++) {
+      const off = (i - (n - 1) / 2) * 4;
+      jumps.push({ d: pool[i], t0: t + i * 0.15, x: x + sx * off, z: z + sz * off, yaw, dance, splashed: new Set() });
+    }
   }
   function update(t) {
-    if (t > next) { start(t); next = t + DUR + 2 + Math.random() * 7; }
+    if (t > next) { start(t); next = t + (jumps[0]?.dance ? DANCE_HOP * DANCE_N : DUR) + 2 + Math.random() * 7; }
     for (const j of jumps) {
-      const p = (t - j.t0) / DUR;
-      if (p < 0 || p > 1) { j.d.visible = false; continue; }
-      const dx = Math.sin(j.yaw), dz = Math.cos(j.yaw), s = (p - 0.5) * LEN;
+      const dx = Math.sin(j.yaw), dz = Math.cos(j.yaw);
+      const total = j.dance ? DANCE_HOP * DANCE_N : DUR;
+      const e = t - j.t0;
+      if (e < 0 || e > total) { j.d.visible = false; continue; }
       j.d.visible = true;
-      j.d.position.set(j.x + dx * s, y - 0.8 + Math.sin(p * Math.PI) * H, j.z + dz * s);
-      j.d.rotation.set(-Math.atan2(Math.cos(p * Math.PI) * Math.PI * H, LEN), j.yaw, 0, 'YXZ'); // 날아가는 방향으로 머리를 듦·숙임
-      j.d.userData.tail.rotation.x = Math.sin(t * 14) * 0.35;
-      if (!j.inS && p > 0.08) { j.inS = true; splash(j.x - dx * LEN * 0.42, j.z - dz * LEN * 0.42, t); }
-      if (!j.outS && p > 0.92) { j.outS = true; splash(j.x + dx * LEN * 0.42, j.z + dz * LEN * 0.42, t); }
+      let p, hop = 0, len = LEN, h = H;
+      if (j.dance) { hop = Math.min(DANCE_N - 1, Math.floor(e / DANCE_HOP)); p = (e - hop * DANCE_HOP) / DANCE_HOP; len = 7; h = hop === DANCE_N - 1 ? 8 : 5; }
+      else p = e / DUR;
+      // 춤: 뛸 때마다 조금씩 앞으로 (세 번에 걸쳐 앞으로 나아감)
+      const s = (j.dance ? (hop - (DANCE_N - 1) / 2) * len * 0.9 : 0) + (p - 0.5) * len;
+      j.d.position.set(j.x + dx * s, y - 1 + Math.sin(p * Math.PI) * h, j.z + dz * s);
+      const pitch = -Math.atan2(Math.cos(p * Math.PI) * Math.PI * h, len);
+      if (j.dance) {
+        // 몸을 길이 방향으로 빙글(한 번 뛸 때 한 바퀴), 마지막엔 공중에서 몸통째 한 바퀴 더
+        const roll = p * Math.PI * 2 * (hop % 2 ? -1 : 1);
+        const twirl = hop === DANCE_N - 1 ? Math.sin(p * Math.PI) * Math.PI * 2 : 0;
+        j.d.rotation.set(pitch, j.yaw + twirl, roll, 'YXZ');
+        j.d.userData.tail.rotation.x = Math.sin(t * 24) * 0.6;
+        if (p > 0.3 && p < 0.7 && Math.random() < 0.08) note(j.d.position.x, j.d.position.y + 3, j.d.position.z, t);
+      } else {
+        j.d.rotation.set(pitch, j.yaw, 0, 'YXZ'); // 날아가는 방향으로 머리를 듦·숙임
+        j.d.userData.tail.rotation.x = Math.sin(t * 14) * 0.35;
+      }
+      // 물보라: 뛸 때마다 들어가고(시작) 나오는(끝) 곳
+      for (const [key, when, side] of [[hop + 'a', 0.08, -1], [hop + 'b', 0.92, 1]]) {
+        if (!j.splashed.has(key) && p > when) { j.splashed.add(key); const ss = (j.dance ? (hop - (DANCE_N - 1) / 2) * len * 0.9 : 0) + side * len * 0.42; splash(j.x + dx * ss, j.z + dz * ss, t); }
+      }
     }
     for (const r of rings) { const k = (t - r.t0) / 1.2; if (k > 1) { r.m.visible = false; continue; } r.m.scale.setScalar(1 + k * 3); r.m.material.opacity = 0.8 * (1 - k); }
+    for (const n of notes) { const k = (t - n.t0) / 1.6; if (k > 1) { n.s.visible = false; continue; } n.s.position.set(n.base[0] + Math.sin(k * 9) * 0.6, n.base[1] + k * 4, n.base[2]); n.s.material.opacity = 1 - k; }
     for (const d of [...drops.children]) {
       const u = d.userData, k = t - u.t0;
       d.position.set(d.position.x + u.vx * 0.016, y + 0.5 + u.vy * k - 4.9 * k * k, d.position.z + u.vz * 0.016);
-      if (k > 1.4) drops.remove(d);
+      if (k > 1.6) drops.remove(d);
     }
   }
-  return { group: g, update, jumpNow: () => { next = 0; } };
+  // 시험·구경용: 바로 뛰게 (n마리, 춤)
+  return { group: g, update, jumpNow: (n = 1, dance = false) => { force = { n, dance }; next = 0; } };
 }
 
 // ── 가로등 밤 불빛: 바닥 빛 웅덩이(동그란 노란 그림, 더하기 섞기) + 전구 빛 번짐. 밤 정도(0~1)에 맞춰 밝기
