@@ -769,6 +769,8 @@ html.lite-glass .gx.howto-pop, html.lite-glass .gx.screen { backdrop-filter: non
 .seg button:active:not(:disabled) { transform: none; box-shadow: none; }
 .seg button.on { background: #fff; color: var(--orange-ink); box-shadow: 0 2px 8px rgba(80,50,20,.15); }
 .rank-desc { margin: -2px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+.rank-desc .rank-sub { font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 99px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); color: inherit; cursor: pointer; }
+.rank-desc .rank-sub.on { background: #FF8A1F; border-color: #FF8A1F; color: #fff; }
 
 .podium { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding-top: 6px; }
 .pod { flex: 1; max-width: 150px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; animation: rise .45s ease-out backwards; }

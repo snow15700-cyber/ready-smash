@@ -1,4 +1,4 @@
-# 낚시 (기획 확정 11/25 — 아직 만들지 않음)
+# 낚시 (기획 확정 11/25)
 
 > 사용자: "광장에 바다가 있으니 거기서 낚시를 하자." 레퍼런스 = 동물의 숲(톡톡 풍덩) + 우리 탁구의 타이밍 링.
 > 순서(사용자 확정 11/25): **출석 도장판·승리 세리머니는 잠깐 보류하고 낚시를 먼저**.
@@ -222,3 +222,19 @@
    - 잡는 순간 진짜 모형(`models.js`)이 물 밖으로. 결과 카드에 모형 그림 + 처음이면 '📖 NEW', 월척이면 '🏆 월척!'.
    - `dex.js`: 기록 localStorage `fishing-dex`({id: {n, best}}), 시안용 가진 탁구채 `fishing-sim-paddles`. 그림은 따로 찍어 둠(`modelImage(id, 그림자)`). 화면 = 오른쪽 위 📖(준비·결과 때만) → 물고기·잡동사니 탭, 칸 = 그림·이름·잡은 수·최고 cm(월척 🏆). 못 잡은 칸 = 검은 그림자 + '???' + 조건 아이콘·'○○에만'.
    - ⚙️ 물고기에 '🥾 잡동사니'·'🏓 전설 탁구채(1%)' 추가. 디버그 `window.__fish.catchNow()`(리듬 없이 바로 잡기)·`openDex()`. 옛 기록(`fishing-best`·`fishing-count`)은 안 씀.
+
+## 10. 3단계 — 서버 (11/25, test · **`28_fishing.sql` 실행 필요**)
+사용자 확정(11/25): **코인 일반 3 · 희귀 8 · 전설 20**(잡동사니·탁구채 0, 쉬는 시간 +50%) · **월척 랭킹 = 이번 주(한국 월요일 0시부터) + 역대 둘 다** · **업적 7개 안 그대로**.
+- 규칙 한곳 `src/games/fishing/rules.js`(three 없음): 던진 자리 `landingPoint` · 기포 `slotBubbles`/`activeBubbles`(LCG 난수, 210초 칸) · `rollCatch` · `fishSize` · `FISH_COINS` · `MIN_SEC` · 분당 주머니. `data.js`·`bubbles.js`·`world.js`는 여기서 다시 내보냄. **바꾸면 SQL·로컬 가짜 서버도 같이**(자동 점검이 기포 자리 160개 시각을 서버와 비교).
+- SQL `supabase/28_fishing.sql`:
+  - 표 `pingpong_fish`(26개 id·kind·grade·cond) · `pingpong_fish_dex`(사람×종류: n·best·best_at) · `pingpong_fish_log`(물고기 한 마리씩, 이번 주 랭킹용). 선수 칸 `fish_cast`(지금 던진 것)·`fish_pocket`·`fish_pocket_at`. 업적 7개 insert.
+  - `pingpong__fish_near(t, x, z)` 기포 근처 0·1·2 (서버가 직접 계산) · `pingpong__fish_bubbles(t)` 점검용.
+  - `pingpong_fish_cast(token, x, aim, power, rain)` → `{ cast: { id, kind, item, grade, cm, dup, near } }`. 무엇이 걸릴지 서버가 정하고 **브라우저에 미리 알려 줌**(리듬 단계·공개 연출용. 코인·기록은 잡을 때 서버가 이 값으로 주므로 미리 알아도 얻는 것 없음). 다시 던지면 앞의 것은 사라짐. 비는 브라우저가 알려 준 광장 날씨를 믿음(피해 작음), 쉬는 시간·밤(한국 19~6시)은 서버 시각.
+  - `pingpong_fish_finish(token, cast, ok, perfect)` → 한 번만. 던진 뒤 최소 시간(잡동사니 4 · 일반 6 · 희귀(탁구채 포함) 11 · 전설 16초) 안 되면 `too_fast`(아무것도 안 줌). 코인 + 쉬는 시간(세트 '휴가 중'이면 더) → **주머니**(1분에 25씩, 최대 60)를 넘으면 잘림(`capped`). 도감·기록, 탁구채는 옷장(없으면) 또는 조각 30. 챔질 Perfect 연속 `ach_n.fish_pr`(브라우저 말을 믿음). 업적은 여기서 바로 `pingpong__ach_grant`.
+  - `pingpong_fish_dex(token)` 내 도감 + 어종별 기록 1명(같은 cm면 먼저 잡은 사람) · `pingpong_fish_rank('week'|'all')` 사람마다 가장 큰 한 마리, 50명.
+- `account.js`: `fishCast`·`fishFinish`·`fishDex`·`getFishRank` + 로컬 가짜 서버 `localFish`(같은 규칙).
+- 업적(`achievements.js` 분류 'fish' 낚시): fish10 ★「초보 낚시꾼」 · fish_all ★★★「경주 강태공」 · junk_all ★★「바다 청소부」 · fish_bread ★「김제빵의 원수」 · fish_big ★★「월척 사냥꾼」 · fish_legend ★★★「용왕의 친구」 · fish_perf10 ★★「손맛의 달인」.
+- 랭킹 창 '🐟 월척' 탭(`ui/rank.js`): '이번 주 월척(월요일마다 새로)' / '역대 월척' 고르기, 값 = cm + 물고기 이름.
+- 낚시 시안: **같은 브라우저에서 게임에 로그인해 두면** 시안이 서버를 씀(위 태그 '🔗 닉네임 · 서버에 기록', ⚙️ 물고기·기포 줄은 숨김 — 서버는 기획대로의 기포만 앎). 결과 카드에 '🪙 +n코인'(쉬는 시간·분당 한도 표시), 업적 알림, 도감은 서버 기록 + '👑 어종별 기록'. 로그인 안 했으면 예전처럼 이 브라우저에만.
+- 디버그 `window.__fish.landNow()`(입질 기다리는 중 바로 잡기)·`online()`.
+- 남은 것(4단계에서): 광장 전광판에 이번 주 월척, 도감을 명예의 전당으로, 광장 알림(희귀·전설), 시계를 서버 시각에 맞추기(기포).

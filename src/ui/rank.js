@@ -1,5 +1,6 @@
 import { ic } from '../icons.js';
-import { account, getRanking } from '../account.js';
+import { account, getFishRank, getRanking } from '../account.js';
+import { CATCH } from '../games/fishing/rules.js';
 import { playUI } from '../audio.js';
 import { closeWindow, show } from './screen.js';
 import { $, esc, tpill } from './state.js';
@@ -8,27 +9,33 @@ import { $, esc, tpill } from './state.js';
 const RANK = {
   wins: { desc: '1v1 + 2v2 승리 합계', unit: '승', empty: '아직 이긴 사람이 없어요. 첫 1등이 되어 보세요!', join: '친구와 경기에서 이겨 보세요!' },
   rally: { desc: '혼자 하기(AI 상대) 최장 랠리', unit: '회', empty: '아직 기록이 없어요. 혼자 하기로 첫 기록을 세워 보세요!', join: '혼자 하기로 기록을 세워 보세요!' },
+  // 낚시 월척 (28_fishing.sql): 사람마다 가장 큰 한 마리. 이번 주(월요일마다 새로) / 역대 (사용자 확정 11/25)
+  fish: { desc: '', unit: 'cm', empty: '아직 낚은 사람이 없어요. 바다 선착장에서 첫 월척을!', join: '바다 선착장에서 낚시해 보세요!' },
 };
+let fishKind = 'week';
 let rankKind = 'wins';
 let rankReq = 0;
 async function showRank(kind = rankKind) {
   rankKind = kind;
-  for (const k of ['wins', 'rally']) $(`rank-tab-${k}`).classList.toggle('on', k === kind);
+  for (const k of ['wins', 'rally', 'fish']) $(`rank-tab-${k}`).classList.toggle('on', k === kind);
   $('rank-desc').textContent = RANK[kind].desc;
+  if (kind === 'fish') { // 이번 주 / 역대 고르기
+    $('rank-desc').innerHTML = ['week', 'all'].map((k) => `<button class="rank-sub${k === fishKind ? ' on' : ''}" data-fk="${k}">${k === 'week' ? '이번 주 월척 (월요일마다 새로)' : '역대 월척'}</button>`).join(' ');
+  }
   const list = $('rank-list'), podium = $('rank-podium'), meBar = $('rank-me');
   podium.innerHTML = '';
   meBar.innerHTML = '';
   list.innerHTML = '<li class="msg-row">불러오는 중…</li>';
   show('rank');
   const req = ++rankReq;
-  const rows = await getRanking(kind);
+  const rows = kind === 'fish' ? await getFishRank(fishKind) : await getRanking(kind);
   if (req !== rankReq) return; // 그 사이 탭을 바꿨으면 버림
   if (!rows) { list.innerHTML = '<li class="msg-row">랭킹을 불러오지 못했어요 (인터넷 연결 확인)</li>'; return; }
   const myNick = account.loggedIn ? account.nick : null;
   const unit = RANK[kind].unit;
   const MEDAL = ['', '<i class="mdl m1">1</i>', '<i class="mdl m2">2</i>', '<i class="mdl m3">3</i>']; // 금·은·동 동그라미 (새 디자인: 이모지 대신)
   const av = (nick) => `<em class="av">${esc([...nick][0] || '?')}</em>`;
-  const sub = (r) => (kind === 'wins' ? `<small>1v1 ${r.w1}승 · 2v2 ${r.w2}승</small>` : '');
+  const sub = (r) => (kind === 'wins' ? `<small>1v1 ${r.w1}승 · 2v2 ${r.w2}승</small>` : kind === 'fish' ? `<small>${CATCH[r.fish]?.emoji || '🐟'} ${esc(CATCH[r.fish]?.name || '')}</small>` : '');
 
   // 1~3등: 시상대 (가운데 1등, 왼쪽 2등, 오른쪽 3등). 비어 있으면 '?' 자리
   const top = rows.slice(0, 3);
@@ -61,4 +68,6 @@ async function showRank(kind = rankKind) {
 $('btn-rank').addEventListener('click', () => { playUI('click'); showRank('wins'); });
 $('rank-tab-wins').addEventListener('click', () => { playUI('click'); showRank('wins'); });
 $('rank-tab-rally').addEventListener('click', () => { playUI('click'); showRank('rally'); });
+$('rank-tab-fish').addEventListener('click', () => { playUI('click'); showRank('fish'); });
+$('rank-desc').addEventListener('click', (e) => { const b = e.target.closest('[data-fk]'); if (!b) return; playUI('click'); fishKind = b.dataset.fk; showRank('fish'); });
 $('btn-rank-back').addEventListener('click', () => { playUI('click'); closeWindow(); });

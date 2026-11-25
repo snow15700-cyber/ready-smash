@@ -9,7 +9,7 @@ export const REWARD = { 1: 20, 2: 50, 3: 150 };
 export const ACH_CATS = [
   ['steady', '꾸준함'], ['skill', '실력'], ['dir', '방향·스타일'], ['smash', '찬스볼·스매시'],
   ['rally', '랠리'], ['serve', '서브'], ['flow', '경기 흐름'], ['people', '사람 관계'],
-  ['ai', '혼자 하기'], ['collect', '꾸미기·수집'], ['set', '세트'], ['days', '출석·시간'],
+  ['ai', '혼자 하기'], ['collect', '꾸미기·수집'], ['set', '세트'], ['days', '출석·시간'], ['fish', '낚시'],
 ];
 
 const A = (id, cat, name, title, cond, grade, opt = {}) => ({ id, cat, name, title, cond, grade, live: false, ...opt });
@@ -108,6 +108,14 @@ export const ACHS = [
   A('days20', 'days', '출석왕', '출석왕', '총 출석 20일', 2, L),
   A('day20', 'days', '쉬는 시간 전부', '공부는 언제 해?', '하루에 20판', 1, L),
   A('early9', 'days', '아침형 탁구인', '09시 전 출근 완료', '오전 9시 전에 승리', 1, L),
+  // 낚시 (supabase/28_fishing.sql, 사용자 확정 11/25)
+  A('fish10', 'fish', '도감 10종', '초보 낚시꾼', '물고기 10종 잡기', 1, L),
+  A('fish_all', 'fish', '도감 완성', '경주 강태공', '물고기 17종 모두 잡기', 3, L),
+  A('junk_all', 'fish', '바다 지킴이', '바다 청소부', '잡동사니 9개 모두 낚기', 2, L),
+  A('fish_bread', 'fish', '바게트를 낚다', '김제빵의 원수', '김제빵의 바게트 낚기', 1, L),
+  A('fish_big', 'fish', '월척!', '월척 사냥꾼', '88cm 넘는 물고기 잡기', 2, L),
+  A('fish_legend', 'fish', '전설을 낚다', '용왕의 친구', '전설 물고기 잡기', 3, L),
+  A('fish_perf10', 'fish', '손맛', '손맛의 달인', '챔질 Perfect 10번 연속', 2, L),
 ];
 
 export const ACH = Object.fromEntries(ACHS.map((a) => [a.id, a]));

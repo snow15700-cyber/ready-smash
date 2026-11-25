@@ -9,7 +9,10 @@ import * as THREE from 'three';
 import { buildCampus } from '../../campusMock.js';
 import { makeCharacter } from '../../scene.js';
 import { BIG_CM, FISH, GRADE, PADDLE_DUP_PIECES, STAGES, STAGE_FISH, TUNE, biteSeq, fishSize, pickCatch, stageOf } from './data.js';
-import { addPaddle, dexOpen, fishCount, modelImage, openDex, ownedPaddles, recordCatch } from './dex.js';
+import { addPaddle, dexOpen, fishCount, modelImage, openDex, ownedPaddles, recordCatch, setServerDex } from './dex.js';
+import { CATCH, LEGEND_PADDLES, sizeK } from './rules.js';
+import { account, autoLogin, fishCast, fishDex, fishFinish } from '../../account.js';
+import { ACH } from '../../achievements.js';
 import { makeModel } from './models.js';
 import { ITEM, makePaddle, paddleImage } from '../../items.js';
 import { breakAt } from '../../breaks.js';
@@ -71,7 +74,9 @@ const S = {
 };
 window.__fish = {
   S, TUNE, openDex,
-  // 디버그: 리듬 없이 바로 잡기 연출 (점검·스크린샷용)
+  // 디버그: 리듬 없이 바로 잡기 연출 (점검·스크린샷용). landNow = 던진 뒤(입질 기다리는 중) 바로 잡기 — 서버 연결 점검용
+  landNow: () => { if (S.mode !== 'wait' || !S.fish) return false; S.size = S.srvSize || fishSize(); S.grade = 'Perfect'; S.R = { perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 }; startLand(); return true; },
+  online: () => online,
   catchNow: () => { if (S.mode !== 'ready') return; const p = landingPoint(S.standX, 0, 0.5); S.bob.set(p.x, 0, p.z); S.bobLanded = true; S.fish = pickCatch(0, catchCtx()); S.size = fishSize(); S.grade = 'Perfect'; S.R = { perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 }; startLand(); }, stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(), cast: (aim = 0, power = 0.5) => { initSound(); castTo(aim, power); }, rt: () => (S.R ? nowS() - S.R.base : 0) };
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -79,6 +84,25 @@ const DECK = PIER.y + 0.04;
 const buzz = (p) => { try { navigator.vibrate?.(p); } catch { /* 진동 없음 */ } };
 
 // 기록은 도감(dex.js, 이 브라우저에만). 조건 물고기: 실제 쉬는 시간·밤(한국 시각 19~6시), 비는 ⚙️로만 시험
+// 로그인돼 있으면(같은 브라우저에서 게임에 로그인) 서버가 정함: 던질 때 fishCast → 잡거나 놓치면 fishFinish (28_fishing.sql)
+let online = false, castSeq = 0;
+autoLogin().then(async (r) => {
+  if (r !== 'ok' || !account.loggedIn) return;
+  online = true;
+  TUNE.fish = 'random'; TUNE.bubbles = 'normal'; // 서버는 기획대로의 기포만 앎
+  for (const k of ['fish', 'bubbles']) document.querySelector(`#panel [data-k="${k}"]`)?.closest('.row')?.remove();
+  const tag = document.querySelector('.tag span'); if (tag) tag.textContent = ` · 🔗 ${account.nick} · 서버에 기록(코인·도감·업적)`;
+  const d = await fishDex(); if (d) setServerDex(d);
+});
+function adoptServer() { // 던질 때 서버가 정한 것 → 이번 물고기
+  const c = S.srv;
+  if (!c) return false;
+  if (c === 'fail') { S.fish = pickCatch(S.near, catchCtx()); S.srvSize = null; return true; } // 서버가 안 되면 이번 한 번은 이 브라우저에서
+  S.castId = c.id; S.near = c.near;
+  S.fish = c.kind === 'paddle' ? { kind: 'paddle', id: c.item, name: LEGEND_PADDLES.find(([x]) => x === c.item)?.[1] || c.item, grade: 'rare', emoji: '🏓', dup: !!c.dup } : CATCH[c.item];
+  S.srvSize = c.kind === 'fish' ? { cm: +c.cm, k: sizeK(+c.cm) } : { cm: 0, k: 0.3 };
+  return true;
+}
 function catchCtx() {
   const h = new Date(Date.now() + 9 * 3600e3).getUTCHours(), c = TUNE.cond;
   return { owned: ownedPaddles(), cond: c === 'auto' ? { break: !!breakAt(), night: h >= 19 || h < 6, rain: false } : { [c]: true } };
@@ -157,6 +181,8 @@ function castTo(aim, power) {
   const from = rod.tip.getWorldPosition(new THREE.Vector3());
   S.cast = { from, to, dur: 0.55 + power * 0.3, aim, power };
   S.near = bubbleNear(p.x, p.z, S.bubbles); // 던지는 순간 기포 가까운지
+  S.srv = null; S.castId = null; S.srvSize = null;
+  if (online) { const id = ++castSeq; fishCast(S.standX, aim, power, TUNE.cond === 'rain').then((c) => { if (id === castSeq) S.srv = c || 'fail'; }); }
   setMode('cast');
   S.rodPitch = 0.35; S.rodPitchV = -9;
   snd.swing();
@@ -167,7 +193,7 @@ function setMode(m) { S.mode = m; S.t = 0; }
 function startWait() {
   setMode('wait');
   S.bobLanded = true; S.dip = 0; S.dipV = 0;
-  S.fish = pickCatch(S.near, catchCtx());
+  S.fish = online ? null : pickCatch(S.near, catchCtx()); // 로그인: 서버 답이 오면 정해짐 (tickWait)
   S.seq = biteSeq(S.fish); S.evI = -1; S.ev = null; S.calm = 0; S.alertT = -1;
   S.nextEv = rnd(1.4, 2.4);
   const y = seaHeight(S.bob.x, S.bob.z, S.now);
@@ -186,6 +212,8 @@ function nextEvent() {
   S.ev.done = 0;
 }
 function tickWait() {
+  if (window.__fish.hold) return; // 점검용: 입질 멈춤
+  if (!S.fish && !adoptServer()) { S.nextEv = Math.max(S.nextEv, S.t + 0.3); return; } // 서버 답 기다리는 동안 입질 안 함
   const t = S.t, E = S.ev;
   if (!E && t >= S.nextEv) return nextEvent();
   if (!E) return;
@@ -222,7 +250,7 @@ function pressWait() {
 // ── 챔질 → 리듬 줄다리기
 function hook(g, rt) {
   S.grade = g;
-  S.size = fishSize();
+  S.size = S.srvSize || fishSize();
   S.hitstop = 0.06; S.shake = 12; S.flash = g === 'Perfect' ? 0.7 : 0.4; S.rodKick = 1; S.alertT = -1;
   snd.hook(g); buzz(60);
   const col = g === 'Perfect' ? '#ffb02e' : '#7fe3a0';
@@ -397,8 +425,18 @@ function tickLand() {
 function finishCatch() {
   const c = S.fish, R = S.R;
   let r = {};
-  if (c.kind === 'paddle') { if (!c.dup) addPaddle(c.id); } // 시안: 가진 척만 (게임에서는 서버가 옷장에 넣거나 조각 30개)
+  if (c.kind === 'paddle') { if (!c.dup && !online) addPaddle(c.id); } // 로그인 안 했으면 가진 척만 (로그인: 서버가 옷장에 넣거나 조각 30개)
   else r = recordCatch(c, S.size.cm);
+  if (S.castId) { // 서버에 알림 → 코인·업적이 오면 결과 카드에 더함
+    const id = S.castId; S.castId = null;
+    fishFinish(id, true, S.grade === 'Perfect').then((x) => {
+      if (!S.result?.ok || S.result.c !== c) return;
+      if (x.status !== 'ok') { S.result.srvNote = x.status === 'too_fast' ? '너무 빨라서 인정 안 됨' : '서버 기록 실패'; return; }
+      Object.assign(S.result, { first: x.first, rec: x.rec, best: x.best, coins: x.coins, bonus: x.bonus, capped: x.capped, pieces: x.pieces });
+      if (x.pieces) S.result.c = { ...c, dup: true };
+      (x.new || []).forEach((n, i) => setTimeout(() => say(`🏅 업적 「${ACH[n.id]?.name || n.id}」 +${n.coins}`, { sx: 0.5, sy: 0.16, size: 26, color: '#ffe27a', life: 2.4, rise: 10 }), 600 + i * 900));
+    });
+  }
   const img = c.kind === 'paddle' ? Object.assign(new Image(), { src: paddleImage(ITEM[c.id], 180) }) : modelImage(c.id);
   S.model.visible = false; S.bobLanded = false;
   S.result = { ok: true, c, img, cm: S.size.cm, big: c.kind === 'fish' && S.size.cm >= BIG_CM, grade: S.grade, calm: S.calm, ...r, perfects: R.perfects, hits: R.hits, misses: R.misses, near: S.near };
@@ -413,6 +451,7 @@ const FAIL = {
 };
 function fail(kind) {
   snd.miss();
+  if (S.castId) { fishFinish(S.castId, false, false); S.castId = null; }
   // 등급은 숨김. 단, 희귀·전설 단계까지 가서 도망가면 아쉬움 한 줄 (사용자 확정 11/25)
   const regret = kind === 'far' && S.stage >= 1 ? `…방금 그건 ${GRADE[S.fish.grade].label}급이었다` : '';
   S.result = { ok: false, title: FAIL[kind][0], sub: FAIL[kind][1], regret, grade: S.fish?.grade };

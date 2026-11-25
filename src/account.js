@@ -7,6 +7,7 @@ import { ACH, REWARD, GAG_PADDLES } from './achievements.js';
 import { breakAt, nowMs } from './breaks.js';
 import { koreaDay, missionsOf, MISSION_ALL, MISSION_COIN } from './missions.js';
 import { setOf, setAmount, setLabel } from './sets.js';
+import * as FR from './games/fishing/rules.js';
 
 // ?acct=2 처럼 주소에 붙이면 열쇠를 따로 보관한다 (한 브라우저에서 탭마다 다른 계정으로 테스트할 때)
 const ACCT = new URLSearchParams(location.search).get('acct');
@@ -277,6 +278,115 @@ export async function getRanking(kind) {
   return Array.isArray(r) ? r : null;
 }
 
+/* ───────── 낚시 (supabase/28_fishing.sql, docs/dev/fishing.md 9장) ───────── */
+// 던지기: 서버가 무엇이 걸릴지 정함. 결과 cast = { id, kind, item, grade, cm, dup, near } 또는 null(손님·실패)
+export async function fishCast(x, aim, power, rain) {
+  if (!account.loggedIn) return null;
+  const r = await call('pingpong_fish_cast', { p_token: token(), p_x: x, p_aim: aim, p_power: power, p_rain: !!rain });
+  return r.status === 'ok' ? r.cast : null;
+}
+// 잡았다/놓쳤다. 결과 { status, caught, coins, bonus, capped, first, rec, best, big, pieces, new: [{id, coins}], player }
+export async function fishFinish(castId, ok, perfect) {
+  if (!account.loggedIn || !castId) return { status: 'guest' };
+  const r = await call('pingpong_fish_finish', { p_token: token(), p_cast: castId, p_ok: !!ok, p_perfect: !!perfect });
+  if (r.player) account.player = { ...EMPTY_STATS, ...r.player };
+  if (r.status === 'ok' && r.new?.length && account.ach) for (const n of r.new) account.ach.got.set(n.id, new Date().toISOString());
+  return r;
+}
+// 도감 (내 기록 + 어종별 기록). 손님은 dex 빈 목록
+export async function fishDex() {
+  const r = await call('pingpong_fish_dex', { p_token: account.loggedIn ? token() : '' });
+  return r.status === 'ok' ? r : null;
+}
+// 월척 랭킹 'week' | 'all'. 결과 [{ rank, nick, title, title_x, value(cm), fish }] 또는 null
+export async function getFishRank(kind) {
+  const r = await call('pingpong_fish_rank', { p_kind: kind });
+  return Array.isArray(r) ? r : null;
+}
+
+// 로컬 가짜 서버의 낚시 (28과 같은 규칙)
+const FISH_ACH = ['fish10', 'fish_all', 'junk_all', 'fish_bread', 'fish_big', 'fish_legend', 'fish_perf10'];
+function localFish(fn, a, p, db, now) {
+  if (fn === 'pingpong_fish_cast') {
+    const sx = Math.min(FR.STAND.xMax, Math.max(FR.STAND.xMin, +a.p_x || 13));
+    const pt = FR.landingPoint(sx, +a.p_aim || 0, a.p_power ?? 0.5);
+    const near = FR.bubbleNear(pt.x, pt.z, FR.activeBubbles(nowMs() / 1000, 'normal'));
+    const owned = (p.owned || []).filter((id) => FR.LEGEND_PADDLES.some(([x]) => x === id));
+    const c = FR.rollCatch(near, { owned, cond: { break: !!breakAt(nowMs()), night: FR.isNight(nowMs()), rain: !!a.p_rain } });
+    p.fishCast = { id: Math.random().toString(36).slice(2), kind: c.kind, item: c.id, grade: c.grade, cm: c.kind === 'fish' ? FR.fishSize().cm : 0, dup: !!c.dup, near, at: now };
+    const { at, ...cast } = p.fishCast;
+    return { status: 'ok', cast };
+  }
+  if (fn === 'pingpong_fish_finish') {
+    const c = p.fishCast;
+    if (!c || c.id !== a.p_cast) return { status: 'no_cast' };
+    p.fishCast = null;
+    p.achN ||= {};
+    if (!a.p_ok) { p.achN.fish_pr = 0; return { status: 'ok', caught: false, player: null }; }
+    const stage = c.kind === 'junk' ? 'junk' : c.grade;
+    if ((now - c.at) / 1000 < FR.MIN_SEC[stage]) return { status: 'too_fast' };
+    let base = 0, brk = 0, brkPct = 50;
+    if (c.kind === 'fish') {
+      base = FR.FISH_COINS[c.grade];
+      const st = setOf(p.equip);
+      if (st?.set.kind === 'break') brkPct = 50 + setAmount(st.set, st.full);
+      if (breakAt(nowMs())) brk = Math.ceil((base * brkPct) / 100);
+    }
+    const pocket = Math.min(FR.COIN_POCKET, (p.fishPocket ?? FR.COIN_POCKET) + Math.floor(((now - (p.fishPocketAt || now)) / 60000) * FR.COIN_PER_MIN));
+    let total = base + brk, capped = false;
+    if (total > pocket) { total = pocket; capped = true; }
+    let first = false, rec = false, pieces = 0, best = 0;
+    if (c.kind === 'paddle') {
+      p.owned ||= [];
+      if (p.owned.includes(c.item)) pieces = FR.PADDLE_DUP_PIECES; else p.owned.push(c.item);
+    } else {
+      p.fishDex ||= {};
+      const e = p.fishDex[c.item];
+      first = !e; rec = c.kind === 'fish' && (first || c.cm > e.best);
+      p.fishDex[c.item] = { n: (e?.n || 0) + 1, best: Math.max(e?.best || 0, c.cm), at: rec ? now : e?.at || null };
+      best = p.fishDex[c.item].best;
+      if (c.kind === 'fish') (db.fishLog ||= []).push({ pid: p.id, id: c.item, cm: c.cm, at: now });
+    }
+    const run = a.p_perfect ? (p.achN.fish_pr || 0) + 1 : 0;
+    p.achN.fish_pr = run;
+    p.coins = (p.coins || 0) + total;
+    p.pieces = (p.pieces || 0) + pieces;
+    p.fishPocket = pocket - total; p.fishPocketAt = now;
+    const dex = Object.keys(p.fishDex || {});
+    const ok = {
+      fish10: dex.filter((id) => FR.CATCH[id]?.kind === 'fish').length >= 10,
+      fish_all: FR.SPECIES.every((s) => dex.includes(s.id)), junk_all: FR.JUNK.every((s) => dex.includes(s.id)),
+      fish_bread: c.item === 'baguette', fish_big: c.kind === 'fish' && c.cm >= FR.BIG_CM, fish_legend: c.kind === 'fish' && c.grade === 'legend', fish_perf10: run >= 10,
+    };
+    p.ach ||= {};
+    const fresh = [];
+    for (const id of FISH_ACH) if (ok[id] && !p.ach[id]) { p.ach[id] = new Date(now).toISOString(); p.coins += REWARD[ACH[id].grade]; fresh.push({ id, coins: REWARD[ACH[id].grade] }); }
+    const { at, ...cast } = c;
+    return { status: 'ok', caught: true, cast, coins: total, bonus: Math.min(brk, total), bonus_pct: brkPct, capped, first, rec, best, big: c.kind === 'fish' && c.cm >= FR.BIG_CM, pieces, new: fresh };
+  }
+  if (fn === 'pingpong_fish_dex') {
+    const recs = {};
+    for (const q of Object.values(db.players)) for (const [id, e] of Object.entries(q.fishDex || {})) {
+      if (FR.CATCH[id]?.kind !== 'fish' || !e.best) continue;
+      if (!recs[id] || e.best > recs[id].cm || (e.best === recs[id].cm && (e.at || 0) < recs[id].at)) recs[id] = { id, nick: q.nick, cm: e.best, at: e.at || 0 };
+    }
+    return { status: 'ok', dex: Object.entries(p?.fishDex || {}).map(([id, e]) => ({ id, n: e.n, best: e.best })), records: Object.values(recs).map(({ at, ...r }) => r) };
+  }
+  if (fn === 'pingpong_fish_rank') {
+    if (!['week', 'all'].includes(a.p_kind)) return [];
+    const k = new Date(now + 9 * 3600e3), dow = (k.getUTCDay() + 6) % 7; // 월요일 0
+    const since = a.p_kind === 'week' ? Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate() - dow) - 9 * 3600e3 : -Infinity;
+    const best = {};
+    for (const l of db.fishLog || []) if (l.at >= since && (!best[l.pid] || l.cm > best[l.pid].cm)) best[l.pid] = l;
+    const byId = Object.fromEntries(Object.values(db.players).map((q) => [q.id, q]));
+    const rows = Object.values(best).filter((l) => byId[l.pid]).sort((x, y) => y.cm - x.cm || x.at - y.at).slice(0, 50)
+      .map((l) => { const q = byId[l.pid]; return { nick: q.nick, title: q.title || null, title_x: q.achN?.nemesis || null, value: l.cm, fish: l.id }; });
+    rows.forEach((x, i) => { x.rank = i && rows[i - 1].value === x.value ? rows[i - 1].rank : i + 1; });
+    return rows;
+  }
+  return null;
+}
+
 /* ───────── 로컬 테스트용 가짜 서버 (서버 함수와 같은 규칙) ───────── */
 // pingpong_ach_people과 같은 규칙 (천적·복수·짝꿍)
 function localAchPeople(p, a, now, grant, db) {
@@ -385,6 +495,14 @@ function localServer(fn, a) {
       fn = 'pingpong_ach_people';
       a = { p_token: a.p_token, p_mode: m.mode, p_won: won, p_opp: m.mode === '1v1' ? other(false) : null, p_mate: m.mode === '2v2' ? other(true) : null };
     }
+  }
+  if (fn.startsWith('pingpong_fish_')) {
+    const p = me();
+    if (!p && fn !== 'pingpong_fish_rank' && fn !== 'pingpong_fish_dex') return { status: 'no_session' };
+    const r = localFish(fn, a, p, db, now);
+    if (r && !Array.isArray(r) && p && fn === 'pingpong_fish_finish' && r.status === 'ok') r.player = pj(p);
+    save();
+    return r;
   }
   let out;
   if (fn === 'pingpong_login') {

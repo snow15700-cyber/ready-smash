@@ -191,13 +191,73 @@ async function sqlCheck() {
   psql(DB, `update public.pingpong_players set ai_at = now() - interval '100 seconds', ai_rem = 0 where nick = '점검봇';`);
   const setAi = json(`public.pingpong_ai_rally(${tk}, 40)`);
   must(setAi.set_coins === 4 && setAi.coins - setAi.bonus === 17 && /꿀잠/.test(setAi.set), '혼자 하기 40번 = 13코인 + 꿀잠 완전 세트 +30%(4)가 이상해요: ' + JSON.stringify(setAi).slice(0, 200));
+  // 28 낚시: 기포 자리 서버 == 화면(rules.js), 던지기 → 잡기(최소 시간·코인·도감·업적·탁구채) · 랭킹
+  {
+    const R = await import(path.join(ROOT, 'src', 'games', 'fishing', 'rules.js'));
+    const t0 = Date.parse('2026-11-25T03:00:00Z') / 1000, ts = Array.from({ length: 160 }, (_, i) => t0 + i * 37.3);
+    const srvB = psql(DB, `select string_agg(coalesce((select string_agg(round(b.x::numeric, 4) || ':' || round(b.z::numeric, 4), ' ' order by b.x) from public.pingpong__fish_bubbles(to_timestamp(t)) b), '-'), ';' order by n) from unnest(array[${ts.join(',')}]::float8[]) with ordinality as x(t, n);`).split(';');
+    let seen = 0;
+    ts.forEach((t, i) => {
+      const js = R.activeBubbles(t, 'normal').sort((p, q) => p.x - q.x).map((b) => b.x.toFixed(4) + ':' + b.z.toFixed(4)).join(' ') || '-';
+      if (js !== '-') seen++;
+      must(srvB[i] === js, `기포 자리가 서버와 화면이 달라요: ${t} 서버 ${srvB[i]} 화면 ${js}`);
+    });
+    must(seen > 10, '기포가 거의 안 나와요: ' + seen);
+    const cast = () => json(`public.pingpong_fish_cast(${tk}, 13, 0, 0.5, false)`);
+    const c1 = cast();
+    must(c1.status === 'ok' && c1.cast?.id && ['fish', 'junk', 'paddle'].includes(c1.cast.kind), '던지기 실패: ' + JSON.stringify(c1));
+    must(json(`public.pingpong_fish_finish(${tk}, '${c1.cast.id}', true, true)`).status === 'too_fast', '던지자마자 잡았다고 해도 인정됐어요');
+    // 걸린 것을 정해 두고(운영자처럼) 30초 전에 던진 걸로 → 잡기
+    const setCast = (kind, item, grade, cm) => psql(DB, `update public.pingpong_players set fish_cast = jsonb_build_object('id', 'chk', 'kind', '${kind}', 'item', '${item}', 'grade', '${grade}', 'cm', ${cm}, 'dup', false, 'near', 0, 'at', extract(epoch from clock_timestamp()) - 30) where nick = '점검봇';`);
+    const brkNow = psql(DB, `select public.pingpong__is_break(now());`) === 't';
+    setCast('fish', 'dragon', 'legend', 95);
+    const f1 = json(`public.pingpong_fish_finish(${tk}, 'chk', true, true)`);
+    const ids = (f1.new || []).map((n) => n.id);
+    must(f1.status === 'ok' && f1.caught && f1.first && f1.big && f1.coins === (brkNow ? 30 : 20) && ids.includes('fish_big') && ids.includes('fish_legend'),
+      '전설 물고기 95cm 잡기가 이상해요(코인 20 · 월척·전설 업적): ' + JSON.stringify(f1).slice(0, 300));
+    must(json(`public.pingpong_fish_finish(${tk}, 'chk', true, true)`).status === 'no_cast', '같은 물고기를 두 번 잡았어요');
+    setCast('fish', 'mackerel', 'common', 40);
+    const f2 = json(`public.pingpong_fish_finish(${tk}, 'chk', true, true)`);
+    must(f2.coins === (brkNow ? 5 : 3) && f2.first && !f2.big, '일반 물고기 코인이 3이 아니에요: ' + JSON.stringify(f2).slice(0, 200));
+    // 분당 상한: 주머니가 비면 코인 0 (capped)
+    psql(DB, `update public.pingpong_players set fish_pocket = 0, fish_pocket_at = now() where nick = '점검봇';`);
+    setCast('fish', 'seabream', 'rare', 50);
+    const f3 = json(`public.pingpong_fish_finish(${tk}, 'chk', true, true)`);
+    must(f3.coins === 0 && f3.capped, '분당 상한이 안 걸려요: ' + JSON.stringify(f3).slice(0, 200));
+    // 잡동사니(바게트) · 챔질 Perfect 10연속 (위에서 이미 3번)
+    for (let i = 0; i < 7; i++) { setCast('junk', i ? 'boot' : 'baguette', 'common', 0); json(`public.pingpong_fish_finish(${tk}, 'chk', true, true)`); }
+    const got = json(`public.pingpong_achievements(${tk})`).got.map((g) => g.id);
+    must(['fish_bread', 'fish_perf10'].every((x) => got.includes(x)), '바게트·챔질 10연속 업적이 없어요: ' + got.filter((x) => /fish/.test(x)).join());
+    // 1% 전설 탁구채: 없으면 옷장, 있으면 조각 30
+    psql(DB, `delete from public.pingpong_inventory where item_id = 'paddle_duck' and player_id = (select id from public.pingpong_players where nick = '점검봇');`);
+    setCast('paddle', 'paddle_duck', 'rare', 0);
+    const p1 = json(`public.pingpong_fish_finish(${tk}, 'chk', true, false)`);
+    const pc = +psql(DB, `select pieces from public.pingpong_players where nick = '점검봇';`);
+    setCast('paddle', 'paddle_duck', 'rare', 0);
+    const p2 = json(`public.pingpong_fish_finish(${tk}, 'chk', true, false)`);
+    must(p1.pieces === 0 && p2.pieces === 30 && +psql(DB, `select pieces from public.pingpong_players where nick = '점검봇';`) === pc + 30
+      && psql(DB, `select count(*) from public.pingpong_inventory v join public.pingpong_players p on p.id = v.player_id where p.nick = '점검봇' and v.item_id = 'paddle_duck';`) === '1',
+      '낚은 전설 탁구채가 옷장·조각으로 안 들어가요: ' + JSON.stringify([p1.pieces, p2.pieces]));
+    // 놓침 → 연속 초기화, 도감·랭킹
+    const c2 = cast();
+    must(json(`public.pingpong_fish_finish(${tk}, '${c2.cast.id}', false, false)`).caught === false, '놓쳤다고 알리기 실패');
+    const dex = json(`public.pingpong_fish_dex(${tk})`);
+    must(dex.dex.length === 5 && dex.records.some((r) => r.id === 'dragon' && r.nick === '점검봇' && +r.cm === 95), '도감이 이상해요: ' + JSON.stringify(dex).slice(0, 300));
+    const wk = json(`public.pingpong_fish_rank('week')`), al = json(`public.pingpong_fish_rank('all')`);
+    must(wk[0]?.nick === '점검봇' && +wk[0].value === 95 && wk[0].fish === 'dragon' && al.length === 1, '월척 랭킹이 이상해요: ' + JSON.stringify([wk, al]).slice(0, 300));
+    // 실제 던지기 200번: 잡히는 것이 목록 안 · 크기 20~100
+    const many = JSON.parse(psql(DB, `set role anon; select json_agg(public.pingpong_fish_cast(${tk}, 13, 0, 0.5, true)->'cast')::text from generate_series(1, 200);`));
+    const kinds = new Set(many.map((c) => c.kind));
+    must(many.every((c) => (c.kind === 'paddle' ? R.LEGEND_PADDLES.some(([id]) => id === c.item) : R.CATCH[c.item]?.kind === c.kind && (c.kind === 'junk' || (c.cm >= 20 && c.cm <= 100)))) && kinds.has('fish'),
+      '던지기 결과가 목록 밖이에요: ' + JSON.stringify(many.filter((c) => !R.CATCH[c.item]).slice(0, 3)));
+  }
   // 표는 브라우저가 직접 못 읽어야 한다 (RLS·권한)
-  for (const t of ['pingpong_players', 'pingpong_sessions', 'pingpong_inventory', 'pingpong_matches']) {
+  for (const t of ['pingpong_players', 'pingpong_sessions', 'pingpong_inventory', 'pingpong_matches', 'pingpong_fish_dex', 'pingpong_fish_log']) {
     let leaked = true;
     try { q(`select count(*) from public.${t};`); } catch { leaked = false; }
     must(!leaked, `브라우저(anon)가 표 ${t}를 직접 읽을 수 있어요`);
   }
-  return `${SQL_FILES.length}개 파일 × 2번 실행, 가입·로그인·상점·뽑기·구매·장착·업적·랭킹·쉬는 시간 보너스·오늘의 미션·세트, 표 잠금 확인`;
+  return `${SQL_FILES.length}개 파일 × 2번 실행, 가입·로그인·상점·뽑기·구매·장착·업적·랭킹·쉬는 시간 보너스·오늘의 미션·세트·낚시(기포 자리·코인·도감·업적·월척), 표 잠금 확인`;
 }
 
 /* ───────── 3. 목록 맞추기 (서버 ↔ 화면) ───────── */
@@ -788,7 +848,20 @@ async function browserChecks() {
           await p.evaluate(() => window.__fish.openDex());
           const cards = await p.evaluate(() => document.querySelectorAll('#dex .card').length);
           must(cards === 17, '도감 물고기 칸이 17개가 아니에요: ' + cards);
-          note = '잡동사니·전설 탁구채·물고기 잡기 · 도감 17칸';
+          // 로그인(가짜 서버) → 던지면 서버가 정하고, 잡으면 코인·도감·월척 랭킹 (28과 같은 규칙)
+          await p.evaluate(async () => { const A = await import('/src/account.js'); await A.signup('낚시점검', '1234'); });
+          await p.reload(); await p.waitForFunction(() => window.__fish?.online(), null, { timeout: 60000 });
+          await p.evaluate(() => { const F = window.__fish; F.TUNE.fish = 'random'; F.S.mode = 'ready'; F.cast(0, 0.5); });
+          await p.waitForFunction(() => window.__fish.S.castId && (window.__fish.hold = true), null, { timeout: 60000 }); // 서버 답이 오면 입질 멈춤
+          await p.waitForFunction(() => window.__fish.S.mode === 'wait' && window.__fish.S.fish && window.__fish.S.castId, null, { timeout: 60000 });
+          await p.waitForTimeout(17000); // 서버 최소 시간(전설 16초)보다 오래
+          await p.evaluate(() => window.__fish.landNow());
+          await p.waitForFunction(() => window.__fish.S.mode === 'result' && (window.__fish.S.result.coins != null || window.__fish.S.result.srvNote), null, { timeout: 60000 });
+          const res = await p.evaluate(async () => { const r = window.__fish.S.result, A = await import('/src/account.js'); return { kind: r.c.kind, coins: r.coins, note: r.srvNote, rank: await A.getFishRank('week'), dex: (await A.fishDex()).dex.length }; });
+          const expect = { fish: [3, 5, 8, 12, 20, 30], junk: [0], paddle: [0] }[res.kind];
+          must(!res.note && expect.includes(res.coins) && (res.kind !== 'fish' || res.rank[0]?.nick === '낚시점검') && (res.kind === 'paddle' || res.dex === 1),
+            '로그인 낚시(서버) 결과가 이상해요: ' + JSON.stringify(res).slice(0, 300));
+          note = `잡동사니·전설 탁구채·물고기 잡기 · 도감 17칸 · 로그인 낚시(${res.kind} +${res.coins}코인)`;
         }
         await p.close();
         flush();

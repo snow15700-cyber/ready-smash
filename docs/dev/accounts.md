@@ -61,3 +61,6 @@
   - `pingpong_missions(token)` 오늘 상태 · `pingpong_mission_match(token, match, perfect3, rally10)` = `match_finish` 다음에(결과를 낸 오늘 경기만) — 새 상대 = 이 경기 상대 중 오늘 결과 낸 다른 경기에서 만난 적 없는 사람, 상대 3명 = 오늘 결과 낸 경기들의 서로 다른 상대 수, 2대2·이김·랠리10·퍼펙트3. 상대 쪽에 로그인한 사람이 없으면 아무것도 안 셈. · `pingpong_mission_cheer(token)` = 응원 미션이 있는 날만, 1.5초에 한 번 셈, 3번이면 달성.
   - 화면: `src/ui/missions.js` — 로비 `#lb-missions`(내 전적 아래 유리 카드, **너비 = 위 전적 3칸 합친 너비**(사용자 요청, `.me-box`로 묶고 카드는 `width:0; min-width:100%`), 머리줄 눌러 접기 `smash-missions-fold`, 손님은 오늘 미션만 보이고 '로그인하면…'). **대기실에도** 같은 카드 `#room-missions`(오른쪽 위 꾸미기 알약 아래, 사용자 요청; 창 너비 1100px 미만은 머리줄만, 900px 미만은 숨김 — 위 가운데 결과 상자와 안 겹치게). `renderRoom`이 부름. 1분마다·날짜 바뀌면 다시 불러옴. 경기 뒤 `room.js` `saveResult`가 finish → **mission** → ach → people 순서, 대기실 코인 내역에 주황 알약 '🎯 미션 달성! …'(`.rc-mission`). 관전 응원은 `cheer.js` `sendCheer` → `cheerMission()` → 알림(toast).
   - 로컬 가짜 서버(`account.js`)도 같은 규칙.
+
+## 낚시 (28, docs/dev/fishing.md 10장)
+- `supabase/28_fishing.sql`(27 다음, **실행 필요**): 던지기·잡기·도감·월척 랭킹·낚시 업적 7개. 자세한 규칙은 fishing.md 10장.

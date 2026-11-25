@@ -232,7 +232,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
 function drawResult(g, W, H, S, u) {
   const R = S.result;
   const a = clamp(S.t * 4, 0, 1), pop = 0.9 + 0.1 * Math.min(1, S.t * 5);
-  const cw = Math.min(340, W - 32), ch = R.ok ? 270 : 160;
+  const cw = Math.min(340, W - 32), ch = R.ok ? (R.coins != null || R.srvNote ? 300 : 270) : 160;
   g.save(); g.globalAlpha = a; g.translate(W / 2, H * 0.45); g.scale(pop, pop);
   glass(g, -cw / 2, -ch / 2, cw, ch, 24);
   g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -252,13 +252,17 @@ function drawResult(g, W, H, S, u) {
     g.fillText(fish ? `${c.name} ${R.cm}cm` : c.kind === 'junk' ? `에이… ${c.name}네` : `${c.name}!`, 0, 32);
     g.font = UI(600, 13); g.fillStyle = 'rgba(255,255,255,.8)';
     g.fillText(`챔질 ${R.grade} · 리듬 Perfect ${R.perfects} · Good ${R.hits - R.perfects} · Miss ${R.misses}`, 0, 58);
-    const line = fish ? (R.rec ? '' : `이 물고기 최고 ${R.best}cm`) : c.kind === 'junk' ? '도감에 넣었어요 · 코인 0' : c.dup ? `이미 있어서 → 조각 ${PADDLE_DUP_PIECES}개` : '옷장에 들어가요 (게임에서)';
+    const line = fish ? (R.rec ? '' : `이 물고기 최고 ${R.best}cm`) : c.kind === 'junk' ? '도감에 넣었어요 · 코인 0' : c.dup ? `이미 있어서 → 조각 ${PADDLE_DUP_PIECES}개` : R.coins != null ? '' : '옷장에 들어가요 (로그인하면)';
     g.fillText(line, 0, 78);
     const badge = R.big ? '🏆 월척!' : fish && R.rec && !R.first ? '🏆 새 기록!' : '';
     if (badge) {
       g.font = UI(800, 14); const tw = g.measureText(badge).width + 22;
       g.fillStyle = R.big ? '#ffc21a' : '#FF8A1F'; rr(g, -tw / 2, 90, tw, 26, 13); g.fill();
       g.fillStyle = R.big ? '#3a2a00' : '#fff'; g.fillText(badge, 0, 103);
+    }
+    if (R.coins != null || R.srvNote) { // 서버(로그인)에서 받은 코인
+      g.font = UI(800, 14); g.fillStyle = R.srvNote ? '#ff9a9a' : '#ffd23a';
+      g.fillText(R.srvNote || (c.kind === 'fish' ? `🪙 +${R.coins}코인${R.bonus ? ' (☕ 쉬는 시간 +50%)' : ''}${R.capped ? ' · 분당 한도' : ''}` : c.kind === 'paddle' ? (R.pieces ? `🧩 조각 +${R.pieces}` : '🎽 옷장에 들어갔어요!') : '🪙 코인 0 (잡동사니)'), 0, ch / 2 - 22);
     }
   } else {
     g.font = JUA(28); g.fillStyle = '#fff'; g.fillText(R.title, 0, -26);

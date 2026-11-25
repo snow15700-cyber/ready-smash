@@ -6,7 +6,8 @@ import { addBox, canvasTex, std } from '../../arena-kit.js';
 export const SEA_Y = -12;
 // 선착장: 해변(z 48)에서 바다 쪽으로 다리 약 14m → 끝 넓은 판 (사람 4~5명)
 export const PIER = { x: 13, z0: 47, z1: 62, w: 2.2, head: { x0: 7.5, x1: 18.5, z0: 62, z1: 66.5 }, y: -10.35 };
-export const STAND = { z: 65.6, xMin: 8.4, xMax: 17.6 }; // 서는 곳 (끝 판 앞쪽)
+import { STAND } from './rules.js';
+export { STAND, CAST_MIN, CAST_MAX, CAST_ANG, castDist, landingPoint } from './rules.js'; // 던지기 계산은 rules.js (서버와 같게)
 
 // 바다 물결 높이 (src/campusFx.js의 셰이더와 같은 식 — 찌·그림자가 물결을 따라 오르내리게)
 const WAVES = [[0.3, 1.0, 26, 0.55, 1.1], [-0.6, 0.8, 15, 0.32, 1.5], [0.9, 0.4, 11, 0.18, 2.1]].map(([dx, dy, L, A, s]) => {
@@ -131,13 +132,6 @@ export function makeLine() {
 
 // ── 던지는 자리 (자유롭게, 11/25 사용자 확정): aim −1(왼쪽 끝) ~ 1(오른쪽 끝, 화면 기준) = 부채꼴 ±40°
 //    power 0~1 = 거리 6m ~ 18m. 바다(+z)를 보고 서 있어서 화면 오른쪽 = 세계 −x
-export const CAST_MIN = 6, CAST_MAX = 18, CAST_ANG = 0.7;
-export const castDist = (power) => CAST_MIN + (CAST_MAX - CAST_MIN) * Math.max(0, Math.min(1, power));
-export function landingPoint(standX, aim, power) {
-  const d = castDist(power), a = -Math.max(-1, Math.min(1, aim)) * CAST_ANG;
-  return { x: standX + Math.sin(a) * d, z: STAND.z + Math.cos(a) * d };
-}
-
 // ── 긴 막대찌 + 빛나는 끝 (사용자 확정 11/25): 잠기면 막대가 쏙 사라짐. 원점 = 물에 뜨는 자리(물 높이)
 export function makeBobber() {
   const g = new THREE.Group();

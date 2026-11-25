@@ -7,7 +7,10 @@ import { makeModel } from './models.js';
 const KEY = 'fishing-dex', PKEY = 'fishing-sim-paddles';
 let dex = {}, paddles = [];
 try { dex = JSON.parse(localStorage.getItem(KEY) || '{}'); paddles = JSON.parse(localStorage.getItem(PKEY) || '[]'); } catch { /* 저장 안 됨 */ }
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(dex)); localStorage.setItem(PKEY, JSON.stringify(paddles)); } catch { /* 저장 안 됨 */ } };
+let online = false, records = {};
+// 로그인하면 서버 도감으로 바꿈 (이 브라우저 기록과 섞지 않게 저장 안 함)
+export function setServerDex(r) { online = true; dex = Object.fromEntries((r.dex || []).map((x) => [x.id, { n: x.n, best: +x.best }])); records = Object.fromEntries((r.records || []).map((x) => [x.id, x])); }
+const save = () => { if (online) return; try { localStorage.setItem(KEY, JSON.stringify(dex)); localStorage.setItem(PKEY, JSON.stringify(paddles)); } catch { /* 저장 안 됨 */ } };
 
 export const fishCount = () => SPECIES.reduce((n, s) => n + (dex[s.id]?.n || 0), 0);
 export const ownedPaddles = () => paddles;
@@ -94,7 +97,8 @@ function card(s) {
   const gr = junk ? '' : `<span class="gr" style="background:${GRADE[s.grade].color}">${GRADE[s.grade].label}</span>`;
   const cond = s.cond ? `<span class="cond" title="${COND[s.cond].label}">${COND[s.cond].icon}</span>` : '';
   const sub = !got ? (s.cond ? COND[s.cond].label : '아직 못 잡았어요') : junk ? `${e.n}개` : `${e.n}마리 · 최고 <span class="${e.best >= BIG_CM ? 'big' : ''}">${e.best}cm${e.best >= BIG_CM ? ' 🏆' : ''}</span>`;
-  d.insertAdjacentHTML('beforeend', `${gr}${cond}<div class="n">${got ? s.name : '???'}</div><div class="s">${sub}</div>`);
+  const rec = records[s.id] ? `<div class="s">👑 ${records[s.id].nick.replace(/[<>&]/g, '')} ${+records[s.id].cm}cm</div>` : ''; // 어종별 기록 1명 (서버)
+  d.insertAdjacentHTML('beforeend', `${gr}${cond}<div class="n">${got ? s.name : '???'}</div><div class="s">${sub}</div>${rec}`);
   return d;
 }
 function render() {
