@@ -35,7 +35,7 @@ export function startWatch(r, { keep = false, link = null, members = null, live 
     onMembers: (list) => onWatchMembers(w, list),
     onStatus: (st, text) => { if (st === 'error' && watch === w) endWatch(text); },
   };
-  if (link) { w.link = link; link.setHandlers(handlers); } else w.link = joinRoom(r.code, me, handlers, { listen: true });
+  if (link) { w.link = link; link.setHandlers(handlers); } else w.link = joinRoom(r.code, me, handlers, { listen: true, rtc: true }); // rtc: 나중에 참가(join)하면 선수끼리 직접 연결
   // 관중석 명단에 들어가기 (16명 제한은 onCrowdList). 내 꾸미기·칭호도 같이 → 관중석에 내 캐릭터로 선다
   if (!(keep && crowdKeep(r.code))) crowdJoin(r.code, { ...me, team: null, look: myEquip(), title: myTitle(), titleX: myNemesis() });
   show('hud');

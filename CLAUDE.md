@@ -14,7 +14,7 @@
 
 | 주제 | 파일 | 상태 |
 |---|---|---|
-| 경기 규칙·조작·판정·찬스볼·몰입 연출·**동기화 규칙** | `docs/dev/gameplay.md` | main (와이파이 느림 대비·찬스볼 물결 잔상(정점까지) 포함) |
+| 경기 규칙·조작·판정·찬스볼·몰입 연출·**동기화 규칙** | `docs/dev/gameplay.md` | main (와이파이 느림 대비·찬스볼 물결 잔상(정점까지) 포함) / **WebRTC 직접 연결 + 서울 중계** `test-net`(광장 없이 연결만) |
 | 2v2·혼자 하기(AI)·모바일·링크 미리보기·**관전 모드(기획·단계)** | `docs/dev/modes.md` | main (관전 ①~⑤) / ⑥ 대기실부터 관전 1·2단계 test |
 | PIN 계정·전적·랭킹·코인·경기 확인·**보안(18)**·업적·칭호·**쉬는 시간 보너스(19)** | `docs/dev/accounts.md` | main (SQL 01~21 실행 완료) — 쉬는 시간 보너스·오늘의 미션 포함 / 출석 도장판 아직 / 혼자 하기 3번에 1코인 main(26 실행 완료) |
 | 상점·꾸미기 공통, 탁구채(전설 포함)·몸·목록 그림·**머리·얼굴·세트(기획)**·**뽑기 연출** | `docs/dev/shop.md` | main / 머리 28·얼굴 16·세트 11 test(**24 실행 필요**) / 뽑기 연출(탁구공 깨기)·**무료 뽑기 50회**(25 실행 필요, 로비 배너 `src/ui/freeGacha.js`) test |
@@ -39,7 +39,7 @@
 - `src/match.js` 경기 기준 로직(방장/혼자 모드에서만 실행). `computeShot`은 방장과 상대 PC가 같이 쓴다.
 - `src/game.js` 화면 쪽: 이벤트를 받아 공·캐릭터·링·소리 처리, 내 입력 판정, 상대 PC의 타격 예측.
 - `src/scene.js` Three.js 체육관·탁구대·캐릭터·카메라. `src/audio.js` Web Audio 합성음.
-- `src/net.js` Supabase Realtime Broadcast + presence. 채널 `pingpong-room-XXXX`. 설정이 없으면 BroadcastChannel로 같은 브라우저 탭끼리만 연결(로컬 테스트, `?lag=80`으로 지연 흉내).
+- `src/net.js` Supabase Realtime Broadcast + presence. 채널 `pingpong-room-XXXX`. 선수끼리는 WebRTC 직접/서울 중계(`api/turn.js`)도 같이(먼저 온 것만 씀). 설정이 없으면 BroadcastChannel로 같은 브라우저 탭끼리만 연결(로컬 테스트, `?lag=80`으로 지연 흉내).
 - `src/main.js` 시작점: 화면 파일을 모두 불러오고 매 프레임 루프(로비 카메라·배경). 화면 흐름은 `src/ui/`:
   `state.js`(공용: `$`·`world`·`game`/`match`/`preview`와 `setGame` 등 — 다른 파일이 바꾸는 변수는 여기에 두고 setter로) · `screen.js`(`show`·`stopGame`) · `hud.js`(경기 화면 글자) · `ai.js`(혼자 하기) · `room.js`(방·대기실·시계 맞추기·전적 저장·코드 입장) · `lobbyList.js`(로비 방 목록) · `watch.js`(관전) · `cheer.js`(관중석·응원) · `login.js`(로그인·PIN·업데이트/치는 방법 창) · `rank.js` · `dress.js`(꾸미기) · `titles.js`(업적 알림·칭호) · `stage.js`(대기실 무대·연습 스윙) · `intro.js`(VS 소개).
   새 화면 파일을 만들면 `main.js` 맨 위에서 꼭 불러온다(버튼 연결이 불러올 때 일어남).
@@ -57,7 +57,7 @@
 
 ## 환경 변수 / 배포
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`(publishable, 공개용). 로컬은 `.env.local`(git 제외), 배포는 Vercel 프로젝트 설정.
-- GitHub `main`에 올리면 Vercel이 자동 배포한다. 미리보기(Preview) 주소는 **`test` 브랜치만** 생긴다(`vercel.json`의 `git.deploymentEnabled` — 무료 요금제 하루 배포 100번 한도 때문에 작업 브랜치는 배포 안 함).
+- GitHub `main`에 올리면 Vercel이 자동 배포한다. 미리보기(Preview) 주소는 **`test`·`test-net` 브랜치만** 생긴다(`vercel.json`의 `git.deploymentEnabled` — 무료 요금제 하루 배포 100번 한도 때문에 작업 브랜치는 배포 안 함).
 - 한도에 걸린 동안의 push는 나중에 저절로 배포되지 않는다. 한도가 풀린 뒤 Vercel Deployments → ⋯ → Create Deployment(브랜치 `main`) 또는 새 커밋을 올려야 한다.
 - Supabase 프로젝트는 다른 게임과 공유한다. DB 테이블을 만들 때는 `pingpong_` 접두어를 붙인다.
 

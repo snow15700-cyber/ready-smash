@@ -57,12 +57,15 @@ export function enterRoom(code, host, mode = null, { spectate = false, link = nu
       if (!room) return;
       if (st === 'error') { leaveRoom(); show('lobby'); hud.toast(text, 3000); }
     },
+    onDirect: (d) => { if (room) netPill(d); }, // 선수끼리 직접 연결이 열리거나 닫힘 (net.js joinRoom rtc)
   };
   if (link) {
     room.link = link;
     link.setHandlers(handlers);
-    if (!spectate) link.join(me); // 관중 → 참가자: 같은 채널에서 명단에 들어간다
-  } else room.link = joinRoom(code, me, handlers, { listen: spectate });
+    if (!spectate) link.join(me); // 관중 → 참가자: 같은 채널에서 명단에 들어간다 (직접 연결도 이때 시작)
+  } else room.link = joinRoom(code, me, handlers, { listen: spectate, rtc: true });
+  // 선수끼리는 WebRTC 직접 연결로도 같이 보낸다 (대기실부터 미리 이어 둠, 먼저 온 것만 씀 — 이 파일의 처리는 그대로)
+  netPill(spectate ? null : { n: 0, of: 0 });
   // 관중석 채널: 선수(대기실 포함)는 듣기만(관중 수), 관중은 명단에 들어간다. 이미 그 방 관중석에 있으면 그대로
   if (spectate) {
     if (!crowdKeep(code)) crowdJoin(code, { id: myId, nick, at: Date.now(), team: null, look: myEquip(), title: myTitle(), titleX: myNemesis() });
@@ -101,6 +104,7 @@ export function leaveRoom() {
   clearTimeout(room.goWait);
   room.link.leave();
   room = null;
+  netPill(null);
   stopGame();
   syncLobby();
 }
@@ -111,6 +115,7 @@ export function takeRoomLink() {
   clearTimeout(room.goWait);
   const out = { link: room.link, members: room.link.members() };
   room = null;
+  netPill(null);
   document.body.classList.remove('spectating');
   return out;
 }
@@ -465,6 +470,36 @@ function startGuestGame(mode, players, mine, mid) {
   hud.stats(game.stats);
   startIntro(players, mine.side, mode);
 }
+
+// 경기 화면 왼쪽 위 연결 표시 (d = { n, of, relay }: 다른 선수 of명 중 n명과 이어짐, 그중 relay명은 서울 중계, null 숨김)
+function netPill(d) {
+  const el = $('net-pill');
+  if (!el) return;
+  el.classList.toggle('hidden', !d);
+  if (!d) $('net-diag').classList.add('hidden');
+  if (!d) return;
+  const all = d.of > 0 && d.n === d.of;
+  el.classList.toggle('on', all);
+  el.classList.toggle('part', d.n > 0 && !all);
+  // 다 이어짐: 모두 직접 '⚡ 직접 연결' · 모두 중계 '⚡ 서울 중계' · 섞임 '⚡ 직접·중계' / 일부만 '⚡ 일부 연결 (n/of)' / 없음 '🌐 서버 경유'
+  const relay = d.relay || 0;
+  el.textContent = all ? (relay === 0 ? '⚡ 직접 연결' : relay === d.n ? '⚡ 서울 중계' : '⚡ 직접·중계') : d.n > 0 ? `⚡ 일부 연결 (${d.n}/${d.of})` : '🌐 서버 경유';
+}
+// 연결 표시를 누르면 직접 연결 진단 (왜 서버 경유인지). 열려 있는 동안 1초마다 고침
+let diagT = 0;
+function renderDiag() {
+  const box = $('net-diag');
+  if (box.classList.contains('hidden') || !room) { clearInterval(diagT); diagT = 0; box.classList.add('hidden'); return; }
+  box.textContent = room.link.rtcInfo?.() || '직접 연결을 안 쓰는 경기예요 (주소 끝 ?rtc=0)';
+}
+for (const ev of ['pointerdown', 'mousedown', 'touchstart']) $('net-pill').addEventListener(ev, (e) => e.stopPropagation()); // 눌러도 스윙이 안 되게
+$('net-pill').addEventListener('click', () => {
+  const box = $('net-diag');
+  box.classList.toggle('hidden');
+  renderDiag();
+  clearInterval(diagT);
+  if (!box.classList.contains('hidden')) diagT = setInterval(renderDiag, 1000);
+});
 
 // 참가자 PC: 방장 소식이 보통 몇 초 걸려 오는지 (최근 ping 왕복 시간의 75% 지점 ÷ 2).
 // 가장 빠른 값이 아니라 '보통 느린 쪽'을 써서 와이파이가 들쭉날쭉해도 공이 늦게 나타나지 않게
