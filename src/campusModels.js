@@ -43,7 +43,7 @@ export function fitOf(model, def) {
 export const preloadModels = () => Promise.all([...new Set(Object.values(MODELS).flatMap((d) => d.files))].map(loadModel)).catch((e) => console.warn('[광장 소품 모델]', e));
 
 // 실제 광장: root 안의 소품 자리를 InstancedMesh로 채워 holder에 넣는다 (모델을 다 받은 뒤). 돌려줌: 밤에 켜지는 재질 목록
-export async function fillProps(root, holder) {
+export async function fillProps(root, holder, matFn = (m) => m) {
   const spots = [];
   root.traverse((o) => { if (o.userData.prop && MODELS[o.userData.prop]) spots.push(o); });
   const byFile = new Map();
@@ -61,14 +61,15 @@ export async function fillProps(root, holder) {
     model.traverse((c) => {
       if (!c.isMesh) return;
       const local = mInv.clone().multiply(c.matrixWorld); // 모델 안에서 이 부품 자리
-      const im = new THREE.InstancedMesh(c.geometry, c.material, list.length);
+      const mats = Array.isArray(c.material) ? c.material.map(matFn) : matFn(c.material);
+      const im = new THREE.InstancedMesh(c.geometry, mats, list.length);
       const m = new THREE.Matrix4();
       list.forEach((o, i) => { m.copy(inv).multiply(o.matrixWorld).multiply(fit).multiply(local); im.setMatrixAt(i, m); });
       im.instanceMatrix.needsUpdate = true;
       im.castShadow = !['flower', 'bush'].includes(list[0].userData.prop); im.receiveShadow = true; // 꽃·덤불은 그림자 생략 (가볍게)
       im.computeBoundingSphere();
       holder.add(im);
-      for (const mt of [].concat(c.material)) if (mt.userData.glow) glow.add(mt);
+      for (const mt of [].concat(mats)) if (mt.userData.glow) glow.add(mt);
     });
   }
   return [...glow];

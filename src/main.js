@@ -71,15 +71,22 @@ const camBlend = { p: 0, f: 0, x: 0, last: 0 }; // p: 0 = 로비 카메라, 1 = 
   else showLogin(r === 'error' ? '서버에 연결하지 못해 자동 로그인을 못 했어요. 다시 로그인하거나 손님으로 해 주세요' : '');
 })();
 /* ───────── 매 프레임 ───────── */
+let shadowT = -9;
 function loop() {
   // 뽑기 연출 화면(src/gachaShow.js)이 화면을 다 덮는 동안에는 뒤의 3D 장면을 쉬게 한다 (느린 PC)
   if (!game && !match && document.body.classList.contains('gacha-on')) { requestAnimationFrame(loop); return; }
+  // 점검용(scripts/check.cjs): 쉬고 있는 탭은 그리기를 멈춤 — 헤드리스 브라우저는 그래픽 카드 없이 그려서 여러 탭이 동시에 광장을 그리면 다른 탭이 멈춘다. 일반 사용자는 안 씀
+  if (window.__smashPause) { requestAnimationFrame(loop); return; }
   const now = performance.now() / 1000;
   // 내 스윙 판단을 먼저 끝내고 나서 경기 판정 (느린 PC에서도 늦게 친 공이 버려지지 않게)
   if (game) game.decideHit(now + game.offset);
   if (match) match.update(now);
   // 광장 로비 (src/ui/plaza.js): 광장 채널 붙기/빠지기는 매 프레임 확인, 광장이 보이면 광장을 그린다
   const inPlaza = plazaFrame(now);
+  // 광장만 보일 때는 그림자를 0.5초마다만 다시 그린다: 광장 물건은 거의 안 움직이고(사람은 발밑 동그라미 그림자) 그림자 그리기가 매 프레임 장면을 한 번 더 그리는 일이라서 (느린 PC, 광장 20장)
+  const sm = world.renderer.shadowMap;
+  if (inPlaza && !game && !bubbleArena() && !world.arena?.root.visible) { sm.autoUpdate = false; if (now - shadowT > 0.5 || now < shadowT) { shadowT = now; sm.needsUpdate = true; } }
+  else sm.autoUpdate = true;
   // 위치가 있는 소리 크기: 경기·대기실(연습 스윙)은 그대로, 로비·꾸미기 배경 랠리는 작게
   if (game) {
     setQuiet(1);

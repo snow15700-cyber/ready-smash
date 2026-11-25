@@ -90,33 +90,43 @@ function plazaTable(t, color) {
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) addBox(g, 0.06, Y - 0.05, 0.06, dark, sx * (L / 2 - 0.25), (Y - 0.05) / 2, sz * (W / 2 - 0.15));
   return g;
 }
+// 재질 바꾸기: 무늬 없는 무광 → Lambert, 반짝이는 것(금·알루미늄·유리·물)·무늬 있는 것 → Phong (거칠기·금속 정도는 몇 단계로 맞춰 합치기가 잘 되게)
+const MAT_CACHE = new WeakMap();
+const PH_BASE = THREE.Material.prototype.onBeforeCompile;
+export function lightMat(mt) {
+  if (!mt?.isMeshStandardMaterial) return mt;
+  if (MAT_CACHE.has(mt)) return MAT_CACHE.get(mt);
+  const common = {
+    color: mt.color, side: mt.side, transparent: mt.transparent, opacity: mt.opacity, depthWrite: mt.depthWrite, blending: mt.blending,
+    flatShading: mt.flatShading, vertexColors: mt.vertexColors, map: mt.map, emissive: mt.emissive, emissiveMap: mt.emissiveMap,
+    emissiveIntensity: mt.emissiveIntensity, alphaTest: mt.alphaTest, fog: mt.fog,
+  };
+  let out;
+  if (!mt.map && !mt.emissiveMap && !mt.transparent && mt.metalness < 0.3 && mt.roughness >= 0.5 && mt.onBeforeCompile === PH_BASE) out = new THREE.MeshLambertMaterial(common);
+  else {
+    const metal = mt.metalness >= 0.4, r = mt.roughness;
+    out = new THREE.MeshPhongMaterial({
+      ...common,
+      shininess: r < 0.2 ? 90 : r < 0.45 ? 45 : 15,
+      specular: metal ? mt.color.clone().multiplyScalar(0.7) : new THREE.Color(r < 0.45 ? 0x444444 : 0x1a1a1a),
+    });
+    if (metal) out.color = mt.color.clone().multiplyScalar(0.75); // 반사할 것이 없는 금속은 너무 밝게 보여서 조금 어둡게
+  }
+  out.name = mt.name;
+  out.userData = { ...mt.userData };
+  if (mt.onBeforeCompile !== PH_BASE) { out.onBeforeCompile = mt.onBeforeCompile; if (mt.customProgramCacheKey !== THREE.Material.prototype.customProgramCacheKey) out.customProgramCacheKey = mt.customProgramCacheKey; } // 바다 물결
+  MAT_CACHE.set(mt, out);
+  return out;
+}
+
 export function buildPlaza() {
   const c = buildCampus({ game: true });
   const root = c.root;
   // 탁구대 4대 (사람 대결용 3대 + 김제빵 탁구대). 움직이지 않으니 합친다. 이름표·자리 칸·상태 표지판·김제빵은 src/plaza.js
   for (const t of PLAZA.tables) root.add(plazaTable(t, 0x2a5db0));
   root.add(plazaTable(PLAZA.kim, 0x2f8a4e));
-  // 재질 줄이기 (느린 PC): 재질이 조금씩 다르면(거칠기·금속 정도) 합치기(bakeArena)가 따로 묶어 그리기가 늘어난다.
-  //  · 무늬 없는 무광 재질 → 가벼운 Lambert (색은 합칠 때 꼭짓점 색으로 옮겨지므로 색이 달라도 한 덩어리)
-  //  · 반짝이는 재질(금·알루미늄·유리 등) → 거칠기·금속 정도를 몇 단계로 맞춤
-  const base = THREE.Material.prototype.onBeforeCompile;
-  const canon = (mt) => {
-    if (!mt?.isMeshStandardMaterial || mt.map || mt.emissiveMap || mt.transparent || mt.userData.glow || mt.onBeforeCompile !== base) return mt;
-    if (mt.metalness < 0.3 && mt.roughness >= 0.5) {
-      const l = new THREE.MeshLambertMaterial({ color: mt.color, flatShading: mt.flatShading, side: mt.side });
-      if (mt.emissive && mt.emissive.getHex()) { l.emissive.copy(mt.emissive); l.emissiveIntensity = mt.emissiveIntensity; }
-      return l;
-    }
-    mt.roughness = mt.roughness < 0.2 ? 0.1 : mt.roughness < 0.45 ? 0.35 : 0.6;
-    mt.metalness = mt.metalness < 0.2 ? 0 : mt.metalness < 0.5 ? 0.4 : 0.65;
-    return mt;
-  };
-  const seen = new Map();
-  root.traverse((o) => {
-    if (!o.isMesh || o.isInstancedMesh) return;
-    const one = (mt) => { if (!seen.has(mt)) seen.set(mt, canon(mt)); return seen.get(mt); };
-    o.material = Array.isArray(o.material) ? o.material.map(one) : one(o.material);
-  });
+  // 재질 가볍게 (느린 PC): 진짜 같은 빛 계산 재질(MeshStandard)은 픽셀마다 계산이 많아 광장 전체에 쓰면 느린 PC가 힘듦 → 실제 광장은 가벼운 재질로 (시안 페이지는 그대로)
+  root.traverse((o) => { if (o.isMesh && !o.isInstancedMesh) o.material = Array.isArray(o.material) ? o.material.map(lightMat) : lightMat(o.material); });
   // 그림자는 큰 것만 (작은 부품 — 전구·캡슐·손잡이·빵 등 — 까지 그림자를 그리면 그리기가 두 배로 늘어 느린 PC가 힘듦)
   const sph = new THREE.Sphere(), sc = new THREE.Vector3();
   root.updateMatrixWorld(true);
@@ -153,6 +163,6 @@ export function buildPlaza() {
     a.glow = [...glow]; a.nightFx = fx;
   };
   a.relink();
-  a.ready = fillProps(root, props).then(() => a.relink()).catch((e) => console.warn('[광장 소품 모델]', e));
+  a.ready = fillProps(root, props, lightMat).then(() => a.relink()).catch((e) => console.warn('[광장 소품 모델]', e));
   return a;
 }

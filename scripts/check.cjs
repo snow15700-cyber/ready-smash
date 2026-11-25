@@ -443,6 +443,7 @@ async function browserChecks() {
 
     // 광장 로비 (docs/dev/plaza.md ①·③): 들어가면 광장, 탭 두 개가 서로 보임, 걷기(클릭 한 번 = 정보 한 번), 정해진 채팅, 가게 → 화면, 김제빵 도전 중, 40명 제한
     await step('화면: 광장 (탭 두 개) 걷기·채팅·가게', async () => {
+      await page.evaluate(() => { window.__smashPause = true; }).catch(() => {}); // 앞 단계 탭은 쉬게 (광장 20장이 무거워져 헤드리스에서 다른 탭이 멈춤)
       const mk = async (nick, acct) => {
         const p = await ctx.newPage();
         watch(p, '광장 ' + nick, errs);
@@ -595,6 +596,7 @@ async function browserChecks() {
     // 광장 탁구대 (docs/dev/plaza.md ②): 자리에 서기 → 준비 → VS 소개 → 경기(광장 채널에서 빠짐) → 관전 → 끝나면 광장 + '한 판 더' → 다시 시작
     // 같은 칸 다툼(먼저 선 사람), 자리 비움(1분)도
     await step('화면: 광장 탁구대 1대1 (탭 두 개) 서기 → 준비 → 경기 → 한 판 더 · 경기장 거품 관전', async () => {
+      await page.evaluate(() => { window.__smashPause = false; }); // 이 단계는 앞 단계 탭이 방장
       const guest = await ctx.newPage();
       watch(guest, '참가자', errs);
       await guest.goto(URL + '/?acct=2');
@@ -686,7 +688,10 @@ async function browserChecks() {
       // 자리 비움: 1분 동안 아무것도 안 하면 내려온다
       await guest.evaluate(() => window.__smash.plaza.afk());
       await waitFor(guest, () => !window.__smash.plaza.pz.seat && /자리|내려왔어요/.test(document.querySelector('#toast').textContent), null, 5000, '자리 비움 → 내려옴');
-      } finally { for (const p of [viewer, guest]) await p?.close().catch(() => {}); } // 실패해도 탭을 닫아 다음 점검이 느려지지 않게
+      } finally {
+        for (const p of [viewer, guest]) await p?.close().catch(() => {}); // 실패해도 탭을 닫아 다음 점검이 느려지지 않게
+        await page.evaluate(() => { window.__smashPause = true; }).catch(() => {}); // 이 뒤로는 안 씀 → 쉬게 (헤드리스에서 다른 탭이 느려지지 않게)
+      }
       flush();
       return '서기·같은 칸 다툼·준비·WebRTC 직접 연결·경기 중 광장에서 빠짐·경기장 거품 관전·응원·관중석에 앉기·한 판 더·자리 비움';
     });
