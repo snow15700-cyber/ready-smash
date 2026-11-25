@@ -8,7 +8,11 @@ import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 import * as THREE from 'three';
 import { buildCampus } from '../../campusMock.js';
 import { makeCharacter } from '../../scene.js';
-import { FISH, GRADE, STAGES, STAGE_FISH, TUNE, biteSeq, fishSize, pickFish, stageOf } from './data.js';
+import { BIG_CM, FISH, GRADE, PADDLE_DUP_PIECES, STAGES, STAGE_FISH, TUNE, biteSeq, fishSize, pickCatch, stageOf } from './data.js';
+import { addPaddle, dexOpen, fishCount, modelImage, openDex, ownedPaddles, recordCatch } from './dex.js';
+import { makeModel } from './models.js';
+import { ITEM, makePaddle, paddleImage } from '../../items.js';
+import { breakAt } from '../../breaks.js';
 import { activeBubbles, bubbleNear } from './bubbles.js';
 import { audioCtx, initSound, setSoundOn, snd, tickSound } from './sound.js';
 import { makePhrase, makeSong, playBeat, playFinish, playMelody } from './rhythm.js';
@@ -16,7 +20,8 @@ import { PIER, STAND, buildPier, landingPoint, makeBobber, makeBubbleFx, makeFis
 import { drawHud, zoomRect } from './hud.js';
 
 const params = new URLSearchParams(location.search);
-if (params.get('fish') && FISH[params.get('fish')]) TUNE.fish = params.get('fish');
+if (params.get('fish')) TUNE.fish = params.get('fish');
+if (params.get('cond')) TUNE.cond = params.get('cond');
 if (params.get('bubbles')) TUNE.bubbles = params.get('bubbles');
 
 // ── 3D 장면 (캠퍼스 시안 + 선착장)
@@ -64,16 +69,20 @@ const S = {
   rodPitch: -0.95, rodPitchV: 0, bend: 0, rodKick: 0, hitstop: 0, slow: 0, shake: 0, zshake: 0, flash: 0, cutin: null, stamp: null,
   texts: [], judge: null, bubbles: [], bubbleNote: null, seenBubbles: new Set(),
 };
-window.__fish = { S, TUNE, stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(), cast: (aim = 0, power = 0.5) => { initSound(); castTo(aim, power); }, rt: () => (S.R ? nowS() - S.R.base : 0) };
+window.__fish = {
+  S, TUNE, openDex,
+  // 디버그: 리듬 없이 바로 잡기 연출 (점검·스크린샷용)
+  catchNow: () => { if (S.mode !== 'ready') return; const p = landingPoint(S.standX, 0, 0.5); S.bob.set(p.x, 0, p.z); S.bobLanded = true; S.fish = pickCatch(0, catchCtx()); S.size = fishSize(); S.grade = 'Perfect'; S.R = { perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 }; startLand(); }, stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(), cast: (aim = 0, power = 0.5) => { initSound(); castTo(aim, power); }, rt: () => (S.R ? nowS() - S.R.base : 0) };
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const DECK = PIER.y + 0.04;
 const buzz = (p) => { try { navigator.vibrate?.(p); } catch { /* 진동 없음 */ } };
 
-// 기록 (이 브라우저에만)
-let best = {}, caught = 0;
-try { best = JSON.parse(localStorage.getItem('fishing-best') || '{}'); caught = +(localStorage.getItem('fishing-count') || 0); } catch { /* 저장 안 됨 */ }
-const saveRec = () => { try { localStorage.setItem('fishing-best', JSON.stringify(best)); localStorage.setItem('fishing-count', String(caught)); } catch { /* 저장 안 됨 */ } };
+// 기록은 도감(dex.js, 이 브라우저에만). 조건 물고기: 실제 쉬는 시간·밤(한국 시각 19~6시), 비는 ⚙️로만 시험
+function catchCtx() {
+  const h = new Date(Date.now() + 9 * 3600e3).getUTCHours(), c = TUNE.cond;
+  return { owned: ownedPaddles(), cond: c === 'auto' ? { break: !!breakAt(), night: h >= 19 || h < 6, rain: false } : { [c]: true } };
+}
 
 // ── 글자·판정
 function say(txt, opt = {}) { S.texts.push({ txt, t: 0, life: opt.life ?? 0.9, size: opt.size ?? 34, color: opt.color ?? '#fff', at: opt.at ? opt.at.clone() : null, sx: opt.sx, sy: opt.sy, zoom: opt.zoom, shake: opt.shake ?? 0, rise: opt.rise ?? 40 }); }
@@ -88,7 +97,7 @@ addEventListener('pointerup', (e) => release(e.clientX, e.clientY));
 addEventListener('pointercancel', () => { S.drag = null; release(); });
 addEventListener('blur', () => { S.drag = null; release(); });
 addEventListener('keydown', (e) => {
-  if (e.repeat) return;
+  if (e.repeat || dexOpen()) return;
   if (e.code === 'Space') { e.preventDefault(); if (S.mode === 'ready') { initSound(); castTo(0, 0.5); } else press({ key: true }); }
   if (e.code === 'ArrowLeft' || e.code === 'KeyA') S.walk = -1;
   if (e.code === 'ArrowRight' || e.code === 'KeyD') S.walk = 1;
@@ -158,7 +167,7 @@ function setMode(m) { S.mode = m; S.t = 0; }
 function startWait() {
   setMode('wait');
   S.bobLanded = true; S.dip = 0; S.dipV = 0;
-  S.fish = pickFish(S.near);
+  S.fish = pickCatch(S.near, catchCtx());
   S.seq = biteSeq(S.fish); S.evI = -1; S.ev = null; S.calm = 0; S.alertT = -1;
   S.nextEv = rnd(1.4, 2.4);
   const y = seaHeight(S.bob.x, S.bob.z, S.now);
@@ -213,7 +222,7 @@ function pressWait() {
 // ── 챔질 → 리듬 줄다리기
 function hook(g, rt) {
   S.grade = g;
-  S.size = fishSize(S.fish);
+  S.size = fishSize();
   S.hitstop = 0.06; S.shake = 12; S.flash = g === 'Perfect' ? 0.7 : 0.4; S.rodKick = 1; S.alertT = -1;
   snd.hook(g); buzz(60);
   const col = g === 'Perfect' ? '#ffb02e' : '#7fe3a0';
@@ -238,7 +247,7 @@ function startRhythm(stage = 0) {
   const spb = 60 / song.bpm;
   // 단계가 오를 때는 기다림을 짧게 (사용자 요청 11/25: 약 3초 → 약 1.3초): 0.3초 + 음악만 2박, "무겁다!"는 첫 원 위에 짧게 겹침
   const lead = stage === 0 ? 0.5 : 0.3, intro = stage === 0 ? 4 : 2;
-  const g = 60 / (f.notes * 0.9);
+  const g = 60 / ((S.fish?.kind === 'junk' ? 4 : f.notes) * 0.9); // 잡동사니는 짧게 (4노트쯤)
   S.R = {
     song, spb, base: nowS(), t0: lead + intro * spb, intro, // 첫 노트 구절의 첫 박 (그 전 intro박은 음악만 — 들어가는 마디)
     queue: [], phrases: 0, notes: [], dist: stage === 0 ? 60 : 50, g, m: g * 1.2, lastBeat: -99, sched: -intro, pulse: 0, side: 1,
@@ -354,10 +363,15 @@ function noteResult(n, res) {
 function startLand() {
   setMode('land');
   if (S.model) scene.remove(S.model); // 그림자 → 진짜 물고기 (여기서 처음 공개)
-  S.model = makeFishModel(S.fish); scene.add(S.model);
+  const c = S.fish;
+  if (c.kind === 'paddle') { S.model = new THREE.Group(); const p = makePaddle(ITEM[c.id]); p.scale.setScalar(3.4); S.model.add(p); }
+  else S.model = makeModel(c.id);
+  scene.add(S.model);
   const M = S.model; M.visible = true;
-  if (S.fish.grade !== 'common') S.cutin = { t: 0, txt: S.fish.grade === 'legend' ? '🌟 전설! 🌟' : '✨ 희귀!', sub: S.fish.name, color: GRADE[S.fish.grade].color };
-  M.scale.setScalar(0.6 + S.size.k * 0.9);
+  if (c.kind === 'paddle') S.cutin = { t: 0, txt: '🏓 전설 탁구채!!', sub: c.dup ? `${c.name} — 이미 있어서 조각 ${PADDLE_DUP_PIECES}개` : c.name, color: '#ffc21a' };
+  else if (c.kind === 'junk') S.cutin = { t: 0, txt: '에이…', sub: `${c.name}네 ${c.emoji}`, color: '#9fd3c0', dur: 0.9, dim: 0.1 };
+  else if (c.grade !== 'common') S.cutin = { t: 0, txt: c.grade === 'legend' ? '🌟 전설! 🌟' : '✨ 희귀!', sub: c.name, color: GRADE[c.grade].color };
+  M.scale.setScalar(c.kind === 'fish' ? 0.9 + S.size.k * 1.1 : 1.2);
   const y = seaHeight(S.bob.x, S.bob.z, S.now);
   S.land = { from: new THREE.Vector3(S.bob.x, y, S.bob.z), stamped: false };
   S.slow = 0.2; S.hop = null;
@@ -369,23 +383,25 @@ function tickLand() {
   const k = clamp(S.t / 1.0, 0, 1), e = 1 - (1 - k) ** 3;
   const to = new THREE.Vector3(S.standX - 0.3, DECK + 1.9, STAND.z + 1.6);
   M.position.lerpVectors(L.from, to, e); M.position.y += Math.sin(k * Math.PI) * 2.2;
-  M.rotation.set(Math.sin(S.t * 25) * 0.25 * (1 - k), Math.PI / 2 + 0.5, Math.sin(S.t * 18) * 0.4 * (1 - k));
+  M.rotation.set(Math.sin(S.t * 25) * 0.25 * (1 - k), M.userData.faceZ || S.fish.kind !== 'fish' ? Math.PI + 0.3 : Math.PI / 2 + 0.5, Math.sin(S.t * 18) * 0.4 * (1 - k));
+  M.userData.anim?.(S.now);
   if (!L.stamped && S.t > 1.0) {
     L.stamped = true;
     snd.stamp(); S.shake = 8;
-    S.stamp = { t: 0, txt: `${S.fish.name} ${S.size.cm}cm` };
-    snd.win(S.fish.grade === 'legend');
+    const c = S.fish;
+    S.stamp = { t: 0, txt: c.kind === 'fish' ? `${c.name} ${S.size.cm}cm${S.size.cm >= BIG_CM ? ' 🏆' : ''}` : c.name };
+    if (c.kind !== 'junk') snd.win(c.grade === 'legend' || c.kind === 'paddle');
   }
   if (S.t > 1.9) finishCatch();
 }
 function finishCatch() {
-  const f = S.fish, R = S.R;
-  caught++;
-  const rec = !best[f.id] || S.size.cm > best[f.id];
-  if (rec) best[f.id] = S.size.cm;
-  saveRec();
+  const c = S.fish, R = S.R;
+  let r = {};
+  if (c.kind === 'paddle') { if (!c.dup) addPaddle(c.id); } // 시안: 가진 척만 (게임에서는 서버가 옷장에 넣거나 조각 30개)
+  else r = recordCatch(c, S.size.cm);
+  const img = c.kind === 'paddle' ? Object.assign(new Image(), { src: paddleImage(ITEM[c.id], 180) }) : modelImage(c.id);
   S.model.visible = false; S.bobLanded = false;
-  S.result = { ok: true, fish: f, cm: S.size.cm, grade: S.grade, calm: S.calm, rec, best: best[f.id], perfects: R.perfects, hits: R.hits, misses: R.misses, near: S.near };
+  S.result = { ok: true, c, img, cm: S.size.cm, big: c.kind === 'fish' && S.size.cm >= BIG_CM, grade: S.grade, calm: S.calm, ...r, perfects: R.perfects, hits: R.hits, misses: R.misses, near: S.near };
   setMode('result');
 }
 
@@ -553,7 +569,7 @@ renderer.setAnimationLoop((ms) => {
     renderer.setScissorTest(false);
     renderer.setViewport(0, 0, W, H);
   }
-  drawHud(hg, W, H, { S, TUNE, camera, zoomCam, zoom: zoomOn(), caught });
+  drawHud(hg, W, H, { S, TUNE, camera, zoomCam, zoom: zoomOn(), caught: fishCount() });
 });
 
 // 탭이 숨겨지면 리듬 시계도 멈췄다가 돌아오면 이어서 (진짜 시계라 따로 밀어 줌)
@@ -571,9 +587,11 @@ const sync = () => panel.querySelectorAll('button').forEach((b) => b.classList.t
 panel.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   const k = b.dataset.k, v = b.dataset.v;
-  TUNE[k] = k === 'fish' || k === 'bubbles' ? v : k === 'sound' ? v === 'true' : +v;
+  TUNE[k] = k === 'fish' || k === 'bubbles' || k === 'cond' ? v : k === 'sound' ? v === 'true' : +v;
   if (k === 'sound') { initSound(); setSoundOn(TUNE.sound); }
   sync();
 });
 sync();
+document.getElementById('dexBtn').addEventListener('click', () => { if (S.mode === 'ready' || S.mode === 'result') openDex(); });
+document.getElementById('dexBtn').addEventListener('pointerdown', (e) => e.stopPropagation());
 setInterval(() => document.getElementById('move').classList.toggle('hide', S.mode !== 'ready'), 200);

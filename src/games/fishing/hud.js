@@ -2,7 +2,7 @@
 //  준비: 떨어질 자리 표시(끄는 동안 따라옴) · 세기 막대 · 기포 표시 / 입질: 찌 확대 창 테두리 · '!' / 줄다리기: 가운데 기본 원 + 줄어드는 원 · 거리 게이지
 //  공통: 의성어 · 판정 · 집중선 컷인 · 도장 '쾅' · 결과 카드 (소리 없이도 손맛)
 import * as THREE from 'three';
-import { GRADE } from './data.js';
+import { GRADE, PADDLE_DUP_PIECES } from './data.js';
 import { castDist, landingPoint, seaHeight } from './world.js';
 
 const JUA = (px) => `${Math.round(px)}px Jua, 'Pretendard Variable', sans-serif`;
@@ -232,24 +232,33 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
 function drawResult(g, W, H, S, u) {
   const R = S.result;
   const a = clamp(S.t * 4, 0, 1), pop = 0.9 + 0.1 * Math.min(1, S.t * 5);
-  const cw = Math.min(340, W - 32), ch = R.ok ? 250 : 160;
+  const cw = Math.min(340, W - 32), ch = R.ok ? 270 : 160;
   g.save(); g.globalAlpha = a; g.translate(W / 2, H * 0.45); g.scale(pop, pop);
   glass(g, -cw / 2, -ch / 2, cw, ch, 24);
   g.textAlign = 'center'; g.textBaseline = 'middle';
   if (R.ok) {
-    const gr = GRADE[R.fish.grade];
-    g.font = UI(800, 13); const gt = gr.label + (R.near ? ' · 🫧 기포' : ''); const gw = g.measureText(gt).width + 18;
-    g.fillStyle = gr.color; rr(g, -gw / 2, -ch / 2 + 16, gw, 22, 11); g.fill();
-    g.fillStyle = R.fish.grade === 'legend' ? '#3a2a00' : '#0b1633'; g.fillText(gt, 0, -ch / 2 + 27);
-    g.font = '54px sans-serif'; g.fillText(R.fish.emoji, 0, -34);
-    g.font = JUA(28); g.fillStyle = '#fff'; g.fillText(`${R.fish.name} ${R.cm}cm`, 0, 24);
+    const c = R.c, fish = c.kind === 'fish';
+    const chip = c.kind === 'paddle' ? { label: '🏓 전설 탁구채', color: '#ffc21a' } : c.kind === 'junk' ? { label: '잡동사니', color: '#9fd3c0' } : GRADE[c.grade];
+    g.font = UI(800, 13); const gt = chip.label + (R.near ? ' · 🫧 기포' : ''); const gw = g.measureText(gt).width + 18;
+    g.fillStyle = chip.color; rr(g, -gw / 2, -ch / 2 + 16, gw, 22, 11); g.fill();
+    g.fillStyle = '#0b1633'; g.fillText(gt, 0, -ch / 2 + 27);
+    if (R.first) { // 도감에 처음
+      g.font = UI(800, 12); const nt = '📖 NEW'; const nw = g.measureText(nt).width + 14;
+      g.fillStyle = '#ff5a7a'; rr(g, cw / 2 - nw - 12, -ch / 2 + 16, nw, 22, 11); g.fill(); g.fillStyle = '#fff'; g.fillText(nt, cw / 2 - nw / 2 - 12, -ch / 2 + 27);
+    }
+    if (R.img?.complete && R.img.naturalWidth) g.drawImage(R.img, -50, -84, 100, 100);
+    else { g.font = '54px sans-serif'; g.fillText(c.emoji, 0, -34); }
+    g.font = JUA(26); g.fillStyle = '#fff';
+    g.fillText(fish ? `${c.name} ${R.cm}cm` : c.kind === 'junk' ? `에이… ${c.name}네` : `${c.name}!`, 0, 32);
     g.font = UI(600, 13); g.fillStyle = 'rgba(255,255,255,.8)';
-    g.fillText(`챔질 ${R.grade} · 리듬 Perfect ${R.perfects} · Good ${R.hits - R.perfects} · Miss ${R.misses}`, 0, 54);
-    g.fillText(`${R.calm ? `참기 ✨ ${R.calm}번` : ''}${R.calm && !R.rec ? ' · ' : ''}${R.rec ? '' : `최고 ${R.best}cm`}`, 0, 74);
-    if (R.rec) {
-      g.font = UI(800, 14); const t = '🏆 새 기록!'; const tw = g.measureText(t).width + 22;
-      g.fillStyle = '#FF8A1F'; rr(g, -tw / 2, 88, tw, 26, 13); g.fill();
-      g.fillStyle = '#fff'; g.fillText(t, 0, 101);
+    g.fillText(`챔질 ${R.grade} · 리듬 Perfect ${R.perfects} · Good ${R.hits - R.perfects} · Miss ${R.misses}`, 0, 58);
+    const line = fish ? (R.rec ? '' : `이 물고기 최고 ${R.best}cm`) : c.kind === 'junk' ? '도감에 넣었어요 · 코인 0' : c.dup ? `이미 있어서 → 조각 ${PADDLE_DUP_PIECES}개` : '옷장에 들어가요 (게임에서)';
+    g.fillText(line, 0, 78);
+    const badge = R.big ? '🏆 월척!' : fish && R.rec && !R.first ? '🏆 새 기록!' : '';
+    if (badge) {
+      g.font = UI(800, 14); const tw = g.measureText(badge).width + 22;
+      g.fillStyle = R.big ? '#ffc21a' : '#FF8A1F'; rr(g, -tw / 2, 90, tw, 26, 13); g.fill();
+      g.fillStyle = R.big ? '#3a2a00' : '#fff'; g.fillText(badge, 0, 103);
     }
   } else {
     g.font = JUA(28); g.fillStyle = '#fff'; g.fillText(R.title, 0, -26);

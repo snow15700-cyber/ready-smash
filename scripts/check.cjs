@@ -776,8 +776,23 @@ async function browserChecks() {
         await p.goto(`${URL}/${file}`, { timeout: 90000 }); // 시안 페이지는 3D 모형을 많이 지어서 느린 PC(CI)에선 오래 걸린다
         await p.waitForLoadState('load');
         await p.waitForTimeout(2500);
+        let note = '';
+        if (file === 'fishing.html') { // 낚시: 리듬 없이 바로 잡기(잡동사니·전설 탁구채·물고기) → 도감 (fishing.md 9장)
+          const got = [];
+          for (const f of ['junk', 'paddle', 'octopus']) {
+            await p.evaluate((f) => { const F = window.__fish; F.TUNE.fish = f; F.S.mode = 'ready'; F.catchNow(); }, f);
+            await p.waitForFunction(() => window.__fish.S.mode === 'result', null, { timeout: 60000 });
+            got.push(await p.evaluate(() => window.__fish.S.result.c.kind));
+          }
+          must(got.join() === 'junk,paddle,fish', '낚시 잡기 결과가 이상해요: ' + got.join());
+          await p.evaluate(() => window.__fish.openDex());
+          const cards = await p.evaluate(() => document.querySelectorAll('#dex .card').length);
+          must(cards === 17, '도감 물고기 칸이 17개가 아니에요: ' + cards);
+          note = '잡동사니·전설 탁구채·물고기 잡기 · 도감 17칸';
+        }
         await p.close();
         flush();
+        return note;
       });
     }
   } finally {
