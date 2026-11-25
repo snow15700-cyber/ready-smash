@@ -769,7 +769,7 @@ async function browserChecks() {
     });
 
     await page.evaluate(() => { window.__smashPause = true; }).catch(() => {}); // 시안 페이지를 여는 동안 앞 탭은 쉬게 (헤드리스는 그래픽 카드 없이 그려서 광장 탭이 다른 탭을 느리게 함)
-    for (const [file, ready] of [['outfits.html', '몸 꾸미기 시안'], ['balls.html', '탁구공 시안'], ['tables.html', '탁구대 시안'], ['hats.html', '머리·얼굴 꾸미기 시안'], ['gacha.html', '뽑기 시안'], ['bubble.html', '경기장 거품 효과 시안'], ['campus.html', '광장 새 디자인 시안'], ['campus.html?props=1', '광장 시안 + 무료 소품 모델(glb)'], ['fishing.html', '낚시 손맛 시안'], ['fish-models.html', '물고기 모형 스타일 시안'], ['rtc-test.html', '연결 속도 측정']]) {
+    for (const [file, ready] of [['outfits.html', '몸 꾸미기 시안'], ['balls.html', '탁구공 시안'], ['tables.html', '탁구대 시안'], ['hats.html', '머리·얼굴 꾸미기 시안'], ['gacha.html', '뽑기 시안'], ['bubble.html', '경기장 거품 효과 시안'], ['campus.html', '광장 새 디자인 시안'], ['campus.html?props=1', '광장 시안 + 무료 소품 모델(glb)'], ['fishing.html', '낚시 손맛 시안'], ['fish-models.html', '물고기·잡동사니 모형 시안'], ['rtc-test.html', '연결 속도 측정']]) {
       await step(`화면: ${ready} 페이지 (${file})`, async () => {
         const p = await ctx.newPage();
         watch(p, file, errs);

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>물고기 모형 스타일 시안</title>
+  <title>물고기 모형 시안</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
   <style>
@@ -13,17 +13,20 @@
     p.hint { margin: 0 16px 10px; font-size: 14px; color: #5a6d85; }
     .wrap { position: relative; margin: 0 16px 16px; }
     #c { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .col h2 { margin: 0 0 2px; font-size: 19px; }
-    .col .d { font-size: 13px; color: #5a6d85; margin-bottom: 6px; min-height: 2.4em; }
-    .cell { height: 230px; border-radius: 16px; background: linear-gradient(180deg, #bfe6fb, #8fd0f2); margin-bottom: 10px; position: relative; cursor: grab; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+    h2.sec { grid-column: 1 / -1; margin: 8px 0 0; font-size: 20px; }
+    h2.sec small { font-size: 13px; color: #5a6d85; }
+    .cell { height: 190px; border-radius: 16px; background: linear-gradient(180deg, #bfe6fb, #8fd0f2); position: relative; cursor: grab; }
+    .cell.rare { background: linear-gradient(180deg, #cfe0ff, #8fb6f2); }
+    .cell.legend { background: linear-gradient(180deg, #fff1c2, #ffc96b); }
+    .cell.junk { background: linear-gradient(180deg, #d9efe6, #9fd3c0); }
     .cell span { position: absolute; left: 10px; bottom: 8px; font-size: 15px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.3); }
-    @media (max-width: 700px) { .cell { height: 150px; } .col .d { font-size: 11px; } }
+    @media (max-width: 700px) { .grid { grid-template-columns: repeat(2, 1fr); } .cell { height: 150px; } }
   </style>
 </head>
 <body>
-  <h1>🐟 물고기 모형 — 귀여운 스타일 고르기</h1>
-  <p class="hint">세 가지 그림체(A·B·C)를 같은 물고기로 비교해요. 칸을 끌면 돌려 볼 수 있어요.</p>
+  <h1>🐟 물고기 17종 · 잡동사니 9개</h1>
+  <p class="hint">그림체 A '젤리 장난감'. 칸을 끌면 돌려 볼 수 있어요.</p>
   <div class="wrap"><div class="grid" id="grid"></div><canvas id="c"></canvas></div>
   <script type="module" src="/src/games/fishing/models-page.js"></script>
 </body>
