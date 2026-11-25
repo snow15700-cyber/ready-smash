@@ -15,9 +15,17 @@ let sig = null, peer = null, pc = null, dc = null, rtcTimer = 0, testing = false
 const addr = { mine: new Set(), theirs: new Set() }; // 바깥(공인) 주소 — 같으면 같은 공유기 뒤 (화면엔 같음/다름만)
 const srflxIp = (c) => { const f = (c?.candidate || '').split(' '); return f[7] === 'srflx' ? f[4] : null; };
 const sameNet = () => (!addr.mine.size || !addr.theirs.size ? '모름' : [...addr.mine].some((a) => addr.theirs.has(a)) ? '같음 (같은 공유기 뒤)' : '다름 (다른 네트워크)');
-let sent = { s: new Map(), r: new Map() }, got = { s: [], r: [] };
+let sent = { s: new Map(), r: new Map(), t: new Map() }, got = { s: [], r: [], t: [] };
 
 const log = (t) => { const el = $('log'); el.textContent += `${new Date().toLocaleTimeString()} ${t}\n`; el.scrollTop = 1e9; };
+// 중계 서버(TURN) 시험: 주소 끝 #turn=… (Claude가 만들어 준 48시간짜리 출입증, iceServers JSON을 base64url로). 없으면 이 줄은 안 보임
+const TURN = (() => {
+  try {
+    const v = new URLSearchParams(location.hash.slice(1)).get('turn');
+    return v ? JSON.parse(atob(v.replace(/-/g, '+').replace(/_/g, '/'))) : null;
+  } catch { return null; }
+})();
+let tpc = null, tdc = null, tTimer = 0;
 const set = (id, html, cls = '') => { const el = $(id); el.innerHTML = html; el.className = cls; };
 
 $('code').value = normalizeCode(new URLSearchParams(location.search).get('code') || '') || makeCode();
@@ -29,7 +37,7 @@ function join() {
   const code = normalizeCode($('code').value);
   if (code.length !== 4) return alert('코드 4자리를 넣어 주세요');
   $('join').disabled = true; $('code').disabled = true;
-  history.replaceState(null, '', `?code=${code}`);
+  history.replaceState(null, '', `?code=${code}${location.hash}`); // #turn=… 은 그대로
   let q = Promise.resolve(); // 받은 순서대로 하나씩 처리 (offer 처리 중에 ice가 먼저 끼어들지 않게)
   const onMsg = (m) => { if (m.from !== me && (!m.to || m.to === me)) q = q.then(() => handle(m)).catch((e) => log('오류 ' + e.message)); };
   if (ONLINE) {
@@ -65,13 +73,16 @@ async function handle(m) {
     const isNew = peer !== m.from;
     peer = m.from;
     if (!m.reply) send({ t: 'hello', reply: true, to: peer });
-    if (isNew) { set('peer', '연결됨 ✓', 'good'); $('start').disabled = false; log('상대 들어옴'); if (me < peer) startRtc(true); }
+    if (isNew) { set('peer', '연결됨 ✓', 'good'); $('start').disabled = false; log('상대 들어옴'); if (me < peer) { startRtc(true); if (TURN) startTurn(true); } }
     return;
   }
   if (m.from !== peer) return;
   if (m.t === 'offer') { closeRtc(); await startRtc(false); await pc.setRemoteDescription(m.sdp); await pc.setLocalDescription(await pc.createAnswer()); send({ t: 'answer', sdp: pc.localDescription.toJSON() }); }
   else if (m.t === 'answer') await pc?.setRemoteDescription(m.sdp);
   else if (m.t === 'ice') { const ip = srflxIp(m.c); if (ip) addr.theirs.add(ip); try { await pc?.addIceCandidate(m.c); } catch (e) { log('ice 오류 ' + e.message); } }
+  else if (m.t === 'tOffer') { if (!TURN) return; closeTurn(); await startTurn(false); await tpc.setRemoteDescription(m.sdp); await tpc.setLocalDescription(await tpc.createAnswer()); send({ t: 'tAnswer', sdp: tpc.localDescription.toJSON() }); }
+  else if (m.t === 'tAnswer') await tpc?.setRemoteDescription(m.sdp);
+  else if (m.t === 'tIce') { try { await tpc?.addIceCandidate(m.c); } catch (e) { log('중계 ice 오류 ' + e.message); } }
   else if (m.t === 'start') runTest();
   else if (m.t === 'ping') send({ t: 'pong', p: m.p, n: m.n });
   else if (m.t === 'pong') onPong('s', m.n);
@@ -126,12 +137,39 @@ async function showKind() {
   else set('kind', '인터넷을 거쳐 직접 (공유기 바깥으로 나갔다 옴)', 'mid');
 }
 
+// ───────── 중계 서버(TURN) 길: 기기끼리 막힌 와이파이에서도 가까운 중계 서버를 거쳐 이어짐 (relay만 씀) ─────────
+async function startTurn(offerer) {
+  tpc = new RTCPeerConnection({ iceServers: TURN, iceTransportPolicy: 'relay' });
+  set('turn', '연결 시도 중…', 'mid');
+  tpc.onicecandidate = (e) => { if (e.candidate) send({ t: 'tIce', c: e.candidate.toJSON() }); };
+  tpc.onconnectionstatechange = () => { log('중계 상태: ' + tpc.connectionState); if (tpc.connectionState === 'failed') set('turn', '중계 연결 실패 ✗ (출입증이 만료됐거나 막힘)', 'bad'); };
+  tpc.ondatachannel = (e) => setupTdc(e.channel);
+  clearTimeout(tTimer);
+  tTimer = setTimeout(() => { if (!tdc || tdc.readyState !== 'open') set('turn', '중계 연결 실패 ✗ (15초 안에 안 열림)', 'bad'); }, RTC_TIMEOUT);
+  if (offerer) {
+    setupTdc(tpc.createDataChannel('t', { ordered: false, maxRetransmits: 0 }));
+    await tpc.setLocalDescription(await tpc.createOffer());
+    send({ t: 'tOffer', sdp: tpc.localDescription.toJSON() });
+  }
+}
+function setupTdc(ch) {
+  tdc = ch;
+  tdc.onopen = () => { clearTimeout(tTimer); set('turn', '중계 연결 성공 ✓', 'good'); log('중계 통로 열림'); };
+  tdc.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.t === 'ping') tdc.send(JSON.stringify({ t: 'pong', n: m.n }));
+    else if (m.t === 'pong') onPong('t', m.n);
+  };
+}
+function closeTurn() { clearTimeout(tTimer); try { tpc?.close(); } catch { /* 무시 */ } tpc = null; tdc = null; }
+if (TURN) { $('t-row').hidden = false; $('t-line').hidden = false; }
+
 // ───────── 측정 ─────────
 function runTest() {
   if (testing) return;
   testing = true; $('start').disabled = true;
-  sent = { s: new Map(), r: new Map() }; got = { s: [], r: [] };
-  for (const id of ['s-med', 's-p90', 's-max', 's-loss', 'r-med', 'r-p90', 'r-max', 'r-loss']) set(id, '…');
+  sent = { s: new Map(), r: new Map(), t: new Map() }; got = { s: [], r: [], t: [] };
+  for (const p of ['s', 'r', 't']) for (const k of ['med', 'p90', 'max', 'loss']) set(`${p}-${k}`, '…');
   set('verdict', '측정 중…');
   let n = 0; const t0 = performance.now();
   const iv = setInterval(() => {
@@ -141,6 +179,7 @@ function runTest() {
     n++;
     sent.s.set(n, performance.now()); send({ t: 'ping', n });
     if (dc?.readyState === 'open') { sent.r.set(n, performance.now()); dc.send(JSON.stringify({ t: 'ping', n })); }
+    if (tdc?.readyState === 'open') { sent.t.set(n, performance.now()); tdc.send(JSON.stringify({ t: 'ping', n })); }
     if (n % 7 === 0) show(false);
   }, PING_MS);
 }
@@ -157,7 +196,7 @@ function stat(path) {
   return { med: pct(a, 0.5), p90: pct(a, 0.9), max: Math.max(...a), loss: (1 - a.length / total) * 100 };
 }
 function show(final) {
-  for (const p of ['s', 'r']) {
+  for (const p of ['s', 'r', 't']) {
     const st = stat(p);
     if (!st || !got[p].length) { if (final) for (const k of ['med', 'p90', 'max', 'loss']) set(`${p}-${k}`, '없음', 'bad'); continue; }
     const c = (v) => (v < 40 ? 'good' : v < 120 ? 'mid' : 'bad');
@@ -180,7 +219,18 @@ function finish() {
     else if (gain > 15) v = [`WebRTC가 조금 빨라요 (${Math.round(gain)}ms). 바꿀지는 고민해 볼 만한 정도예요.`, 'mid'];
     else v = ['차이가 거의 없어요. 지금 방식을 그대로 써도 돼요.', 'mid'];
   }
+  // 중계(TURN) 길이 있으면 그 결과를 우선 (기기끼리 막힌 교실 와이파이용)
+  const t = stat('t');
+  if (TURN && s && got.s.length) {
+    if (!t || !got.t.length) v = ['서울 중계(TURN)도 연결이 안 됐어요. 출입증 기한(48시간)이 지났는지 확인해 주세요.', 'bad'];
+    else {
+      const gain = s.p90 - t.p90;
+      if (gain > 50 && t.p90 < s.p90 * 0.6) v = [`서울 중계가 확실히 빨라요 (느릴 때 기준 ${Math.round(gain)}ms 빠름). 게임에 적용해 볼 만해요!`, 'good'];
+      else if (gain > 15) v = [`서울 중계가 조금 빨라요 (${Math.round(gain)}ms). 바꿀지는 고민해 볼 만한 정도예요.`, 'mid'];
+      else v = ['서울 중계도 지금 방식과 차이가 거의 없어요.', 'mid'];
+    }
+  }
   set('verdict', v[0], v[1]);
-  log(`결과 Supabase ${s ? JSON.stringify(round(s)) : '-'} / WebRTC ${r && got.r.length ? JSON.stringify(round(r)) : '-'}`);
+  log(`결과 Supabase ${s ? JSON.stringify(round(s)) : '-'} / WebRTC ${r && got.r.length ? JSON.stringify(round(r)) : '-'} / 중계 ${t && got.t.length ? JSON.stringify(round(t)) : '-'}`);
 }
 const round = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.round(v)]));

@@ -45,6 +45,11 @@
     - 이유 읽는 법: '답이 안 옴/요청이 안 옴' = 서버 소식 문제 → 코드 쪽, '주소는 주고받았는데 서로 닿지 않음' = 와이파이가 기기끼리 막거나 다른 네트워크(유선+무선 등) → rtc-test.html로 같은 PC끼리 비교.
     - **11/25 사용자 진단 사진**: 두 PC 모두 요청·답·주소(host·srflx)를 주고받았는데 상태 connecting/checking에서 멈춤(9초 → 다시 걸기 3번). 즉 서버 소식은 문제없고 기기끼리 못 닿음. 11/24 측정 페이지가 같은 PC 2대에서 붙었는지는 아직 모름 → `rtc-test.html`에 '게임 코드로 연결 시험'(`joinRoom('rtcXXXX', …, { rtc: true })`, 위 방식과 동시에)과 '바깥 주소 같음/다름'(srflx 주소 비교, 화면엔 같음/다름만)을 넣어 같은 PC 2대로 A/B. 게임 진단 창에도 '바깥 주소' 줄. 둘 다 실패 + 바깥 주소 같음 = 같은 공유기인데 기기끼리 막힘(AP 격리·mDNS 막힘) → 직접 연결로는 못 고침.
     - **11/25 결과: 같은 PC 2대로 측정 페이지도 '연결 실패', 바깥 주소 같음** → 교실 와이파이가 기기끼리 막음(코드 문제 아님). 11/24 측정 성공은 같은 PC 안이었던 것으로 보임. 그때 서버 경유 왕복 보통 163ms·느릴 때 187ms·최악 257ms. 직접 연결 코드는 남겨 둠(안 붙으면 서버로 그대로 경기, 다른 와이파이에선 붙음). 다음 선택지는 사용자 결정 대기: 그대로 / 가까운 중계 서버(TURN, 예: Cloudflare 서울) 측정.
+    - **11/25 사용자 결정: B = 서울 중계 서버(Cloudflare Realtime TURN) 측정까지 먼저.** 진행 순서(대화를 지워도 여기서 이어감):
+      1. ✓ `rtc-test.html`에 세 번째 길 '서울 중계 (TURN)'(`iceTransportPolicy: 'relay'`, 신호 `tOffer/tAnswer/tIce`, 핑 경로 `t`). 주소 끝 `#turn=<base64url(iceServers JSON)>`이 있을 때만 보임(출입증을 저장소에 안 넣으려고).
+      2. 사용자: Cloudflare 무료 가입 → 대시보드 Realtime → TURN Server → Create → **Turn Token ID**(채팅으로 줘도 됨)와 **API Token**(비밀, 채팅 X).
+      3. Claude: `request_credential`(host `rtc.live.cloudflare.com`, Bearer)로 API Token을 안전하게 받고 `POST https://rtc.live.cloudflare.com/v1/turn/keys/<TOKEN_ID>/credentials/generate-ice-servers` body `{"ttl":172800}`(최대 48시간) → 응답 `iceServers`를 base64url로 → 사용자에게 `미리보기주소/rtc-test.html#turn=…` 링크 전달.
+      4. 사용자: 교실 같은 PC 2대에서 그 링크로 측정 → 사진. 중계가 확실히 빠르면(느릴 때 기준 50ms+) 게임 적용 계획: 출입증은 서버에서 매번 만들어 줘야 함(비밀 키를 숨기는 Supabase Edge Function 또는 Vercel 함수), `net.js` ICE에 TURN 추가. 무료 사용량 월 1,000GB(SFU와 공유) — 핑퐁 소식은 매우 작아서 넉넉.
   - 측정 페이지 `rtc-test.html`(+ `src/rtcTest.js`, 게임과 무관, 나중에 와이파이가 바뀌면 다시 재 보려고 남겨 둠): 같은 코드로 들어온 두 기기가 채널 `pingpong-rtctest-[test-]XXXX`로 연결 정보를 주고받고, 20초 동안 서버 경유 핑과 직접 핑의 왕복 시간(중간값·90%·최악·유실)과 연결 종류(host = 같은 와이파이 직접 / srflx = 인터넷 거쳐 직접 / relay)를 보여 준다.
   - main에 합칠 때 업데이트 내역(`src/updates.js`) 카드 초안: `['⚡', '같은 교실끼리 직접 연결', '이제 같은 와이파이에 있는 선수끼리는 서버를 거치지 않고 바로 이어져요. 공이 훨씬 빠르고 매끄럽게 와요! 경기 화면 왼쪽 위에 ⚡ 직접 연결이 뜨면 성공. 바로 이어지지 않으면 🌐 서버 경유로 지금처럼 경기해요.']`
 - 매 프레임 `game.decideHit` → `match.update` → `game.update` 순서를 지킬 것(느린 PC에서 늦은 스윙이 버려지지 않게).

@@ -44,6 +44,7 @@
       <div><span class="k">상대</span><span id="peer">아직 없음</span></div>
       <div><span class="k">WebRTC</span><span id="rtc">-</span></div>
       <div><span class="k">연결 종류</span><span id="kind">-</span></div>
+      <div id="t-line" hidden><span class="k">중계(TURN)</span><span id="turn">-</span></div>
       <div><span class="k">측정</span><span id="prog">-</span></div>
     </div>
 
@@ -53,6 +54,7 @@
         <tbody>
           <tr><td>지금 방식 (Supabase)</td><td id="s-med">-</td><td id="s-p90">-</td><td id="s-max">-</td><td id="s-loss">-</td></tr>
           <tr><td>WebRTC 직접</td><td id="r-med">-</td><td id="r-p90">-</td><td id="r-max">-</td><td id="r-loss">-</td></tr>
+          <tr id="t-row" hidden><td>서울 중계 (TURN)</td><td id="t-med">-</td><td id="t-p90">-</td><td id="t-max">-</td><td id="t-loss">-</td></tr>
         </tbody>
       </table>
       <p class="sub" style="margin:8px 0 0">보통 = 중간값, 느릴 때 = 10번 중 가장 느린 1번 수준, 유실 = 답이 안 온 비율</p>
