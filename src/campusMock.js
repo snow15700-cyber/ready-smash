@@ -317,16 +317,17 @@ function tree(s = 1) {
   const leaf = new THREE.MeshLambertMaterial({ color: rnd() < 0.5 ? 0x3f7f3f : 0x4f9a4a, flatShading: true });
   for (let k = 0; k < 3; k++) { const b = new THREE.Mesh(new THREE.ConeGeometry(1.2 - k * 0.3, 1.4, 7), leaf); b.position.y = 1.7 + k * 0.7; b.castShadow = true; g.add(b); } // 소나무 느낌
   g.scale.setScalar(s);
+  g.userData.prop = 'tree'; g.userData.seed = rnd(); // 무료 모델로 바꿔 보기 (campusPage.js swapProps)
   return g;
 }
 function bench() {
-  const g = new THREE.Group();
+  const g = new THREE.Group(); g.userData.prop = 'bench';
   addBox(g, 1.8, 0.42, 0.55, M.stone, 0, 0.21, 0); // 검은 돌 받침
   addBox(g, 1.8, 0.08, 0.55, M.wood, 0, 0.46, 0);
   return g;
 }
 function lamp() {
-  const g = new THREE.Group();
+  const g = new THREE.Group(); g.userData.prop = 'lamp';
   cyl(g, 0.06, 0.08, 4, M.alu, 0, 2, 0, 8);
   addBox(g, 0.9, 0.12, 0.25, M.alu, 0.35, 4.0, 0);
   addBox(g, 0.5, 0.06, 0.2, new THREE.MeshBasicMaterial({ color: 0xfff4d2 }), 0.55, 3.93, 0);
@@ -433,6 +434,14 @@ export function buildCampus() {
     for (let i = 0; i < 8; i++) { const t = tree(0.9 + rnd() * 0.5); t.position.set(sx * (24.5 + rnd() * 2), 0, -8 + i * 5.2 + rnd()); root.add(t); }
   }
   for (let i = 0; i < 4; i++) { const t = tree(0.9 + rnd() * 0.5); t.position.set(-14 + i * 4 + rnd(), 0, 36 + rnd() * 2); root.add(t); }
+
+  // 무료 모델로 바꿨을 때만 생기는 소품 (지금 모양에는 없는 것): 잔디밭 모서리 덤불·잔디밭 꽃·벤치 옆 쓰레기통
+  const extra = (kind, x, z, ry = 0) => { const e = new THREE.Group(); e.userData.prop = kind; e.userData.extra = true; e.userData.seed = rnd(); e.position.set(x, 0, z); e.rotation.y = ry; root.add(e); };
+  for (const [x0, z0, x1, z1] of [[-21, -9, -17, 4], [17, -9, 21, 4], [-21, 15, -17, 23], [17, 26, 21, 30]]) {
+    for (const [x, z] of [[x0 + 0.7, z0 + 0.7], [x1 - 0.7, z0 + 0.7], [x0 + 0.7, z1 - 0.7], [x1 - 0.7, z1 - 0.7]]) extra('bush', x, z, rnd() * 6);
+    for (let i = 0; i < 7; i++) extra('flower', x0 + 1 + rnd() * (x1 - x0 - 2), z0 + 1.5 + rnd() * (z1 - z0 - 3), rnd() * 6);
+  }
+  for (const sx of [-1, 1]) for (const z of [9, 20]) extra('trash', sx * 21.6, z + 1.5, rnd() * 6);
 
   // 사람 대신 표시 (처음 서는 곳)
   const me = new THREE.Group();

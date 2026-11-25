@@ -6,6 +6,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { buildCampus } from './campusMock.js';
 
 const canvas = document.getElementById('c');
@@ -62,6 +63,53 @@ const SKY = {
   sunset: { bg: 0xf3b28a, fog: 0xf0c3a0, hemi: [0xffd2b0, 1.1], sun: [0xff9a5a, 1.4], exp: 1 },
   night: { bg: 0x1a2340, fog: 0x1f2a48, hemi: [0x6f7fb0, 0.55], sun: [0x9fb0e0, 0.35], exp: 1 },
 };
+// 🌳 무료 소품 모델로 바꿔 보기 (사용자 결정 11/25: ③ 섞기 — 흔한 소품은 무료 모델, 우리 건물은 코드로)
+// 모델: Quaternius (CC0, public/models/campus/CREDITS.md). 각 소품 자리(userData.prop)에 크기를 맞춘 모델을 넣고, 지금 모양과 켜고 끔
+const MODELS = {
+  tree: { files: ['PineTree_1', 'PineTree_3', 'PineTree_1', 'CommonTree_1', 'CommonTree_3'], h: 4.6, lift: 0.1 },
+  lamp: { files: ['Streetlight_Single'], h: 4.4 },
+  bench: { files: ['Bench_1'], w: 1.8 },
+  bush: { files: ['Bush_1'], h: 0.9, lift: 0.1 },
+  flower: { files: ['Flowers'], h: 0.75 },
+  trash: { files: ['Trashcan_Green'], h: 1.0 },
+};
+const glbCache = {};
+const loader = new GLTFLoader();
+async function loadModel(name) {
+  if (!glbCache[name]) glbCache[name] = loader.loadAsync(`/models/campus/${name}.glb`).then((g) => g.scene);
+  return glbCache[name];
+}
+let propsOn = false;
+async function swapProps(on) {
+  propsOn = on;
+  const spots = [];
+  root.traverse((o) => { if (o.userData.prop && MODELS[o.userData.prop]) spots.push(o); });
+  for (const o of spots) {
+    if (on && !o.userData.alt) {
+      const def = MODELS[o.userData.prop];
+      const file = def.files[Math.floor((o.userData.seed ?? 0) * def.files.length) % def.files.length];
+      const src = await loadModel(file);
+      const m = src.clone(true);
+      const box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3());
+      const k = def.w ? def.w / Math.max(size.x, size.z) : def.h / size.y;
+      m.scale.setScalar(k);
+      m.position.y = -box.min.y * k;
+      m.traverse((c) => {
+        if (!c.isMesh) return;
+        c.castShadow = true; c.receiveShadow = true;
+        // 이 모델들은 금속 재질로 들어와서 반사할 것이 없으면 거의 검게 보임 → 다른 물건과 같은 무광으로
+        for (const mt of [].concat(c.material)) {
+          mt.metalness = 0; mt.roughness = Math.max(0.7, mt.roughness ?? 1);
+          if (def.lift && !mt.userData.lifted) { mt.userData.lifted = true; mt.color.offsetHSL(0, 0.08, def.lift); } // 나무·덤불 색이 어두워서 살짝 밝힘 (복사본끼리 재질을 같이 써서 한 번만)
+        }
+      });
+      const alt = new THREE.Group(); alt.add(m); alt.userData.isAlt = true;
+      o.userData.alt = alt; o.add(alt);
+    }
+    for (const c of o.children) c.visible = c.userData.isAlt ? on : !on;
+  }
+}
+
 let curSky = 'day';
 function setSky(k) {
   const s = SKY[k]; curSky = k;
@@ -77,6 +125,7 @@ const CAMS = {
   shops: { pos: [0, 3.2, 8], look: [0, 3.5, -6] },
   top: { pos: [0, 66, 54], look: [0, 0, 4] },
   south: { pos: [-2, 4.5, 26], look: [14, -4, 60] }, // 바다 전망대 쪽을 바라봄
+  edge: { pos: [-10, 3.4, 4], look: [-21, 1.8, 16] }, // 서쪽 가장자리 (나무·가로등·벤치·잔디밭)
   building: { pos: [-19, 1.8, -5], look: [-6, 9, -26] }, // 필로티 아래로 뒤쪽 산
 };
 function setCam(k) {
@@ -86,10 +135,12 @@ function setCam(k) {
 setCam(new URLSearchParams(location.search).get('cam') || 'spawn');
 const q = new URLSearchParams(location.search).get('sky');
 if (q && SKY[q]) setSky(q);
+if (new URLSearchParams(location.search).get('props') === '1') { swapProps(true); document.querySelector('[data-k="props"]')?.classList.add('on'); }
 if (new URLSearchParams(location.search).get('hq') === '1') { setHQ(true); document.querySelector('[data-k="hq"]')?.classList.add('on'); }
 
 document.getElementById('bar').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.k === 'props') { b.classList.toggle('on', !propsOn); swapProps(!propsOn); return; }
   if (b.dataset.k === 'hq') { b.classList.toggle('on', !hq); setHQ(!hq); return; }
   for (const o of document.querySelectorAll(`[data-k="${b.dataset.k}"]`)) o.classList.toggle('on', o === b);
   if (b.dataset.k === 'cam') setCam(b.dataset.v); else setSky(b.dataset.v);
@@ -111,4 +162,4 @@ renderer.setAnimationLoop((ms) => {
   controls.update();
   if (hq && composer) composer.render(); else renderer.render(scene, camera);
 });
-window.__campus = { setCam, setSky, setHQ, camera, controls };
+window.__campus = { setCam, setSky, setHQ, swapProps, camera, controls };
