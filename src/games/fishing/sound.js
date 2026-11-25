@@ -24,6 +24,12 @@ export function initSound() {
     sea = { g: sg, lp };
   } catch { ac = null; }
 }
+// 낚시를 그만두면 파도·줄 소리를 줄여서 끔 (안 그러면 광장에서도 파도 소리가 계속 남 — 다시 낚시하면 tickSound가 되살림)
+export function quietSound() {
+  if (!ac) return;
+  sea.g.gain.setTargetAtTime(0, ac.currentTime, 0.4);
+  whine.g.gain.setTargetAtTime(0, ac.currentTime, 0.05);
+}
 export function setSoundOn(on) { if (out) out.gain.setTargetAtTime(on ? 0.8 : 0, ac.currentTime, 0.05); }
 
 export const audioCtx = () => ac;

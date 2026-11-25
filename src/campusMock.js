@@ -99,7 +99,7 @@ export function buildCampus({ game = false } = {}) {
     const x = Math.cos(a) * 36 - 1, z = Math.sin(a) * 36 + 4;
     // 바다 쪽(남쪽)은 바다가 높아져서(낚시 12장) 물 위로 드러나는 부분이 바위 절벽처럼 보이게
     const b = new THREE.Mesh(new THREE.IcosahedronGeometry(4 + rnd() * 2, 0), z > 20 ? seaRock : slope); b.position.set(x, -5 + rnd(), z); b.scale.y = 0.8; // 전망대 데크 위로 안 솟게 낮춤
-    if (!(x > 2 && x < 22 && z > 25)) root.add(b); // 전망대 아래는 절벽 벽·낚시터 계단 (campusPier.js)
+    if (!(x > -3 && x < 22 && z > 25)) root.add(b); // 전망대 아래는 절벽 벽·낚시터 계단 (campusPier.js)
   }
   // 바다 (남·동쪽 아래)
   const sea = makeSea(SEA_Y); root.add(sea.group); anim.push(sea.update); // 물결 (src/campusFx.js). 낚시 12장: −12 → −6
@@ -166,7 +166,7 @@ export function buildCampus({ game = false } = {}) {
     for (const z of [9, 20]) { const b = bench(); b.position.set(sx * 21.6, 0, z); b.rotation.y = Math.PI / 2; root.add(b); }
     for (let i = 0; i < 8; i++) { const t = tree(0.9 + rnd() * 0.5); t.position.set(sx * (24.5 + rnd() * 2), 0, -8 + i * 5.2 + rnd()); root.add(t); }
   }
-  for (let i = 0; i < 4; i++) { const t = tree(0.9 + rnd() * 0.5); t.position.set(-14 + i * 4 + rnd(), 0, 36 + rnd() * 2); root.add(t); }
+  for (let i = 0; i < 4; i++) { const t = tree(0.9 + rnd() * 0.5); t.position.set(-16.5 + i * 3.6 + rnd(), 0, 36 + rnd() * 2); root.add(t); } // 서쪽 계단 입구(x 0.5~3.7)를 안 가리게
 
   // 무료 모델로 바꿨을 때만 생기는 소품 (지금 모양에는 없는 것): 잔디밭 모서리 덤불·잔디밭 꽃·벤치 옆 쓰레기통
   const extra = (kind, x, z, ry = 0) => { const e = new THREE.Group(); e.userData.prop = kind; e.userData.extra = true; e.userData.seed = rnd(); e.position.set(x, 0, z); e.rotation.y = ry; root.add(e); };

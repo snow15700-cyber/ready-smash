@@ -5,7 +5,7 @@ export const TUNE = {
   perfect: 0.3, good: 0.5, // 챔질: '!' 뒤 반응 속도(초)
   noteP: 0.06, noteG: 0.13, // 리듬 노트 판정 폭(± 초)
   fake: 1, // 가짜 비율: 0 적게 · 1 보통 · 2 많이
-  bubbles: 'often', // 기포: 'normal' = 3.5분에 1~2곳(기획) · 'often' = 시험용(약 50초마다)
+  bubbles: 'often', // 기포: 'normal' = 약 2분에 1~2곳·30초(기획) · 'often' = 시험용(약 50초마다)
   fish: 'random', // 'random' | 물고기 id | 'junk' | 'paddle'
   size: 'random', // 크기 시험: 'random' | 고정 cm ('95' 월척 · '125' 대물 · '180' 괴물 · '300')
   cond: 'auto', // 조건 물고기 시험: 'auto'(실제 쉬는 시간·밤) | 'break' | 'night' | 'rain'

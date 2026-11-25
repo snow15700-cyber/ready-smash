@@ -102,17 +102,21 @@ function cornersOf(o, pad) {
 export function planWalk(from, to) {
   const P = PLAZA;
   const end = [clampN(to[0], P.minX, P.maxX), clampN(to[1], P.minZ, P.maxZ)];
-  // 높이가 다른 곳(광장 ↔ 전망대 밑 낚시 판)은 돌계단으로 (fishing.md 12장): 계단 입구 → 계단 → 그다음 평소처럼
-  const S = P.stairs;
-  if (S) {
-    const onSt = (p) => p[0] > S.x0 && p[1] > S.z0 - 0.4 && p[1] < S.z1 + 0.4, low = (p) => (P.heightAt(p[0], p[1]) < -0.05 || p[1] > S.z0) && !onSt(p);
-    const fromSt = onSt(from), endLow = low(end) || (onSt(end) && P.heightAt(end[0], end[1]) < P.heightAt(from[0], from[1]));
-    if (fromSt && !onSt(end)) { const g = endLow ? S.bottom : S.top; return [g, ...planWalk(g, end)]; }
-    if (!fromSt && !onSt(end) && low(from) !== low(end)) {
-      const [a, b] = low(from) ? [S.bottom, S.top] : [S.top, S.bottom];
+  // 높이가 다른 곳(광장 ↔ 전망대 밑 낚시 판)은 돌계단으로 (fishing.md 12장): 계단 입구 → 계단 → 그다음 평소처럼. 계단은 데크 양옆 2개 → 가까운 쪽
+  const SS = P.stairs ? [].concat(P.stairs) : [];
+  if (SS.length) {
+    const stOf = (p) => SS.find((S) => p[0] > S.x0 && p[0] <= S.x1 && p[1] > S.z0 - 0.4 && p[1] < S.z1 + 0.4);
+    const low = (p) => (P.heightAt(p[0], p[1]) < -0.05 || p[1] > SS[0].z0) && !stOf(p);
+    const fromSt = stOf(from), endSt = stOf(end);
+    const endLow = low(end) || (endSt && P.heightAt(end[0], end[1]) < P.heightAt(from[0], from[1]));
+    if (fromSt && endSt !== fromSt) { const g = endLow ? fromSt.bottom : fromSt.top; return [g, ...planWalk(g, end)]; }
+    if (!fromSt && !endSt && low(from) !== low(end)) {
+      const ends = (S) => (low(from) ? [S.bottom, S.top] : [S.top, S.bottom]);
+      const len = (S) => { const [a, b] = ends(S); return Math.sqrt(dist2(from, a)) + Math.sqrt(dist2(b, end)); };
+      const [a, b] = ends(SS.reduce((m, S) => (len(S) < len(m) ? S : m)));
       return [...planWalk(from, a), b, ...planWalk(b, end)];
     }
-    if (!fromSt && onSt(end)) { const g = low(from) ? S.bottom : S.top; return [...planWalk(from, g), end]; }
+    if (!fromSt && endSt) { const g = low(from) ? endSt.bottom : endSt.top; return [...planWalk(from, g), end]; }
   }
   if (clear(from, end)) return [end];
   const pad = 0.62; // 모서리에서 조금 떨어져서 (clipWalk 여유 0.35보다 넉넉히)
@@ -338,7 +342,26 @@ export function createPlazaView(world, handlers) {
 
   // 화면 좌표 → 광장 (가게면 그 가게, 아니면 바닥 점)
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), hitP = new THREE.Vector3();
-  const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  // 바닥 클릭: 높이가 다른 바닥(데크 0.25 · 계단 · 낚시 판 −4.35)을 광선이 처음 만나는 곳 — 높이 0 평면만 보면 낚시 판을 누를 때 그 위 빈 공중이 눌림
+  const H_MIN = Math.min(0, PLAZA.floorMin ?? 0) - 0.1, H_MAX = 0.4; // 가장 낮은 바닥(낚시 판) ~ 데크보다 조금 위
+  function groundHit(r, out) {
+    const H = PLAZA.heightAt || (() => 0), o = r.origin, d = r.direction;
+    if (d.y > -1e-4) return false;
+    const t0 = Math.max(0, (H_MAX - o.y) / d.y), t1 = (H_MIN - o.y) / d.y; // 바닥이 있을 수 있는 높이 사이만 훑음
+    if (t1 < t0) return false;
+    const above = (t) => o.y + d.y * t - H(o.x + d.x * t, o.z + d.z * t);
+    let a = t0;
+    for (let t = t0 + 0.15; ; t += 0.15) {
+      const tt = Math.min(t, t1);
+      if (above(tt) <= 0) {
+        let b = tt;
+        for (let i = 0; i < 16; i++) { const m = (a + b) / 2; if (above(m) > 0) a = m; else b = m; }
+        r.at(b, out); out.y = H(out.x, out.z); return true;
+      }
+      a = tt;
+      if (tt >= t1) return false;
+    }
+  }
   // 가게 클릭 상자: 가게 안쪽 좌표 (돌린 가게라서 광선을 가게 안쪽 좌표로 돌려서 잰다). 앞 1.2m(문 앞 바닥·간판)도 가게로
   const boxes = PLAZA.shops.map((s) => {
     const r = s.rect;
@@ -386,7 +409,7 @@ export function createPlazaView(world, handlers) {
       if (ray.ray.intersectBox(pBox, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = { person: id }; } }
     }
     if (best) return best;
-    if (!ray.ray.intersectPlane(ground, hitP)) return null;
+    if (!groundHit(ray.ray, hitP)) return null;
     // 바닥의 자리 칸 근처를 눌렀으면 그 칸
     for (let t = 0; t < PLAZA.tables.length; t++) {
       const s = PLAZA.tables[t].seats.findIndex((pt) => Math.hypot(pt[0] - hitP.x, pt[1] - hitP.z) < 0.55);
@@ -556,7 +579,7 @@ export function createPlazaView(world, handlers) {
     // 내 캐릭터 숨기기 (로그인 화면: 아직 누군지 모름)
     setMeHidden(on) { meHidden = on; },
     get focusP() { return focus.p; },
-    showMarker(x, z) { marker.position.set(x, 0.02, z); marker.visible = true; markerT = performance.now() / 1000; },
+    showMarker(x, z) { marker.position.set(x, (PLAZA.heightAt?.(x, z) || 0) + 0.03, z); marker.visible = true; markerT = performance.now() / 1000; },
     // 카메라를 내 캐릭터 뒤로 바로 (처음 들어올 때)
     resetCam() { cam.init = false; cam.manual = false; },
     update(now, myId) {
