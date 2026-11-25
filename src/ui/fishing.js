@@ -18,6 +18,8 @@ import { $, IS_MOBILE, esc, world } from './state.js';
 
 const OTHERS_OP = 0.35; // 낚시하는 동안 다른 사람 반투명 (사용자 확정)
 const CHAT_KEEP = 6, CHAT_LIFE = 14; // 화면 옆 채팅: 최근 6줄, 14초
+const BLEND_IN = 1.2, BLEND_OUT = 1.0; // 광장 카메라 ↔ 낚시 카메라 넘어가는 시간(초) — 랭킹·꾸미기 창처럼 카메라가 따라감
+const camFrom = { pos: new THREE.Vector3(), q: new THREE.Quaternion(), fov: 55, t: 1 };
 let F = null, mod = null, dexMod = null, loading = false, on = false, lastT = 0, hiddenAt = 0;
 const me = { b: null }; // 다른 사람에게 보낼 내 찌 자리
 const chat = [];
@@ -41,6 +43,8 @@ css.textContent = `
 .fish-ui button { pointer-events: auto; font-family: var(--font-ui, 'Pretendard Variable', system-ui, sans-serif); cursor: pointer; border: 0; }
 .fish-start { position: absolute; left: 50%; bottom: 122px; transform: translateX(-50%); height: 54px; padding: 0 28px; border-radius: 999px; font-weight: 800; font-size: 19px; color: #fff; background: linear-gradient(180deg, #2ea3e6, #1b6fb8); box-shadow: 0 8px 22px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.3); animation: fishPop .9s ease-in-out infinite alternate; }
 @keyframes fishPop { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.05); } }
+@keyframes fishFade { from { opacity: 0; } to { opacity: 1; } }
+.fish-hud, .fish-bar, .fish-chat { animation: fishFade .9s ease .3s both; } /* 카메라가 내려앉는 동안 낚시 글자가 천천히 나타남 */
 .fish-hud { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; }
 .fish-bar { position: absolute; right: 16px; top: 14px; display: flex; gap: 8px; }
 .fish-bar button { height: 40px; padding: 0 16px; border-radius: 999px; font-weight: 700; font-size: 15px; color: #fff; background: rgba(15,25,50,.55); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); backdrop-filter: blur(8px); }
@@ -86,6 +90,8 @@ async function start() {
   document.body.classList.add('fishing-on');
   for (const id of ['fish-hud', 'fish-bar', 'fish-chat']) $(id).classList.remove('hidden');
   $('fish-start').classList.add('hidden');
+  // 지금 광장 카메라 자리에서 출발해 낚시 카메라(어깨 높이)로 날아감
+  camFrom.pos.copy(world.camera.position); camFrom.q.copy(world.camera.quaternion); camFrom.fov = world.camera.fov; camFrom.t = 0;
   plazaApi.view.setCamOff(true);
   F.camFov0 = world.camera.fov;
   if (account.loggedIn) { syncServerClock(); fishDex().then((d) => { if (d) dexMod.setServerDex(d); }); }
@@ -99,10 +105,10 @@ function stop() {
   document.body.classList.remove('fishing-on');
   for (const id of ['fish-hud', 'fish-bar', 'fish-chat']) $(id).classList.add('hidden');
   hg.clearRect(0, 0, hudCv.width, hudCv.height);
+  // 낚시 카메라 자리에서 낚시 전 광장 카메라 자리로 부드럽게 돌아옴 (광장 카메라는 그대로 두었음 — 바다 쪽으로 돌리면 데크 난간 뒤에 숨음)
+  plazaApi.view.blendFrom(world.camera, camFrom.t < 1 ? BLEND_OUT * Math.max(0.4, camFrom.t) : BLEND_OUT);
+  camFrom.t = 1;
   plazaApi.view.setCamOff(false);
-  plazaApi.view.resetCam();
-  if (F.camFov0 && world.camera.fov !== F.camFov0) { world.camera.fov = F.camFov0; world.camera.updateProjectionMatrix(); }
-  world.camera.rotation.z = 0;
   for (const f of plazaApi.view.figs.values()) if (!f.me && f.fishOp) { f.c.setOpacity(1, 1); f.fishOp = false; }
   plazaApi.sendInfo();
   renderMe();
@@ -126,7 +132,7 @@ function onEvent(ev) {
 
 // ── 입력 (낚시 중에만): 누르기·끌어올리기는 광장 화면 위 어디서나
 const cv = world.renderer.domElement;
-cv.addEventListener('pointerdown', (e) => { if (!on) return; e.preventDefault(); F.press({ x: e.clientX, y: e.clientY }); });
+cv.addEventListener('pointerdown', (e) => { if (!on) return; e.preventDefault(); if (camFrom.t < 0.7) return; F.press({ x: e.clientX, y: e.clientY }); });
 addEventListener('pointermove', (e) => { if (on) F.moveDrag(e.clientX, e.clientY); });
 addEventListener('pointerup', (e) => { if (on) F.release(e.clientX, e.clientY); });
 addEventListener('pointercancel', () => { if (on) { F.S.drag = null; F.release(); } });
@@ -135,6 +141,7 @@ addEventListener('keydown', (e) => {
   if (!on || e.target?.tagName === 'INPUT') return;
   if (e.code === 'Escape') { if (!mod.dexOpen()) stop(); return; }
   if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'KeyA' || e.code === 'KeyD') return; // 광장에서는 선 자리 그대로
+  if (camFrom.t < 0.7) return; // 카메라가 날아가는 동안은 던지지 않음
   F.keyDown(e);
 });
 addEventListener('keyup', (e) => { if (on) F.keyUp(e); });
@@ -269,6 +276,13 @@ fishHooks.frame = (now, p, walking) => {
   const rdt = lastT ? Math.min(0.05, now - lastT) : 0.016;
   lastT = now;
   F.frame(rdt);
+  if (camFrom.t < 1) { // 광장 카메라 → 낚시 카메라 (부드럽게 출발·도착)
+    camFrom.t = Math.min(1, camFrom.t + rdt / BLEND_IN);
+    const e = camFrom.t * camFrom.t * (3 - 2 * camFrom.t), c = world.camera;
+    c.position.lerpVectors(camFrom.pos, c.position, e);
+    c.quaternion.slerpQuaternions(camFrom.q, c.quaternion, e);
+    c.fov = camFrom.fov + (c.fov - camFrom.fov) * e; c.updateProjectionMatrix();
+  }
   // 다른 사람 반투명 (새로 들어온 사람도)
   for (const f of plazaApi.view.figs.values()) if (!f.me && !f.fishOp) { f.c.setOpacity(OTHERS_OP, 1); f.fishOp = true; }
   if (chat.length) renderChat();

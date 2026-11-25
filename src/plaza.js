@@ -484,6 +484,8 @@ export function createPlazaView(world, handlers) {
   let filter = null, camOff = false, plazaBits = true, camClamp = null, inputOn = true, meHidden = false;
   // 창(랭킹·꾸미기)을 여는 동안 카메라가 날아갈 곳 (plaza.md 19장): want = { pos, look } (광장 좌표) | null.
   // p: 0 = 3인칭 카메라, 1 = 그 자리 (FOCUS_DUR초 동안 부드럽게). 날아가는 중 목표가 바뀌면(얼굴 보기 등) cur가 따라감
+  // 다른 카메라(낚시 등)에서 3인칭 카메라로 돌아올 때: 그 자리에서 부드럽게 이어 감 (blendFrom)
+  const blend = { t: 1, dur: 1, pos: new THREE.Vector3(), q: new THREE.Quaternion(), fov: 55 };
   const focus = { want: null, p: 0, cur: { pos: new THREE.Vector3(), look: new THREE.Vector3() }, to: { pos: new THREE.Vector3(), look: new THREE.Vector3() } };
   return {
     root,
@@ -582,6 +584,8 @@ export function createPlazaView(world, handlers) {
     showMarker(x, z) { marker.position.set(x, (PLAZA.heightAt?.(x, z) || 0) + 0.03, z); marker.visible = true; markerT = performance.now() / 1000; },
     // 카메라를 내 캐릭터 뒤로 바로 (처음 들어올 때)
     resetCam() { cam.init = false; cam.manual = false; },
+    // 지금 카메라 모습(위치·방향·화각)에서 출발해 dur초 동안 3인칭 카메라로 부드럽게 넘어감
+    blendFrom(c, dur = 1) { blend.pos.copy(c.position); blend.q.copy(c.quaternion); blend.fov = c.fov; blend.dur = dur; blend.t = 0; },
     update(now, myId) {
       const dt = Math.min(0.1, now - (last || now));
       last = now;
@@ -700,6 +704,14 @@ export function createPlazaView(world, handlers) {
       const fov = Math.min(80, Math.max(55, (2 * Math.atan(Math.tan(0.4) / world.camera.aspect) * 180) / Math.PI));
       if (Math.abs(world.camera.fov - fov) > 0.01) { world.camera.fov = fov; world.camera.updateProjectionMatrix(); }
       world.camera.lookAt(toWorld(tmpV.copy(cam.look).lerp(focus.cur.look, fk)));
+      if (blend.t < 1) {
+        blend.t = Math.min(1, blend.t + dt / blend.dur);
+        const e = blend.t * blend.t * (3 - 2 * blend.t);
+        world.camera.position.lerpVectors(blend.pos, world.camera.position, e);
+        world.camera.quaternion.slerpQuaternions(blend.q, world.camera.quaternion, e);
+        world.camera.fov = blend.fov + (world.camera.fov - blend.fov) * e;
+        world.camera.updateProjectionMatrix();
+      }
     },
   };
 }
