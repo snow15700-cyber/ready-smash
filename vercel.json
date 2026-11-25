@@ -3,7 +3,8 @@
     "deploymentEnabled": {
       "**": false,
       "main": true,
-      "test": true
+      "test": true,
+      "test-net": true
     }
   },
   "headers": [

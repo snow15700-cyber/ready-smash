@@ -448,6 +448,12 @@ async function browserChecks() {
       await guest.evaluate(() => document.querySelector('#vi-skip-btn').click());
       for (const p of [page, guest]) await waitFor(p, () => !window.__smash.intro || window.__smash.intro.seg.includes('hush'), null, 10000, '모두 건너뛰기 → 정적');
       for (const p of [page, guest]) await waitFor(p, () => window.__smash.game && !window.__smash.intro, null, 30000, '경기 시작');
+      // 선수끼리 WebRTC 직접 연결 (같은 브라우저 탭끼리도 붙음) → 경기 화면에 '⚡ 직접 연결'
+      for (const p of [page, guest]) await waitFor(p, () => window.__smash.room?.link.direct() && /직접 연결/.test(document.querySelector('#net-pill').textContent) && !document.querySelector('#net-pill').classList.contains('hidden'), null, 15000, "WebRTC 직접 연결 '⚡ 직접 연결' 표시");
+      // 연결 표시를 누르면 진단 (왜 서버 경유인지 보려고)
+      await page.evaluate(() => document.querySelector('#net-pill').click());
+      await waitFor(page, () => !document.querySelector('#net-diag').classList.contains('hidden') && /직접 연결됨/.test(document.querySelector('#net-diag').textContent) && /보낸 주소: (?!없음)/.test(document.querySelector('#net-diag').textContent), null, 5000, '연결 진단 창');
+      await page.evaluate(() => document.querySelector('#net-pill').click());
       // 관전 (2단계): 세 번째 탭이 로비 목록의 '👀 관전'으로 들어가 중계 화면이 뜨는지, 방장이 나가면 로비로 돌아오는지
       const viewer = await ctx.newPage();
       watch(viewer, '관중', errs);
@@ -494,6 +500,8 @@ async function browserChecks() {
       for (const p of [page, guest, viewer]) must(await p.evaluate(() => document.querySelectorAll('#room-labels .it, #vs-intro .it').length === 0 && document.querySelectorAll('#vs-intro .vi-card').length === 2), '이름표에 아이템 알약이 보여요');
       for (const p of [page, guest]) await p.evaluate(() => document.querySelector('#vi-skip-btn').click());
       await waitFor(viewer, () => !window.__smash.intro && window.__smash.game?.spectator && !window.__smash.game.paused, null, 20000, '선수 모두 건너뛰기 → 관중도 중계');
+      must(await viewer.evaluate(() => !window.__smash.room && window.__smash.game?.spectator), '관중 상태가 이상해요');
+      for (const p of [page, guest]) await waitFor(p, () => window.__smash.room?.link.direct(), null, 15000, '다음 판도 선수끼리 직접 연결');
       await page.waitForTimeout(1500);
       flush();
       // 방장 나가기 (경기 끝나 대기실로 돌아갔으면 대기실의 나가기 버튼)
@@ -501,7 +509,7 @@ async function browserChecks() {
       await waitFor(viewer, () => !window.__smash.game && !document.querySelector('#lobby').classList.contains('hidden'), null, 15000, '방장이 나가면 관중도 로비로');
       await viewer.close();
       await guest.close();
-      return `방 코드 ${code}, 관전 확인`;
+      return `방 코드 ${code}, WebRTC 직접 연결·관전 확인`;
     });
 
     await step('화면: 탁구대 19종 짓기·바꾸기 (튀기·득점 연출)', async () => {
@@ -553,7 +561,7 @@ async function browserChecks() {
       return '합친 물건 ' + r.out.join(', ');
     });
 
-    for (const [file, ready] of [['outfits.html', '몸 꾸미기 시안'], ['balls.html', '탁구공 시안'], ['tables.html', '탁구대 시안'], ['hats.html', '머리·얼굴 꾸미기 시안'], ['gacha.html', '뽑기 시안']]) {
+    for (const [file, ready] of [['outfits.html', '몸 꾸미기 시안'], ['balls.html', '탁구공 시안'], ['tables.html', '탁구대 시안'], ['hats.html', '머리·얼굴 꾸미기 시안'], ['gacha.html', '뽑기 시안'], ['rtc-test.html', '연결 속도 측정']]) {
       await step(`화면: ${ready} 페이지 (${file})`, async () => {
         const p = await ctx.newPage();
         watch(p, file, errs);
@@ -574,6 +582,15 @@ async function browserChecks() {
   say('🏓 자동 점검 시작\n');
   await step('빌드', build);
   await step('서버 SQL (빈 DB에 두 번 실행 + anon으로 기능 확인)', sqlCheck);
+  await step('서버 함수: /api/turn 서울 중계 출입증 (설정 없으면 503 → 게임은 중계 없이)', async () => {
+    const { default: h } = await import(require('node:url').pathToFileURL(require('node:path').join(__dirname, '..', 'api', 'turn.js')).href);
+    const saved = [process.env.CF_TURN_KEY_ID, process.env.CF_TURN_API_TOKEN];
+    delete process.env.CF_TURN_KEY_ID; delete process.env.CF_TURN_API_TOKEN;
+    const res = { code: 0, body: null, setHeader() {}, status(c) { this.code = c; return this; }, json(o) { this.body = o; return this; } };
+    try { await h({}, res); } finally { if (saved[0]) process.env.CF_TURN_KEY_ID = saved[0]; if (saved[1]) process.env.CF_TURN_API_TOKEN = saved[1]; }
+    must(res.code === 503 && res.body?.error === 'not_configured', '설정이 없을 때 503이 아니에요: ' + JSON.stringify(res));
+    return '설정 없음 → 503';
+  });
   await browserChecks();
   if (psql) try { psql('postgres', `drop database if exists ${DB};`); } catch { /* 정리 실패는 무시 */ }
   say(`\n${failed ? `❌ ${failed}개 실패` : '✅ 모두 통과'} (${results.filter((r) => r[0] === '✓').length}개 통과, ${results.filter((r) => r[0] === '–').length}개 건너뜀)`);
