@@ -602,7 +602,7 @@ function renderTables(force = false) {
 function coinsHTML(r) {
   if (!account.loggedIn) return '<small>로그인하면 경기마다 코인을 모을 수 있어요</small>';
   const c = r.coins;
-  if (!c) return '<small>코인 정산 중…</small>';
+  if (!c) return r.checking ? '<small>상대 결과 확인 중…</small>' : '<small>코인 정산 중…</small>';
   const line = (list) => list.map((i) => `${esc(i.label).replace(/^☕\s*/, ic('coffee') + ' ')}${i.coins ? ` +${i.coins}` : ''}`).join(' · ');
   const mis = c.items.filter((i) => i.mission);
   return `<b><i class="coin-dot"></i> +${c.total} 코인</b><small>${line(c.items.filter((i) => !i.mission))}</small>`

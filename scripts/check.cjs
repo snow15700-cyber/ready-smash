@@ -125,7 +125,7 @@ async function sqlCheck() {
   const mid = '00000000-0000-4000-8000-000000000019';
   must(json(`public.pingpong_match_join(${tk}, '${mid}', '1v1', 0)`).status === 'ok', '경기 입장 실패');
   psql(DB, `update public.pingpong_matches set started_at = now() - interval '2 minutes' where id = '${mid}';`);
-  const fin = json(`public.pingpong_match_finish(${tk}, '${mid}', true, 0, 0)`);
+  const fin = json(`public.pingpong_match_result(${tk}, '${mid}', true, 0, 0)`); // 31 새 함수 (옛 함수는 32가 닫음, 19를 다시 실행하면 다시 열림)
   must(fin.status === 'ok', '경기 정산 실패: ' + JSON.stringify(fin).slice(0, 200));
   // 혼자 하기: 8번 친 랠리 = 2코인 + 쉬는 시간 1코인 (19를 다시 실행하기 전, 아직 '언제나 쉬는 시간')
   json(`public.pingpong_ai_start(${tk})`);
@@ -191,6 +191,69 @@ async function sqlCheck() {
   psql(DB, `update public.pingpong_players set ai_at = now() - interval '100 seconds', ai_rem = 0 where nick = '점검봇';`);
   const setAi = json(`public.pingpong_ai_rally(${tk}, 40)`);
   must(setAi.set_coins === 4 && setAi.coins - setAi.bonus === 17 && /꿀잠/.test(setAi.set), '혼자 하기 40번 = 13코인 + 꿀잠 완전 세트 +30%(4)가 이상해요: ' + JSON.stringify(setAi).slice(0, 200));
+  // 31 공정한 결과: 위에서 19·24·26·27을 다시 실행해 덮였으니 31을 다시 → 혼자 하기 하루 250 · 1.2초에 1번 / 1대1 서로 말이 맞아야 정산
+  psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '31_fair_results.sql'), 'utf8'));
+  {
+    const one = json(`public.pingpong_signup('점검혼자', '1234')`), t1 = `'${one.token}'`;
+    json(`public.pingpong_ai_start(${t1})`);
+    psql(DB, `update public.pingpong_players set ai_at = now() - interval '12 seconds' where nick = '점검혼자';`);
+    const r1 = json(`public.pingpong_ai_rally(${t1}, 50)`);
+    must(r1.status === 'ok' && r1.player.best_rally === 11, '혼자 하기: 12초에 친 횟수는 11번까지만 인정해야 해요: ' + JSON.stringify(r1).slice(0, 200));
+    psql(DB, `update public.pingpong_players set ai_at = now() - interval '2000 seconds', ai_day = (now() at time zone 'Asia/Seoul')::date, ai_day_coins = 240 where nick = '점검혼자';`);
+    const before = json(`public.pingpong_me(${t1})`).player.coins;
+    const r2 = json(`public.pingpong_ai_rally(${t1}, 1000)`);
+    must(r2.coins === 10 && r2.capped === true && r2.player.coins === before + 10, '혼자 하기 하루 250코인 상한이 이상해요: ' + JSON.stringify(r2).slice(0, 200));
+    psql(DB, `update public.pingpong_players set ai_at = now() - interval '100 seconds' where nick = '점검혼자';`);
+    must(json(`public.pingpong_ai_rally(${t1}, 50)`).coins === 0, '혼자 하기 상한을 넘어 코인이 들어왔어요');
+    psql(DB, `update public.pingpong_players set ai_at = now() - interval '100 seconds', ai_day = ai_day - 1 where nick = '점검혼자';`);
+    must(json(`public.pingpong_ai_rally(${t1}, 30)`).coins > 0, '혼자 하기: 다음 날이 됐는데 코인이 안 들어와요');
+
+    const A = json(`public.pingpong_signup('점검결과갑', '1234')`), B = json(`public.pingpong_signup('점검결과을', '1234')`);
+    const ta = `'${A.token}'`, tb = `'${B.token}'`;
+    const fin = (t, id, won) => json(`public.pingpong_match_result(${t}, '${id}', ${won}, 0, 0)`);
+    const start = (id) => {
+      must(json(`public.pingpong_match_join(${ta}, '${id}', '1v1', 0)`).status === 'ok' && json(`public.pingpong_match_join(${tb}, '${id}', '1v1', 1)`).status === 'ok', '31 경기 입장 실패');
+      psql(DB, `update public.pingpong_matches set started_at = now() - interval '2 minutes' where id = '${id}';`);
+    };
+    const wins = (nick) => +psql(DB, `select wins_1v1 from public.pingpong_players where nick = '${nick}';`);
+    const won = (r) => r.coins?.items.some((i) => i.label === '승리');
+    // 말이 맞음: 갑 이겼다 → 기다림, 을 졌다 → 정산, 갑 다시 → 승리
+    const m1 = '00000000-0000-4000-8000-000000000311';
+    start(m1);
+    must(fin(ta, m1, true).status === 'wait', '상대가 결과를 보내기 전엔 기다려야 해요');
+    const b1 = fin(tb, m1, false);
+    must(b1.status === 'ok' && !b1.disputed && b1.player.losses_1v1 === 1, '진 쪽 정산이 이상해요: ' + JSON.stringify(b1).slice(0, 200));
+    const a1 = fin(ta, m1, true);
+    must(a1.status === 'ok' && won(a1) && wins('점검결과갑') === 1, '말이 맞았는데 승리가 안 들어와요: ' + JSON.stringify(a1).slice(0, 300));
+    // 둘 다 이겼다고 함 → 둘 다 승패 없이
+    const m2 = '00000000-0000-4000-8000-000000000312';
+    start(m2);
+    must(fin(ta, m2, true).status === 'wait', '31: 기다림이 안 나와요');
+    const b2 = fin(tb, m2, true), a2 = fin(ta, m2, true);
+    must(b2.disputed && a2.disputed && !won(a2) && !won(b2) && wins('점검결과갑') === 1 && wins('점검결과을') === 0, '서로 이겼다고 했는데 승리가 들어갔어요: ' + JSON.stringify([b2, a2]).slice(0, 300));
+    // 처음 말한 것만: 갑 이겼다 → 갑 '졌다'로 바꿔도 이긴 것으로, 을 졌다 → 갑 승리
+    const m3 = '00000000-0000-4000-8000-000000000313';
+    start(m3);
+    fin(ta, m3, true);
+    must(fin(ta, m3, false).status === 'wait', '31: 처음 말한 결과를 바꿀 수 있어요');
+    fin(tb, m3, false);
+    const a3 = fin(ta, m3, false);
+    must(won(a3) && wins('점검결과갑') === 2, '31: 처음 말한 결과대로 정산되지 않아요: ' + JSON.stringify(a3).slice(0, 200));
+    // 상대가 20초 동안 안 보냄 → 내 말대로. 기다리는 동안 새 경기에 들어가도 그대로 정산 (stale 아님)
+    const m4 = '00000000-0000-4000-8000-000000000314', m5 = '00000000-0000-4000-8000-000000000315';
+    start(m4);
+    fin(ta, m4, true);
+    json(`public.pingpong_match_join(${ta}, '${m5}', '1v1', 0)`);
+    must(fin(ta, m4, true).status === 'wait', '31: 20초 전인데 기다리지 않아요');
+    psql(DB, `update public.pingpong_match_players set claimed_at = now() - interval '25 seconds' where match_id = '${m4}';`);
+    const a4 = fin(ta, m4, true);
+    must(a4.status === 'ok' && won(a4) && wins('점검결과갑') === 3, '31: 상대가 안 보내면 20초 뒤 내 말대로 정산해야 해요: ' + JSON.stringify(a4).slice(0, 200));
+    // 32: 옛 함수는 브라우저(anon)에서 못 부름
+    psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '32_close_old_finish.sql'), 'utf8'));
+    let closed = false;
+    try { json(`public.pingpong_match_finish(${ta}, '${m5}', true, 0, 0)`); } catch { closed = true; }
+    must(closed, '32: 옛 경기 결과 함수 pingpong_match_finish가 아직 열려 있어요');
+  }
   // 28 낚시: 기포 자리 서버 == 화면(rules.js), 던지기 → 잡기(최소 시간·코인·도감·업적·탁구채) · 랭킹
   {
     const R = await import(path.join(ROOT, 'src', 'games', 'fishing', 'rules.js'));

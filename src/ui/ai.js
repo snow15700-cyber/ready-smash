@@ -1,4 +1,4 @@
-import { account, aiAch, aiRally, aiStart, myEquip } from '../account.js';
+import { account, AI_DAY_MAX, aiAch, aiRally, aiStart, myEquip } from '../account.js';
 import { initAudio, playUI } from '../audio.js';
 import { Game } from '../game.js';
 import { AI_LOOK, AI_NAME, Match } from '../match.js';
@@ -21,6 +21,7 @@ export function startAI() {
   playUI('click');
   stopGame();
   aiCoins = 0;
+  let capTold = false; // 31: 하루 상한 알림은 한 번만
   aiStart();
   show('hud');
   setGame(new Game(world, {
@@ -44,6 +45,7 @@ export function startAI() {
       const before = account.player?.best_rally || 0;
       const got = await aiRally(hits);
       if ((account.player?.best_rally || 0) > before) runAchCheck(); // 최고 기록 업적
+      if (account.aiCapped && !capTold && game === g) { capTold = true; hud.toast(`오늘 혼자 하기 코인(${AI_DAY_MAX})은 다 받았어요! 내일 또 모아요`, 3200); }
       if (!got) return;
       aiCoins += got;
       if (game === g) { playUI('coin'); hud.stats(game.stats); }

@@ -281,8 +281,12 @@ export async function saveResult(mode, win, stats, achStats) {
   const mid = r0?.mid;
   const opp = mode === '1v1' ? oppMember() : null;
   const bonus = { perfect3: stats.perfect3, rally10: stats.rally10 };
-  const r = mid ? await matchFinish(mid, win, bonus) : { status: 'no_match' };
+  // 31: 상대 결과를 기다리는 동안 결과 아래에 '상대 결과 확인 중…'
+  const onWait = () => { if (r0 && !r0.checking) { r0.checking = true; roomHooks.onResult?.(r0); } };
+  const r = mid ? await matchFinish(mid, win, bonus, onWait) : { status: 'no_match' };
+  if (r0) r0.checking = false;
   if (r.status === 'ok') {
+    if (r.disputed) hud.toast('서로 이겼다고 해서 이번 판은 승패 없이 끝났어요', 3000);
     if (opp?.pid && r.h2h) { h2hCache.set(opp.pid, r.h2h); if (r0) r0.h2h[opp.pid] = r.h2h; }
     if (r.coins && r0) r0.coins = r.coins;
     if (r.coins && !r0?.inGame) playUI('coin');
