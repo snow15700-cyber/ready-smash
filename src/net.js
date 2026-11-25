@@ -89,6 +89,7 @@ function makeP2P(myId, sig, deliver, onDirect) {
   const diag = new Map();
   const dg = (id) => { if (!diag.has(id)) diag.set(id, { role: myId < id ? '거는 쪽' : '받는 쪽', tries: 0, offer: '', answer: '', sent: {}, got: {}, state: '', err: '' }); return diag.get(id); };
   const typ = (c) => (/ typ (\w+)/.exec(c?.candidate || '') || [])[1] || '?';
+  const srflxIp = (c) => { const f = (c?.candidate || '').split(' '); return f[7] === 'srflx' ? f[4] : null; }; // 바깥(공인) 주소 (화면엔 같음/다름만)
   const early = new Map(); // 상대 id → 연결 요청(offer)보다 먼저 온 주소 정보(ice) (서버 소식 순서가 바뀔 때 버리지 않게)
   const WATCH = 9000; // 연결을 걸고 이만큼 안 열리면 다시 건다 (소식이 하나 빠졌을 때)
 
@@ -111,6 +112,7 @@ function makeP2P(myId, sig, deliver, onDirect) {
       if (!e.candidate) return;
       const d = dg(id), k = e.candidate.type || typ(e.candidate);
       d.sent[k] = (d.sent[k] || 0) + 1;
+      const ip = srflxIp(e.candidate); if (ip) (d.myIp ||= new Set()).add(ip);
       signal(id, { t: 'ice', c: e.candidate.toJSON() });
     };
     pc.ondatachannel = (e) => useDc(id, p, e.channel);
@@ -162,7 +164,7 @@ function makeP2P(myId, sig, deliver, onDirect) {
     signal(m) {
       if (closed || !m.from) return;
       const d = dg(m.from);
-      if (m.t === 'ice') { const k = typ(m.c); d.got[k] = (d.got[k] || 0) + 1; }
+      if (m.t === 'ice') { const k = typ(m.c); d.got[k] = (d.got[k] || 0) + 1; const ip = srflxIp(m.c); if (ip) (d.theirIp ||= new Set()).add(ip); }
       if (m.t === 'offer' && peers.has(m.from) && peers.get(m.from).pc.remoteDescription) drop(m.from); // 상대가 다시 걸어옴
       if (m.t === 'offer') { d.offer = '받음'; d.answer = ''; d.tries++; }
       if (m.t === 'answer') d.answer = '받음';
@@ -197,7 +199,8 @@ function makeP2P(myId, sig, deliver, onDirect) {
         else if (!Object.keys(d.sent).length) why = '내 주소 정보를 못 만듦 (브라우저 설정·네트워크)';
         else if (/failed|disconnected|checking/.test(d.state)) why = '주소는 주고받았는데 서로 닿지 않음 (와이파이가 기기끼리 막음·다른 네트워크·mDNS 막힘)';
         else why = '연결 중…';
-        return `${d.role} · 시도 ${d.tries}번 · 요청 ${d.offer || '-'} · 답 ${d.answer || '-'}\n보낸 주소: ${cnt(d.sent)} · 받은 주소: ${cnt(d.got)}\n상태: ${p ? d.state || '시작 전' : '끊김'}${d.err ? ' · ' + d.err : ''}\n→ ${why}`;
+        const net = !d.myIp || !d.theirIp ? '모름' : [...d.myIp].some((a) => d.theirIp.has(a)) ? '같음 (같은 공유기 뒤)' : '다름 (다른 네트워크)';
+        return `${d.role} · 시도 ${d.tries}번 · 요청 ${d.offer || '-'} · 답 ${d.answer || '-'}\n보낸 주소: ${cnt(d.sent)} · 받은 주소: ${cnt(d.got)}\n바깥 주소: ${net}\n상태: ${p ? d.state || '시작 전' : '끊김'}${d.err ? ' · ' + d.err : ''}\n→ ${why}`;
       }).join('\n\n') || '상대가 경기 채널 명단에 아직 없음';
     },
     stamp: (payload) => ({ ...payload, _f: `${myId}.${nonce}`, _s: ++seq }),

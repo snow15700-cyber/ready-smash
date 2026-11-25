@@ -2,7 +2,7 @@
 // 같은 코드로 들어온 두 기기가 Supabase 채널로 WebRTC 연결 정보(offer/answer/ice)를 주고받고,
 // 측정 중에는 Supabase 경유 핑과 WebRTC 직접 핑을 같이 보내 왕복 시간을 비교한다.
 // Supabase 설정이 없으면 같은 브라우저 탭끼리 BroadcastChannel로 시험(로컬).
-import { ONLINE, IS_TEST, getClient, normalizeCode, makeCode } from './net.js';
+import { ONLINE, IS_TEST, getClient, normalizeCode, makeCode, joinRoom } from './net.js';
 
 const $ = (id) => document.getElementById(id);
 const me = Math.random().toString(36).slice(2, 10);
@@ -12,6 +12,9 @@ const RTC_TIMEOUT = 15000; // 이 안에 WebRTC가 안 붙으면 실패로 본�
 const ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
 
 let sig = null, peer = null, pc = null, dc = null, rtcTimer = 0, testing = false;
+const addr = { mine: new Set(), theirs: new Set() }; // 바깥(공인) 주소 — 같으면 같은 공유기 뒤 (화면엔 같음/다름만)
+const srflxIp = (c) => { const f = (c?.candidate || '').split(' '); return f[7] === 'srflx' ? f[4] : null; };
+const sameNet = () => (!addr.mine.size || !addr.theirs.size ? '모름' : [...addr.mine].some((a) => addr.theirs.has(a)) ? '같음 (같은 공유기 뒤)' : '다름 (다른 네트워크)');
 let sent = { s: new Map(), r: new Map() }, got = { s: [], r: [] };
 
 const log = (t) => { const el = $('log'); el.textContent += `${new Date().toLocaleTimeString()} ${t}\n`; el.scrollTop = 1e9; };
@@ -42,6 +45,17 @@ function join() {
     send({ t: 'hello' });
   }
   set('peer', '상대를 기다리는 중…');
+  gameCodeTest(code);
+}
+
+// ───────── 게임 코드로 연결 시험 (net.js joinRoom rtc — 실제 경기와 같은 코드, 위 시험과 따로 채널) ─────────
+// 위(이 페이지 방식)는 붙는데 여기는 안 붙으면 → 게임 코드 문제. 둘 다 안 붙으면 → 와이파이·네트워크 문제
+function gameCodeTest(code) {
+  const link = joinRoom(`rtc${code}`, { id: me, nick: me, at: Date.now() }, {
+    onMsg() {}, onMembers() {}, onStatus() {},
+    onDirect: (d) => set('g-state', d.of === 0 ? '상대 기다리는 중…' : d.n === d.of ? '⚡ 직접 연결 성공' : '🌐 아직 서버 경유 (연결 시도 중)', d.of && d.n === d.of ? 'good' : 'mid'),
+  }, { rtc: true });
+  setInterval(() => { $('g-info').textContent = link.rtcInfo?.() || ''; }, 1000);
 }
 const send = (m) => sig && sig({ ...m, from: me, to: m.to ?? peer ?? undefined });
 
@@ -57,7 +71,7 @@ async function handle(m) {
   if (m.from !== peer) return;
   if (m.t === 'offer') { closeRtc(); await startRtc(false); await pc.setRemoteDescription(m.sdp); await pc.setLocalDescription(await pc.createAnswer()); send({ t: 'answer', sdp: pc.localDescription.toJSON() }); }
   else if (m.t === 'answer') await pc?.setRemoteDescription(m.sdp);
-  else if (m.t === 'ice') { try { await pc?.addIceCandidate(m.c); } catch (e) { log('ice 오류 ' + e.message); } }
+  else if (m.t === 'ice') { const ip = srflxIp(m.c); if (ip) addr.theirs.add(ip); try { await pc?.addIceCandidate(m.c); } catch (e) { log('ice 오류 ' + e.message); } }
   else if (m.t === 'start') runTest();
   else if (m.t === 'ping') send({ t: 'pong', p: m.p, n: m.n });
   else if (m.t === 'pong') onPong('s', m.n);
@@ -67,7 +81,7 @@ async function handle(m) {
 async function startRtc(offerer) {
   pc = new RTCPeerConnection({ iceServers: ICE });
   set('rtc', '연결 시도 중…', 'mid');
-  pc.onicecandidate = (e) => { if (e.candidate) { send({ t: 'ice', c: e.candidate.toJSON() }); log('내 후보: ' + (e.candidate.type || '?') + ' ' + (e.candidate.protocol || '')); } };
+  pc.onicecandidate = (e) => { if (e.candidate) { const ip = srflxIp(e.candidate); if (ip) addr.mine.add(ip); send({ t: 'ice', c: e.candidate.toJSON() }); log('내 후보: ' + (e.candidate.type || '?') + ' ' + (e.candidate.protocol || '')); } };
   pc.onconnectionstatechange = () => {
     const s = pc.connectionState; log('WebRTC 상태: ' + s);
     if (s === 'failed') rtcFail();
@@ -93,7 +107,8 @@ function setupDc(ch) {
 }
 function rtcFail() {
   set('rtc', '연결 실패 ✗', 'bad');
-  set('kind', '이 와이파이는 기기끼리 직접 연결을 막는 것 같아요', 'bad');
+  set('kind', `이 와이파이는 기기끼리 직접 연결을 막는 것 같아요 · 바깥 주소 ${sameNet()}`, 'bad');
+  log(`연결 실패 · 바깥 주소 ${sameNet()} · 상태 ${pc?.connectionState}/${pc?.iceConnectionState}`);
 }
 function closeRtc() { clearTimeout(rtcTimer); try { pc?.close(); } catch { /* 무시 */ } pc = null; dc = null; }
 
