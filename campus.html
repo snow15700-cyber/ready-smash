@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>광장 새 디자인 시안</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; font-family: Jua, sans-serif; background: #cfe8fb; }
+    #c { display: block; width: 100vw; height: 100vh; cursor: grab; }
+    .bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: calc(100vw - 32px); padding: 8px; border-radius: 18px; background: rgba(255, 250, 240, 0.88); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15); }
+    .bar button { font-family: inherit; font-size: 15px; border: 0; border-radius: 99px; padding: 7px 13px; background: #eadcc4; color: #2b2a33; cursor: pointer; }
+    .bar button.on { background: #ff8a3d; color: #fff; }
+    .bar .gap { width: 10px; }
+    .tag { position: fixed; left: 16px; top: 16px; padding: 8px 14px; border-radius: 14px; background: rgba(255, 250, 240, 0.88); font-size: 15px; color: #2b2a33; }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="tag">🧪 광장 새 디자인 시안 · 경주캠퍼스 느낌 · 화면을 끌면 빙 돌아봐요</div>
+  <div class="bar" id="bar">
+    <button data-k="cam" data-v="spawn" class="on">처음 서는 곳</button>
+    <button data-k="cam" data-v="shops">가게 앞</button>
+    <button data-k="cam" data-v="top">위에서</button>
+    <button data-k="cam" data-v="south">바다 쪽</button>
+    <button data-k="cam" data-v="building">본관</button>
+    <span class="gap"></span>
+    <button data-k="sky" data-v="day" class="on">낮</button>
+    <button data-k="sky" data-v="sunset">노을</button>
+    <button data-k="sky" data-v="night">밤</button>
+  </div>
+  <script type="module" src="/src/campusPage.js"></script>
+</body>
+</html>
