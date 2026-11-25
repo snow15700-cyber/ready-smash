@@ -764,6 +764,15 @@ async function browserChecks() {
   say('🏓 자동 점검 시작\n');
   await step('빌드', build);
   await step('서버 SQL (빈 DB에 두 번 실행 + anon으로 기능 확인)', sqlCheck);
+  await step('서버 함수: /api/turn 서울 중계 출입증 (설정 없으면 503 → 게임은 중계 없이)', async () => {
+    const { default: h } = await import(require('node:url').pathToFileURL(require('node:path').join(__dirname, '..', 'api', 'turn.js')).href);
+    const saved = [process.env.CF_TURN_KEY_ID, process.env.CF_TURN_API_TOKEN];
+    delete process.env.CF_TURN_KEY_ID; delete process.env.CF_TURN_API_TOKEN;
+    const res = { code: 0, body: null, setHeader() {}, status(c) { this.code = c; return this; }, json(o) { this.body = o; return this; } };
+    try { await h({}, res); } finally { if (saved[0]) process.env.CF_TURN_KEY_ID = saved[0]; if (saved[1]) process.env.CF_TURN_API_TOKEN = saved[1]; }
+    must(res.code === 503 && res.body?.error === 'not_configured', '설정이 없을 때 503이 아니에요: ' + JSON.stringify(res));
+    return '설정 없음 → 503';
+  });
   await browserChecks();
   if (psql) try { psql('postgres', `drop database if exists ${DB};`); } catch { /* 정리 실패는 무시 */ }
   say(`\n${failed ? `❌ ${failed}개 실패` : '✅ 모두 통과'} (${results.filter((r) => r[0] === '✓').length}개 통과, ${results.filter((r) => r[0] === '–').length}개 건너뜀)`);

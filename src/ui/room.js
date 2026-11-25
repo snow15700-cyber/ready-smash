@@ -254,7 +254,9 @@ function netPill(d) {
   const all = d.of > 0 && d.n === d.of;
   el.classList.toggle('on', all);
   el.classList.toggle('part', d.n > 0 && !all);
-  el.textContent = all ? '⚡ 직접 연결' : d.n > 0 ? `⚡ 일부 직접 (${d.n}/${d.of})` : '🌐 서버 경유';
+  // 다 이어짐: 모두 직접 '⚡ 직접 연결' · 모두 중계 '⚡ 서울 중계' · 섞임 '⚡ 직접·중계' / 일부만 '⚡ 일부 연결 (n/of)' / 없음 '🌐 서버 경유'
+  const relay = d.relay || 0;
+  el.textContent = all ? (relay === 0 ? '⚡ 직접 연결' : relay === d.n ? '⚡ 서울 중계' : '⚡ 직접·중계') : d.n > 0 ? `⚡ 일부 연결 (${d.n}/${d.of})` : '🌐 서버 경유';
 }
 
 // 참가자 PC: 방장 소식이 보통 몇 초 걸려 오는지 (최근 ping 왕복 시간의 75% 지점 ÷ 2).

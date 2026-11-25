@@ -37,7 +37,8 @@ export const normalizeCode = (s) => s.toUpperCase().replace(/[^A-Z0-9]/g, '').sl
 //   · direct(): 선수끼리 WebRTC로 바로 이어졌는지 (rtc 옵션을 켰을 때)
 // rtc: 선수끼리 WebRTC 직접 연결도 쓴다 (docs/dev/gameplay.md 'WebRTC 직접 연결'). 모든 소식을 서버(채널)와 직접 길로 같이 보내고,
 //   받는 쪽은 먼저 온 것만 쓴다 → 직접 연결이 안 붙어도 지금처럼 서버로 된다. 관중(listen)은 서버로만 듣는다.
-//   handlers.onDirect({ n, of }): 직접 연결이 열리거나 닫힐 때 (다른 선수 of명 중 n명과 직접 연결, 2대2면 서로 다 연결). 주소창 ?rtc=0 이면 끔 (비교 시험용)
+//   handlers.onDirect({ n, of, relay }): 연결이 열리거나 닫힐 때 (다른 선수 of명 중 n명과 이어짐, 그중 relay명은 서울 중계(TURN) 경유).
+//   주소창 ?rtc=0 이면 끔, ?turn=0 이면 중계 없이 (비교 시험용)
 export function joinRoom(code, me, handlers, { listen = false, rtc = false } = {}) {
   let h = handlers, last = [], p2p = null;
   const route = {
@@ -50,6 +51,7 @@ export function joinRoom(code, me, handlers, { listen = false, rtc = false } = {
     onStatus: (st, text) => h.onStatus(st, text),
   };
   const base = ONLINE ? joinSupabase(code, me, route, listen) : joinLocal(code, me, route, listen);
+  if (rtc && !listen) loadTurn(); // 출입증이 곧 만료되면 새로 (이번 연결에는 지금 있는 것)
   if (rtc && !listen && RTC_ON) p2p = makeP2P(me.id, (m) => base.send(m), (m) => route.onMsg(m), (on) => h.onDirect?.(on));
   return {
     ...base,
@@ -67,7 +69,23 @@ export function joinRoom(code, me, handlers, { listen = false, rtc = false } = {
 
 // ───────── 선수끼리 WebRTC 직접 연결 (경기 채널로 연결 정보를 주고받음) ─────────
 const RTC_ON = typeof RTCPeerConnection !== 'undefined' && new URLSearchParams(location.search).get('rtc') !== '0';
-const ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
+const STUN = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
+// 서울 중계 서버(Cloudflare TURN) 출입증: 기기끼리 막힌 교실 와이파이에서도 가까운 중계로 이어짐 (11/25 측정 162 → 34ms).
+// /api/turn(Vercel 서버 함수, api/turn.js)이 몇 시간짜리를 만들어 준다. 페이지를 열 때 미리 받아 둠. 없으면(로컬·설정 전) 직접 연결만.
+let turn = null, turnUntil = 0, turnLoading = null;
+const TURN_ON = ONLINE && RTC_ON && new URLSearchParams(location.search).get('turn') !== '0';
+function loadTurn() {
+  if (!TURN_ON || turnLoading || Date.now() < turnUntil - 30 * 60e3) return turnLoading;
+  turnLoading = fetch('/api/turn', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => { if (Array.isArray(d?.iceServers) && d.iceServers.length) { turn = d.iceServers; turnUntil = Date.now() + (d.ttl || 3600) * 1000; } })
+    .catch(() => {}) // 못 받으면 중계 없이
+    .finally(() => { turnLoading = null; });
+  return turnLoading;
+}
+loadTurn();
+const iceServers = () => (turn && Date.now() < turnUntil ? [...STUN, ...turn] : STUN);
+export const hasTurn = () => !!(turn && Date.now() < turnUntil);
 // myId: 내 id. sig(m): 서버 길로 보내기. deliver(m): 직접 길로 받은 소식. onDirect({ n, of })
 // 상대마다 연결 하나 (1대1이면 하나, 2대2 네 명이면 각자 셋 → 모두 6개). id가 작은 쪽이 먼저 연결을 건다(offer).
 function makeP2P(myId, sig, deliver, onDirect) {
@@ -80,9 +98,10 @@ function makeP2P(myId, sig, deliver, onDirect) {
   const anyOpen = () => [...peers.values()].some((p) => p.dc?.readyState === 'open');
   const report = () => {
     if (closed) return;
-    const n = [...listed].filter((id) => peers.get(id)?.dc?.readyState === 'open').length;
-    const key = `${n}/${listed.size}`;
-    if (key !== lastKey) { lastKey = key; onDirect({ n, of: listed.size }); }
+    const open = [...listed].filter((id) => peers.get(id)?.dc?.readyState === 'open');
+    const n = open.length, relay = open.filter((id) => peers.get(id).kind === 'relay').length;
+    const key = `${n}/${listed.size}/${relay}`;
+    if (key !== lastKey) { lastKey = key; onDirect({ n, of: listed.size, relay }); }
   };
   const signal = (to, m) => sig({ k: '_rtc', to, from: myId, ...m });
   // 진단 (상대 id → 무엇을 주고받았나). 직접 연결이 안 붙을 때 어디서 멈췄는지 보려고 (11/24 사용자 제보: 1대1이 서버 경유로만)
@@ -105,7 +124,7 @@ function makeP2P(myId, sig, deliver, onDirect) {
   function peer(id) {
     let p = peers.get(id);
     if (p) return p;
-    const pc = new RTCPeerConnection({ iceServers: ICE });
+    const pc = new RTCPeerConnection({ iceServers: iceServers() }); // 직접이 되면 직접, 막히면 서울 중계 (브라우저가 고름)
     p = { pc, dc: null, q: Promise.resolve() };
     peers.set(id, p);
     pc.onicecandidate = (e) => {
@@ -128,9 +147,20 @@ function makeP2P(myId, sig, deliver, onDirect) {
   }
   function useDc(id, p, dc) {
     p.dc = dc;
-    dc.onopen = report;
+    dc.onopen = () => { report(); pathKind(p).then(report); };
     dc.onclose = report;
     dc.onmessage = (e) => { if (closed) return; try { deliver(JSON.parse(e.data)); } catch { /* 깨진 소식은 버림 */ } };
+  }
+  // 열린 연결이 기기끼리 직접인지 서울 중계(relay)인지 (화면 표시·진단용)
+  async function pathKind(p) {
+    try {
+      const st = await p.pc.getStats();
+      let pair = null;
+      st.forEach((r) => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = st.get(r.selectedCandidatePairId); });
+      if (!pair) st.forEach((r) => { if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') pair = r; });
+      const t = [st.get(pair?.localCandidateId)?.candidateType, st.get(pair?.remoteCandidateId)?.candidateType];
+      p.kind = t.includes('relay') ? 'relay' : t[0] ? 'direct' : '';
+    } catch { /* 모르면 직접으로 표시 */ }
   }
   async function call(id) {
     if (closed || peers.has(id)) return;
@@ -188,11 +218,11 @@ function makeP2P(myId, sig, deliver, onDirect) {
     // 진단 글자 (상대마다 한 줄 묶음)
     info() {
       const cnt = (o) => Object.entries(o).map(([k, v]) => `${k} ${v}`).join(', ') || '없음';
-      return [...listed].map((id) => {
+      const list = [...listed].map((id) => {
         const d = dg(id), p = peers.get(id);
         const open = p?.dc?.readyState === 'open';
         let why = '';
-        if (open) why = '직접 연결됨';
+        if (open) why = p.kind === 'relay' ? '서울 중계로 연결됨' : '직접 연결됨';
         else if (d.role === '거는 쪽' && d.offer === '보냄' && !d.answer) why = '연결 요청을 보냈는데 상대 답이 안 옴 (서버 소식이 안 감/상대가 직접 연결을 못 씀)';
         else if (d.role === '받는 쪽' && !d.offer) why = '상대의 연결 요청이 안 옴';
         else if (!Object.keys(d.got).length) why = '상대 주소 정보(ice)가 하나도 안 옴';
@@ -201,7 +231,8 @@ function makeP2P(myId, sig, deliver, onDirect) {
         else why = '연결 중…';
         const net = !d.myIp || !d.theirIp ? '모름' : [...d.myIp].some((a) => d.theirIp.has(a)) ? '같음 (같은 공유기 뒤)' : '다름 (다른 네트워크)';
         return `${d.role} · 시도 ${d.tries}번 · 요청 ${d.offer || '-'} · 답 ${d.answer || '-'}\n보낸 주소: ${cnt(d.sent)} · 받은 주소: ${cnt(d.got)}\n바깥 주소: ${net}\n상태: ${p ? d.state || '시작 전' : '끊김'}${d.err ? ' · ' + d.err : ''}\n→ ${why}`;
-      }).join('\n\n') || '상대가 경기 채널 명단에 아직 없음';
+      }).join('\n\n');
+      return (list || '상대가 경기 채널 명단에 아직 없음') + `\n\n서울 중계 출입증: ${hasTurn() ? '있음' : TURN_ON ? '없음 (Vercel 설정 확인)' : '안 씀'}`;
     },
     stamp: (payload) => ({ ...payload, _f: `${myId}.${nonce}`, _s: ++seq }),
     sendDirect(payload) {
