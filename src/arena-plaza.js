@@ -7,9 +7,9 @@ import * as THREE from 'three';
 import { addBox, std } from './arena-kit.js';
 import { buildCampus } from './campusMock.js';
 import { fillProps } from './campusModels.js';
-import { DECK, FOUNTAIN, heightAt, KIM_SPOT, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS, toWorld } from './campusLayout.js';
+import { DECK, FOUNTAIN, heightAt, KIM_SPOT, onPier, PIER, PIER_STAIRS, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS, toWorld } from './campusLayout.js';
+import { DECK_TELE_Z } from './campusProps.js';
 import { GACHA_OUT, SHOP_D } from './campusShops.js';
-import { buildPier } from './games/fishing/world.js';
 
 // 탁구대 (② 탁구대에 서서 경기, plaza.md 2장): 긴 쪽이 x. A팀(side 0) = 서쪽(x−) 끝, B팀(side 1) = 동쪽(x+) 끝.
 // 자리 4칸: 0·1 = A팀 1번·2번, 2·3 = B팀 1번·2번 (각 팀이 탁구대를 볼 때 1번이 왼쪽)
@@ -43,8 +43,11 @@ const GACHA = SHOPS.find((s) => s.id === 'shop');
 
 // 걸을 수 있는 곳 (m)
 export const PLAZA = {
-  minX: -21.5, maxX: 21.5, minZ: -10, maxZ: DECK.z1 - 0.35, // 남쪽은 전망대 데크 위까지 (데크 옆은 아래 blocks로 막음)
-  heightAt, // 서 있는 바닥 높이 (데크 위 0.25m)
+  minX: -21.5, maxX: 21.5, minZ: -10, maxZ: PIER.z1 - 0.35, // 남쪽은 전망대 밑 낚시 판까지 (데크 서쪽·데크 난간·계단 옆은 아래 blocks로 막음, 낚시 12장)
+  heightAt, // 서 있는 바닥 높이 (데크 위 0.25m · 계단 · 낚시 판 −4.35m)
+  onPier, // 낚시 판 위인지 (4단계 ②: '🎣 낚시하기' 버튼)
+  // 돌계단 (plaza.js planWalk: 광장 ↔ 낚시 판은 계단 입구 top · 계단 아래 bottom을 지나감)
+  stairs: { ...PIER_STAIRS, top: [(PIER_STAIRS.x0 + PIER_STAIRS.x1) / 2, PIER_STAIRS.z0 - 0.7], bottom: [(PIER_STAIRS.x0 + PIER_STAIRS.x1) / 2, PIER_STAIRS.z1 + 0.5] },
   spawn: SPAWN, // 처음 서는 곳 (분수 남쪽, 북쪽 가게를 바라봄). 가게 문까지 약 13m(걸어서 3초)
   shops: SHOPS,
   tables: TABLES,
@@ -62,10 +65,11 @@ export const PLAZA = {
     box(SPOTS.vending, -0.6, 3.0, -0.45, 0.45),
     box(SPOTS.bakery, -2.85, 2.85, -2.35, 3.4),
     // 바다 전망대: 데크 위는 걸어 다님. 데크 양옆(광장 바닥 끝 너머)·망원경·벤치·안내 판은 막음
-    flat(-22, DECK.x0, 32.2, 36), flat(DECK.x1, 22, 32.2, 36),
-    { x: SPOTS.deck.x - 3, z: SPOTS.deck.z + 1.5, r: 0.4 }, { x: SPOTS.deck.x + 3, z: SPOTS.deck.z + 1.5, r: 0.4 },
+    // 낚시터(12장): 데크 서쪽(광장 끝 너머 + 판 서쪽 바다) · 데크 바다 쪽 난간(판으로 떨어지지 않게) · 계단 서쪽 옆(판에서 계단 옆구리로 못 오르게). 데크 동쪽 풀밭 → 계단 → 판은 걸어감
+    flat(-22, DECK.x0, 32.2, PIER.z1 + 1), flat(DECK.x0, PIER_STAIRS.x0, DECK.z1 - 0.2, DECK.z1 + 0.2), flat(PIER_STAIRS.x0 - 0.2, PIER_STAIRS.x0, DECK.z1, PIER_STAIRS.z1 - 0.3),
+    { x: SPOTS.deck.x - 3, z: SPOTS.deck.z + DECK_TELE_Z(DECK.z1 - DECK.z0), r: 0.4 }, { x: SPOTS.deck.x + 3, z: SPOTS.deck.z + DECK_TELE_Z(DECK.z1 - DECK.z0), r: 0.4 },
     flat(SPOTS.deck.x - 6.15, SPOTS.deck.x - 4.25, SPOTS.deck.z + 0.05, SPOTS.deck.z + 0.75), flat(SPOTS.deck.x + 4.25, SPOTS.deck.x + 6.15, SPOTS.deck.z + 0.05, SPOTS.deck.z + 0.75),
-    flat(SPOTS.deck.x - 0.85, SPOTS.deck.x + 0.85, SPOTS.deck.z - 2.1, SPOTS.deck.z - 1.8),
+    flat(SPOTS.deck.x - 0.85, SPOTS.deck.x + 0.85, SPOTS.deck.z - (DECK.z1 - DECK.z0) / 2 + 0.15, SPOTS.deck.z - (DECK.z1 - DECK.z0) / 2 + 0.45),
   ],
   // 카메라가 못 들어가는 곳 (가게·건물·본관 기둥·유리 막대). 가게는 따로 더함
   camBlocks: [
@@ -137,16 +141,7 @@ export function buildPlaza() {
   // 탁구대 4대 (사람 대결용 3대 + 김제빵 탁구대). 움직이지 않으니 합친다. 이름표·자리 칸·상태 표지판·김제빵은 src/plaza.js
   for (const t of PLAZA.tables) root.add(plazaTable(t, 0x2a5db0));
   root.add(plazaTable(PLAZA.kim, 0x2f8a4e));
-  // 낚시 4단계(docs/dev/fishing.md 11장): 전망대 → 해변 나무 계단 + 나무 선착장 (낚시 시안과 같은 모양, src/games/fishing/world.js)
-  // 널빤지 색이 무작위 재질 여러 개라 같은 색끼리 재질 하나로 모음 → 합치면 그리기 몇 번
-  const pier = buildPier(), pierMat = new Map();
-  pier.traverse((o) => {
-    if (!o.isMesh || o.material.map) return;
-    const k = o.material.color.getHex() + ':' + o.material.roughness;
-    if (!pierMat.has(k)) pierMat.set(k, o.material);
-    o.material = pierMat.get(k);
-  });
-  pier.name = 'pier'; root.add(pier);
+  // 낚시터(전망대 밑 판·계단)는 buildCampus가 더함 (src/campusPier.js, fishing.md 12장)
   // 재질 가볍게 (느린 PC): 진짜 같은 빛 계산 재질(MeshStandard)은 픽셀마다 계산이 많아 광장 전체에 쓰면 느린 PC가 힘듦 → 실제 광장은 가벼운 재질로 (시안 페이지는 그대로)
   root.traverse((o) => { if (o.isMesh && !o.isInstancedMesh) o.material = Array.isArray(o.material) ? o.material.map(lightMat) : lightMat(o.material); });
   // 그림자는 큰 것만 (작은 부품 — 전구·캡슐·손잡이·빵 등 — 까지 그림자를 그리면 그리기가 두 배로 늘어 느린 PC가 힘듦)

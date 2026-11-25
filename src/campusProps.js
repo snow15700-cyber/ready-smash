@@ -355,9 +355,10 @@ export function vending() {
 }
 
 // ── 바다 전망대: 나무 판 바닥 + 유리 난간(알루미늄 손잡이) + 동전 망원경 2개 + 벤치 자리 + 안내 판 + 가로등 자리
-export function deck() {
+export const DECK_TELE_Z = (D) => D / 2 - 0.9; // 망원경 자리 (바다 쪽 난간 앞)
+export function deck(D = 4.5) {
   const g = new THREE.Group();
-  const W = 14, D = 4.5;
+  const W = 14;
   box(g, W, 0.25, D, new THREE.MeshStandardMaterial({ map: withRepeat(plankTex(), W / 3, D / 3), roughness: 0.8 }), 0, 0.125, 0);
   box(g, W + 0.1, 0.1, D + 0.1, wood(0x6b4224), 0, 0.02, 0);
   // 유리 난간 (바다 쪽 +z, 양옆)
@@ -370,10 +371,11 @@ export function deck() {
   };
   rail(W, 0, D / 2, 0); rail(D, -W / 2, 0, Math.PI / 2); rail(D, W / 2, 0, Math.PI / 2);
   // 동전 망원경 (기둥 + 머리 + 눈 대는 곳 2개)
+  const tz = DECK_TELE_Z(D);
   for (const x of [-3, 3]) {
-    cyl(g, 0.12, 0.2, 0.15, MAT.dark, x, 0.32, 1.5, 16);
-    cyl(g, 0.07, 0.07, 1.0, std(0x3a3f4a), x, 0.8, 1.5, 10);
-    const head = new THREE.Group(); head.position.set(x, 1.4, 1.5); head.rotation.x = -0.2; g.add(head);
+    cyl(g, 0.12, 0.2, 0.15, MAT.dark, x, 0.32, tz, 16);
+    cyl(g, 0.07, 0.07, 1.0, std(0x3a3f4a), x, 0.8, tz, 10);
+    const head = new THREE.Group(); head.position.set(x, 1.4, tz); head.rotation.x = -0.2; g.add(head);
     box(head, 0.5, 0.32, 0.55, std(0x2f7fd8, { roughness: 0.35 }), 0, 0, 0, 0.1);
     for (const sx of [-0.11, 0.11]) { const e = cyl(head, 0.07, 0.08, 0.15, MAT.dark, sx, 0.02, -0.33, 12); e.rotation.x = Math.PI / 2; }
     const lens = cyl(head, 0.13, 0.11, 0.1, MAT.alu, 0, 0, 0.32, 16); lens.rotation.x = Math.PI / 2;

@@ -19,7 +19,7 @@ import { breakAt } from '../../breaks.js';
 import { activeBubbles, bubbleNear } from './bubbles.js';
 import { audioCtx, initSound, setSoundOn, snd, tickSound } from './sound.js';
 import { makePhrase, makeSong, playBeat, playFinish, playMelody } from './rhythm.js';
-import { PIER, STAND, buildPier, landingPoint, makeBobber, makeBubbleFx, makeFishModel, makeLine, makeRod, makeSplashes, seaHeight } from './world.js';
+import { PIER, SEA_Y, STAND, landingPoint, makeBobber, makeBubbleFx, makeFishModel, makeLine, makeRod, makeSplashes, seaHeight } from './world.js';
 import { drawHud, zoomRect } from './hud.js';
 
 const params = new URLSearchParams(location.search);
@@ -42,11 +42,10 @@ const hemi = new THREE.HemisphereLight(0xfffaf0, 0x9fb08a, 1.5);
 const sun = new THREE.DirectionalLight(0xfff1dc, 1.8);
 sun.position.set(-8, 40, 40); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
 Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, far: 120 });
-sun.target.position.set(PIER.x, PIER.y, 62);
+sun.target.position.set((STAND.xMin + STAND.xMax) / 2, PIER.y, STAND.z);
 scene.add(hemi, sun, sun.target);
 const { root, anim } = buildCampus();
 scene.add(root);
-scene.add(buildPier());
 const fx = makeSplashes(scene);
 const bubbleFx = makeBubbleFx(scene, fx);
 
@@ -64,7 +63,7 @@ const bobber = makeBobber(); scene.add(bobber);
 
 // ── 상태
 const S = {
-  mode: 'ready', t: 0, now: 0, holding: false, standX: PIER.x, walk: 0,
+  mode: 'ready', t: 0, now: 0, holding: false, standX: 13, walk: 0,
   drag: null, power: 0, hint: null, aim: 0,
   cast: null, bob: new THREE.Vector3(), dip: 0, dipV: 0, bobLanded: false, near: 0,
   seq: [], evI: -1, ev: null, nextEv: 0, calm: 0, alertT: -1,
@@ -566,7 +565,7 @@ function placeCamera() {
   const pull = S.mode === 'land' && S.land ? S.land.pull * clamp(S.t / 0.8, 0, 1) : 0; // 큰 놈을 낚으면 카메라가 물러남
   camera.position.set(S.standX + 0.95 + pull * 0.3, DECK + 2.15 + pull * 0.55, STAND.z - 3.0 - pull);
   if (S.shake > 0) { camera.position.x += (Math.random() - 0.5) * S.shake * 0.012; camera.position.y += (Math.random() - 0.5) * S.shake * 0.012; }
-  camera.lookAt(S.standX - 0.4, -11.6 + pull * 1.3, S.mode === 'land' ? STAND.z + 7 + pull : STAND.z + 11);
+  camera.lookAt(S.standX - 0.4, SEA_Y + 0.4 + pull * 1.3, S.mode === 'land' ? STAND.z + 7 + pull : STAND.z + 11);
   // 맞추면 순간 확대(bump) · 놓치면 살짝 기울기(tilt)
   const R = S.mode === 'fight' ? S.R : null;
   camera.rotateZ(R ? R.tilt * 0.035 : 0);

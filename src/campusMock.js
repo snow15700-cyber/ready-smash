@@ -5,7 +5,7 @@ import { addBox, canvasTex, seeded, std } from './arena-kit.js';
 import { buildMainHall } from './campusBuilding.js';
 import { closetShop, fameShop, gachaShop } from './campusShops.js';
 import { addLampGlow, makeDolphins, makeSea } from './campusFx.js';
-import { FOUNTAIN, KIM_SPOT, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS } from './campusLayout.js';
+import { DECK, FOUNTAIN, KIM_SPOT, SEA_Y, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS } from './campusLayout.js';
 import { buildPierArea } from './campusPier.js';
 import { bakery, board, clockTower, deck, foodTruck, fountain, photoZone, vending } from './campusProps.js';
 
@@ -93,25 +93,23 @@ export function buildCampus({ game = false } = {}) {
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(70, 70), new THREE.MeshLambertMaterial({ color: 0x86b96a }));
   ground.rotation.x = -Math.PI / 2; ground.position.set(-1, -0.02, 4); ground.receiveShadow = true; ground.name = 'grass'; ground.userData.noBake = true; root.add(ground); // 눈이 오면 하얗게 (plazaSky)
   // 땅 둘레 숲 언덕 (사진 3: 숲 언덕 위 건물)
-  const slope = std(0x4e7d3e, { flatShading: true });
+  const slope = std(0x4e7d3e, { flatShading: true }), seaRock = std(0x6f7468, { roughness: 0.95, flatShading: true });
   for (let i = 0; i < 40; i++) {
     const t = i / 40, a = t * Math.PI * 2;
     const x = Math.cos(a) * 36 - 1, z = Math.sin(a) * 36 + 4;
-    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(4 + rnd() * 2, 0), slope); b.position.set(x, -5 + rnd(), z); b.scale.y = 0.8; // 전망대 데크 위로 안 솟게 낮춤
+    // 바다 쪽(남쪽)은 바다가 높아져서(낚시 12장) 물 위로 드러나는 부분이 바위 절벽처럼 보이게
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(4 + rnd() * 2, 0), z > 20 ? seaRock : slope); b.position.set(x, -5 + rnd(), z); b.scale.y = 0.8; // 전망대 데크 위로 안 솟게 낮춤
     if (!(x > 2 && x < 22 && z > 25)) root.add(b); // 전망대 아래는 절벽 벽·낚시터 계단 (campusPier.js)
   }
   // 바다 (남·동쪽 아래)
-  const sea = makeSea(-12); root.add(sea.group); anim.push(sea.update); // 물결 (src/campusFx.js)
-  const dolphins = makeDolphins(-12); root.add(dolphins.group); anim.push(dolphins.update); // 가끔 점프하는 돌고래
-  // 자갈 해변 띠 (남쪽 아래, 사진 3)
-  const beach = new THREE.Mesh(new THREE.PlaneGeometry(160, 10), new THREE.MeshLambertMaterial({ color: 0x9a948a }));
-  beach.rotation.x = -Math.PI / 2; beach.position.set(0, -11.9, 48); root.add(beach);
+  const sea = makeSea(SEA_Y); root.add(sea.group); anim.push(sea.update); // 물결 (src/campusFx.js). 낚시 12장: −12 → −6
+  const dolphins = makeDolphins(SEA_Y); root.add(dolphins.group); anim.push(dolphins.update); // 가끔 점프하는 돌고래
   // 북·서쪽 산 (낮은 산이 겹겹이)
   for (let i = 0; i < 14; i++) {
     const a = Math.PI * (0.95 + (i / 13) * 0.75); // 서쪽 → 북쪽
     const r = 90 + rnd() * 40;
     const m = new THREE.Mesh(new THREE.SphereGeometry(26 + rnd() * 18, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: i % 2 ? 0x5d8a57 : 0x6f9a66, flatShading: true }));
-    m.position.set(Math.cos(a) * r, -12, Math.sin(a) * r); m.scale.y = 0.55 + rnd() * 0.3; root.add(m);
+    m.position.set(Math.cos(a) * r, SEA_Y - 6, Math.sin(a) * r); m.scale.y = 0.55 + rnd() * 0.3; root.add(m);
   }
 
   // 광장 바닥 (회색 돌판)
@@ -160,7 +158,7 @@ export function buildCampus({ game = false } = {}) {
   place(photoZone(), SPOTS.photo);
   place(foodTruck(), SPOTS.truck);
   place(vending(), SPOTS.vending);
-  place(deck(), SPOTS.deck);
+  place(deck(DECK.z1 - DECK.z0), SPOTS.deck); // 광장 끝 ~ 절벽 끝 (낚시 12장)
   root.add(buildPierArea()); // 전망대 옆 돌계단 · 바로 밑 바위 턱 · 나무 선착장 (낚시터)
   // 가장자리 가로등·벤치·소나무
   for (const sx of [-1, 1]) {

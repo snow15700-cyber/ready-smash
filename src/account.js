@@ -280,9 +280,9 @@ export async function getRanking(kind) {
 
 /* ───────── 낚시 (supabase/28_fishing.sql, docs/dev/fishing.md 9장) ───────── */
 // 던지기: 서버가 무엇이 걸릴지 정함. 결과 cast = { id, kind, item, grade, cm, dup, near } 또는 null(손님·실패)
-export async function fishCast(x, aim, power, rain) {
+export async function fishCast(x, aim, power, rain, z) {
   if (!account.loggedIn) return null;
-  const r = await call('pingpong_fish_cast', { p_token: token(), p_x: x, p_aim: aim, p_power: power, p_rain: !!rain });
+  const r = await call('pingpong_fish_cast', { p_token: token(), p_x: x, p_z: z ?? null, p_aim: aim, p_power: power, p_rain: !!rain });
   return r.status === 'ok' ? r.cast : null;
 }
 // 잡았다/놓쳤다. 결과 { status, caught, coins, bonus, capped, first, rec, best, big, pieces, new: [{id, coins}], player }
@@ -309,7 +309,7 @@ const FISH_ACH = ['fish10', 'fish_all', 'junk_all', 'fish_bread', 'fish_big', 'f
 function localFish(fn, a, p, db, now) {
   if (fn === 'pingpong_fish_cast') {
     const sx = Math.min(FR.STAND.xMax, Math.max(FR.STAND.xMin, +a.p_x || 13));
-    const pt = FR.landingPoint(sx, +a.p_aim || 0, a.p_power ?? 0.5);
+    const pt = FR.landingPoint(sx, +a.p_aim || 0, a.p_power ?? 0.5, a.p_z == null ? undefined : +a.p_z);
     const near = FR.bubbleNear(pt.x, pt.z, FR.activeBubbles(nowMs() / 1000, 'normal'));
     const owned = (p.owned || []).filter((id) => FR.LEGEND_PADDLES.some(([x]) => x === id));
     const c = FR.rollCatch(near, { owned, cond: { break: !!breakAt(nowMs()), night: FR.isNight(nowMs()), rain: !!a.p_rain } });

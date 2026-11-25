@@ -3,13 +3,14 @@
 // ⚠️ 여기를 바꾸면 28_fishing.sql(또는 새 SQL)과 account.js의 로컬 가짜 서버도 같이.
 
 // ── 선착장에서 던지기 (자유 던지기: 부채꼴 ±40°, 6~18m)
-export const STAND = { z: 65.6, xMin: 8.4, xMax: 17.6 }; // 서는 곳 (끝 판 앞쪽)
+export const STAND = { z: 44.6, xMin: 4.8, xMax: 20.8, zBack: 39.6 }; // 서는 곳: 전망대 밑 넓은 판(30_fish_pier.sql). 앞 끝 z · 판 위 어디서든(zBack~z)
 export const CAST_MIN = 6, CAST_MAX = 18, CAST_ANG = 0.7;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 export const castDist = (power) => CAST_MIN + (CAST_MAX - CAST_MIN) * clamp(power, 0, 1);
-export function landingPoint(standX, aim, power) {
+export const standZ = (z) => clamp(z ?? STAND.z, STAND.zBack, STAND.z);
+export function landingPoint(standX, aim, power, z = STAND.z) {
   const d = castDist(power), a = -clamp(aim, -1, 1) * CAST_ANG;
-  return { x: standX + Math.sin(a) * d, z: STAND.z + Math.cos(a) * d };
+  return { x: standX + Math.sin(a) * d, z: standZ(z) + Math.cos(a) * d };
 }
 
 // ── 기포 시간표: 시간을 칸(210초)으로 나누고 칸 번호를 씨앗으로 1~2개 (모든 PC·서버가 같은 결과)

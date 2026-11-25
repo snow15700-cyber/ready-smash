@@ -3,7 +3,8 @@
 import * as THREE from 'three';
 import { addBox, canvasTex, std } from '../../arena-kit.js';
 
-export const SEA_Y = -12;
+export { SEA_Y } from '../../campusLayout.js'; // 광장 바다 높이 (낚시 12장: −6)
+import { SEA_Y } from '../../campusLayout.js';
 // 선착장: 해변(z 48)에서 바다 쪽으로 다리 약 14m → 끝 넓은 판 (사람 4~5명)
 export { PIER } from '../../campusLayout.js'; // 자리는 광장 배치 파일 한곳에서
 import { STAND } from './rules.js';
@@ -23,7 +24,6 @@ export function seaHeight(x, z, t) {
 const wood = std(0xa8794a, { roughness: 0.85 }), woodDark = std(0x6e4a2b, { roughness: 0.9 }), rope = std(0xd9c9a0);
 
 // 선착장·계단은 이제 광장 장면(buildCampus → src/campusPier.js)에 들어 있음 — 시안에서 따로 안 더함
-export function buildPier() { return new THREE.Group(); }
 
 // ── 낚싯대: 마디 8개가 이어져 있어서 끝으로 갈수록 휜다
 export function makeRod() {

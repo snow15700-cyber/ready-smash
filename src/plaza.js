@@ -102,6 +102,18 @@ function cornersOf(o, pad) {
 export function planWalk(from, to) {
   const P = PLAZA;
   const end = [clampN(to[0], P.minX, P.maxX), clampN(to[1], P.minZ, P.maxZ)];
+  // 높이가 다른 곳(광장 ↔ 전망대 밑 낚시 판)은 돌계단으로 (fishing.md 12장): 계단 입구 → 계단 → 그다음 평소처럼
+  const S = P.stairs;
+  if (S) {
+    const onSt = (p) => p[0] > S.x0 && p[1] > S.z0 - 0.4 && p[1] < S.z1 + 0.4, low = (p) => (P.heightAt(p[0], p[1]) < -0.05 || p[1] > S.z0) && !onSt(p);
+    const fromSt = onSt(from), endLow = low(end) || (onSt(end) && P.heightAt(end[0], end[1]) < P.heightAt(from[0], from[1]));
+    if (fromSt && !onSt(end)) { const g = endLow ? S.bottom : S.top; return [g, ...planWalk(g, end)]; }
+    if (!fromSt && !onSt(end) && low(from) !== low(end)) {
+      const [a, b] = low(from) ? [S.bottom, S.top] : [S.top, S.bottom];
+      return [...planWalk(from, a), b, ...planWalk(b, end)];
+    }
+    if (!fromSt && onSt(end)) { const g = low(from) ? S.bottom : S.top; return [...planWalk(from, g), end]; }
+  }
   if (clear(from, end)) return [end];
   const pad = 0.62; // 모서리에서 조금 떨어져서 (clipWalk 여유 0.35보다 넉넉히)
   const corners = [];
@@ -634,17 +646,20 @@ export function createPlazaView(world, handlers) {
       const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw); // 카메라가 보는 방향
       const lookY = CAM.lookY + (PLAZA.heightAt?.(me.disp[0], me.disp[1]) || 0);
       const look = tmpV.set(me.disp[0] + fx * 1.2, lookY, me.disp[1] + fz * 1.2);
-      const h = Math.cos(cam.pitch) * cam.dist;
+      // 낚시 판·계단처럼 광장보다 낮은 곳: 카메라가 절벽·데크 난간 뒤로 숨지 않게 위로 들어 올림 (fishing.md 12장)
+      let pitch = cam.pitch;
+      if (lookY < CAM.lookY - 0.5) pitch = Math.max(pitch, Math.asin(Math.min(0.95, (CAM.lookY + 0.9 - lookY) / cam.dist)));
+      const h = Math.cos(pitch) * cam.dist;
       let px = me.disp[0] - fx * h, pz = me.disp[1] - fz * h;
-      let py = lookY + Math.sin(cam.pitch) * cam.dist;
-      if (camClamp) { const k = camClamp(me.disp, [px, pz]); px = me.disp[0] + (px - me.disp[0]) * k; pz = me.disp[1] + (pz - me.disp[1]) * k; py = CAM.lookY + (py - CAM.lookY) * Math.max(0.8, k); }
+      let py = lookY + Math.sin(pitch) * cam.dist;
+      if (camClamp) { const k = camClamp(me.disp, [px, pz]); px = me.disp[0] + (px - me.disp[0]) * k; pz = me.disp[1] + (pz - me.disp[1]) * k; py = lookY + (py - lookY) * Math.max(0.8, k); }
       // 카메라가 건물(가게·본관 기둥·유리 막대·빵집 등) 안으로 들어가지 않게: 들어가면 내 쪽으로 당긴다
       { let k = 1;
         const inCam = (x, y, z) => camObs.some((o) => (y >= (o.y0 ?? -1) && y <= (o.y1 ?? 9)) && insideOb(o, [x, z], 0.4));
         if (!camObs.some((o) => insideOb(o, me.disp, 0.4) && (o.y0 ?? -1) < 1.5)) {
-          for (let i = 0; i < 14 && inCam(me.disp[0] + (px - me.disp[0]) * k, CAM.lookY + (py - CAM.lookY) * k, me.disp[1] + (pz - me.disp[1]) * k); i++) k *= 0.82;
+          for (let i = 0; i < 14 && inCam(me.disp[0] + (px - me.disp[0]) * k, lookY + (py - lookY) * k, me.disp[1] + (pz - me.disp[1]) * k); i++) k *= 0.82;
         }
-        px = me.disp[0] + (px - me.disp[0]) * k; pz = me.disp[1] + (pz - me.disp[1]) * k; py = CAM.lookY + (py - CAM.lookY) * Math.max(0.8, k); }
+        px = me.disp[0] + (px - me.disp[0]) * k; pz = me.disp[1] + (pz - me.disp[1]) * k; py = lookY + (py - lookY) * Math.max(0.8, k); }
       const k = cam.init ? 1 - Math.exp(-dt * 8) : 1;
       cam.pos.lerp(tmpV.clone().set(px, py, pz), cam.init ? k : 1);
       if (!cam.init) cam.pos.set(px, py, pz);

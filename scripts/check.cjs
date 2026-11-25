@@ -203,7 +203,7 @@ async function sqlCheck() {
       must(srvB[i] === js, `기포 자리가 서버와 화면이 달라요: ${t} 서버 ${srvB[i]} 화면 ${js}`);
     });
     must(seen > 10, '기포가 거의 안 나와요: ' + seen);
-    const cast = () => json(`public.pingpong_fish_cast(${tk}, 13, 0, 0.5, false)`);
+    const cast = () => json(`public.pingpong_fish_cast(${tk}, 13, 44.6, 0, 0.5, false)`);
     const c1 = cast();
     must(c1.status === 'ok' && c1.cast?.id && ['fish', 'junk', 'paddle'].includes(c1.cast.kind), '던지기 실패: ' + JSON.stringify(c1));
     must(json(`public.pingpong_fish_finish(${tk}, '${c1.cast.id}', true, true)`).status === 'too_fast', '던지자마자 잡았다고 해도 인정됐어요');
@@ -251,7 +251,7 @@ async function sqlCheck() {
     us.forEach((u, i) => must(Math.abs(+srvCm[i] - R.cmOf(u)) < 0.002, `물고기 크기 식이 서버와 화면이 달라요: u=${u} 서버 ${srvCm[i]} 화면 ${R.cmOf(u)}`));
     must(R.cmOf(0.999) > 150 && R.cmOf(0.5) < 50, '긴 꼬리 크기가 이상해요');
     // 실제 던지기 200번: 잡히는 것이 목록 안 · 크기 20~100
-    const many = JSON.parse(psql(DB, `set role anon; select json_agg(public.pingpong_fish_cast(${tk}, 13, 0, 0.5, true)->'cast')::text from generate_series(1, 200);`));
+    const many = JSON.parse(psql(DB, `set role anon; select json_agg(public.pingpong_fish_cast(${tk}, 13, null, 0, 0.5, true)->'cast')::text from generate_series(1, 200);`));
     const kinds = new Set(many.map((c) => c.kind));
     must(many.every((c) => (c.kind === 'paddle' ? R.LEGEND_PADDLES.some(([id]) => id === c.item) : R.CATCH[c.item]?.kind === c.kind && (c.kind === 'junk' || (c.cm >= 20 && c.cm <= 999)))) && kinds.has('fish'),
       '던지기 결과가 목록 밖이에요: ' + JSON.stringify(many.filter((c) => !R.CATCH[c.item]).slice(0, 3)));
@@ -544,6 +544,15 @@ async function browserChecks() {
       // (광장 20장: 꾸미기 옷가게는 분수 북쪽 (0, −7), 앞면 z 약 −3.95 — 분수를 돌아서 가도 마지막 도착점은 가게 앞)
       const clip = await b.evaluate(() => { const pz = window.__smash.plaza.pz; window.__smash.plaza.walkTo([0, -9]); const end = pz.route.length ? pz.route[pz.route.length - 1] : pz.myW.to; return end[1]; });
       must(clip > -4.0, '가게 건물 안으로 걸어 들어가요: z=' + clip);
+      // 낚시터(fishing.md 12장): 광장 ↔ 전망대 밑 판은 돌계단으로만, 바닥 높이 · 데크에서 판으로 뛰어내리기·바다로 걷기 막힘
+      const pier = await b.evaluate(async () => {
+        const m = await import('/src/plaza.js'), { PLAZA } = await import('/src/arena-plaza.js'), h = (p) => +PLAZA.heightAt(p[0], p[1]).toFixed(2);
+        const down = m.planWalk([0, 10], [8, 43]), up = m.planWalk([12, 44], [-5, 10]);
+        return { down, up, hDeck: h([11, 36]), hMid: h([20, 41]), hPier: h([8, 43]), jump: m.clipWalk([11, 37], [11, 43])[1], sea: m.planWalk([12, 44], [12, 60]).at(-1)[1], on: PLAZA.onPier(8, 43) && !PLAZA.onPier(11, 36) };
+      });
+      const viaSt = (r) => r.some((p) => p[0] > 18.3 && p[1] > 43) && r.some((p) => p[0] > 18.3 && p[1] < 39);
+      must(viaSt(pier.down) && viaSt(pier.up) && pier.down.at(-1)[1] === 43 && pier.up.at(-1)[0] === -5, '낚시터 계단 길이 이상해요: ' + JSON.stringify(pier));
+      must(pier.hDeck === 0.25 && pier.hMid < -1 && pier.hMid > -4 && pier.hPier === -4.35 && pier.jump < 39 && pier.sea < 45.6 && pier.on, '낚시터 높이·막힘이 이상해요: ' + JSON.stringify(pier));
       // 카메라가 건물 바로 앞(클릭 상자 안)에 있어도 바닥을 누르면 바닥, 옆 가게를 누르면 그 가게 (plaza.md 클릭)
       const camPick = await b.evaluate(() => {
         const { world, plaza } = window.__smash, v = plaza.view, cam = world.camera;
