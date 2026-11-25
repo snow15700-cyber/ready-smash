@@ -477,6 +477,18 @@ async function browserChecks() {
       // 건물 안으로는 못 들어감 (가게 앞에서 멈춤)
       const clip = await b.evaluate(() => { window.__smash.plaza.walkTo([0, -9]); return window.__smash.plaza.pz.myW.to[1]; });
       must(clip > -6.5, '가게 건물 안으로 걸어 들어가요: z=' + clip);
+      // 카메라가 건물 바로 앞(클릭 상자 안)에 있어도 바닥을 누르면 바닥, 옆 가게를 누르면 그 가게 (plaza.md 클릭)
+      const camPick = await b.evaluate(() => {
+        const { world, plaza } = window.__smash, v = plaza.view, cam = world.camera;
+        const p0 = cam.position.clone(), q0 = cam.quaternion.clone();
+        cam.position.set(0, 2.2, -6.1); cam.lookAt(0, 0, 2); cam.updateMatrixWorld();
+        const ground = v.pick(...world.toScreen(0.5, 0, -2));
+        cam.lookAt(5.6, 1.5, -8); cam.updateMatrixWorld();
+        const shop = v.pick(...world.toScreen(5.6, 1.5, -8));
+        cam.position.copy(p0); cam.quaternion.copy(q0); cam.updateMatrixWorld();
+        return [ground && Object.keys(ground)[0], shop?.shop?.id];
+      });
+      must(camPick[0] === 'ground' && camPick[1] === 'rank', '카메라가 건물 앞에 있을 때 클릭이 이상해요: ' + camPick.join(', '));
       // 정해진 채팅: 목록 번호만, 2초에 한 번
       await b.evaluate(() => { window.__smash.plaza.say('8'); window.__smash.plaza.say('6'); });
       await waitFor(a, (id) => window.__smash.plaza.view.figs.get(id)?.bub.visible, bId, 10000, '상대 머리 위 말풍선');

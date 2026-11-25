@@ -276,6 +276,8 @@ export function createPlazaView(world, handlers) {
     if (frame.on) ray.ray.applyMatrix4(frame.inv); // 경기장 거품 안: 세상 좌표 → 광장 좌표
     let best = null, bd = Infinity;
     for (const b of boxes) {
+      // 카메라가 건물 상자 안(건물 앞 바로 앞)에 있으면 그 건물은 건너뜀 — 안 그러면 어디를 눌러도 건물이 눌림
+      if (b.box.containsPoint(ray.ray.origin)) continue;
       if (ray.ray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = { shop: b.s }; } }
     }
     for (const b of tableBoxes) {
