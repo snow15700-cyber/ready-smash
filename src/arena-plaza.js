@@ -96,6 +96,36 @@ export function buildPlaza() {
   // 탁구대 4대 (사람 대결용 3대 + 김제빵 탁구대). 움직이지 않으니 합친다. 이름표·자리 칸·상태 표지판·김제빵은 src/plaza.js
   for (const t of PLAZA.tables) root.add(plazaTable(t, 0x2a5db0));
   root.add(plazaTable(PLAZA.kim, 0x2f8a4e));
+  // 재질 줄이기 (느린 PC): 재질이 조금씩 다르면(거칠기·금속 정도) 합치기(bakeArena)가 따로 묶어 그리기가 늘어난다.
+  //  · 무늬 없는 무광 재질 → 가벼운 Lambert (색은 합칠 때 꼭짓점 색으로 옮겨지므로 색이 달라도 한 덩어리)
+  //  · 반짝이는 재질(금·알루미늄·유리 등) → 거칠기·금속 정도를 몇 단계로 맞춤
+  const base = THREE.Material.prototype.onBeforeCompile;
+  const canon = (mt) => {
+    if (!mt?.isMeshStandardMaterial || mt.map || mt.emissiveMap || mt.transparent || mt.userData.glow || mt.onBeforeCompile !== base) return mt;
+    if (mt.metalness < 0.3 && mt.roughness >= 0.5) {
+      const l = new THREE.MeshLambertMaterial({ color: mt.color, flatShading: mt.flatShading, side: mt.side });
+      if (mt.emissive && mt.emissive.getHex()) { l.emissive.copy(mt.emissive); l.emissiveIntensity = mt.emissiveIntensity; }
+      return l;
+    }
+    mt.roughness = mt.roughness < 0.2 ? 0.1 : mt.roughness < 0.45 ? 0.35 : 0.6;
+    mt.metalness = mt.metalness < 0.2 ? 0 : mt.metalness < 0.5 ? 0.4 : 0.65;
+    return mt;
+  };
+  const seen = new Map();
+  root.traverse((o) => {
+    if (!o.isMesh || o.isInstancedMesh) return;
+    const one = (mt) => { if (!seen.has(mt)) seen.set(mt, canon(mt)); return seen.get(mt); };
+    o.material = Array.isArray(o.material) ? o.material.map(one) : one(o.material);
+  });
+  // 그림자는 큰 것만 (작은 부품 — 전구·캡슐·손잡이·빵 등 — 까지 그림자를 그리면 그리기가 두 배로 늘어 느린 PC가 힘듦)
+  const sph = new THREE.Sphere(), sc = new THREE.Vector3();
+  root.updateMatrixWorld(true);
+  root.traverse((o) => {
+    if (!o.isMesh || !o.castShadow) return;
+    o.geometry.boundingSphere || o.geometry.computeBoundingSphere();
+    o.getWorldScale(sc);
+    if (o.geometry.boundingSphere.radius * Math.max(sc.x, sc.y, sc.z) < 0.9) o.castShadow = false;
+  });
   // 무료 소품 모델 자리 (모델을 다 받으면 InstancedMesh로 채움 — 합치기와 상관없이 그리기 몇 번)
   const props = new THREE.Group(); props.name = 'props'; root.add(props);
   const a = {

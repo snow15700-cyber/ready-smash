@@ -22,8 +22,7 @@ export function makeSea(y = -12) {
       vec3 seaH(vec2 p) {
         vec3 h = wave(p, normalize(vec2(0.3, 1.0)), 26.0, 0.55, 1.1)
                + wave(p, normalize(vec2(-0.6, 0.8)), 15.0, 0.32, 1.5)
-               + wave(p, normalize(vec2(0.9, 0.4)), 9.0, 0.18, 2.1)
-               + wave(p, normalize(vec2(-0.2, 1.0)), 5.0, 0.07, 2.9);
+               + wave(p, normalize(vec2(0.9, 0.4)), 11.0, 0.18, 2.1); // (파장 5m 물결은 칸이 굵어 뺌)
         float fade = 1.0 - smoothstep(180.0, 320.0, length(p)); // 아주 먼 곳은 판판하게
         return h * fade;
       }`;
@@ -35,8 +34,8 @@ export function makeSea(y = -12) {
       .replace('#include <common>', '#include <common>\nvarying float vCrest;')
       .replace('#include <color_fragment>', `#include <color_fragment>\n  diffuseColor.rgb = mix(diffuseColor.rgb * 0.85, vec3(0.8, 0.9, 0.98), smoothstep(0.75, 1.05, vCrest) * 0.35);\n  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 1.18, smoothstep(-0.6, 0.6, vCrest));`);
   };
-  // 가까운 곳은 촘촘하게(150×150칸, 4m), 먼 곳은 판판한 큰 판 하나
-  const near = new THREE.Mesh(new THREE.PlaneGeometry(600, 600, 150, 150), mat);
+  // 가까운 곳은 촘촘하게(110×110칸, 5.5m), 먼 곳은 판판한 큰 판 하나
+  const near = new THREE.Mesh(new THREE.PlaneGeometry(600, 600, 110, 110), mat);
   near.rotation.x = -Math.PI / 2; near.position.y = y;
   const far = new THREE.Mesh(new THREE.RingGeometry(290, 1200, 64, 1), new THREE.MeshStandardMaterial({ color: 0x2a78b0, roughness: 0.3, metalness: 0.15 }));
   far.rotation.x = -Math.PI / 2; far.position.y = y - 0.05;

@@ -166,9 +166,10 @@ function planter(g, x, z, potM, topiary = true) {
 // ── 캡슐
 export function capsule(p, r, col, x, y, z, rx = 0, rz = 0) {
   const c = new THREE.Group();
-  c.add(new THREE.Mesh(new THREE.SphereGeometry(r, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2), std(col, { roughness: 0.35 })));
-  c.add(new THREE.Mesh(new THREE.SphereGeometry(r, 14, 7, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), std(0xffffff, { roughness: 0.35 })));
-  const band = new THREE.Mesh(new THREE.TorusGeometry(r, r * 0.08, 6, 20), std(0xeeeeee)); band.rotation.x = Math.PI / 2; c.add(band);
+  // 가볍게(광장에 캡슐이 120개 넘게): 반구 10×4칸, 가운데 띠는 얇은 원기둥
+  c.add(new THREE.Mesh(new THREE.SphereGeometry(r, 10, 4, 0, Math.PI * 2, 0, Math.PI / 2), std(col, { roughness: 0.35 })));
+  c.add(new THREE.Mesh(new THREE.SphereGeometry(r, 10, 4, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), std(0xffffff, { roughness: 0.35 })));
+  c.add(new THREE.Mesh(new THREE.CylinderGeometry(r * 1.03, r * 1.03, r * 0.14, 10, 1, true), std(0xeeeeee)));
   c.position.set(x, y, z); c.rotation.set(rx, 0, rz); c.traverse((o) => { o.castShadow = true; }); p.add(c);
   return c;
 }
