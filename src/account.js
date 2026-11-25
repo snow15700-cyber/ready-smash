@@ -280,6 +280,16 @@ export async function getRanking(kind) {
 
 /* ───────── 낚시 (supabase/28_fishing.sql, docs/dev/fishing.md 9장) ───────── */
 // 던지기: 서버가 무엇이 걸릴지 정함. 결과 cast = { id, kind, item, grade, cm, dup, near } 또는 null(손님·실패)
+// 서버 시각 맞추기 (기포는 시각으로 정해서 모든 PC가 같게 — PC 시계가 틀려도): srvNow() = 서버 기준 지금(ms)
+let srvOff = 0, srvSynced = false;
+export const srvNow = () => Date.now() + srvOff;
+export async function syncServerClock() {
+  if (srvSynced || !ONLINE) return;
+  const t0 = Date.now(), r = await call('pingpong_now', {}), t1 = Date.now();
+  const ms = +(r?.ms ?? r);
+  if (!Number.isFinite(ms) || t1 - t0 > 3000) return; // 너무 늦은 답은 믿지 않음 (다음에 다시)
+  srvOff = Math.round(ms - (t0 + t1) / 2); srvSynced = true;
+}
 export async function fishCast(x, aim, power, rain, z) {
   if (!account.loggedIn) return null;
   const r = await call('pingpong_fish_cast', { p_token: token(), p_x: x, p_z: z ?? null, p_aim: aim, p_power: power, p_rain: !!rain });

@@ -112,3 +112,11 @@ begin
 end $$;;
 revoke all on function public.pingpong_fish_cast(text, float8, float8, float8, float8, boolean) from public;
 grant execute on function public.pingpong_fish_cast(text, float8, float8, float8, float8, boolean) to anon, authenticated;
+
+-- 서버 시각 (브라우저가 기포 시계를 서버에 맞춤 — account.js syncServerClock). 누구나 불러도 됨(시각만 알려 줌)
+create or replace function public.pingpong_now() returns json
+language sql stable security definer set search_path = public as $$
+  select json_build_object('ms', floor(extract(epoch from clock_timestamp()) * 1000));
+$$;
+revoke all on function public.pingpong_now() from public;
+grant execute on function public.pingpong_now() to anon, authenticated;

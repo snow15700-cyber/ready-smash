@@ -203,6 +203,9 @@ async function sqlCheck() {
       must(srvB[i] === js, `기포 자리가 서버와 화면이 달라요: ${t} 서버 ${srvB[i]} 화면 ${js}`);
     });
     must(seen > 10, '기포가 거의 안 나와요: ' + seen);
+    // 30: 서버 시각 (브라우저 기포 시계 맞추기) — anon으로 부를 수 있고 지금 시각
+    const srvMs = JSON.parse(psql(DB, `set role anon; select public.pingpong_now()::text;`)).ms;
+    must(Math.abs(srvMs - Date.now()) < 120000, '서버 시각(pingpong_now)이 이상해요: ' + srvMs);
     const cast = () => json(`public.pingpong_fish_cast(${tk}, 13, 44.6, 0, 0.5, false)`);
     const c1 = cast();
     must(c1.status === 'ok' && c1.cast?.id && ['fish', 'junk', 'paddle'].includes(c1.cast.kind), '던지기 실패: ' + JSON.stringify(c1));
@@ -553,6 +556,26 @@ async function browserChecks() {
       const viaSt = (r) => r.some((p) => p[0] > 18.3 && p[1] > 43) && r.some((p) => p[0] > 18.3 && p[1] < 39);
       must(viaSt(pier.down) && viaSt(pier.up) && pier.down.at(-1)[1] === 43 && pier.up.at(-1)[0] === -5, '낚시터 계단 길이 이상해요: ' + JSON.stringify(pier));
       must(pier.hDeck === 0.25 && pier.hMid < -1 && pier.hMid > -4 && pier.hPier === -4.35 && pier.jump < 39 && pier.sea < 45.6 && pier.on, '낚시터 높이·막힘이 이상해요: ' + JSON.stringify(pier));
+      // 광장 낚시 (fishing.md 12장): 판 위 '🎣 낚시하기' → 그 자리에서 낚시 · 다른 사람에게 찌가 보임 · 잡으면 말풍선 · 그만하기
+      const bHome = await b.evaluate(() => window.__smash.plaza.pz.myW.to.slice());
+      await b.evaluate(() => window.__smash.plaza.walkTo([9, 43.6]));
+      await waitFor(b, () => !document.querySelector('#fish-start').classList.contains('hidden'), null, 30000, '낚시 판에서 낚시하기 버튼');
+      await b.evaluate(() => document.querySelector('#fish-start').click());
+      await waitFor(b, () => window.__smash.fish.on && document.body.classList.contains('fishing-on'), null, 20000, '광장 낚시 시작');
+      must(await b.evaluate(() => { const S = window.__smash.fish.F.S; return Math.abs(S.standX - 9) < 0.3 && Math.abs(S.standZ - 43.6) < 0.3; }), '누른 자리에서 낚시가 시작되지 않아요');
+      await b.evaluate(() => window.__smash.fish.F.dbg.cast(0, 0.5));
+      await waitFor(a, (id) => { const o = window.__smash.fish.others.get(id); return o && o.bob.visible; }, bId, 20000, '다른 사람 화면에 낚시 찌');
+      await b.bringToFront(); // 잡기 연출은 그려야 흘러감 (헤드리스는 뒤 탭을 거의 안 그림)
+      await waitFor(b, () => window.__smash.fish.F.S.mode === 'wait' && window.__smash.fish.F.dbg.landNow(), null, 10000, '바로 잡기');
+      await waitFor(b, () => window.__smash.fish.F.S.mode === 'result', null, 30000, '잡기 연출 끝');
+      await waitFor(a, (id) => performance.now() / 1000 - (window.__smash.plaza.view.figs.get(id)?.bubT ?? -99) < 30, bId, 20000, '잡으면 다른 사람 화면에 말풍선');
+      await b.evaluate(() => document.querySelector('#fish-stop').click());
+      await waitFor(a, (id) => !window.__smash.fish.others.has(id), bId, 15000, '그만하면 다른 사람 화면에서 낚싯대 사라짐');
+      must(await b.evaluate(() => !window.__smash.fish.on && !document.body.classList.contains('fishing-on')), '그만하기가 안 돼요');
+      await b.evaluate((pt) => window.__smash.plaza.walkTo(pt), bHome); // 원래 자리로 (뒤 점검의 클릭을 가리지 않게)
+      await waitFor(b, (pt) => Math.hypot(window.__smash.plaza.pz.myW.to[0] - pt[0], window.__smash.plaza.pz.myW.to[1] - pt[1]) < 0.3 && !window.__smash.plaza.pz.route.length, bHome, 30000, '원래 자리로');
+      await b.waitForTimeout(4000); // 마지막 구간을 다 걸을 때까지
+      await a.bringToFront();
       // 카메라가 건물 바로 앞(클릭 상자 안)에 있어도 바닥을 누르면 바닥, 옆 가게를 누르면 그 가게 (plaza.md 클릭)
       const camPick = await b.evaluate(() => {
         const { world, plaza } = window.__smash, v = plaza.view, cam = world.camera;

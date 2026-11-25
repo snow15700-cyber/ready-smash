@@ -1,5 +1,5 @@
 import { ic } from '../icons.js';
-import { account, getFishRank, getRanking } from '../account.js';
+import { account, fishDex, getFishRank, getRanking } from '../account.js';
 import { CATCH } from '../games/fishing/rules.js';
 import { playUI } from '../audio.js';
 import { closeWindow, show } from './screen.js';
@@ -20,7 +20,8 @@ async function showRank(kind = rankKind) {
   for (const k of ['wins', 'rally', 'fish']) $(`rank-tab-${k}`).classList.toggle('on', k === kind);
   $('rank-desc').textContent = RANK[kind].desc;
   if (kind === 'fish') { // 이번 주 / 역대 고르기
-    $('rank-desc').innerHTML = ['week', 'all'].map((k) => `<button class="rank-sub${k === fishKind ? ' on' : ''}" data-fk="${k}">${k === 'week' ? '이번 주 월척 (월요일마다 새로)' : '역대 월척'}</button>`).join(' ');
+    $('rank-desc').innerHTML = ['week', 'all'].map((k) => `<button class="rank-sub${k === fishKind ? ' on' : ''}" data-fk="${k}">${k === 'week' ? '이번 주 월척 (월요일마다 새로)' : '역대 월척'}</button>`).join(' ')
+      + ' <button class="rank-sub" data-dex="1">📖 내 도감</button>'; // 도감도 명예의 전당에서 (낚시 12장 ④)
   }
   const list = $('rank-list'), podium = $('rank-podium'), meBar = $('rank-me');
   podium.innerHTML = '';
@@ -69,5 +70,13 @@ $('btn-rank').addEventListener('click', () => { playUI('click'); showRank('wins'
 $('rank-tab-wins').addEventListener('click', () => { playUI('click'); showRank('wins'); });
 $('rank-tab-rally').addEventListener('click', () => { playUI('click'); showRank('rally'); });
 $('rank-tab-fish').addEventListener('click', () => { playUI('click'); showRank('fish'); });
-$('rank-desc').addEventListener('click', (e) => { const b = e.target.closest('[data-fk]'); if (!b) return; playUI('click'); fishKind = b.dataset.fk; showRank('fish'); });
+$('rank-desc').addEventListener('click', (e) => {
+  if (e.target.closest('[data-dex]')) { playUI('click'); openFishDex(); return; }
+  const b = e.target.closest('[data-fk]'); if (!b) return; playUI('click'); fishKind = b.dataset.fk; showRank('fish'); });
+// 📖 낚시 도감 (서버 기록 + 어종별 기록 1명). 손님이면 이 브라우저 기록
+async function openFishDex() {
+  const dex = await import('../games/fishing/dex.js');
+  if (account.loggedIn) { const d = await fishDex(); if (d) dex.setServerDex(d); }
+  dex.openDex();
+}
 $('btn-rank-back').addEventListener('click', () => { playUI('click'); closeWindow(); });

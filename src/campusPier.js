@@ -46,7 +46,8 @@ export function buildPierArea() {
   addBox(g, 0.04, 0.04, P.z1 - P.z0 - 0.4, rope, P.x0 + 0.08, top + 1.0, (P.z0 + P.z1) / 2 + 0.2);
   addBox(g, P.x1 - P.x0, 0.12, 0.14, woodDark, (P.x0 + P.x1) / 2, top + 0.06, P.z1 - 0.07);
   // 판 위 소품: 계류 말뚝 2 · 가로등(밤에 빛남) · 절벽에 건 구명 튜브 · 🎣 낚시터 표지판
-  for (const bx of [P.x0 + 2.2, (P.x0 + S.x0) / 2 + 3]) { cyl(0.18, 0.22, 0.45, metal, bx, top + 0.22, P.z1 - 0.55, 12); cyl(0.26, 0.26, 0.08, metal, bx, top + 0.48, P.z1 - 0.55, 12); }
+  // 계류 말뚝: 앞 양 끝 (서서 던지는 자리를 가리지 않게)
+  for (const bx of [P.x0 + 0.45, P.x1 - 0.45]) { cyl(0.18, 0.22, 0.45, metal, bx, top + 0.22, P.z1 - 0.55, 12); cyl(0.26, 0.26, 0.08, metal, bx, top + 0.48, P.z1 - 0.55, 12); }
   const lampX = P.x0 + 0.6, lampZ = P.z0 + 0.6;
   cyl(0.06, 0.08, 3.2, metal, lampX, top + 1.6, lampZ, 8);
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), new THREE.MeshStandardMaterial({ color: 0xfff4d2, emissive: 0xffe2a0, emissiveIntensity: 0.6 }));

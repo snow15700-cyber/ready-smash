@@ -83,12 +83,16 @@ const myPid = () => (account.loggedIn ? account.player?.id ?? null : null);
 const inAI = () => game?.mode === 'ai';
 const myInfo = () => ({ id: myId, nick: myNick(), title: myTitle(), titleX: myNemesis(), look: myEquip(), at: pz.at, mob: IS_MOBILE, kim: inAI() });
 // 자주 바뀌는 것은 메시지로: 걷기·탁구대 자리·준비·경기 채널 코드·연승·선수 번호
-const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid(), kc: pz.kim });
+const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid(), kc: pz.kim, fi: fishHooks.state?.() ?? null });
+// 낚시 (src/ui/fishing.js, fishing.md 12장)가 끼어드는 곳 — fishing.js가 채운다 (서로 불러오지 않게)
+//   on() 낚시 중인지 · state() 내 상태에 실을 낚시 정보 · frame(now, 내 자리) · hidden() 광장이 안 보임 · onMsg(m, 사람) · onSay(사람, 글)
+export const fishHooks = {};
+const cleanFi = (v) => (v && typeof v === 'object' ? { b: Array.isArray(v.b) && v.b.length === 2 && v.b.every(fin) && Math.abs(v.b[0]) < 80 && Math.abs(v.b[1]) < 120 ? [v.b[0], v.b[1]] : null } : null);
 const tagOf = (nick, rdy) => (rdy ? `${nick} ✅` : nick);
 // 꾸미기 창에서 입어 보는 중이면 그 모습 (내 화면에서만, 다른 사람에겐 장착한 것)
 const myLook = () => (curScreen === 'dress' && preview ? preview.look : myEquip());
 const myFig = () => ({ id: myId, nick: tagOf(myNick(), pz.seat && pz.rdy), title: titleText(myTitle(), myNemesis()), look: myLook(), w: pz.myW, me: true, face: pz.seat ? faceOf(pz.seat) : pz.face });
-const figOf = (p) => ({ ...p, nick: tagOf(p.nick, p.seat && p.rdy), face: p.seat ? faceOf(p.seat) : null });
+const figOf = (p) => ({ ...p, nick: tagOf(p.nick, p.seat && p.rdy), face: p.seat ? faceOf(p.seat) : p.fi ? Math.PI : null }); // 낚시 중이면 바다(+z) 쪽을 봄
 
 // 내 상태 보내기 (걷기·자리·준비가 바뀔 때만). 너무 잦으면 마지막 것만 조금 뒤에
 function sendInfo() {
@@ -179,7 +183,7 @@ function rebuild() {
       w: m.id === myId ? null : cleanWalk(m.w, now),
       seat: mob ? null : cleanSeat(m.seat), rdy: !!m.rdy, code: typeof m.code === 'string' && /^[A-Z0-9]{4}$/.test(m.code) ? m.code : null,
       pid: (typeof m.pid === 'string' && m.pid.length <= 64) || Number.isInteger(m.pid) ? m.pid : null,
-      kim: m0.kim === true, called: cleanKim(m.kc),
+      kim: m0.kim === true, called: cleanKim(m.kc), fi: cleanFi(m.fi),
     });
   }
   // 40명까지: 먼저 들어온 순서 (들어온 시각 → id 순, 모든 PC가 같은 규칙)
@@ -206,6 +210,7 @@ function onMsg(link, m) {
   if (m.k === 'st') { onState(m); return; }
   if (m.k === 'call') { onCall(m); return; }
   if (m.k === 'inv') { onInvite(m); return; }
+  if (m.k === 'fish') { if (typeof m.id === 'string' && pz.people.has(m.id)) fishHooks.onMsg?.(m, pz.people.get(m.id)); return; }
   if (m.k !== 'say' || typeof m.id !== 'string') return;
   const c = String(m.c);
   if (!Object.hasOwn(PHRASES, c) || !pz.people.has(m.id)) return; // 목록에 있는 문구·광장에 있는 사람만
@@ -213,6 +218,7 @@ function onMsg(link, m) {
   if (now - (pz.lastSay.get(m.id) ?? -9) < SAY_GAP * 0.9) return; // 너무 자주 오면 무시
   pz.lastSay.set(m.id, now);
   view.say(m.id, PHRASES[c]);
+  fishHooks.onSay?.(pz.people.get(m.id), PHRASES[c]);
 }
 
 // ───── 걷기 ─────
@@ -729,7 +735,7 @@ export const WIN_CAM = {
 };
 const win = { scr: '', u: [0, 1], yaw0: null, look: '' };
 function windowFrame(p) {
-  view.setInput(curScreen === 'lobby');
+  view.setInput(curScreen === 'lobby' && !fishHooks.on?.());
   const scr = curScreen === 'dress' || curScreen === 'rank' ? curScreen : '';
   if (scr !== win.scr) {
     if (scr === 'dress') {
@@ -743,7 +749,7 @@ function windowFrame(p) {
     view.put(myFig());
   }
   const login = curScreen === 'login' || curScreen === ''; // '' = 자동 로그인 기다리는 중 (로그인 화면과 같은 카메라)
-  view.setMeHidden(login);
+  view.setMeHidden(login || !!fishHooks.on?.()); // 낚시 중엔 낚시 캐릭터(낚싯대 든)가 대신 서 있음
   if (gm) view.setFocus(gachaCam(performance.now() / 1000));
   else if (login) {
     const L = WIN_CAM.login, a = L.base + Math.sin(performance.now() / 1000 * L.speed) * L.sway;
@@ -811,7 +817,7 @@ export function plazaFrame(now) {
       closePhrases(); // 로비 캐릭터는 로비·경기 화면이 다시 켠다
     }
   }
-  if (!shown) { bubbleStop(); if (!arenaPreview()) view.setInput(true); return false; }
+  if (!shown) { fishHooks.hidden?.(); bubbleStop(); if (!arenaPreview()) view.setInput(true); return false; }
   if (!bubbleArena()) for (const side of world.team) for (const c of side) c.group.visible = false; // 랠리하는 로비 캐릭터는 숨김
   // 걷는 중: 한 구간이 끝나면 다음 구간, 다 왔으면 도착해서 할 일 (가게 열기·혼자 하기)
   const nowMs = Date.now();
@@ -823,6 +829,7 @@ export function plazaFrame(now) {
   renderTables();
   windowFrame(p);
   view.update(now, myId);
+  fishHooks.frame?.(now, p, pz.route.length > 0 || Math.hypot(p[0] - pz.myW.to[0], p[1] - pz.myW.to[1]) > 0.05);
   sky ||= createPlazaSky(world);
   sky.update(now);
   gachaFrame(now);
@@ -921,6 +928,12 @@ dressHooks.gachaIntro = (count) => {
 };
 
 // 점검·디버그용
+// 낚시(fishing.js)가 쓰는 광장 정보
+export const plazaApi = {
+  view, people: () => pz.people, seat: () => pz.seat, myId: () => myId,
+  send: (m) => pz.link?.send({ ...m, id: myId }), sendInfo,
+  raining: () => !!sky && /비|소나기/.test(sky.label?.() || ''),
+};
 export const plazaDebug = {
   pz, spot: onSpot, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list), fakeState: (m) => onState(m), get kimN() { return pz.kimN; },
   bubble: bub, get mwave() { return matchWaveDebug(); }, seat: setSeated, call: sendCall, callKim, person: onPerson, invite: sendInvite, sit: onSeat, table: onTable, kim: onKim, ready: toggleReady, unseat, state: tableState, afk: () => { pz.lastAct -= AFK_MS + 1000; },

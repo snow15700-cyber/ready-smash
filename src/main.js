@@ -26,6 +26,7 @@ import { endRoom, room } from './ui/room.js';
 import { show, stopGame } from './ui/screen.js';
 import { $, ease, game, lerp3, match, preview, world } from './ui/state.js';
 import { plazaDebug, plazaFrame } from './ui/plaza.js';
+import { fishAfterRender, fishDebug } from './ui/fishing.js'; // 광장 낚시 (fishing.md 12장)
 import { aiWaveCam, bubbleArena, bubbleLook, bubbleSeated } from './ui/plazaBubble.js';
 
 const lobbyDemo = createLobbyDemo();
@@ -171,6 +172,7 @@ function loop() {
   world.crowd.setShown(!!game || bubbleSeated()); // 관중석은 경기 화면에서만 (경기장 거품에서는 관중석에 앉았을 때만)
   world.crowd.update(now); // 관중석 (관중이 없으면 바로 끝남)
   world.render();
+  fishAfterRender(); // 낚시 중: 찌 확대 창·낚시 화면 글자
   if (perf) perf.frame(now);
   glassGuard(now);
   requestAnimationFrame(loop);
@@ -226,4 +228,4 @@ const perf = new URLSearchParams(location.search).has('fps') ? (() => {
   };
 })() : null;
 requestAnimationFrame(loop);
-window.__smash = { plaza: plazaDebug, PV, INTRO, world, shop: { testCoins, gacha, buyItem, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; }, get crowd() { return crowd; } };
+window.__smash = { plaza: plazaDebug, fish: fishDebug, PV, INTRO, world, shop: { testCoins, gacha, buyItem, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; }, get crowd() { return crowd; } };

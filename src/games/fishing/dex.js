@@ -57,7 +57,7 @@ export function modelImage(id, sil = false, px = 180) {
 
 // ── 도감 화면
 const css = `
-#dex { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center; background: rgba(8,16,34,.45); backdrop-filter: blur(4px); font-family: Jua, 'Pretendard Variable', sans-serif; }
+#dex { position: fixed; inset: 0; z-index: 80; display: none; align-items: center; justify-content: center; background: rgba(8,16,34,.45); backdrop-filter: blur(4px); font-family: Jua, 'Pretendard Variable', sans-serif; }
 #dex.open { display: flex; }
 #dex .box { width: min(760px, calc(100vw - 24px)); max-height: calc(100vh - 32px); display: flex; flex-direction: column; border-radius: 22px; background: rgba(15,25,50,.82); border: 1px solid rgba(255,255,255,.18); color: #fff; overflow: hidden; }
 #dex .top { display: flex; align-items: center; gap: 8px; padding: 14px 16px 10px; }

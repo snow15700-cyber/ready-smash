@@ -48,7 +48,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
   // 준비: 떨어질 자리 표시 (자유 던지기 — 끄는 동안 방향·세기를 따라 움직임, 안 끌 때는 가운데 중간에 흐리게)
   if (S.mode === 'ready') {
     const on = !!S.drag;
-    const L = landingPoint(S.standX, on ? S.aim : 0, on ? S.power : 0.5);
+    const L = landingPoint(S.standX, on ? S.aim : 0, on ? S.power : 0.5, S.standZ);
     const p = proj(new THREE.Vector3(L.x, seaHeight(L.x, L.z, S.now), L.z));
     if (p.ok) {
       const r = (on ? 13 : 9) * u * (1.15 - S.power * 0.35), pulse = 1 + Math.sin(S.now * 6) * 0.08;
