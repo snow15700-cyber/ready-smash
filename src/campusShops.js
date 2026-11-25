@@ -7,45 +7,45 @@ import { canvasTex, std, textTex } from './arena-kit.js';
 
 export const SHOP_W = 5.6, SHOP_D = 4.4, SHOP_H = 3.6;
 const FZ = SHOP_D / 2; // 앞면 z
-const FONT = (px) => `bold ${px}px Jua, sans-serif`;
+export const FONT = (px) => `bold ${px}px Jua, sans-serif`;
 
-function box(p, w, h, d, m, x, y, z, r = 0) {
+export function box(p, w, h, d, m, x, y, z, r = 0) {
   const b = new THREE.Mesh(r ? new RoundedBoxGeometry(w, h, d, 2, r) : new THREE.BoxGeometry(w, h, d), m);
   b.position.set(x, y, z); b.castShadow = true; b.receiveShadow = true; p.add(b);
   return b;
 }
-function cyl(p, rt, rb, h, m, x, y, z, seg = 24) {
+export function cyl(p, rt, rb, h, m, x, y, z, seg = 24) {
   const c = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m);
   c.position.set(x, y, z); c.castShadow = true; c.receiveShadow = true; p.add(c);
   return c;
 }
-function sphere(p, r, m, x, y, z, seg = 16) {
+export function sphere(p, r, m, x, y, z, seg = 16) {
   const s = new THREE.Mesh(new THREE.SphereGeometry(r, seg, Math.round(seg * 0.7)), m);
   s.position.set(x, y, z); s.castShadow = true; p.add(s);
   return s;
 }
 // 돌림판 모양 (단면 [r, y] 점들을 y축으로 돌림): 트로피 컵·받침 등 둥근 것
-function lathe(p, pts, m, x, y, z, seg = 32) {
+export function lathe(p, pts, m, x, y, z, seg = 32) {
   const l = new THREE.Mesh(new THREE.LatheGeometry(pts.map(([r, yy]) => new THREE.Vector2(r, yy)), seg), m);
   l.position.set(x, y, z); l.castShadow = true; p.add(l);
   return l;
 }
-function plate(p, lines, w, h, x, y, z, o = {}) {
+export function plate(p, lines, w, h, x, y, z, o = {}) {
   const px = o.px || 640;
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: textTex(lines, { w: px, h: Math.round((px * h) / w), bg: o.bg === undefined ? '#fffaf0' : o.bg, color: o.color || '#2b2a33', font: o.font || FONT(80), border: o.border || null }), transparent: o.bg === null }));
   m.position.set(x, y, z); p.add(m);
   return m;
 }
-const glow = (m, day, night) => { m.userData.glow = [day, night]; m.emissiveIntensity = day; return m; };
+export const glow = (m, day, night) => { m.userData.glow = [day, night]; m.emissiveIntensity = day; return m; };
 // 바깥 꾸미기 자리 (무료 모델로 채워짐: campusPage.js swapProps)
-function propSpot(p, kind, x, y, z, s = 1, seed = 0.5) {
+export function propSpot(p, kind, x, y, z, s = 1, seed = 0.5) {
   const e = new THREE.Group(); e.userData.prop = kind; e.userData.extra = true; e.userData.seed = seed;
   e.position.set(x, y, z); e.scale.setScalar(s); p.add(e);
   return e;
 }
 
 // ── 공통 재질·무늬
-const MAT = {
+export const MAT = {
   granite: std(0x2b2e33, { roughness: 0.45, metalness: 0.15 }),
   white: std(0xf7f4ee, { roughness: 0.6 }),
   gold: std(0xe8b53c, { metalness: 0.7, roughness: 0.3 }),
@@ -53,7 +53,7 @@ const MAT = {
   dark: std(0x2b2a33),
   glass: new THREE.MeshStandardMaterial({ color: 0xdff4ff, transparent: true, opacity: 0.16, roughness: 0.03, metalness: 0.3, depthWrite: false }),
 };
-function tileTex(base, grout, n = 8, jitter = 10) {
+export function tileTex(base, grout, n = 8, jitter = 10) {
   const t = canvasTex(256, 256, (g) => {
     const s = 256 / n;
     for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
@@ -77,7 +77,7 @@ function marbleTex() {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
 }
-function withRepeat(tex, a, b) { const t = tex.clone(); t.needsUpdate = true; t.repeat.set(a, b); return t; }
+export function withRepeat(tex, a, b) { const t = tex.clone(); t.needsUpdate = true; t.repeat.set(a, b); return t; }
 
 // 받침(검은 돌) + 문 앞 계단
 function plinth(g, w = SHOP_W, d = SHOP_D) {
@@ -162,7 +162,7 @@ function planter(g, x, z, potM, topiary = true) {
 }
 
 // ── 캡슐
-function capsule(p, r, col, x, y, z, rx = 0, rz = 0) {
+export function capsule(p, r, col, x, y, z, rx = 0, rz = 0) {
   const c = new THREE.Group();
   c.add(new THREE.Mesh(new THREE.SphereGeometry(r, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2), std(col, { roughness: 0.35 })));
   c.add(new THREE.Mesh(new THREE.SphereGeometry(r, 14, 7, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), std(0xffffff, { roughness: 0.35 })));
@@ -170,7 +170,7 @@ function capsule(p, r, col, x, y, z, rx = 0, rz = 0) {
   c.position.set(x, y, z); c.rotation.set(rx, 0, rz); c.traverse((o) => { o.castShadow = true; }); p.add(c);
   return c;
 }
-const CAP_COLS = [0xff4d5a, 0xffd23f, 0x3fb6ff, 0x7ad35a, 0xff9ed2, 0xa77bff, 0xff8a1f];
+export const CAP_COLS = [0xff4d5a, 0xffd23f, 0x3fb6ff, 0x7ad35a, 0xff9ed2, 0xa77bff, 0xff8a1f];
 // 작은 뽑기 기계 (가게 앞에 놓는 것)
 function miniGacha(p, rnd, x, z, body) {
   const g = new THREE.Group(); g.position.set(x, 0.3, z); p.add(g);

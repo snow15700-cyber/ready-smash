@@ -1,43 +1,18 @@
 // 광장 새 디자인 시안 (campus.html): '경주캠퍼스 느낌' 광장을 대충 3D로 — 기획 확인용, 게임에는 아직 안 씀
 // 배치는 docs/dev/plaza.md 20장 배치도 초안. 위가 북쪽(−z). 좌표는 광장 좌표와 같은 m 단위.
 import * as THREE from 'three';
-import { addBox, canvasTex, clockTex, seeded, std, textTex } from './arena-kit.js';
+import { addBox, canvasTex, seeded, std } from './arena-kit.js';
 import { buildMainHall } from './campusBuilding.js';
 import { closetShop, fameShop, gachaShop } from './campusShops.js';
+import { bakery, board, clockTower, deck, foodTruck, fountain, photoZone, vending } from './campusProps.js';
 
 const FONT = (px) => `bold ${px}px Jua, sans-serif`;
 const rnd = seeded(2511);
 
-function plate(parent, lines, w, h, x, y, z, o = {}) {
-  const px = o.px || 640;
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: textTex(lines, { w: px, h: Math.round((px * h) / w), bg: o.bg ?? '#fffaf0', color: o.color || '#2b2a33', font: o.font || FONT(80), border: o.border || null }), transparent: !o.bg && o.bg !== undefined }));
-  m.position.set(x, y, z);
-  if (o.ry) m.rotation.y = o.ry;
-  parent.add(m);
-  return m;
-}
 function cyl(parent, rt, rb, h, m, x, y, z, seg = 24) {
   const c = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m);
   c.position.set(x, y, z); c.castShadow = true; parent.add(c);
   return c;
-}
-function capsule(parent, r, col, x, y, z, rx = 0, rz = 0) {
-  const g = new THREE.Group();
-  g.add(new THREE.Mesh(new THREE.SphereGeometry(r, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), std(col, { roughness: 0.4 })));
-  g.add(new THREE.Mesh(new THREE.SphereGeometry(r, 12, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), std(0xffffff, { roughness: 0.4 })));
-  g.position.set(x, y, z); g.rotation.set(rx, 0, rz); parent.add(g);
-  return g;
-}
-// 줄무늬 차양 (가게 앞)
-function awning(parent, w, colA, colB, y, z) {
-  const tex = canvasTex(256, 64, (g) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? colB : colA; g.fillRect(i * 32, 0, 32, 64); } });
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, 1.1), [std(colA), std(colA), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 }), std(colA), std(colA), std(colA)]);
-  m.position.set(0, y, z + 0.5); m.rotation.x = 0.32; m.castShadow = true; parent.add(m);
-  // 끝 물결 장식
-  for (let i = 0; i < 8; i++) {
-    const s = new THREE.Mesh(new THREE.CylinderGeometry(w / 16, w / 16, 0.05, 12, 1, false, 0, Math.PI), std(i % 2 ? colB : colA));
-    s.rotation.set(Math.PI / 2, 0, Math.PI / 2); s.position.set(-w / 2 + w / 16 + (i * w) / 8, y - 0.2, z + 1.03); parent.add(s);
-  }
 }
 
 // ── 재질
@@ -50,160 +25,6 @@ const M = {
   dark: std(0x2b2a33),
   roofGrass: new THREE.MeshLambertMaterial({ color: 0x7cbf5a }),
 };
-// 유리 막대 (청록 유리 + 가로 띠 격자, 사진 1)
-function glassTex(cols, rows) {
-  const t = canvasTex(512, 256, (g, w, h) => {
-    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#4f9196'); gr.addColorStop(1, '#22505a');
-    g.fillStyle = gr; g.fillRect(0, 0, w, h);
-    g.strokeStyle = 'rgba(12,32,36,.7)'; g.lineWidth = 3;
-    for (let r = 0; r <= rows; r++) { g.beginPath(); g.moveTo(0, (r * h) / rows); g.lineTo(w, (r * h) / rows); g.stroke(); }
-    g.lineWidth = 1.5;
-    for (let c = 0; c <= cols; c++) { g.beginPath(); g.moveTo((c * w) / cols, 0); g.lineTo((c * w) / cols, h); g.stroke(); }
-    // 반사 줄무늬 + 몇 개는 불 켜진 창
-    for (let i = 0; i < 18; i++) { g.fillStyle = `rgba(200,240,240,${0.05 + Math.random() * 0.08})`; g.fillRect(Math.random() * w, 0, 6 + Math.random() * 20, h); }
-    for (let i = 0; i < 6; i++) { g.fillStyle = 'rgba(255,230,170,.55)'; g.fillRect(Math.floor(Math.random() * cols) * (w / cols) + 2, Math.floor(Math.random() * rows) * (h / rows) + 2, w / cols - 4, h / rows - 4); }
-  });
-  t.wrapS = THREE.RepeatWrapping;
-  return t;
-}
-// ── 빵집이 쓰는 문·쇼윈도 (가게 3개는 src/campusShops.js)
-const SW = 5.2, SD = 4.0, SH = 3.4; // 가게 너비·깊이·높이
-
-function door(g, col, x = 0) {
-  addBox(g, 1.3, 2.2, 0.08, std(col), x, 0.3 + 1.1, SD / 2 + 0.03);
-  addBox(g, 1.05, 1.95, 0.1, new THREE.MeshStandardMaterial({ color: 0x3a5068, emissive: 0xffd9a0, emissiveIntensity: 0.15, roughness: 0.1 }), x, 0.3 + 1.05, SD / 2 + 0.04);
-}
-// 쇼윈도: 밝은 안쪽 판 + 금속 테 + 얇은 유리 (진열품은 안쪽 판과 유리 사이 SD/2 + 0.12쯤에)
-const WIN_IN = new THREE.MeshStandardMaterial({ color: 0xfff4dc, emissive: 0xfff0c8, emissiveIntensity: 0.35 });
-const WIN_GLASS = new THREE.MeshStandardMaterial({ color: 0xdff4ff, transparent: true, opacity: 0.18, roughness: 0.05, depthWrite: false });
-function showWindow(g, x, w, h, y) {
-  for (const sx of [-1, 1]) addBox(g, 0.08, h + 0.14, 0.34, M.alu, x + sx * (w / 2 + 0.03), y, SD / 2 + 0.15);
-  addBox(g, w + 0.14, 0.08, 0.34, M.alu, x, y + h / 2 + 0.03, SD / 2 + 0.15);
-  addBox(g, w + 0.14, 0.12, 0.4, M.alu, x, y - h / 2 - 0.04, SD / 2 + 0.17);
-  addBox(g, w, h, 0.02, WIN_IN, x, y, SD / 2 + 0.01);
-  addBox(g, w, h, 0.02, WIN_GLASS, x, y, SD / 2 + 0.3);
-}
-
-// ── 분수 (가운데): 둥근 물받이 2단 + 가운데 물기둥 위에 탁구공이 통통
-function fountain(anim) {
-  const g = new THREE.Group();
-  const stoneL = std(0xd9d4c8), water = new THREE.MeshStandardMaterial({ color: 0x3f9ad6, roughness: 0.08, metalness: 0.2 });
-  const waterDisc = (r, y) => { const m = new THREE.Mesh(new THREE.CircleGeometry(r, 48), water); m.rotation.x = -Math.PI / 2; m.position.y = y; g.add(m); return m; };
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(3.1, 0.25, 10, 48), stoneL); rim.rotation.x = Math.PI / 2; rim.position.y = 0.45; g.add(rim);
-  cyl(g, 3.1, 3.2, 0.25, std(0xc8c2b4), 0, 0.125, 0, 48); // 물받이 바닥 (윗면 0.25)
-  waterDisc(3.0, 0.4);
-  cyl(g, 0.5, 0.7, 1.3, stoneL, 0, 0.9, 0, 24);
-  cyl(g, 1.4, 0.9, 0.3, stoneL, 0, 1.6, 0, 32);
-  waterDisc(1.3, 1.8);
-  cyl(g, 0.2, 0.25, 0.7, stoneL, 0, 2.1, 0, 16);
-  // 물줄기 (반투명 기둥) + 바깥으로 흐르는 물 아치
-  const jetM = new THREE.MeshStandardMaterial({ color: 0xcdeeff, transparent: true, opacity: 0.5, roughness: 0.05 });
-  const jet = cyl(g, 0.08, 0.16, 0.9, jetM, 0, 2.65, 0, 12); jet.castShadow = false;
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    const arc = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.05, 6, 16, Math.PI), jetM);
-    arc.position.set(Math.cos(a) * 1.75, 1.75, Math.sin(a) * 1.75); arc.rotation.y = -a; g.add(arc);
-  }
-  // 탁구공 (주황) — 물줄기 위에서 통통
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 14), std(0xff8a3d, { roughness: 0.35 }));
-  ball.castShadow = true; g.add(ball);
-  // 둘레 작은 바닥 조명 (사진 1의 기둥 조명)
-  for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + 0.2; cyl(g, 0.06, 0.06, 0.4, M.alu, Math.cos(a) * 4.2, 0.2, Math.sin(a) * 4.2, 8); }
-  anim.push((t) => { const p = (t * 1.4) % 1; ball.position.set(0, 3.2 + Math.sin(p * Math.PI) * 0.45, 0); ball.rotation.x = t * 2; });
-  return g;
-}
-
-// ── 시계탑: 검은 돌 기둥 + 위에 유리 상자 + 네 면 시계 (쉬는 시간 남은 시간을 보여 줄 자리)
-function clockTower() {
-  const g = new THREE.Group();
-  addBox(g, 1.6, 7, 1.6, M.stone, 0, 3.5, 0).castShadow = true;
-  const gl = new THREE.MeshStandardMaterial({ map: glassTex(4, 3), roughness: 0.15, metalness: 0.3, emissive: 0x0d3a3a, emissiveIntensity: 0.25 });
-  addBox(g, 2.4, 2.4, 2.4, gl, 0, 8.2, 0).castShadow = true;
-  addBox(g, 2.6, 0.25, 2.6, M.white, 0, 9.5, 0);
-  const tex = clockTex(10, 50);
-  for (let i = 0; i < 4; i++) {
-    const c = new THREE.Mesh(new THREE.CircleGeometry(0.95, 32), new THREE.MeshBasicMaterial({ map: tex }));
-    const a = (i * Math.PI) / 2; c.position.set(Math.sin(a) * 1.22, 8.2, Math.cos(a) * 1.22); c.rotation.y = a; g.add(c);
-  }
-  plate(g, ['⏰ 쉬는 시간 6분 남음'], 1.5, 0.42, 0, 5.6, 0.81, { bg: '#1c2233', color: '#ffe08a', font: FONT(60) });
-  return g;
-}
-
-// ── 게시판: 나무 판 + 종이 몇 장 (업데이트·미션·치는 방법)
-function board() {
-  const g = new THREE.Group();
-  for (const sx of [-1, 1]) addBox(g, 0.12, 2.2, 0.12, M.wood, sx * 1.4, 1.1, 0);
-  addBox(g, 3.0, 1.5, 0.1, std(0x8a5a32), 0, 1.5, 0);
-  addBox(g, 3.2, 0.12, 0.4, std(0x6b4224), 0, 2.32, 0);
-  const notes = [['📣 업데이트', '#fff6c8'], ['✅ 오늘의 미션', '#d8f5d0'], ['🏓 치는 방법', '#d7ecff']];
-  notes.forEach(([t, bg], i) => plate(g, [t], 0.85, 1.0, -0.95 + i * 0.95, 1.5, 0.06, { bg, font: FONT(54), px: 300 }));
-  return g;
-}
-
-// ── 빵집 (남서쪽, 김제빵이 뛰어나오는 곳)
-function bakery() {
-  const g = new THREE.Group();
-  addBox(g, 5, 3, 4, std(0xf6e3c4), 0, 1.5, 0).castShadow = true;
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(3.8, 1.8, 4), std(0xa0522d)); roof.rotation.y = Math.PI / 4; roof.position.y = 3.9; roof.scale.z = 0.8; roof.castShadow = true; g.add(roof);
-  door(g, 0x8a4b1f, -1.1);
-  showWindow(g, 1.2, 1.6, 1.1, 1.6);
-  awning(g, 5.2, '#a0522d', '#f6e3c4', 2.75, 1.65);
-  plate(g, ['🥖 김제빵 빵집'], 2.8, 0.55, 0, 3.2, 2.02, { bg: '#fff3e0', border: '#a0522d', font: FONT(70) });
-  // 지붕 위 큰 바게트 + 굴뚝 연기
-  const bag = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 3.2, 6, 12), std(0xd9984a)); bag.rotation.z = Math.PI / 2 - 0.35; bag.position.set(0, 5.1, 0.3); bag.castShadow = true; g.add(bag);
-  for (let i = 0; i < 4; i++) { const sl = addBox(g, 0.08, 0.5, 0.5, std(0xf3d29a), -1.2 + i * 0.8, 5.1 + (-1.2 + i * 0.8) * 0.36, 0.55); sl.rotation.z = -0.35; }
-  addBox(g, 0.6, 1.4, 0.6, std(0x8a6d5a), 1.6, 4.4, -0.8);
-  return g;
-}
-
-// ── 포토존: 거대 탁구채 조형물 + 공
-function photoZone() {
-  const g = new THREE.Group();
-  addBox(g, 3.2, 0.25, 2.2, M.stone, 0, 0.12, 0);
-  const paddle = new THREE.Group();
-  const face = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 0.18, 32), std(0xd7262e, { roughness: 0.5 })); face.rotation.x = Math.PI / 2; face.position.y = 3.0; paddle.add(face);
-  const back = new THREE.Mesh(new THREE.CylinderGeometry(1.32, 1.32, 0.08, 32), std(0x22252b)); back.rotation.x = Math.PI / 2; back.position.set(0, 3.0, -0.12); paddle.add(back);
-  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.5, 0.3), M.wood); handle.position.y = 1.15; paddle.add(handle);
-  paddle.rotation.z = 0.25; paddle.position.x = -0.4; paddle.traverse((o) => { o.castShadow = true; }); g.add(paddle);
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 14), std(0xffffff, { roughness: 0.35 })); ball.position.set(1.1, 4.3, 0.2); ball.castShadow = true; g.add(ball);
-  plate(g, ['📸 준비하시고, 스매시!'], 2.6, 0.5, 0, 0.6, 1.12, { bg: '#fffaf0', border: '#d7262e', font: FONT(64) });
-  return g;
-}
-
-function foodTruck() {
-  const g = new THREE.Group();
-  addBox(g, 4.2, 2.2, 2.0, std(0xffb703), 0, 1.5, 0).castShadow = true;
-  addBox(g, 1.3, 1.5, 2.0, std(0xfff3d6), 2.7, 1.15, 0);
-  addBox(g, 2.6, 1.0, 0.08, std(0x3a3f4a), -0.2, 1.8, 1.02);
-  addBox(g, 2.8, 0.1, 0.6, std(0xffffff), -0.2, 1.25, 1.3);
-  for (const [x, z] of [[-1.4, 1], [-1.4, -1], [2.3, 1], [2.3, -1]]) { const w = cyl(g, 0.38, 0.38, 0.3, M.dark, x, 0.38, z, 16); w.rotation.x = Math.PI / 2; }
-  plate(g, ['🌭 간식'], 1.6, 0.45, -0.2, 2.75, 1.02, { bg: '#d7262e', color: '#fff', font: FONT(70), px: 360 });
-  return g;
-}
-function vending() {
-  const g = new THREE.Group();
-  [0xe63946, 0x2a5db0].forEach((c, i) => {
-    const x = i * 1.15;
-    addBox(g, 1.05, 2.0, 0.8, std(c), x, 1.0, 0).castShadow = true;
-    addBox(g, 0.75, 1.1, 0.06, new THREE.MeshStandardMaterial({ color: 0xdff4ff, emissive: 0xffffff, emissiveIntensity: 0.25 }), x - 0.08, 1.25, 0.41);
-    for (let r = 0; r < 3; r++) for (let k = 0; k < 4; k++) cyl(g, 0.06, 0.06, 0.22, std([0xffd23f, 0x7ad35a, 0xff9ed2, 0xffffff][k]), x - 0.36 + k * 0.18, 0.9 + r * 0.33, 0.36, 8);
-  });
-  return g;
-}
-// 바다 전망대: 나무 데크 + 난간 + 망원경
-function deck() {
-  const g = new THREE.Group();
-  addBox(g, 14, 0.25, 4.5, std(0xc9a77c), 0, 0.12, 0).receiveShadow = true;
-  for (let i = 0; i <= 14; i++) addBox(g, 0.08, 1.0, 0.08, M.alu, -7 + i, 0.75, 2.2);
-  addBox(g, 14, 0.06, 0.1, M.alu, 0, 1.25, 2.2);
-  for (const sx of [-1, 1]) for (let i = 0; i <= 4; i++) addBox(g, 0.08, 1.0, 0.08, M.alu, sx * 7, 0.75, -2.2 + i * 1.1);
-  for (const x of [-3, 3]) {
-    cyl(g, 0.07, 0.1, 1.1, M.dark, x, 0.8, 1.6, 8);
-    const scope = cyl(g, 0.14, 0.18, 0.7, std(0x3f8fd8), x, 1.45, 1.75, 12); scope.rotation.x = Math.PI / 2 - 0.3;
-  }
-  return g;
-}
-
 function table(x, z, color) {
   const g = new THREE.Group(); g.position.set(x, 0, z);
   const L = 2.74, W = 1.525, Y = 0.76;
@@ -265,7 +86,7 @@ export function buildCampus() {
   for (let i = 0; i < 40; i++) {
     const t = i / 40, a = t * Math.PI * 2;
     const x = Math.cos(a) * 36 - 1, z = Math.sin(a) * 36 + 4;
-    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(4 + rnd() * 2, 0), slope); b.position.set(x, -3 + rnd(), z); b.scale.y = 0.8; root.add(b);
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(4 + rnd() * 2, 0), slope); b.position.set(x, -5 + rnd(), z); // 전망대 데크 위로 안 솟게 낮춤 b.scale.y = 0.8; root.add(b);
   }
   // 바다 (남·동쪽 아래)
   const sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), new THREE.MeshStandardMaterial({ color: 0x3f8fc9, roughness: 0.25, metalness: 0.2 }));
@@ -320,12 +141,12 @@ export function buildCampus() {
     root.add(g);
   }
 
-  const ct = clockTower(); ct.position.set(13.5, 0, -6.5); ct.rotation.y = -0.5; root.add(ct);
+  const ct = clockTower(anim); ct.position.set(13.5, 0, -6.5); ct.rotation.y = -0.5; root.add(ct);
   const bd = board(); bd.position.set(5, 0, 9.6); bd.rotation.y = -0.35; root.add(bd);
   // 탁구대 (사람 대결 3대 + 김제빵)
   for (const [x, z] of [[-14, 13], [14, 13], [0, 25]]) root.add(table(x, z, 0x2a5db0));
   root.add(table(-14, 27, 0x2f8a4e));
-  const bk = bakery(); bk.position.set(-19.5, 0, 30.5); bk.rotation.y = Math.PI / 2 + 0.4; root.add(bk);
+  const bk = bakery(anim); bk.position.set(-19.5, 0, 30.5); bk.rotation.y = Math.PI / 2 + 0.4; root.add(bk);
   const pz = photoZone(); pz.position.set(-7, 0, 19.5); pz.rotation.y = 0.5; root.add(pz);
   const ft = foodTruck(); ft.position.set(19.5, 0, 21); ft.rotation.y = -Math.PI / 2; root.add(ft);
   const vd = vending(); vd.position.set(20.6, 0, 27); vd.rotation.y = -Math.PI / 2; root.add(vd);
