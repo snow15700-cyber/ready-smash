@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { addBox, canvasTex, seeded, std } from './arena-kit.js';
 import { buildMainHall } from './campusBuilding.js';
 import { closetShop, fameShop, gachaShop } from './campusShops.js';
+import { addLampGlow, makeDolphins, makeSea } from './campusFx.js';
 import { bakery, board, clockTower, deck, foodTruck, fountain, photoZone, vending } from './campusProps.js';
 
 const FONT = (px) => `bold ${px}px Jua, sans-serif`;
@@ -58,6 +59,7 @@ function lamp() {
   cyl(g, 0.06, 0.08, 4, M.alu, 0, 2, 0, 8);
   addBox(g, 0.9, 0.12, 0.25, M.alu, 0.35, 4.0, 0);
   addBox(g, 0.5, 0.06, 0.2, new THREE.MeshBasicMaterial({ color: 0xfff4d2 }), 0.55, 3.93, 0);
+  addLampGlow(g, 4.05, 0); // 밤에 바닥 빛 웅덩이 + 전구 빛 번짐 (무료 모델 가로등으로 바꿔도 그대로)
   return g;
 }
 
@@ -86,11 +88,11 @@ export function buildCampus() {
   for (let i = 0; i < 40; i++) {
     const t = i / 40, a = t * Math.PI * 2;
     const x = Math.cos(a) * 36 - 1, z = Math.sin(a) * 36 + 4;
-    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(4 + rnd() * 2, 0), slope); b.position.set(x, -5 + rnd(), z); // 전망대 데크 위로 안 솟게 낮춤 b.scale.y = 0.8; root.add(b);
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(4 + rnd() * 2, 0), slope); b.position.set(x, -5 + rnd(), z); b.scale.y = 0.8; root.add(b); // 전망대 데크 위로 안 솟게 낮춤
   }
   // 바다 (남·동쪽 아래)
-  const sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), new THREE.MeshStandardMaterial({ color: 0x3f8fc9, roughness: 0.25, metalness: 0.2 }));
-  sea.rotation.x = -Math.PI / 2; sea.position.set(0, -12, 0); root.add(sea);
+  const sea = makeSea(-12); root.add(sea.group); anim.push(sea.update); // 물결 (src/campusFx.js)
+  const dolphins = makeDolphins(-12); root.add(dolphins.group); anim.push(dolphins.update); // 가끔 점프하는 돌고래
   // 자갈 해변 띠 (남쪽 아래, 사진 3)
   const beach = new THREE.Mesh(new THREE.PlaneGeometry(160, 10), new THREE.MeshLambertMaterial({ color: 0x9a948a }));
   beach.rotation.x = -Math.PI / 2; beach.position.set(0, -11.9, 48); root.add(beach);
@@ -174,5 +176,5 @@ export function buildCampus() {
   me.position.set(0, 0, 10.5); root.add(me);
 
   root.traverse((o) => { if (o.isMesh && !o.material.transparent) o.receiveShadow = true; });
-  return { root, anim };
+  return { root, anim, bakery: bk, dolphins };
 }

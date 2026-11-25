@@ -10,18 +10,9 @@ import { makeCharacter } from './scene.js';
 export const KIM_RUN = 6; // 뛰는 속도 (m/s)
 export const KIM_READY_MS = 4500; // 부른 뒤 이만큼 지나면 '준비 완료'로 친다 (뛰어오는 중에 경기가 시작되지 않게)
 const SAY_IN = '빵 굽다 왔어요! 🥖', SAY_OUT = '앗, 빵 타겠다! 🔥';
-// 방장이 '김제빵 내보내기'를 누르면: '이번엔 ○○을(를) 만들어 볼까나...' (어떤 빵인지는 방장이 정한 번호 b — 모든 PC가 같은 말)
-export const BREADS = [
-  '소금빵', '명란 소금빵', '초코칩 소금빵', '에멘탈치즈 소금빵', '사워도우', '깜빠뉴', '치아바타', '포카치아',
-  '바게트', '명란바게트', '무화과바게트', '솔티바게트', '앙버터', '크루아상', '퀸아망', '크루키', '크로플',
-  '블루베리 베이글', '대파 베이글', '쪽파 베이글', '어니언 베이글', '생식빵', '밤식빵', '탕종식빵', '우유식빵',
-  '저당빵', '통곡물빵', '호밀빵', '소보로빵', '튀김소보로', '단팥빵', '맘모스빵', '슈크림빵', '모카번',
-  '마늘빵', '육쪽마늘빵', '메론빵', '휘낭시에', '마들렌', '까눌레', '에그타르트', '스콘', '생크림도넛', '꽈배기',
-  '시나몬롤', '판타롱부추빵', '사라다빵',
-];
-// 받침이 있으면 '을', 없으면 '를'
-const eulReul = (w) => { const c = w.charCodeAt(w.length - 1) - 0xac00; return c >= 0 && c < 11172 && c % 28 ? '을' : '를'; };
-export const breadLine = (b) => { const w = BREADS[((b % BREADS.length) + BREADS.length) % BREADS.length]; return `이번엔 ${w}${eulReul(w)} 만들어 볼까나... 🥐`; };
+// 빵 목록·'이번엔 ○○을(를) 만들어 볼까나...'는 src/breads.js (광장 새 디자인 시안 빵집도 같이 씀)
+import { BREADS, breadLine } from './breads.js';
+export { BREADS, breadLine };
 
 function baguette() {
   const g = new THREE.Group();
