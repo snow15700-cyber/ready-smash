@@ -1,5 +1,5 @@
 // 낚시 손맛 시안 — 리듬 방식 (docs/dev/fishing.md 8장, 11/25 사용자 확정)
-//   던지기: 3방향 고정 + 끌어올리는 속도로 거리 3단계 → 기포(모두가 같은 곳) 가까이면 희귀·전설 ↑
+//   던지기: 끌어올린 방향(부채꼴 ±40°) + 끌어올리는 속도로 거리(6~18m) — 자유롭게, 떨어질 자리 표시가 따라옴 → 기포(모두가 같은 곳) 가까이면 희귀·전설 ↑
 //   입질: 톡(약한 떨림) · 가짜 풍덩(약한 떨림 2~3번)은 참고, 진짜는 찌가 쏙 + '!' + 강한 떨림 → 빨리 누르기
 //   줄다리기: 화면 가운데 기본 원에 줄어드는 원이 닿을 때 누르기(박자에 맞춰 연속) → 거리 게이지
 //   등급 숨기기: 누구나 일반 리듬으로 시작, 희귀·전설이면 마지막 큰 노트 뒤 "무겁다!" → 리듬이 한 단계씩 올라감. 잡을 때 공개
@@ -57,14 +57,14 @@ const bobber = makeBobber(); scene.add(bobber);
 // ── 상태
 const S = {
   mode: 'ready', t: 0, now: 0, holding: false, standX: PIER.x, walk: 0,
-  drag: null, power: 0, hint: null, aim: { dir: 0 },
+  drag: null, power: 0, hint: null, aim: 0,
   cast: null, bob: new THREE.Vector3(), dip: 0, dipV: 0, bobLanded: false, near: 0,
   seq: [], evI: -1, ev: null, nextEv: 0, calm: 0, alertT: -1,
   fish: null, stage: 0, size: null, grade: '', R: null, land: null, result: null, model: null,
   rodPitch: -0.95, rodPitchV: 0, bend: 0, rodKick: 0, hitstop: 0, slow: 0, shake: 0, zshake: 0, flash: 0, cutin: null, stamp: null,
   texts: [], judge: null, bubbles: [], bubbleNote: null, seenBubbles: new Set(),
 };
-window.__fish = { S, TUNE, stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(), cast: (dir, tier) => { initSound(); castTo(dir, tier); }, rt: () => (S.R ? nowS() - S.R.base : 0) };
+window.__fish = { S, TUNE, stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(), cast: (aim = 0, power = 0.5) => { initSound(); castTo(aim, power); }, rt: () => (S.R ? nowS() - S.R.base : 0) };
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const DECK = PIER.y + 0.04;
@@ -89,7 +89,7 @@ addEventListener('pointercancel', () => { S.drag = null; release(); });
 addEventListener('blur', () => { S.drag = null; release(); });
 addEventListener('keydown', (e) => {
   if (e.repeat) return;
-  if (e.code === 'Space') { e.preventDefault(); if (S.mode === 'ready') { initSound(); castTo(0, 1); } else press({ key: true }); }
+  if (e.code === 'Space') { e.preventDefault(); if (S.mode === 'ready') { initSound(); castTo(0, 0.5); } else press({ key: true }); }
   if (e.code === 'ArrowLeft' || e.code === 'KeyA') S.walk = -1;
   if (e.code === 'ArrowRight' || e.code === 'KeyD') S.walk = 1;
 });
@@ -120,30 +120,33 @@ function release(x, y) {
     const last = D.pts[D.pts.length - 1];
     const up = D.y0 - last.y, dx = last.x - D.x0;
     if (up < 25) { S.hint = { txt: '누른 채 위로 끌어올려요 ↑ (빠를수록 멀리)', t: 0 }; S.power = 0; return; }
-    castTo(Math.abs(dx) >= up * 0.3 ? Math.sign(dx) : 0, tierOf(S.power));
+    castTo(aimOf(dx, up), S.power);
   }
 }
-// 끌어올리는 속도: 최근 0.12초 동안 위로 움직인 거리 ÷ 화면 높이 (초당). 끄는 동안 가장 빨랐던 값 → 세기 3칸
+// 끌어올리는 속도: 최근 0.12초 동안 위로 움직인 거리 ÷ 화면 높이 (초당). 끄는 동안 가장 빨랐던 값 → 세기(0~1, 거리)
+// 방향: 누른 곳에서 지금 손까지의 기울기 → 부채꼴 −1 ~ 1
 function moveDrag(x, y) {
   const D = S.drag; if (!D) return;
   const t = nowS();
   D.pts.push({ t, x, y });
-  const old = D.pts.find((p) => p.t >= t - 0.12) || D.pts[0];
+  const prev = D.pts.slice(0, -1); // 지금 점은 빼고 (느린 PC에서 움직임이 띄엄띄엄 와도 속도가 0이 안 되게)
+  const old = prev.find((p) => p.t >= t - 0.12) || prev[prev.length - 1] || D.pts[0];
   const dt = Math.max(0.016, t - old.t);
   const v = (old.y - y) / innerHeight / dt;
   S.power = Math.max(S.power, clamp(v / 3, 0, 1));
   const dx = x - D.x0, up = D.y0 - y;
-  S.aim.dir = up > 10 && Math.abs(dx) >= up * 0.3 ? Math.sign(dx) : 0;
+  if (up > 10) S.aim = aimOf(dx, up);
 }
-const tierOf = (p) => (p < 0.34 ? 0 : p < 0.72 ? 1 : 2);
+const aimOf = (dx, up) => clamp(Math.atan2(dx, Math.max(1, up)) / 0.7, -1, 1);
 
 // ── 던지기
-function castTo(dir, tier) {
+function castTo(aim, power) {
   if (S.mode !== 'ready') return;
-  const p = landingPoint(S.standX, dir, tier);
+  const p = landingPoint(S.standX, aim, power);
+  const tier = power < 0.34 ? 0 : power < 0.72 ? 1 : 2; // 글자·소리용
   const to = new THREE.Vector3(p.x, 0, p.z);
   const from = rod.tip.getWorldPosition(new THREE.Vector3());
-  S.cast = { from, to, dur: 0.55 + tier * 0.15, dir, tier };
+  S.cast = { from, to, dur: 0.55 + power * 0.3, aim, power };
   S.near = bubbleNear(p.x, p.z, S.bubbles); // 던지는 순간 기포 가까운지
   setMode('cast');
   S.rodPitch = 0.35; S.rodPitchV = -9;
@@ -233,11 +236,12 @@ function startRhythm(stage = 0) {
   S.stage = stage;
   const f = STAGE_FISH[STAGES[stage]], song = makeSong(f, Math.random, prev?.song.key);
   const spb = 60 / song.bpm;
-  const lead = stage === 0 ? 0.5 : 1.2; // 단계가 오르면 "무겁다!" 컷인 뒤
+  // 단계가 오를 때는 기다림을 짧게 (사용자 요청 11/25: 약 3초 → 약 1.3초): 0.3초 + 음악만 2박, "무겁다!"는 첫 원 위에 짧게 겹침
+  const lead = stage === 0 ? 0.5 : 0.3, intro = stage === 0 ? 4 : 2;
   const g = 60 / (f.notes * 0.9);
   S.R = {
-    song, spb, base: nowS(), t0: lead + 4 * spb, // 첫 노트 구절의 첫 박 (그 전 1마디는 음악만 — 들어가는 마디)
-    queue: [], phrases: 0, notes: [], dist: stage === 0 ? 60 : 50, g, m: g * 1.2, lastBeat: -99, sched: -4, pulse: 0, side: 1,
+    song, spb, base: nowS(), t0: lead + intro * spb, intro, // 첫 노트 구절의 첫 박 (그 전 intro박은 음악만 — 들어가는 마디)
+    queue: [], phrases: 0, notes: [], dist: stage === 0 ? 60 : 50, g, m: g * 1.2, lastBeat: -99, sched: -intro, pulse: 0, side: 1,
     hits: prev ? prev.hits : 0, perfects: prev ? prev.perfects : 0, misses: prev ? prev.misses : 0,
     fin: null, aOff: 0, bump: 0, tilt: 0, reel: 0, slack: 0, burst: null, shown: prev ? prev.shown : undefined,
   };
@@ -258,7 +262,7 @@ function stageUp() {
   const next = S.stage + 1;
   snd.runLine(); buzz([40, 30, 40, 30, 120]);
   S.shake = 16; S.rodKick = -1; S.rodPitchV -= 8; S.hop = null;
-  S.cutin = { t: 0, ...HEAVY[next], color: GRADE[STAGES[next]].color };
+  S.cutin = { t: 0, ...HEAVY[next], color: GRADE[STAGES[next]].color, dur: 0.6, dim: 0.12 };
   startRhythm(next);
   S.R.reel = -1; S.R.slack = 1.2; S.R.tilt = 1;
 }
@@ -289,11 +293,11 @@ function tickRhythm(rdt) {
   }
   // 박자: 기본 원·낚싯대 '두근' (소리는 음악이 냄)
   const beat = Math.floor((rt - R.t0) / spb + 1e-6);
-  if (rt >= R.t0 - 4 * spb && beat !== R.lastBeat) {
+  if (rt >= R.t0 - R.intro * spb && beat !== R.lastBeat) {
     R.lastBeat = beat;
     R.pulse = 1; S.rodKick = Math.max(S.rodKick, 0.2);
-    if (beat === -2) say('준비', { sx: 0.5, sy: 0.4, size: 34, life: spb * 0.9, rise: 0 });
-    if (beat === -1) say('시작!', { sx: 0.5, sy: 0.4, size: 34, life: spb * 0.9, rise: 0 });
+    if (beat === -2 && S.stage === 0) say('준비', { sx: 0.5, sy: 0.4, size: 34, life: spb * 0.9, rise: 0 });
+    if (beat === -1 && S.stage === 0) say('시작!', { sx: 0.5, sy: 0.4, size: 34, life: spb * 0.9, rise: 0 });
   }
   R.pulse = Math.max(0, R.pulse - rdt / (spb * 0.5));
   for (const n of R.notes) if (!n.res && rt > n.t + TUNE.noteG) noteResult(n, 'Miss');
@@ -426,7 +430,7 @@ function update(dt, rdt) {
     const C = S.cast, k = clamp(S.t / C.dur, 0, 1);
     S.bob.lerpVectors(C.from, C.to, k);
     const yTo = seaHeight(C.to.x, C.to.z, S.now);
-    S.bob.y = C.from.y + (yTo - C.from.y) * k + Math.sin(k * Math.PI) * (2.4 + C.tier * 1.2);
+    S.bob.y = C.from.y + (yTo - C.from.y) * k + Math.sin(k * Math.PI) * (2.4 + C.power * 2.4);
     if (k >= 1) startWait();
   } else if (S.mode === 'wait') tickWait();
   else if (S.mode === 'fight') tickRhythm(rdt);

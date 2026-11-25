@@ -1,15 +1,14 @@
 // 낚시 화면 (2D 캔버스, 3D 위에 겹침) — 리듬 방식 (fishing.md 8장)
-//  준비: 던질 자리 3×3 점 · 세기 3칸 · 기포 표시 / 입질: 찌 확대 창 테두리 · '!' / 줄다리기: 가운데 기본 원 + 줄어드는 원 · 거리 게이지
+//  준비: 떨어질 자리 표시(끄는 동안 따라옴) · 세기 막대 · 기포 표시 / 입질: 찌 확대 창 테두리 · '!' / 줄다리기: 가운데 기본 원 + 줄어드는 원 · 거리 게이지
 //  공통: 의성어 · 판정 · 집중선 컷인 · 도장 '쾅' · 결과 카드 (소리 없이도 손맛)
 import * as THREE from 'three';
 import { GRADE } from './data.js';
-import { landingPoint, seaHeight } from './world.js';
+import { castDist, landingPoint, seaHeight } from './world.js';
 
 const JUA = (px) => `${Math.round(px)}px Jua, 'Pretendard Variable', sans-serif`;
 const UI = (w, px) => `${w} ${Math.round(px)}px 'Pretendard Variable', system-ui, sans-serif`;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const v = new THREE.Vector3();
-const TIER = ['가까이', '중간', '멀리'];
 
 // 찌 확대 창 자리 (오른쪽 아래, 화면 좌표 · 위에서부터)
 export function zoomRect(W, H) {
@@ -46,29 +45,30 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
     g.globalAlpha = 1;
   }
 
-  // 준비: 던질 자리 3×3 점 (끄는 중이면 지금 방향·세기를 밝게)
+  // 준비: 떨어질 자리 표시 (자유 던지기 — 끄는 동안 방향·세기를 따라 움직임, 안 끌 때는 가운데 중간에 흐리게)
   if (S.mode === 'ready') {
-    const tier = S.power < 0.34 ? 0 : S.power < 0.72 ? 1 : 2;
-    for (const dir of [-1, 0, 1]) for (const t of [0, 1, 2]) {
-      const L = landingPoint(S.standX, dir, t);
-      const p = proj(new THREE.Vector3(L.x, seaHeight(L.x, L.z, S.now), L.z));
-      if (!p.ok) continue;
-      const on = S.drag && dir === S.aim.dir && t === tier;
-      const r = (on ? 9 : 5) * u * (1.2 - t * 0.2);
-      g.fillStyle = on ? '#FF8A1F' : 'rgba(255,255,255,.55)'; g.strokeStyle = 'rgba(10,25,45,.5)'; g.lineWidth = 2;
-      g.beginPath(); g.ellipse(p.x, p.y, r, r * 0.45, 0, 0, 7); g.fill(); g.stroke();
+    const on = !!S.drag;
+    const L = landingPoint(S.standX, on ? S.aim : 0, on ? S.power : 0.5);
+    const p = proj(new THREE.Vector3(L.x, seaHeight(L.x, L.z, S.now), L.z));
+    if (p.ok) {
+      const r = (on ? 13 : 9) * u * (1.15 - S.power * 0.35), pulse = 1 + Math.sin(S.now * 6) * 0.08;
+      g.save(); g.translate(p.x, p.y); g.scale(pulse, pulse);
+      g.lineWidth = 3; g.strokeStyle = 'rgba(10,25,45,.45)'; g.beginPath(); g.ellipse(0, 0, r, r * 0.45, 0, 0, 7); g.stroke();
+      g.lineWidth = 2; g.strokeStyle = on ? '#FF8A1F' : 'rgba(255,255,255,.6)'; g.beginPath(); g.ellipse(0, 0, r, r * 0.45, 0, 0, 7); g.stroke();
+      g.fillStyle = on ? '#FF8A1F' : 'rgba(255,255,255,.6)'; g.beginPath(); g.ellipse(0, 0, 3, 1.6, 0, 0, 7); g.fill();
+      g.restore();
     }
-    // 세기 3칸 (끄는 동안)
+    // 세기 막대 (끄는 동안): 가까이 ~ 멀리
     if (S.drag || S.power > 0.01) {
-      const cw = 54 * u, ch = 14 * u, gap = 6, tw = cw * 3 + gap * 2, x0 = W / 2 - tw / 2, y0 = H - 128;
-      glass(g, x0 - 10, y0 - 26, tw + 20, ch + 36, 12);
+      const tw = 180 * u, ch = 12 * u, x0 = W / 2 - tw / 2, y0 = H - 128;
+      glass(g, x0 - 12, y0 - 26, tw + 24, ch + 36, 12);
       g.font = UI(700, 12); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillText(`세기: ${TIER[tier]}`, W / 2, y0 - 13);
-      for (let i = 0; i < 3; i++) {
-        const fill = clamp((S.power - [0, 0.34, 0.72][i]) / [0.34, 0.38, 0.28][i], 0, 1);
-        g.fillStyle = 'rgba(255,255,255,.18)'; rr(g, x0 + i * (cw + gap), y0, cw, ch, 6); g.fill();
-        g.fillStyle = ['#7fe3a0', '#ffd23a', '#FF8A1F'][i]; rr(g, x0 + i * (cw + gap), y0, cw * fill, ch, 6); g.fill();
-      }
+      g.fillText(`세기 ${Math.round(castDist(S.power))}m`, W / 2, y0 - 13);
+      g.textAlign = 'left'; g.fillStyle = 'rgba(255,255,255,.6)'; g.fillText('가까이', x0, y0 - 13);
+      g.textAlign = 'right'; g.fillText('멀리', x0 + tw, y0 - 13);
+      g.fillStyle = 'rgba(255,255,255,.18)'; rr(g, x0, y0, tw, ch, 6); g.fill();
+      const grd = g.createLinearGradient(x0, 0, x0 + tw, 0); grd.addColorStop(0, '#7fe3a0'); grd.addColorStop(0.5, '#ffd23a'); grd.addColorStop(1, '#FF8A1F');
+      g.fillStyle = grd; rr(g, x0, y0, tw * clamp(S.power, 0, 1), ch, 6); g.fill();
     }
   }
 
@@ -104,7 +104,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
     g.fillText('🎣', dx - 22, dy); g.fillText('🌊', dx + dw + 22, dy);
     R.shown = R.shown === undefined ? R.dist : R.shown + (R.dist - R.shown) * 0.2;
     g.fillText('❓', dx + dw * clamp(R.shown / 100, 0, 1), dy); // 무슨 물고기인지는 잡을 때까지 비밀
-    if (S.t > 0.4) {
+    if (S.t > 0.4 || S.stage > 0) {
       // 기본 원 (박자마다 두근)
       const pr = br * (1 + R.pulse * 0.12);
       g.fillStyle = 'rgba(15,25,50,.35)'; g.beginPath(); g.arc(b.x, b.y, pr, 0, 7); g.fill();
@@ -174,11 +174,11 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
   }
 
   // 집중선 컷인 (단계가 오를 때 "무겁다!" · 잡을 때 희귀·전설 공개)
-  if (S.cutin && S.cutin.t < 1.0) {
-    const C = S.cutin, k = C.t;
+  if (S.cutin && S.cutin.t < (S.cutin.dur || 1)) {
+    const C = S.cutin, k = C.t / (C.dur || 1); // 단계가 오를 때는 짧게(0.6초)·덜 어둡게 — 첫 원이 잘 보이게
     const a = k < 0.1 ? k / 0.1 : k > 0.8 ? 1 - (k - 0.8) / 0.2 : 1;
     g.save(); g.globalAlpha = a;
-    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, 0, W, H);
+    g.fillStyle = `rgba(0,0,0,${C.dim ?? 0.35})`; g.fillRect(0, 0, W, H);
     g.translate(W / 2, H / 2);
     for (let i = 0; i < 70; i++) {
       const ang = (i / 70) * Math.PI * 2 + Math.sin(i * 7.3) * 0.05;
@@ -206,7 +206,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
   // 안내 문구 (아래)
   const E = S.ev;
   const hints = {
-    ready: S.drag ? '위로 쭉! 빠를수록 멀리' : S.hint?.txt || '누른 채 위로 끌어올려 던지기 · ↖ ↑ ↗ · 빠를수록 멀리',
+    ready: S.drag ? '위로 쭉! 빠를수록 멀리' : S.hint?.txt || '누른 채 위로 끌어올려 던지기 · 기울인 쪽으로 · 빠를수록 멀리',
     cast: '',
     wait: S.alertT >= 0 ? '지금!' : E || S.evI >= 0 ? "참기… '!'가 뜨면 누르기" : "기다려요… '!'가 뜨면 누르기",
     fight: S.R && (S.R.rt ?? 0) > S.R.t0 - 2 * S.R.spb ? '원이 닿을 때 누르기 · 박자에 맞춰' : '',

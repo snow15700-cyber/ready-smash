@@ -1,6 +1,6 @@
 // 기포 시간표 (fishing.md 8장, 사용자 아이디어 11/25): 모든 사람이 같은 곳·같은 때에 봄 — 네트워크 없이 '시각'으로 정함
 //  · 시간을 칸으로 나누고(기획: 3.5분), 칸 번호를 씨앗으로 기포 1~2개의 자리·시작 시각을 뽑음 → 같은 코드면 모든 PC가 같은 결과
-//  · 기포 하나는 약 40초. 자리는 선착장 끝 판 어딘가에 서서 (방향 3 × 거리 3) 중 하나로 던지면 닿는 곳 근처
+//  · 기포 하나는 약 40초. 자리는 선착장 끝 판 어딘가에 서서 던질 수 있는 부채꼴 안 아무 곳 (자유 던지기, 11/25)
 //  · 게임에 넣을 때: 시계는 서버 시각에 맞춘 값, 서버도 같은 식으로 계산해서 '기포 근처인가'를 직접 판단(5장)
 //  · 이 시안은 PC 시계(Date.now)를 씀
 import { seeded } from '../../arena-kit.js';
@@ -15,10 +15,9 @@ function slotBubbles(n, len) {
   const out = [];
   for (let i = 0; i < count; i++) {
     const standX = STAND.xMin + r() * (STAND.xMax - STAND.xMin);
-    const dir = Math.floor(r() * 3) - 1, tier = Math.floor(r() * 3);
-    const p = landingPoint(standX, dir, tier);
+    const p = landingPoint(standX, r() * 2 - 1, 0.05 + r() * 0.9);
     const start = n * len + r() * Math.max(1, len - BUBBLE_LIFE - 2);
-    out.push({ id: `${n}-${i}`, x: p.x + (r() - 0.5) * 1.2, z: p.z + (r() - 0.5) * 1.2, start, end: start + BUBBLE_LIFE });
+    out.push({ id: `${n}-${i}`, x: p.x, z: p.z, start, end: start + BUBBLE_LIFE });
   }
   return out;
 }

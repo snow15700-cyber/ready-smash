@@ -129,12 +129,12 @@ export function makeLine() {
   return { line, set, mat };
 }
 
-// ── 던지는 자리: 방향 3개(−1 왼쪽 · 0 가운데 · 1 오른쪽, 화면 기준) × 거리 3단계(가까움·중간·멂)
-// 바다(+z)를 보고 서 있어서 화면 오른쪽 = 세계 −x
-export const CAST_D = [7.5, 12, 17];
-export const CAST_ANG = 0.36;
-export function landingPoint(standX, dir, tier) {
-  const d = CAST_D[tier], a = -dir * CAST_ANG;
+// ── 던지는 자리 (자유롭게, 11/25 사용자 확정): aim −1(왼쪽 끝) ~ 1(오른쪽 끝, 화면 기준) = 부채꼴 ±40°
+//    power 0~1 = 거리 6m ~ 18m. 바다(+z)를 보고 서 있어서 화면 오른쪽 = 세계 −x
+export const CAST_MIN = 6, CAST_MAX = 18, CAST_ANG = 0.7;
+export const castDist = (power) => CAST_MIN + (CAST_MAX - CAST_MIN) * Math.max(0, Math.min(1, power));
+export function landingPoint(standX, aim, power) {
+  const d = castDist(power), a = -Math.max(-1, Math.min(1, aim)) * CAST_ANG;
   return { x: standX + Math.sin(a) * d, z: STAND.z + Math.cos(a) * d };
 }
 
