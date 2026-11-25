@@ -10,22 +10,22 @@ export const TUNE = {
   sound: true,
 };
 
-// 리듬: bpm, pat = 박자 위치(박 단위, 0부터). 한 바퀴 끝나면 3박 쉬고 다시(놓쳐도 만회할 수 있게)
+// 리듬: bpm(한 마리마다 ±4 흔들림), notes = 다 Good일 때 잡히는 노트 수의 기준. 박자 패턴·음악은 rhythm.js가 한 마리마다 새로 조립
 export const FISH = {
   mackerel: {
     id: 'mackerel', name: '고등어', grade: 'common', emoji: '🐟',
     size: [24, 46], body: 0x3f6fa0, belly: 0xe8eef2, stripe: true,
-    bpm: 100, pats: [[0, 1, 2, 3], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4, 5]],
+    bpm: 100, notes: 6,
   },
   seabream: {
     id: 'seabream', name: '참돔', grade: 'rare', emoji: '🐠',
     size: [35, 72], body: 0xe0646a, belly: 0xfbd3cf,
-    bpm: 115, pats: [[0, 1, 2, 2.5, 3, 5, 6, 6.5, 7, 8]],
+    bpm: 115, notes: 11,
   },
   goldball: {
     id: 'goldball', name: '황금 탁구공 물고기', grade: 'legend', emoji: '🏓',
     size: [60, 104], body: 0xffc21a, belly: 0xfff3b8, ball: true,
-    bpm: 130, pats: [[0, 0.5, 1.5, 2, 3, 4.5, 5, 5.5, 6.5, 8, 8.5, 9, 10.5, 11, 11.5, 12]],
+    bpm: 130, notes: 16,
   },
 };
 export const GRADE = {

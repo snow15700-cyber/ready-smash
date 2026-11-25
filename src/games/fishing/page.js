@@ -9,7 +9,8 @@ import { buildCampus } from '../../campusMock.js';
 import { makeCharacter } from '../../scene.js';
 import { FISH, GRADE, TUNE, biteSeq, fishSize, pickFish } from './data.js';
 import { activeBubbles, bubbleNear } from './bubbles.js';
-import { initSound, setSoundOn, snd, tickSound } from './sound.js';
+import { audioCtx, initSound, setSoundOn, snd, tickSound } from './sound.js';
+import { makePhrase, makeSong, playBeat, playFinish, playMelody } from './rhythm.js';
 import { PIER, STAND, buildPier, landingPoint, makeBobber, makeBubbleFx, makeFishModel, makeLine, makeRod, makeSplashes, seaHeight } from './world.js';
 import { drawHud, zoomRect } from './hud.js';
 
@@ -48,6 +49,7 @@ scene.add(me.group);
 const rod = makeRod();
 rod.root.position.set(0.24, 0.92, -0.12);
 me.group.add(rod.root);
+rod.root.traverse((o) => { if (o.isMesh) o.userData.keepOp = true; }); // 캐릭터가 반투명해도 낚싯대는 또렷하게
 const line = makeLine(); scene.add(line.line);
 const bobber = makeBobber(); scene.add(bobber);
 
@@ -61,7 +63,7 @@ const S = {
   rodPitch: -0.95, rodPitchV: 0, bend: 0, rodKick: 0, hitstop: 0, slow: 0, shake: 0, zshake: 0, flash: 0, cutin: null, stamp: null,
   texts: [], judge: null, bubbles: [], bubbleNote: null, seenBubbles: new Set(),
 };
-window.__fish = { S, TUNE, cast: (dir, tier) => { initSound(); castTo(dir, tier); } };
+window.__fish = { S, TUNE, cast: (dir, tier) => { initSound(); castTo(dir, tier); }, rt: () => (S.R ? nowS() - S.R.base : 0) };
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const DECK = PIER.y + 0.04;
@@ -217,72 +219,120 @@ function hook(g, rt) {
   startRhythm();
 }
 
-// 리듬: 박자(bpm)·패턴(박 위치). 원은 박자 2개 동안 줄어듦. 한 바퀴 끝나면 3박 쉬고 다시.
-// 거리 게이지 0~100: 60에서 시작, 0 = 잡음, 100 = 도망. 다 Good이면 패턴 약 90%에서 잡힘, 2~3번 놓쳐도 만회(놓침 = Good의 1.2배만큼 멀어짐).
+// 리듬 (fishing.md 8장): 박자·패턴·음악은 rhythm.js가 한 마리마다·구절(4마디)마다 새로 조립 (반복 안 되게)
+// 시간은 진짜 시계(performance.now)로 잼 — 음악(오디오 시각)과 어긋나지 않고, 누른 순간을 정확히 잼.
+// 원은 2박 동안 줄어듦(마지막 큰 노트는 3박). 거리 게이지 0~100, 60에서 시작: Good −g · Perfect −1.4g · Miss +1.2g
+// (g = 60 ÷ (기준 노트 수 × 0.9)). 0 = 잡음 · 100 = 도망. 한 번만 더 맞추면 잡힐 때 → 마지막 큰 노트(맞추면 바로 잡힘)
+const rtNow = () => nowS() - S.R.base;
 function startRhythm() {
   setMode('fight');
-  const f = S.fish, pat = f.pats[(Math.random() * f.pats.length) | 0];
-  const spb = 60 / f.bpm;
+  const f = S.fish, song = makeSong(f);
+  const spb = 60 / song.bpm;
   const lead = f.grade === 'common' ? 0.5 : 1.0; // 희귀·전설은 집중선 컷인 뒤
-  const t0 = lead + 2 * spb; // 첫 노트 (그 전 2박은 '준비' 박자)
-  const g = 60 / (pat.length * 0.9);
-  S.R = { spb, pat, t0, loopLen: Math.ceil(pat[pat.length - 1]) + 3, notes: [], made: 0, dist: 60, g, m: g * 1.2, lastBeat: -99, pulse: 0, side: 1, hits: 0, perfects: 0, misses: 0 };
+  const g = 60 / (f.notes * 0.9);
+  S.R = {
+    song, spb, base: nowS(), t0: lead + 4 * spb, // 첫 노트 구절의 첫 박 (그 전 1마디는 음악만 — 들어가는 마디)
+    queue: [], phrases: 0, notes: [], dist: 60, g, m: g * 1.2, lastBeat: -99, sched: -4, pulse: 0, side: 1,
+    hits: 0, perfects: 0, misses: 0, fin: null, aOff: 0, bump: 0, tilt: 0, reel: 0, slack: 0, burst: null,
+  };
+  const ac = audioCtx(); if (ac) S.R.aOff = ac.currentTime - nowS();
+  fillQueue();
   if (f.grade !== 'common') S.cutin = { t: 0, txt: f.grade === 'legend' ? '✨ 전설 ✨' : '희귀!', sub: f.name, color: GRADE[f.grade].color };
+  // 맞출 때 물 위로 살짝 튀는 물고기
+  S.model = makeFishModel(f); S.model.visible = false; S.model.scale.setScalar(0.6 + S.size.k * 0.9); scene.add(S.model);
 }
-function noteTime(i) { const R = S.R, L = R.pat.length; return R.t0 + (Math.floor(i / L) * R.loopLen + R.pat[i % L]) * R.spb; }
+const beatT = (b) => S.R.t0 + b * S.R.spb;
+function fillQueue() { // 앞으로 2구절치 노트 시각을 늘 준비
+  const R = S.R;
+  while (R.queue.length < 12) { for (const x of makePhrase(R.song)) R.queue.push({ beat: R.phrases * 16 + x }); R.phrases++; }
+}
 function tickRhythm(rdt) {
-  const R = S.R, t = S.t, appr = 2 * R.spb;
-  while (noteTime(R.made) - appr <= t + 0.05) { R.notes.push({ t: noteTime(R.made), res: null }); R.made++; }
-  // 박자 (릴 '탁' + 기본 원·낚싯대 '두근'). 첫 노트 2박 전부터
-  const beat = Math.floor((t - R.t0) / R.spb + 1e-6);
-  if (t >= R.t0 - 2 * R.spb - 1e-6 && beat !== R.lastBeat) {
-    R.lastBeat = beat;
-    const inLoop = ((beat % R.loopLen) + R.loopLen) % R.loopLen;
-    snd.beat(inLoop === 0 || beat < 0);
-    R.pulse = 1; S.rodKick = Math.max(S.rodKick, 0.25);
-    if (beat === -2) say('준비', { sx: 0.5, sy: 0.4, size: 34, life: R.spb * 0.9, rise: 0 });
-    if (beat === -1) say('시작!', { sx: 0.5, sy: 0.4, size: 34, life: R.spb * 0.9, rise: 0 });
+  const R = S.R, rt = rtNow(), spb = R.spb;
+  // 음악: 0.25초 앞까지 박마다 미리 걸어 둠 (오디오 시각)
+  while (beatT(R.sched) < rt + 0.25) { playBeat(R.song, R.sched, R.aOff + R.base + beatT(R.sched), spb); R.sched++; }
+  // 노트 내보내기 (마지막 큰 노트를 기다리는 동안은 멈춤)
+  if (!R.fin) {
+    fillQueue();
+    while (R.queue.length) {
+      const q = R.queue[0], t = beatT(q.beat);
+      if (t < rt + 0.05) { R.queue.shift(); continue; } // 이미 지난 박(큰 노트를 놓친 뒤)
+      const pending = R.notes.filter((n) => !n.res).length;
+      const fin = R.dist - R.g * pending <= R.g * 1.02;
+      const appr = (fin ? 3 : 2) * spb;
+      if (t - appr > rt) break;
+      R.queue.shift();
+      const n = { t, beat: q.beat, appr, res: null, fin };
+      R.notes.push(n);
+      if (fin) { R.fin = n; say('마지막!', { sx: 0.5, sy: 0.4, size: 40, color: '#ffd23a', life: spb * 2, rise: 0, shake: 2 }); break; }
+    }
   }
-  R.pulse = Math.max(0, R.pulse - rdt / (R.spb * 0.5));
-  for (const n of R.notes) if (!n.res && t > n.t + TUNE.noteG) noteResult(n, 'Miss');
-  R.notes = R.notes.filter((n) => !n.res || t - n.at < 0.5);
-  if (R.dist <= 0) startLand();
-  else if (R.dist >= 100) fail('far');
+  // 박자: 기본 원·낚싯대 '두근' (소리는 음악이 냄)
+  const beat = Math.floor((rt - R.t0) / spb + 1e-6);
+  if (rt >= R.t0 - 4 * spb && beat !== R.lastBeat) {
+    R.lastBeat = beat;
+    R.pulse = 1; S.rodKick = Math.max(S.rodKick, 0.2);
+    if (beat === -2) say('준비', { sx: 0.5, sy: 0.4, size: 34, life: spb * 0.9, rise: 0 });
+    if (beat === -1) say('시작!', { sx: 0.5, sy: 0.4, size: 34, life: spb * 0.9, rise: 0 });
+  }
+  R.pulse = Math.max(0, R.pulse - rdt / (spb * 0.5));
+  for (const n of R.notes) if (!n.res && rt > n.t + TUNE.noteG) noteResult(n, 'Miss');
+  R.notes = R.notes.filter((n) => !n.res || rt - n.at < 0.5);
+  // 손맛 연출 줄어들기
+  R.bump = Math.max(0, R.bump - rdt * 8); R.tilt *= 1 - Math.min(1, rdt * 4); R.reel *= 1 - Math.min(1, rdt * 3); R.slack = Math.max(0, R.slack - rdt * 1.5);
+  if (R.burst) { R.burst.t += rdt; if (R.burst.t > 0.5) R.burst = null; }
+  if (R.dist >= 100) fail('far');
 }
 function pressNote() {
   const R = S.R; if (!R) return;
+  const rt = rtNow();
   let near = null, bd = 1e9;
-  for (const n of R.notes) if (!n.res) { const d = Math.abs(S.t - n.t); if (d < bd) { bd = d; near = n; } }
+  for (const n of R.notes) if (!n.res) { const d = Math.abs(rt - n.t); if (d < bd) { bd = d; near = n; } }
   if (!near || bd > 0.25) return; // 노트가 멀면 무시 (마구 눌러도 손해·이득 없음)
   noteResult(near, bd <= TUNE.noteP ? 'Perfect' : bd <= TUNE.noteG ? 'Good' : 'Miss');
 }
 function noteResult(n, res) {
   const R = S.R;
-  n.res = res; n.at = S.t;
+  n.res = res; n.at = rtNow();
   const y = seaHeight(S.bob.x, S.bob.z, S.now);
+  if (n.fin) R.fin = null;
   if (res === 'Miss') {
+    // 놓침: 릴이 '지이익' 거꾸로 · 줄이 늘어짐 · 화면이 살짝 기울었다 돌아옴
     R.dist = Math.min(100, R.dist + R.m); R.misses++;
-    snd.noteMiss(); S.shake = Math.max(S.shake, 5); S.rodKick = -0.6;
-    say('스르륵…', { at: bobAbove(0.8), size: 26, color: '#c9d3e0', life: 0.6 });
+    snd.noteMiss(); S.shake = Math.max(S.shake, 5); S.rodKick = -0.7;
+    R.reel = -1; R.slack = 1; R.tilt = R.side;
+    say('지이익…', { at: bobAbove(0.8), size: 28, color: '#c9d3e0', life: 0.7, shake: 2 });
     buzz(30);
-  } else {
-    const p = res === 'Perfect';
-    R.dist = Math.max(0, R.dist - R.g * (p ? 1.4 : 1)); R.hits++; if (p) R.perfects++;
-    snd.noteHit(p); S.rodKick = 1; S.shake = Math.max(S.shake, p ? 6 : 4);
-    R.side = -R.side;
-    fx.burst(S.bob.x, y, S.bob.z, p ? 12 : 7, p ? 0.8 : 0.55);
-    buzz(p ? 25 : 15);
+    return;
   }
+  const p = res === 'Perfect';
+  R.hits++; if (p) R.perfects++;
+  playMelody(R.song, n.beat, p); // 내가 누른 소리가 멜로디가 됨
+  if (n.fin) { // 마지막 큰 노트: 크게 당겨 바로 잡음
+    R.dist = 0; playFinish(R.song);
+    S.hitstop = 0.08; S.flash = 0.8; S.shake = 14; S.rodPitchV += 10; R.bump = 2; R.burst = { t: 0, p: true, big: true };
+    say(p ? '영차—!! ✨' : '영차—!!', { sx: 0.5, sy: 0.4, size: 56, color: '#ffd23a', life: 0.8, shake: 5 });
+    buzz([60, 30, 120]);
+    return startLand();
+  }
+  // 맞춤: 낚싯대를 '휙' 들어 올림 · 물고기가 살짝 튐 · 화면이 순간 확대 · Perfect는 원이 터지며 불꽃
+  R.dist = Math.max(1, R.dist - R.g * (p ? 1.4 : 1));
+  S.rodPitchV += p ? 7 : 5; S.rodKick = 1; S.shake = Math.max(S.shake, p ? 6 : 4);
+  R.bump = p ? 1.3 : 0.8; R.reel = 1; R.burst = { t: 0, p };
+  R.side = -R.side;
+  S.hop = { t: 0, h: p ? 0.9 : 0.5 };
+  fx.burst(S.bob.x, y, S.bob.z, p ? 14 : 8, p ? 0.9 : 0.6);
+  buzz(p ? 25 : 15);
 }
 
 // ── 잡기: 물 밖으로 들어 올림 (처음 0.2초 느린 동작 + 물방울) → 이름·cm 도장 '쾅'
 function startLand() {
   setMode('land');
-  const M = makeFishModel(S.fish); scene.add(M); S.model = M;
+  if (!S.model) { S.model = makeFishModel(S.fish); scene.add(S.model); }
+  const M = S.model; M.visible = true;
   M.scale.setScalar(0.6 + S.size.k * 0.9);
   const y = seaHeight(S.bob.x, S.bob.z, S.now);
   S.land = { from: new THREE.Vector3(S.bob.x, y, S.bob.z), stamped: false };
-  S.slow = 0.2;
+  S.slow = 0.2; S.hop = null;
   fx.burst(S.bob.x, y, S.bob.z, 30, 1.3); snd.splash(1.2); buzz([30, 40, 80]);
   say('촤아악!', { at: bobAbove(1.2), size: 40, life: 0.8 });
 }
@@ -336,6 +386,8 @@ function update(dt, rdt) {
   if (S.hint) { S.hint.t += rdt; if (S.hint.t > 2.2) S.hint = null; }
   if (S.mode === 'ready' && S.walk) S.standX = clamp(S.standX + S.walk * 2.4 * dt, STAND.xMin, STAND.xMax);
   me.group.position.set(S.standX, DECK, STAND.z);
+  me.setOpacity(S.mode === 'ready' ? 1 : 0.4, 1); // 낚시하는 동안 내 캐릭터 반투명 (내 화면에서만, 사용자 요청)
+  if (S.R) S.R.rt = rtNow();
   if (S.mode === 'ready' && !S.drag) S.power = Math.max(0, S.power - rdt * 0.8);
 
   // 기포 (모두가 같은 곳 — 시각으로 정함)
@@ -380,7 +432,17 @@ function update(dt, rdt) {
   S.bend += (wantBend - S.bend) * Math.min(1, rdt * 10);
   S.rodKick *= 1 - Math.min(1, rdt * 7);
   rod.pose(S.rodPitch + S.rodKick * 0.25, clamp(S.bend + S.rodKick * 0.35, -0.3, 1.2), S.R ? S.R.side * 0.3 : 0, 0);
-  if (S.mode === 'fight') rod.reelHandle.rotation.x -= rdt * 10;
+  if (S.mode === 'fight' && S.R) rod.reelHandle.rotation.x -= rdt * (6 + S.R.reel * 30); // 맞추면 빨리 감기 · 놓치면 거꾸로 '지이익'
+  // 맞출 때 물고기가 물 위로 살짝 튐
+  if (S.hop && S.model) {
+    S.hop.t += rdt;
+    const k = S.hop.t / 0.4;
+    S.model.visible = k < 1;
+    if (k < 1) {
+      S.model.position.set(S.bob.x, seaHeight(S.bob.x, S.bob.z, S.now) - 0.2 + Math.sin(k * Math.PI) * S.hop.h, S.bob.z);
+      S.model.rotation.set(0, Math.PI / 2 + (S.R ? S.R.side : 1) * 0.6, (0.5 - k) * 1.4);
+    } else S.hop = null;
+  }
   me.group.updateMatrixWorld(true);
   rod.tip.getWorldPosition(tipW);
 
@@ -390,7 +452,8 @@ function update(dt, rdt) {
   if (showLine) {
     const to = S.mode === 'land' ? S.model.position : S.bob.clone().add(new THREE.Vector3(0, 0.8, 0));
     const tight = S.mode === 'fight' ? 0.85 : S.mode === 'land' ? 0.8 : (S.ev?.kind === 'real' && S.ev.fired) ? 0.6 : 0;
-    line.set(tipW, to, (1 - tight) * Math.min(1.4, tipW.distanceTo(to) * 0.12), S.mode === 'fight' ? S.rodKick * 0.04 : 0, S.now);
+    const slack = S.mode === 'fight' && S.R ? S.R.slack * 1.2 : 0; // 놓치면 줄이 늘어짐
+    line.set(tipW, to, (1 - tight) * Math.min(1.4, tipW.distanceTo(to) * 0.12) + slack, S.mode === 'fight' ? S.rodKick * 0.04 : 0, S.now);
   }
 
   fx.update(dt);
@@ -411,6 +474,11 @@ function placeCamera() {
   camera.position.set(S.standX + 0.95, DECK + 2.15, STAND.z - 3.0);
   if (S.shake > 0) { camera.position.x += (Math.random() - 0.5) * S.shake * 0.012; camera.position.y += (Math.random() - 0.5) * S.shake * 0.012; }
   camera.lookAt(S.standX - 0.4, -11.6, S.mode === 'land' ? STAND.z + 7 : STAND.z + 11);
+  // 맞추면 순간 확대(bump) · 놓치면 살짝 기울기(tilt)
+  const R = S.mode === 'fight' ? S.R : null;
+  camera.rotateZ(R ? R.tilt * 0.035 : 0);
+  const fov = (innerWidth < innerHeight ? 72 : 55) * (1 - (R ? R.bump : 0) * 0.025);
+  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
 }
 // 찌 확대 창 카메라: 찌 자리의 물 높이를 따라 오르내려서, 파도가 있어도 창 안에서 찌가 제자리 → 잠기는 게 또렷
 const zoomOn = () => S.bobLanded && S.mode === 'wait';
@@ -456,6 +524,13 @@ renderer.setAnimationLoop((ms) => {
     renderer.setViewport(0, 0, W, H);
   }
   drawHud(hg, W, H, { S, TUNE, camera, zoomCam, zoom: zoomOn(), caught });
+});
+
+// 탭이 숨겨지면 리듬 시계도 멈췄다가 돌아오면 이어서 (진짜 시계라 따로 밀어 줌)
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) hiddenAt = nowS();
+  else if (S.R && hiddenAt) { const d = nowS() - hiddenAt; S.R.base += d; S.R.sched = Math.max(S.R.sched, Math.floor((rtNow() - S.R.t0) / S.R.spb) + 1); }
 });
 
 // ── ⚙️ 시험 설정

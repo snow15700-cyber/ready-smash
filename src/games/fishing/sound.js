@@ -26,7 +26,8 @@ export function initSound() {
 }
 export function setSoundOn(on) { if (out) out.gain.setTargetAtTime(on ? 0.8 : 0, ac.currentTime, 0.05); }
 
-function noise(dur, { type = 'bandpass', f = 2000, f2 = null, q = 1, gain = 0.3, at = 0 } = {}) {
+export const audioCtx = () => ac;
+export function noise(dur, { type = 'bandpass', f = 2000, f2 = null, q = 1, gain = 0.3, at = 0 } = {}) {
   if (!ac) return;
   const t = ac.currentTime + at;
   const s = ac.createBufferSource(); s.buffer = noiseBuf;
@@ -36,7 +37,7 @@ function noise(dur, { type = 'bandpass', f = 2000, f2 = null, q = 1, gain = 0.3,
   s.connect(fl); fl.connect(g); g.connect(out);
   s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.02);
 }
-function tone(f1, f2, dur, { type = 'sine', gain = 0.2, at = 0 } = {}) {
+export function tone(f1, f2, dur, { type = 'sine', gain = 0.2, at = 0 } = {}) {
   if (!ac) return;
   const t = ac.currentTime + at;
   const o = ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(f1, t);
