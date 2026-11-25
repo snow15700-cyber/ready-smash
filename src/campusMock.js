@@ -51,14 +51,14 @@ const M = {
 // 유리 막대 (청록 유리 + 가로 띠 격자, 사진 1)
 function glassTex(cols, rows) {
   const t = canvasTex(512, 256, (g, w, h) => {
-    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#9fdcd8'); gr.addColorStop(1, '#5fa9ad');
+    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#4f9196'); gr.addColorStop(1, '#22505a');
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
-    g.strokeStyle = 'rgba(40,80,85,.55)'; g.lineWidth = 3;
+    g.strokeStyle = 'rgba(12,32,36,.7)'; g.lineWidth = 3;
     for (let r = 0; r <= rows; r++) { g.beginPath(); g.moveTo(0, (r * h) / rows); g.lineTo(w, (r * h) / rows); g.stroke(); }
     g.lineWidth = 1.5;
     for (let c = 0; c <= cols; c++) { g.beginPath(); g.moveTo((c * w) / cols, 0); g.lineTo((c * w) / cols, h); g.stroke(); }
     // 반사 줄무늬 + 몇 개는 불 켜진 창
-    for (let i = 0; i < 18; i++) { g.fillStyle = `rgba(255,255,255,${0.08 + Math.random() * 0.12})`; g.fillRect(Math.random() * w, 0, 6 + Math.random() * 20, h); }
+    for (let i = 0; i < 18; i++) { g.fillStyle = `rgba(200,240,240,${0.05 + Math.random() * 0.08})`; g.fillRect(Math.random() * w, 0, 6 + Math.random() * 20, h); }
     for (let i = 0; i < 6; i++) { g.fillStyle = 'rgba(255,230,170,.55)'; g.fillRect(Math.floor(Math.random() * cols) * (w / cols) + 2, Math.floor(Math.random() * rows) * (h / rows) + 2, w / cols - 4, h / rows - 4); }
   });
   t.wrapS = THREE.RepeatWrapping;
@@ -66,16 +66,16 @@ function glassTex(cols, rows) {
 }
 function glassBar(parent, x0, x1, z0, z1, y0, y1) {
   const w = x1 - x0, d = z1 - z0, h = y1 - y0;
-  const mat = (len) => { const t = glassTex(16, 5); t.repeat.set(Math.max(1, Math.round(len / 14)), 1); return new THREE.MeshStandardMaterial({ map: t, roughness: 0.15, metalness: 0.35, emissive: 0x0d3a3a, emissiveIntensity: 0.25 }); };
+  const mat = (len) => { const t = glassTex(16, 5); t.repeat.set(Math.max(1, Math.round(len / 14)), 1); return new THREE.MeshStandardMaterial({ map: t, roughness: 0.12, metalness: 0.45, emissive: 0x041818, emissiveIntensity: 0.3 }); };
   const mx = mat(w), mz = mat(d);
-  const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [mz, mz, M.white, std(0x26393b), mx, mx]);
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [mz, mz, M.white, std(0x1c2627), mx, mx]);
   bar.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); bar.castShadow = true; parent.add(bar);
   // 지붕: 흰 난간 띠 + 지붕 정원(사진 2)
   addBox(parent, w + 0.3, 0.5, d + 0.3, M.white, bar.position.x, y1 + 0.25, bar.position.z);
   addBox(parent, w * 0.55, 0.3, d * 0.5, M.roofGrass, bar.position.x - w * 0.12, y1 + 0.55, bar.position.z);
   addBox(parent, w * 0.25, 1.2, d * 0.6, M.white, bar.position.x + w * 0.3, y1 + 0.9, bar.position.z - d * 0.1);
   // 아래 면 짙은 띠 (떠 있는 느낌)
-  addBox(parent, w + 0.02, 0.35, d + 0.02, std(0x24302f), bar.position.x, y0 + 0.17, bar.position.z);
+  addBox(parent, w + 0.02, 0.5, d + 0.02, std(0x1a2122), bar.position.x, y0 + 0.25, bar.position.z);
   return bar;
 }
 
@@ -181,13 +181,14 @@ function fameStore() {
 // ── 분수 (가운데): 둥근 물받이 2단 + 가운데 물기둥 위에 탁구공이 통통
 function fountain(anim) {
   const g = new THREE.Group();
-  const stoneL = std(0xd9d4c8), water = new THREE.MeshStandardMaterial({ color: 0x5fb6e8, transparent: true, opacity: 0.85, roughness: 0.1, metalness: 0.1 });
+  const stoneL = std(0xd9d4c8), water = new THREE.MeshStandardMaterial({ color: 0x3f9ad6, roughness: 0.08, metalness: 0.2 });
+  const waterDisc = (r, y) => { const m = new THREE.Mesh(new THREE.CircleGeometry(r, 48), water); m.rotation.x = -Math.PI / 2; m.position.y = y; g.add(m); return m; };
   const rim = new THREE.Mesh(new THREE.TorusGeometry(3.1, 0.25, 10, 48), stoneL); rim.rotation.x = Math.PI / 2; rim.position.y = 0.45; g.add(rim);
-  cyl(g, 3.1, 3.2, 0.45, std(0xc8c2b4), 0, 0.22, 0, 48);
-  cyl(g, 2.95, 2.95, 0.05, water, 0, 0.42, 0, 48);
+  cyl(g, 3.1, 3.2, 0.25, std(0xc8c2b4), 0, 0.125, 0, 48); // 물받이 바닥 (윗면 0.25)
+  waterDisc(3.0, 0.4);
   cyl(g, 0.5, 0.7, 1.3, stoneL, 0, 0.9, 0, 24);
   cyl(g, 1.4, 0.9, 0.3, stoneL, 0, 1.6, 0, 32);
-  cyl(g, 1.25, 1.25, 0.05, water, 0, 1.73, 0, 32);
+  waterDisc(1.3, 1.8);
   cyl(g, 0.2, 0.25, 0.7, stoneL, 0, 2.1, 0, 16);
   // 물줄기 (반투명 기둥) + 바깥으로 흐르는 물 아치
   const jetM = new THREE.MeshStandardMaterial({ color: 0xcdeeff, transparent: true, opacity: 0.5, roughness: 0.05 });
@@ -198,11 +199,11 @@ function fountain(anim) {
     arc.position.set(Math.cos(a) * 1.75, 1.75, Math.sin(a) * 1.75); arc.rotation.y = -a; g.add(arc);
   }
   // 탁구공 (주황) — 물줄기 위에서 통통
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.32, 20, 14), std(0xff8a3d, { roughness: 0.35 }));
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 14), std(0xff8a3d, { roughness: 0.35 }));
   ball.castShadow = true; g.add(ball);
   // 둘레 작은 바닥 조명 (사진 1의 기둥 조명)
   for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + 0.2; cyl(g, 0.06, 0.06, 0.4, M.alu, Math.cos(a) * 4.2, 0.2, Math.sin(a) * 4.2, 8); }
-  anim.push((t) => { const p = (t * 1.4) % 1; ball.position.set(0, 3.4 + Math.sin(p * Math.PI) * 0.6, 0); ball.rotation.x = t * 2; });
+  anim.push((t) => { const p = (t * 1.4) % 1; ball.position.set(0, 3.2 + Math.sin(p * Math.PI) * 0.45, 0); ball.rotation.x = t * 2; });
   return g;
 }
 
@@ -389,11 +390,11 @@ export function buildCampus() {
   pitch.rotation.x = -Math.PI / 2; pitch.position.set(-29, 0.01, -4); root.add(pitch);
 
   // 본관: 떠 있는 유리 막대 2개 + 검은 돌 기둥 (사진 1·2)
-  glassBar(root, -30, 6, -24, -15, 8, 15);
-  glassBar(root, 1, 32, -19.5, -12.5, 5, 10.5);
-  addBox(root, 6, 8, 7, M.stone, -3.5, 4, -19.5).castShadow = true;
-  addBox(root, 4.5, 5, 6, M.stone, 11, 2.5, -16).castShadow = true;
-  addBox(root, 3, 8, 4, M.stone, -27, 4, -20);
+  glassBar(root, -36, 8, -30, -17, 13, 25); // 막대 ① (높게, 바닥에서 13m 떠 있음)
+  glassBar(root, 0, 40, -25, -14.5, 8.5, 18); // 막대 ② (조금 낮게, 앞쪽)
+  addBox(root, 7, 13, 9, M.stone, -4, 6.5, -24).castShadow = true; // 검은 돌 기둥 (사진 1)
+  addBox(root, 6, 8.5, 8, M.stone, 13, 4.25, -20).castShadow = true;
+  addBox(root, 4, 13, 6, M.stone, -32, 6.5, -24);
   // 본관 앞면 전광판 (경기 점수·오늘의 1등)
   const scr = canvasTex(1024, 384, (g, w, h) => {
     g.fillStyle = '#0b1020'; g.fillRect(0, 0, w, h);
@@ -401,8 +402,8 @@ export function buildCampus() {
     g.fillStyle = '#ffe08a'; g.font = FONT(64); g.textAlign = 'center'; g.fillText('🔥 1번 탁구대  김OO 7 : 5 이OO', w / 2, 130);
     g.fillStyle = '#9fe0ff'; g.font = FONT(56); g.fillText('🏆 오늘의 1등  박OO  12승', w / 2, 270);
   });
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(12, 4.5), new THREE.MeshBasicMaterial({ map: scr }));
-  screen.position.set(-14, 11.5, -14.95); root.add(screen);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(15, 5.6), new THREE.MeshBasicMaterial({ map: scr }));
+  screen.position.set(-16, 16.6, -16.94); root.add(screen);
 
   // 분수 + 가게 반원 (분수 (0,2) 둘레 반지름 약 8.5)
   const F = [0, 2];
@@ -414,8 +415,6 @@ export function buildCampus() {
     g.rotation.y = -a; // 앞(+z)이 분수 쪽
     root.add(g);
   }
-  // 분수 둘레 벤치
-  for (let i = 0; i < 6; i++) { const a = Math.PI * (0.25 + i * 0.3); const b = bench(); b.position.set(F[0] + Math.cos(a) * 4.9, 0, F[1] + Math.sin(a) * 4.9); b.rotation.y = -a + Math.PI / 2; root.add(b); }
 
   const ct = clockTower(); ct.position.set(13.5, 0, -6.5); ct.rotation.y = -0.5; root.add(ct);
   const bd = board(); bd.position.set(5, 0, 9.6); bd.rotation.y = -0.35; root.add(bd);
