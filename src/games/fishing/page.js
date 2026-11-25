@@ -10,7 +10,7 @@ import { buildCampus } from '../../campusMock.js';
 import { makeCharacter } from '../../scene.js';
 import { BIG_CM, FISH, GRADE, PADDLE_DUP_PIECES, STAGES, STAGE_FISH, TUNE, biteSeq, fishSize, pickCatch, stageOf } from './data.js';
 import { addPaddle, dexOpen, fishCount, modelImage, openDex, ownedPaddles, recordCatch, setServerDex } from './dex.js';
-import { CATCH, LEGEND_PADDLES, sizeK } from './rules.js';
+import { CATCH, LEGEND_PADDLES, modelScale, sizeK, sizeTier } from './rules.js';
 import { account, autoLogin, fishCast, fishDex, fishFinish } from '../../account.js';
 import { ACH } from '../../achievements.js';
 import { makeModel } from './models.js';
@@ -75,9 +75,9 @@ const S = {
 window.__fish = {
   S, TUNE, openDex,
   // 디버그: 리듬 없이 바로 잡기 연출 (점검·스크린샷용). landNow = 던진 뒤(입질 기다리는 중) 바로 잡기 — 서버 연결 점검용
-  landNow: () => { if (S.mode !== 'wait' || !S.fish) return false; S.size = S.srvSize || fishSize(); S.grade = 'Perfect'; S.R = { perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 }; startLand(); return true; },
+  landNow: () => { if (S.mode !== 'wait' || !S.fish) return false; S.size = S.srvSize || rollSize(); S.grade = 'Perfect'; S.R = { perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 }; startLand(); return true; },
   online: () => online,
-  catchNow: () => { if (S.mode !== 'ready') return; const p = landingPoint(S.standX, 0, 0.5); S.bob.set(p.x, 0, p.z); S.bobLanded = true; S.fish = pickCatch(0, catchCtx()); S.size = fishSize(); S.grade = 'Perfect'; S.R = { perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 }; startLand(); }, stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(), cast: (aim = 0, power = 0.5) => { initSound(); castTo(aim, power); }, rt: () => (S.R ? nowS() - S.R.base : 0) };
+  catchNow: () => { if (S.mode !== 'ready') return; const p = landingPoint(S.standX, 0, 0.5); S.bob.set(p.x, 0, p.z); S.bobLanded = true; S.fish = pickCatch(0, catchCtx()); S.size = rollSize(); S.grade = 'Perfect'; S.R = { perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 }; startLand(); }, stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(), cast: (aim = 0, power = 0.5) => { initSound(); castTo(aim, power); }, rt: () => (S.R ? nowS() - S.R.base : 0) };
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const DECK = PIER.y + 0.04;
@@ -90,7 +90,7 @@ autoLogin().then(async (r) => {
   if (r !== 'ok' || !account.loggedIn) return;
   online = true;
   TUNE.fish = 'random'; TUNE.bubbles = 'normal'; // 서버는 기획대로의 기포만 앎
-  for (const k of ['fish', 'bubbles']) document.querySelector(`#panel [data-k="${k}"]`)?.closest('.row')?.remove();
+  for (const k of ['fish', 'bubbles', 'size']) document.querySelector(`#panel [data-k="${k}"]`)?.closest('.row')?.remove();
   const tag = document.querySelector('.tag span'); if (tag) tag.textContent = ` · 🔗 ${account.nick} · 서버에 기록(코인·도감·업적)`;
   const d = await fishDex(); if (d) setServerDex(d);
 });
@@ -103,6 +103,8 @@ function adoptServer() { // 던질 때 서버가 정한 것 → 이번 물고기
   S.srvSize = c.kind === 'fish' ? { cm: +c.cm, k: sizeK(+c.cm) } : { cm: 0, k: 0.3 };
   return true;
 }
+// ⚙️ 크기 시험 (로그인 안 했을 때만): 'random' | 고정 cm
+const rollSize = () => (TUNE.size !== 'random' ? { cm: +TUNE.size, k: sizeK(+TUNE.size) } : fishSize());
 function catchCtx() {
   const h = new Date(Date.now() + 9 * 3600e3).getUTCHours(), c = TUNE.cond;
   return { owned: ownedPaddles(), cond: c === 'auto' ? { break: !!breakAt(), night: h >= 19 || h < 6, rain: false } : { [c]: true } };
@@ -250,7 +252,7 @@ function pressWait() {
 // ── 챔질 → 리듬 줄다리기
 function hook(g, rt) {
   S.grade = g;
-  S.size = S.srvSize || fishSize();
+  S.size = S.srvSize || rollSize();
   S.hitstop = 0.06; S.shake = 12; S.flash = g === 'Perfect' ? 0.7 : 0.4; S.rodKick = 1; S.alertT = -1;
   snd.hook(g); buzz(60);
   const col = g === 'Perfect' ? '#ffb02e' : '#7fe3a0';
@@ -286,7 +288,7 @@ function startRhythm(stage = 0) {
   fillQueue();
   // 맞출 때 물 위로 살짝 튀는 물고기 = 아직 무슨 물고기인지 모르게 검은 그림자. 단계가 오를수록 크게
   if (S.model) scene.remove(S.model);
-  S.model = makeShadowFish(); S.model.visible = false; S.model.scale.setScalar(0.7 + stage * 0.4); scene.add(S.model);
+  S.model = makeShadowFish(); S.model.visible = false; S.model.scale.setScalar(Math.max(0.7 + stage * 0.4, S.fish?.kind === 'fish' && S.size ? modelScale(S.size.cm) * 0.8 : 0)); scene.add(S.model); // 큰 놈은 그림자도 큼
 }
 function makeShadowFish() {
   const m = makeFishModel(FISH.mackerel), mat = new THREE.MeshStandardMaterial({ color: 0x1b2a3a, roughness: 0.6 });
@@ -399,28 +401,33 @@ function startLand() {
   if (c.kind === 'paddle') S.cutin = { t: 0, txt: '🏓 전설 탁구채!!', sub: c.dup ? `${c.name} — 이미 있어서 조각 ${PADDLE_DUP_PIECES}개` : c.name, color: '#ffc21a' };
   else if (c.kind === 'junk') S.cutin = { t: 0, txt: '에이…', sub: `${c.name}네 ${c.emoji}`, color: '#9fd3c0', dur: 0.9, dim: 0.1 };
   else if (c.grade !== 'common') S.cutin = { t: 0, txt: c.grade === 'legend' ? '🌟 전설! 🌟' : '✨ 희귀!', sub: c.name, color: GRADE[c.grade].color };
-  M.scale.setScalar(c.kind === 'fish' ? 0.9 + S.size.k * 1.1 : 1.2);
+  // 크기가 드라마틱하게 (fishing.md 11장): 모형 크기 = cm에 비례, 클수록 느린 동작·물보라·흔들림·카메라 물러남·늦게 도장
+  const sc = c.kind === 'fish' ? modelScale(S.size.cm) : 1.2, tier = c.kind === 'fish' ? sizeTier(S.size.cm) : null;
+  M.scale.setScalar(sc);
   const y = seaHeight(S.bob.x, S.bob.z, S.now);
-  S.land = { from: new THREE.Vector3(S.bob.x, y, S.bob.z), stamped: false };
-  S.slow = 0.2; S.hop = null;
-  fx.burst(S.bob.x, y, S.bob.z, 30, 1.3); snd.splash(1.2); buzz([30, 40, 80]);
-  say('촤아악!', { at: bobAbove(1.2), size: 40, life: 0.8 });
+  const T = { monster: { slow: 0.7, stamp: 1.9, end: 3.6, drops: 90, pow: 2.6, shake: 26 }, huge: { slow: 0.45, stamp: 1.4, end: 2.7, drops: 60, pow: 2, shake: 18 }, big: { slow: 0.3, stamp: 1.1, end: 2.1, drops: 40, pow: 1.6, shake: 10 } }[tier?.id] || { slow: 0.2, stamp: 1.0, end: 1.9, drops: 30, pow: 1.3, shake: 0 };
+  S.land = { from: new THREE.Vector3(S.bob.x, y, S.bob.z), stamped: false, sc, tier, T, pull: clamp((sc - 2) * 0.55, 0, 1.8) };
+  S.slow = T.slow; S.hop = null; S.shake = Math.max(S.shake, T.shake);
+  fx.burst(S.bob.x, y, S.bob.z, T.drops, T.pow); snd.splash(1.2 + (T.pow - 1.3)); buzz(tier ? [60, 40, 160, 40, 220] : [30, 40, 80]);
+  say(tier?.id === 'monster' ? '콰아아아앙!!!' : tier?.id === 'huge' ? '촤아아악!!' : '촤아악!', { at: bobAbove(1.2 + sc * 0.4), size: 40 + (sc - 1) * 14, life: 0.9, shake: tier ? 6 : 0 });
 }
 function tickLand() {
   const L = S.land, M = S.model;
-  const k = clamp(S.t / 1.0, 0, 1), e = 1 - (1 - k) ** 3;
-  const to = new THREE.Vector3(S.standX - 0.3, DECK + 1.9, STAND.z + 1.6);
-  M.position.lerpVectors(L.from, to, e); M.position.y += Math.sin(k * Math.PI) * 2.2;
+  const k = clamp(S.t / L.T.stamp, 0, 1), e = 1 - (1 - k) ** 3;
+  const to = new THREE.Vector3(S.standX - 0.3, DECK + 1.9 + Math.max(0, L.sc - 1) * 0.25, STAND.z + 1.6 + Math.max(0, L.sc - 1) * 0.6); // 큰 놈은 조금 멀리(화면에 다 들어오게)
+  M.position.lerpVectors(L.from, to, e); M.position.y += Math.sin(k * Math.PI) * (2.2 + L.sc * 0.6);
+  if (k >= 1 && L.tier) M.position.y += Math.sin(S.t * 9) * 0.04 * L.sc; // 큰 놈은 들고 있어도 퍼덕
   M.rotation.set(Math.sin(S.t * 25) * 0.25 * (1 - k), M.userData.faceZ || S.fish.kind !== 'fish' ? Math.PI + 0.3 : Math.PI / 2 + 0.5, Math.sin(S.t * 18) * 0.4 * (1 - k));
   M.userData.anim?.(S.now);
-  if (!L.stamped && S.t > 1.0) {
+  if (!L.stamped && S.t > L.T.stamp) {
     L.stamped = true;
-    snd.stamp(); S.shake = 8;
+    snd.stamp(); S.shake = Math.max(8, L.T.shake);
     const c = S.fish;
-    S.stamp = { t: 0, txt: c.kind === 'fish' ? `${c.name} ${S.size.cm}cm${S.size.cm >= BIG_CM ? ' 🏆' : ''}` : c.name };
+    S.stamp = { t: 0, tier: L.tier, txt: c.kind === 'fish' ? `${c.name} ${S.size.cm}cm${L.tier ? ' ' + L.tier.icon : ''}` : c.name };
+    if (L.tier && L.tier.id !== 'big') { S.cutin = { t: 0, txt: `${L.tier.icon} ${L.tier.label}${L.tier.id === 'monster' ? '!!!' : '!!'}`, sub: `${S.size.cm}cm`, color: L.tier.color, dur: L.tier.id === 'monster' ? 1.6 : 1.2, dy: 0.28, dim: 0.12 }; /* 글자는 아래쪽(물고기를 안 가리게) */ S.flash = 1; buzz([80, 40, 200]); }
     if (c.kind !== 'junk') snd.win(c.grade === 'legend' || c.kind === 'paddle');
   }
-  if (S.t > 1.9) finishCatch();
+  if (S.t > L.T.end) finishCatch();
 }
 function finishCatch() {
   const c = S.fish, R = S.R;
@@ -439,7 +446,7 @@ function finishCatch() {
   }
   const img = c.kind === 'paddle' ? Object.assign(new Image(), { src: paddleImage(ITEM[c.id], 180) }) : modelImage(c.id);
   S.model.visible = false; S.bobLanded = false;
-  S.result = { ok: true, c, img, cm: S.size.cm, big: c.kind === 'fish' && S.size.cm >= BIG_CM, grade: S.grade, calm: S.calm, ...r, perfects: R.perfects, hits: R.hits, misses: R.misses, near: S.near };
+  S.result = { ok: true, c, img, cm: S.size.cm, big: c.kind === 'fish' && S.size.cm >= BIG_CM, tier: c.kind === 'fish' ? sizeTier(S.size.cm) : null, grade: S.grade, calm: S.calm, ...r, perfects: R.perfects, hits: R.hits, misses: R.misses, near: S.near };
   setMode('result');
 }
 
@@ -556,9 +563,10 @@ function update(dt, rdt) {
 
 // ── 카메라: 어깨 높이 (사용자 확정 11/25)
 function placeCamera() {
-  camera.position.set(S.standX + 0.95, DECK + 2.15, STAND.z - 3.0);
+  const pull = S.mode === 'land' && S.land ? S.land.pull * clamp(S.t / 0.8, 0, 1) : 0; // 큰 놈을 낚으면 카메라가 물러남
+  camera.position.set(S.standX + 0.95 + pull * 0.3, DECK + 2.15 + pull * 0.55, STAND.z - 3.0 - pull);
   if (S.shake > 0) { camera.position.x += (Math.random() - 0.5) * S.shake * 0.012; camera.position.y += (Math.random() - 0.5) * S.shake * 0.012; }
-  camera.lookAt(S.standX - 0.4, -11.6, S.mode === 'land' ? STAND.z + 7 : STAND.z + 11);
+  camera.lookAt(S.standX - 0.4, -11.6 + pull * 1.3, S.mode === 'land' ? STAND.z + 7 + pull : STAND.z + 11);
   // 맞추면 순간 확대(bump) · 놓치면 살짝 기울기(tilt)
   const R = S.mode === 'fight' ? S.R : null;
   camera.rotateZ(R ? R.tilt * 0.035 : 0);
@@ -626,7 +634,7 @@ const sync = () => panel.querySelectorAll('button').forEach((b) => b.classList.t
 panel.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   const k = b.dataset.k, v = b.dataset.v;
-  TUNE[k] = k === 'fish' || k === 'bubbles' || k === 'cond' ? v : k === 'sound' ? v === 'true' : +v;
+  TUNE[k] = k === 'fish' || k === 'bubbles' || k === 'cond' || k === 'size' ? v : k === 'sound' ? v === 'true' : +v;
   if (k === 'sound') { initSound(); setSoundOn(TUNE.sound); }
   sync();
 });

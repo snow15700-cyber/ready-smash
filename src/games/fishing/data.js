@@ -7,6 +7,7 @@ export const TUNE = {
   fake: 1, // 가짜 비율: 0 적게 · 1 보통 · 2 많이
   bubbles: 'often', // 기포: 'normal' = 3.5분에 1~2곳(기획) · 'often' = 시험용(약 50초마다)
   fish: 'random', // 'random' | 물고기 id | 'junk' | 'paddle'
+  size: 'random', // 크기 시험: 'random' | 고정 cm ('95' 월척 · '125' 대물 · '180' 괴물 · '300')
   cond: 'auto', // 조건 물고기 시험: 'auto'(실제 쉬는 시간·밤) | 'break' | 'night' | 'rain'
   sound: true,
 };
@@ -37,7 +38,7 @@ export const GRADE = {
 
 // ── 잡히는 것·크기·코인 규칙은 rules.js (서버와 같아야 해서 한곳에). 여기서는 시안의 ⚙️ 강제만 더함
 import { JUNK, SPECIES, paddleCatch, rollCatch } from './rules.js';
-export { BIG_CM, COND, JUNK, LEGEND_PADDLES, PADDLE_DUP_PIECES, SIZE, SPECIES, fishSize } from './rules.js';
+export { BIG_CM, COND, JUNK, LEGEND_PADDLES, PADDLE_DUP_PIECES, SPECIES, fishSize } from './rules.js';
 // ctx: { cond: { break, night, rain }, owned: [가진 탁구채 id] }. 게임(로그인)에서는 서버가 같은 규칙으로 정함(5장)
 export function pickCatch(near = 0, ctx = {}, rnd = Math.random) {
   const f = TUNE.fish;

@@ -245,10 +245,15 @@ async function sqlCheck() {
     must(dex.dex.length === 5 && dex.records.some((r) => r.id === 'dragon' && r.nick === '점검봇' && +r.cm === 95), '도감이 이상해요: ' + JSON.stringify(dex).slice(0, 300));
     const wk = json(`public.pingpong_fish_rank('week')`), al = json(`public.pingpong_fish_rank('all')`);
     must(wk[0]?.nick === '점검봇' && +wk[0].value === 95 && wk[0].fish === 'dragon' && al.length === 1, '월척 랭킹이 이상해요: ' + JSON.stringify([wk, al]).slice(0, 300));
+    // 29 크기 '최대 없음 + 긴 꼬리': 서버 식 == 화면 식(rules.js cmOf)
+    const us = Array.from({ length: 400 }, (_, i) => (i + 0.5) / 400).concat([0, 0.878, 0.9, 0.99, 0.999, 0.99999]);
+    const srvCm = psql(DB, `select string_agg(round(public.pingpong__fish_cm(u)::numeric, 3)::text, ',' order by n) from unnest(array[${us.join(',')}]::float8[]) with ordinality as x(u, n);`).split(',');
+    us.forEach((u, i) => must(Math.abs(+srvCm[i] - R.cmOf(u)) < 0.002, `물고기 크기 식이 서버와 화면이 달라요: u=${u} 서버 ${srvCm[i]} 화면 ${R.cmOf(u)}`));
+    must(R.cmOf(0.999) > 150 && R.cmOf(0.5) < 50, '긴 꼬리 크기가 이상해요');
     // 실제 던지기 200번: 잡히는 것이 목록 안 · 크기 20~100
     const many = JSON.parse(psql(DB, `set role anon; select json_agg(public.pingpong_fish_cast(${tk}, 13, 0, 0.5, true)->'cast')::text from generate_series(1, 200);`));
     const kinds = new Set(many.map((c) => c.kind));
-    must(many.every((c) => (c.kind === 'paddle' ? R.LEGEND_PADDLES.some(([id]) => id === c.item) : R.CATCH[c.item]?.kind === c.kind && (c.kind === 'junk' || (c.cm >= 20 && c.cm <= 100)))) && kinds.has('fish'),
+    must(many.every((c) => (c.kind === 'paddle' ? R.LEGEND_PADDLES.some(([id]) => id === c.item) : R.CATCH[c.item]?.kind === c.kind && (c.kind === 'junk' || (c.cm >= 20 && c.cm <= 999)))) && kinds.has('fish'),
       '던지기 결과가 목록 밖이에요: ' + JSON.stringify(many.filter((c) => !R.CATCH[c.item]).slice(0, 3)));
   }
   // 표는 브라우저가 직접 못 읽어야 한다 (RLS·권한)

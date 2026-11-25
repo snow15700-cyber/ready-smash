@@ -187,6 +187,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
       g.beginPath(); g.moveTo(Math.cos(ang - 0.006) * r0, Math.sin(ang - 0.006) * r0); g.lineTo(Math.cos(ang - 0.02) * r1, Math.sin(ang - 0.02) * r1); g.lineTo(Math.cos(ang + 0.02) * r1, Math.sin(ang + 0.02) * r1); g.closePath(); g.fill();
     }
     const slide = k < 0.15 ? (1 - k / 0.15) * W * 0.6 : 0;
+    if (C.dy) g.translate(0, C.dy * H); // 크기 컷인은 아래쪽에 (도장 아래)
     out(C.txt, slide, -10 * u, 70 * u, C.color, 10);
     out(C.sub, -slide, 48 * u, 30 * u, '#fff', 6);
     g.restore();
@@ -194,8 +195,8 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
 
   // 도장 '쾅'
   if (S.stamp && S.mode === 'land') {
-    const k = S.stamp.t, sc = k < 0.12 ? 2.4 - (k / 0.12) * 1.4 : 1;
-    g.save(); g.translate(W / 2, H * 0.3); g.rotate(-0.08); g.scale(sc, sc); g.globalAlpha = Math.min(1, k * 8);
+    const k = S.stamp.t, big = S.stamp.tier ? { big: 1.15, huge: 1.35, monster: 1.6 }[S.stamp.tier.id] : 1, sc = (k < 0.12 ? 2.4 - (k / 0.12) * 1.4 : 1) * big;
+    g.save(); g.translate(W / 2, H * 0.6); g.rotate(-0.08); g.scale(sc, sc); // 물고기(위쪽)를 안 가리게 아래로 g.globalAlpha = Math.min(1, k * 8);
     g.font = JUA(40 * u); const tw = g.measureText(S.stamp.txt).width + 40 * u;
     g.fillStyle = 'rgba(255,250,240,.92)'; rr(g, -tw / 2, -32 * u, tw, 64 * u, 10); g.fill();
     g.lineWidth = 5; g.strokeStyle = '#d23a2a'; rr(g, -tw / 2 + 5, -27 * u, tw - 10, 54 * u, 8); g.stroke();
@@ -254,11 +255,11 @@ function drawResult(g, W, H, S, u) {
     g.fillText(`챔질 ${R.grade} · 리듬 Perfect ${R.perfects} · Good ${R.hits - R.perfects} · Miss ${R.misses}`, 0, 58);
     const line = fish ? (R.rec ? '' : `이 물고기 최고 ${R.best}cm`) : c.kind === 'junk' ? '도감에 넣었어요 · 코인 0' : c.dup ? `이미 있어서 → 조각 ${PADDLE_DUP_PIECES}개` : R.coins != null ? '' : '옷장에 들어가요 (로그인하면)';
     g.fillText(line, 0, 78);
-    const badge = R.big ? '🏆 월척!' : fish && R.rec && !R.first ? '🏆 새 기록!' : '';
+    const badge = R.tier ? `${R.tier.icon} ${R.tier.label}!` : fish && R.rec && !R.first ? '🏆 새 기록!' : '';
     if (badge) {
       g.font = UI(800, 14); const tw = g.measureText(badge).width + 22;
-      g.fillStyle = R.big ? '#ffc21a' : '#FF8A1F'; rr(g, -tw / 2, 90, tw, 26, 13); g.fill();
-      g.fillStyle = R.big ? '#3a2a00' : '#fff'; g.fillText(badge, 0, 103);
+      g.fillStyle = R.tier ? R.tier.color : '#FF8A1F'; rr(g, -tw / 2, 90, tw, 26, 13); g.fill();
+      g.fillStyle = R.tier ? '#2a1a00' : '#fff'; g.fillText(badge, 0, 103);
     }
     if (R.coins != null || R.srvNote) { // 서버(로그인)에서 받은 코인
       g.font = UI(800, 14); g.fillStyle = R.srvNote ? '#ff9a9a' : '#ffd23a';

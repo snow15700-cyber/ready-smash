@@ -1,7 +1,8 @@
 // 🐟 도감 (fishing.md 9장): 잡은 종·잡은 수·가장 큰 cm. 못 잡은 칸 = 검은 그림자 + 조건 아이콘. 물고기·잡동사니 탭.
 // 2단계 시안: 이 브라우저(localStorage)에만 기록. 서버·명예의 전당으로 옮기기는 3~4단계.
 import * as THREE from 'three';
-import { BIG_CM, COND, GRADE, JUNK, SPECIES } from './data.js';
+import { COND, GRADE, JUNK, SPECIES } from './data.js';
+import { sizeTier } from './rules.js';
 import { makeModel } from './models.js';
 
 const KEY = 'fishing-dex', PKEY = 'fishing-sim-paddles';
@@ -96,7 +97,7 @@ function card(s) {
   d.appendChild(modelImage(s.id, !got).cloneNode());
   const gr = junk ? '' : `<span class="gr" style="background:${GRADE[s.grade].color}">${GRADE[s.grade].label}</span>`;
   const cond = s.cond ? `<span class="cond" title="${COND[s.cond].label}">${COND[s.cond].icon}</span>` : '';
-  const sub = !got ? (s.cond ? COND[s.cond].label : '아직 못 잡았어요') : junk ? `${e.n}개` : `${e.n}마리 · 최고 <span class="${e.best >= BIG_CM ? 'big' : ''}">${e.best}cm${e.best >= BIG_CM ? ' 🏆' : ''}</span>`;
+  const sub = !got ? (s.cond ? COND[s.cond].label : '아직 못 잡았어요') : junk ? `${e.n}개` : `${e.n}마리 · 최고 <span class="${sizeTier(e.best) ? 'big' : ''}">${e.best}cm${sizeTier(e.best) ? ' ' + sizeTier(e.best).icon : ''}</span>`;
   const rec = records[s.id] ? `<div class="s">👑 ${records[s.id].nick.replace(/[<>&]/g, '')} ${+records[s.id].cm}cm</div>` : ''; // 어종별 기록 1명 (서버)
   d.insertAdjacentHTML('beforeend', `${gr}${cond}<div class="n">${got ? s.name : '???'}</div><div class="s">${sub}</div>${rec}`);
   return d;

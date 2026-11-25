@@ -64,3 +64,4 @@
 
 ## 낚시 (28, docs/dev/fishing.md 10장)
 - `supabase/28_fishing.sql`(27 다음, **실행 필요**): 던지기·잡기·도감·월척 랭킹·낚시 업적 7개. 자세한 규칙은 fishing.md 10장.
+- `supabase/29_fish_size.sql`(28 다음, **실행 필요**): 물고기 크기 '최대 없음 + 긴 꼬리'(fishing.md 11장).

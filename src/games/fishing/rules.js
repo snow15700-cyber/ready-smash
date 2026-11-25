@@ -93,13 +93,34 @@ export function paddleCatch(owned, rnd = Math.random) {
   return { kind: 'paddle', id, name, grade: 'rare', emoji: '🏓', dup: !left.length };
 }
 
-// ── 크기: 종류·등급 상관없이 모두 같은 범위 (사용자 확정 11/25), 큰 것은 드물게. 88cm 이상(상위 약 10%) = 🏆 월척
-export const SIZE = [20, 100], BIG_CM = 88;
-export function fishSize(rnd = Math.random) {
-  const k = rnd() ** 1.6;
-  return { cm: Math.round((SIZE[0] + (SIZE[1] - SIZE[0]) * k) * 10) / 10, k };
+// ── 크기: 종류·등급 상관없이 모두 같은 규칙 (사용자 확정 11/25). 최대 없음 + 긴 꼬리 (사용자 확정 11/25, fishing.md 11장)
+//   85cm까지는 예전과 같음(20 + 80·u^1.6, 큰 것은 드물게) → 85cm 위는 파레토 꼬리: 85 + 22.5·((1−q)^(−1/3.48) − 1)
+//   (q = 85cm 위에서의 위치 0~1). 난수 u 하나로 정해서 이어짐(85cm에서 끊기지 않음). 안전 상한 999cm.
+//   어림: 88cm↑ 약 8% · 110cm↑ 약 0.9% · 150cm↑ 약 0.1% · 200cm↑ 약 0.02%
+export const SIZE_MIN = 20, BIG_CM = 88;
+export const TAIL = { from: 85, s: 22.5, a: 3.48, cap: 999 };
+const U_TAIL = ((TAIL.from - SIZE_MIN) / 80) ** (1 / 1.6);
+export function cmOf(u) {
+  const base = SIZE_MIN + 80 * u ** 1.6;
+  if (base <= TAIL.from) return base;
+  const q = (u - U_TAIL) / (1 - U_TAIL);
+  return Math.min(TAIL.cap, TAIL.from + TAIL.s * ((1 - q) ** (-1 / TAIL.a) - 1));
 }
-export const sizeK = (cm) => ((cm - SIZE[0]) / (SIZE[1] - SIZE[0])); // cm → 0~1 (모형 크기용)
+export const round1 = (x) => Math.round(x * 10) / 10;
+export function fishSize(rnd = Math.random) {
+  const cm = round1(cmOf(rnd()));
+  return { cm, k: sizeK(cm) };
+}
+// 크기 등급 (도장·컷인·결과 카드): 🏆 월척 88 · 🐋 대물 110 · 👑 괴물 150
+export const SIZE_TIERS = [
+  { id: 'monster', min: 150, icon: '👑', label: '괴물', color: '#ff5a7a' },
+  { id: 'huge', min: 110, icon: '🐋', label: '대물', color: '#5ad1ff' },
+  { id: 'big', min: BIG_CM, icon: '🏆', label: '월척', color: '#ffc21a' },
+];
+export const sizeTier = (cm) => SIZE_TIERS.find((t) => cm >= t.min) || null;
+// 모형 크기(배): 20cm 0.55 · 46cm 약 0.95 · 88cm 약 1.6 · 150cm 2.5 · 200cm 3.25 · 최대 5
+export const modelScale = (cm) => Math.min(5, 0.55 + (cm - SIZE_MIN) * 0.015);
+export const sizeK = (cm) => Math.min(1, Math.max(0, (cm - SIZE_MIN) / 80)); // 0~1 (예전 쓰임새)
 
 // ── 코인 (사용자 확정 11/25): 일반 3 · 희귀 8 · 전설 20 · 잡동사니·탁구채 0. 쉬는 시간 +50%(세트 '휴가 중'이면 더)
 export const FISH_COINS = { common: 3, rare: 8, legend: 20 };
