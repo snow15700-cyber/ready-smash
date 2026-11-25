@@ -101,10 +101,10 @@ export const WX_NAME = { clear: '맑음', cloudy: '흐림', rain: '비', snow: '
 const WX_ICON = { cloudy: '☁️', rain: '🌧️', snow: '❄️' };
 // 날씨가 하늘을 얼마나 덮나 (0 맑음 ~ 1)
 const WX = {
-  clear: { cover: 0, fog: [35, 85], si: 1, hi: 1, clouds: 4, cloudGray: 0 },
-  cloudy: { cover: 0.6, fog: [28, 75], si: 0.35, hi: 0.92, clouds: 12, cloudGray: 0.35 },
-  rain: { cover: 0.85, fog: [16, 55], si: 0.15, hi: 0.78, clouds: 12, cloudGray: 0.65 },
-  snow: { cover: 0.7, fog: [14, 50], si: 0.25, hi: 0.98, clouds: 12, cloudGray: 0.3 },
+  clear: { cover: 0, fog: [60, 220], si: 1, hi: 1, clouds: 4, cloudGray: 0 },
+  cloudy: { cover: 0.6, fog: [45, 170], si: 0.35, hi: 0.92, clouds: 12, cloudGray: 0.35 },
+  rain: { cover: 0.85, fog: [25, 110], si: 0.15, hi: 0.78, clouds: 12, cloudGray: 0.65 },
+  snow: { cover: 0.7, fog: [22, 100], si: 0.25, hi: 0.98, clouds: 12, cloudGray: 0.3 },
 };
 const weather = { wx: 'clear', temp: null, at: 0, busy: false };
 async function fetchWeather() {
@@ -306,7 +306,9 @@ export function createPlazaSky(world) {
       cl.root.rotation.y = now * 0.004;
       // 불빛: 가로등·창문·전구 (밤·흐린 날 켜짐)
       const glowK = Math.min(1, L.glow + (state.wx === 'rain' ? 0.35 : state.wx === 'cloudy' || state.wx === 'snow' ? 0.15 : 0));
-      for (const m of plaza.glow) m.emissiveIntensity = m.userData.glowBase + glowK * 1.1;
+      // 불빛 재질: 광장 20장 건물은 userData.glow = [낮, 밤] (창문·간판·가로등 모델), 예전 것은 glowBase
+      for (const m of plaza.glow) m.emissiveIntensity = m.userData.glow ? m.userData.glow[0] + (m.userData.glow[1] - m.userData.glow[0]) * glowK : m.userData.glowBase + glowK * 1.1;
+      for (const f of plaza.nightFx || []) f(glowK); // 가로등 바닥 빛 웅덩이·빛 번짐
       for (const h of plaza.halos) { h.visible = glowK > 0.3; h.material.opacity = Math.min(0.9, (glowK - 0.3) * 1.6); }
       // 눈이 쌓이면 잔디가 하얗게
       plaza.grass.material.color.copy(grass0).lerp(snowGrass, cur.snowCover);
@@ -314,6 +316,7 @@ export function createPlazaSky(world) {
       plaza.snowLayer.visible = cur.snowCover > 0.01;
       // 뽑기 기계 손잡이: 천천히 돈다
       if (plaza.knob) plaza.knob.rotation.z = now * 0.5;
+      plaza.tick?.(now); // 분수·바다 물결·돌고래·시계 초침·굴뚝 연기 (광장 20장)
       // 비·눈
       const cp = world.camera.position;
       rain.update(now, dt, cp, cur.rain);

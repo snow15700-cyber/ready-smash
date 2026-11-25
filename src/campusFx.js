@@ -30,13 +30,13 @@ export function makeSea(y = -12) {
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\n' + waves)
       .replace('#include <beginnormal_vertex>', `vec3 sh0 = seaH(position.xy);\nvec3 objectNormal = normalize(vec3(-sh0.y, -sh0.z, 1.0));`)
-      .replace('#include <begin_vertex>', `vec3 transformed = vec3(position.xy, position.z + sh0.x);\nvCrest = sh0.x;`);
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\ntransformed.z += sh0.x;\nvCrest = sh0.x;`); // include를 남겨 둠 (경기장 거품 셰이더가 덧붙일 수 있게)
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying float vCrest;')
       .replace('#include <color_fragment>', `#include <color_fragment>\n  diffuseColor.rgb = mix(diffuseColor.rgb * 0.85, vec3(0.8, 0.9, 0.98), smoothstep(0.75, 1.05, vCrest) * 0.35);\n  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 1.18, smoothstep(-0.6, 0.6, vCrest));`);
   };
-  // 가까운 곳은 촘촘하게(240×240칸, 2.5m), 먼 곳은 판판한 큰 판 하나
-  const near = new THREE.Mesh(new THREE.PlaneGeometry(600, 600, 240, 240), mat);
+  // 가까운 곳은 촘촘하게(150×150칸, 4m), 먼 곳은 판판한 큰 판 하나
+  const near = new THREE.Mesh(new THREE.PlaneGeometry(600, 600, 150, 150), mat);
   near.rotation.x = -Math.PI / 2; near.position.y = y;
   const far = new THREE.Mesh(new THREE.RingGeometry(290, 1200, 64, 1), new THREE.MeshStandardMaterial({ color: 0x2a78b0, roughness: 0.3, metalness: 0.15 }));
   far.rotation.x = -Math.PI / 2; far.position.y = y - 0.05;

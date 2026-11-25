@@ -37,7 +37,7 @@ function flourMat() {
 }
 
 // path(from, to) → 지나갈 점들 (광장 걷기와 같은 꺾어 가기), bubble() → 말풍선
-export function createKimRunners(root, { path, bubble, blob }) {
+export function createKimRunners(root, { path, bubble, blob, home = null }) {
   const runs = new Map(); // key → { c, bag, bub, pts, len, at, bye, ... }
   const puffs = [];
   function make(key, info) {
@@ -53,11 +53,12 @@ export function createKimRunners(root, { path, bubble, blob }) {
     c.group.add(blob());
     root.add(c.group);
     root.add(bag);
-    const edge = [info.seat[0] < 0 ? -14.6 : 14.6, info.seat[1]];
+    const edge = home || [info.seat[0] < 0 ? -14.6 : 14.6, info.seat[1]]; // 빵집 문 앞에서 뛰어나옴 (광장 20장)
     const pts = [edge, ...path(edge, info.seat)];
     let len = 0;
     for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-    return { c, bag, bub, pts, len, said: '', face: info.face };
+    // 멀리 있는 탁구대도 '준비 완료'(KIM_READY_MS) 전에 닿게 빨리 뜀 (모든 PC가 같은 길 → 같은 빠르기)
+    return { c, bag, bub, pts, len, speed: Math.max(KIM_RUN, len / ((KIM_READY_MS - 700) / 1000)), said: '', face: info.face };
   }
   // 경로 위 d(m) 지점과 그 방향
   function along(r, d, back) {
@@ -94,14 +95,14 @@ export function createKimRunners(root, { path, bubble, blob }) {
     update(nowS, dt) {
       const ms = Date.now();
       for (const [key, r] of runs) {
-        const runT = (r.len / KIM_RUN) * 1000;
+        const runT = (r.len / r.speed) * 1000;
         const g = r.c.group;
         let mode, d = 0, back = false;
         if (r.bye && ms >= r.bye) {
           const e = ms - r.bye;
           if (e < 1800) mode = 'leaving'; // 말할 시간 (빵 이름이 길어서 조금 더)
-          else { mode = 'run'; back = true; d = ((e - 1800) / 1000) * KIM_RUN; if (d >= r.len) { drop(key); continue; } }
-        } else if (ms - r.at < runT) { mode = 'run'; d = Math.max(0, ((ms - r.at) / 1000) * KIM_RUN); }
+          else { mode = 'run'; back = true; d = ((e - 1800) / 1000) * r.speed; if (d >= r.len) { drop(key); continue; } }
+        } else if (ms - r.at < runT) { mode = 'run'; d = Math.max(0, ((ms - r.at) / 1000) * r.speed); }
         else mode = 'here';
         const pos = mode === 'run' ? along(r, d, back) : { p: r.pts[r.pts.length - 1], dir: null };
         g.position.set(pos.p[0], 0, pos.p[1]);

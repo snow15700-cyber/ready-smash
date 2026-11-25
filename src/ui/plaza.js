@@ -12,6 +12,7 @@ import { account, myEquip, myTitle } from '../account.js';
 import { titleText } from '../achievements.js';
 import { initAudio, playUI } from '../audio.js';
 import { PLAZA } from '../arena-plaza.js';
+import { toWorld } from '../campusLayout.js';
 import { AI_NAME, KIM_ID } from '../match.js';
 import { BREADS, KIM_READY_MS } from '../plazaKim.js';
 import { ic } from '../icons.js';
@@ -675,10 +676,13 @@ export const plazaShown = () => !game && ['', 'lobby', 'dress', 'rank', 'login',
 // ───── 창을 여는 동안 카메라 (plaza.md 19장) ─────
 // 랭킹: 시상대·트로피를 비춘다 (창은 오른쪽 → 시상대는 화면 왼쪽)
 const RANK_SHOP = PLAZA.shops.find((s) => s.id === 'rank'), GACHA_SHOP = PLAZA.shops.find((s) => s.id === 'shop');
+// 가게 안쪽 좌표 [x, y, z] → 광장 좌표 (가게가 분수 쪽으로 돌아 서 있어서, 광장 20장)
+const shopPt = (s, lx, y, lz) => { const [x, z] = toWorld(s, lx, lz); return [x, y, z]; };
 export const WIN_CAM = {
-  rank: { pos: [RANK_SHOP.x + 1.0, 2.4, RANK_SHOP.front + 6.6], look: [RANK_SHOP.x + 2.6, 2.1, RANK_SHOP.front - 1] },
-  // 뽑기 탭: 커다란 뽑기 기계 (유리 공이 보이게 조금 높이)
-  gacha: { pos: [GACHA_SHOP.x + 1.2, 2.6, GACHA_SHOP.front + 6.4], look: [GACHA_SHOP.x + 2.7, 2.2, GACHA_SHOP.front - 1] },
+  // 랭킹: 명예의 전당(지붕 트로피까지)이 화면 왼쪽
+  rank: { pos: shopPt(RANK_SHOP, 1.6, 3.4, 11.5), look: shopPt(RANK_SHOP, 3.9, 3.9, 0) },
+  // 뽑기 탭: 뽑기방 + 지붕 위 캡슐 돔이 화면 왼쪽
+  gacha: { pos: shopPt(GACHA_SHOP, 1.6, 3.4, 11.0), look: shopPt(GACHA_SHOP, 3.9, 3.9, 0) },
   // 꾸미기: 내 캐릭터가 지금 카메라 쪽으로 돌아서고, 카메라는 비스듬히 앞에서 (얼굴을 고르면 정면 가까이 — 사용자 확정)
   // 로그인 화면: 광장 남쪽 높은 곳에서 가게·탁구대를 내려다보며 천천히 좌우로 (창은 왼쪽 → 광장은 화면 오른쪽).
   // 로그인하면 여기서 내 캐릭터 등 뒤로 날아 내려간다
@@ -807,20 +811,23 @@ function makeCap(col) {
   g.add(new THREE.Mesh(capGeoT, new THREE.MeshStandardMaterial({ color: col, roughness: 0.3, metalness: 0.05 })), new THREE.Mesh(capGeoB, capWhite));
   return g;
 }
-const OUT = (() => { const s = PLAZA.shops.find((x) => x.id === 'shop'); return { x: s.x + 1.55, z: s.front }; })(); // 캡슐 나오는 곳 (광장 좌표)
-// 캡슐 하나의 자리: 받침에서 굴러 떨어져 앞으로 (u = 굴러 나온 뒤 초)
-function capAt(u, dx) {
+// 캡슐 나오는 곳: 뽑기방 문 앞 노란 작은 뽑기 기계 (가게 안쪽 좌표 — 가게가 돌아 서 있으니 계산은 안쪽 좌표로, 그릴 때 광장 좌표로)
+const OUT = { x: PLAZA.gacha.out[0], z: PLAZA.gacha.out[1] }, G_SHOP = PLAZA.gacha.shop;
+const toP = (p) => shopPt(G_SHOP, p[0], p[1], p[2]);
+// 캡슐 하나의 자리 (안쪽 좌표): 받침에서 굴러 떨어져 앞으로 (u = 굴러 나온 뒤 초)
+function capAtL(u, dx) {
   const run = Math.min(u, 1.2);
-  const z = OUT.z + 0.18 + run * 1.5 - run * run * 0.35; // 점점 느려짐
-  const y = z < OUT.z + 0.32 ? 0.52 : Math.max(0.17, 0.52 - (z - OUT.z - 0.32) * 1.6) + Math.abs(Math.sin(run * 9)) * Math.max(0, 0.12 - run * 0.1); // 받침 → 바닥에 통통
+  const z = OUT.z + 0.05 + run * 1.5 - run * run * 0.35; // 점점 느려짐
+  const y = z < OUT.z + 0.2 ? 0.52 : Math.max(0.17, 0.52 - (z - OUT.z - 0.2) * 1.6) + Math.abs(Math.sin(run * 9)) * Math.max(0, 0.12 - run * 0.1); // 받침 → 바닥에 통통
   return [OUT.x + dx, y, z];
 }
+const capAt = (u, dx) => toP(capAtL(u, dx));
 function gachaCam(now) {
   const t = now - gm.t0;
-  const c = gm.caps[0] ? capAt(Math.max(0, t - GA.roll), 0) : [OUT.x, 0.4, OUT.z + 0.6];
-  if (t < GA.dive) return { pos: [OUT.x + 0.7, 1.35, OUT.z + 2.5], look: [OUT.x - 0.1, 0.95, OUT.z] }; // 손잡이·나오는 곳 가까이
+  const c = gm.caps[0] ? capAtL(Math.max(0, t - GA.roll), 0) : [OUT.x, 0.4, OUT.z + 0.6];
+  if (t < GA.dive) return { pos: toP([OUT.x + 0.7, 1.35, OUT.z + 2.4]), look: toP([OUT.x - 0.1, 0.8, OUT.z - 0.2]) }; // 손잡이·나오는 곳 가까이
   const k = Math.min(1, (t - GA.dive) / (GA.flash - GA.dive)), r = 1.3 - 0.75 * k * k; // 점점 가까이
-  return { pos: [c[0] + 0.1 * r, 0.2 + 0.45 * r, c[2] + r], look: [c[0], 0.17, c[2]], rate: 12 }; // 굴러 나온 캡슐로 쏙
+  return { pos: toP([c[0] + 0.1 * r, 0.2 + 0.45 * r, c[2] + r]), look: toP([c[0], 0.17, c[2]]), rate: 12 }; // 굴러 나온 캡슐로 쏙
 }
 function gachaFrame(now) {
   if (!gm) {
@@ -839,7 +846,7 @@ function gachaFrame(now) {
     if (u <= 0) continue;
     if (!c.popped) { c.popped = true; playUI('pop'); }
     c.g.position.set(...capAt(u, c.x));
-    c.g.rotation.x = u * 9;
+    c.g.rotation.set(u * 9, G_SHOP.yaw, 0, 'YXZ'); // 가게 앞쪽으로 굴러감
   }
   if (t > GA.flash && !gm.flashed) {
     gm.flashed = true;

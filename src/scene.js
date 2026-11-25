@@ -134,6 +134,7 @@ export function createWorld(canvas) {
         const t0 = performance.now();
         try { plaza.bake = { ...bakeArena(plaza, 'plaza'), ms: Math.round(performance.now() - t0) }; } catch (e) { console.warn('[광장 합치기 실패, 그대로 씀]', e); }
       }
+      plaza.relink?.(); // 합친 메시는 재질을 복사하므로 밤에 켜지는 재질 목록을 다시 모음
       scene.add(plaza.root);
     }
     if (plaza) plaza.root.visible = on;

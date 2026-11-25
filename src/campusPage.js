@@ -6,7 +6,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { fileFor, fitOf, loadModel, MODELS } from './campusModels.js';
 import { buildCampus } from './campusMock.js';
 import { breadLine, BREADS, KIM_FUNNY } from './breads.js';
 
@@ -62,21 +62,7 @@ const SKY = {
   night: { bg: 0x1a2340, fog: 0x1f2a48, hemi: [0x6f7fb0, 0.55], sun: [0x9fb0e0, 0.35], exp: 1 },
 };
 // 🌳 무료 소품 모델로 바꿔 보기 (사용자 결정 11/25: ③ 섞기 — 흔한 소품은 무료 모델, 우리 건물은 코드로)
-// 모델: Quaternius (CC0, public/models/campus/CREDITS.md). 각 소품 자리(userData.prop)에 크기를 맞춘 모델을 넣고, 지금 모양과 켜고 끔
-const MODELS = {
-  tree: { files: ['PineTree_1', 'PineTree_3', 'PineTree_1', 'CommonTree_1', 'CommonTree_3'], h: 4.6, lift: 0.1 },
-  lamp: { files: ['Streetlight_Single'], h: 4.4 },
-  bench: { files: ['Bench_1'], w: 1.8 },
-  bush: { files: ['Bush_1'], h: 0.9, lift: 0.1 },
-  flower: { files: ['Flowers'], h: 0.75 },
-  trash: { files: ['Trashcan_Green'], h: 1.0 },
-};
-const glbCache = {};
-const loader = new GLTFLoader();
-async function loadModel(name) {
-  if (!glbCache[name]) glbCache[name] = loader.loadAsync(`/models/campus/${name}.glb`).then((g) => g.scene);
-  return glbCache[name];
-}
+// 모델 목록·받기는 src/campusModels.js (실제 광장과 같이 씀). 각 소품 자리에 크기를 맞춘 모델을 넣고, 지금 모양과 켜고 끔
 let propsOn = false;
 async function swapProps(on) {
   propsOn = on;
@@ -84,24 +70,10 @@ async function swapProps(on) {
   root.traverse((o) => { if (o.userData.prop && MODELS[o.userData.prop]) spots.push(o); });
   for (const o of spots) {
     if (on && !o.userData.alt) {
-      const def = MODELS[o.userData.prop];
-      const file = def.files[Math.floor((o.userData.seed ?? 0) * def.files.length) % def.files.length];
-      const src = await loadModel(file);
+      const src = await loadModel(fileFor(o)); // 재질 다듬기는 src/campusModels.js
       const m = src.clone(true);
-      const box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3());
-      const k = def.w ? def.w / Math.max(size.x, size.z) : def.h / size.y;
-      m.scale.setScalar(k);
-      m.position.y = -box.min.y * k;
-      m.traverse((c) => {
-        if (!c.isMesh) return;
-        c.castShadow = true; c.receiveShadow = true;
-        // 이 모델들은 금속 재질로 들어와서 반사할 것이 없으면 거의 검게 보임 → 다른 물건과 같은 무광으로
-        for (const mt of [].concat(c.material)) {
-          mt.metalness = 0; mt.roughness = Math.max(0.7, mt.roughness ?? 1);
-          if (o.userData.prop === 'lamp' && /light|glass/i.test(mt.name) && !mt.userData.glow) { mt.emissive = new THREE.Color(0xffe2a0); mt.userData.glow = [0.05, 2.2]; }
-          if (def.lift && !mt.userData.lifted) { mt.userData.lifted = true; mt.color.offsetHSL(0, 0.08, def.lift); } // 나무·덤불 색이 어두워서 살짝 밝힘 (복사본끼리 재질을 같이 써서 한 번만)
-        }
-      });
+      const { k, y } = fitOf(src, MODELS[o.userData.prop]);
+      m.scale.setScalar(k); m.position.y = y;
       const alt = new THREE.Group(); alt.add(m); alt.userData.isAlt = true;
       o.userData.alt = alt; o.add(alt);
     }

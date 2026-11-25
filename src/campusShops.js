@@ -6,6 +6,8 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { canvasTex, std, textTex } from './arena-kit.js';
 
 export const SHOP_W = 5.6, SHOP_D = 4.4, SHOP_H = 3.6;
+// 뽑기방 문 앞 노란 작은 뽑기 기계: 캡슐 나오는 곳 (가게 안쪽 좌표 [x, z], 높이 약 0.52)
+export const GACHA_OUT = [2.5 - 0.1, SHOP_D / 2 + 0.65 + 0.27];
 const FZ = SHOP_D / 2; // 앞면 z
 export const FONT = (px) => `bold ${px}px Jua, sans-serif`;
 
@@ -172,11 +174,16 @@ export function capsule(p, r, col, x, y, z, rx = 0, rz = 0) {
 }
 export const CAP_COLS = [0xff4d5a, 0xffd23f, 0x3fb6ff, 0x7ad35a, 0xff9ed2, 0xa77bff, 0xff8a1f];
 // 작은 뽑기 기계 (가게 앞에 놓는 것)
-function miniGacha(p, rnd, x, z, body) {
+function miniGacha(p, rnd, x, z, body, withKnob = false) {
   const g = new THREE.Group(); g.position.set(x, 0.3, z); p.add(g);
   box(g, 0.55, 0.75, 0.5, std(body, { roughness: 0.4 }), 0, 0.375, 0, 0.05);
   box(g, 0.4, 0.22, 0.04, MAT.white, 0, 0.55, 0.26, 0.02);
-  cyl(g, 0.08, 0.08, 0.05, MAT.alu, 0.08, 0.55, 0.29, 16).rotation.x = Math.PI / 2;
+  // 손잡이 (돌리는 것): 실제 광장 뽑기 연출이 돌림 (ui/plaza.js gachaFrame, 이름 'gacha-knob')
+  const knob = new THREE.Group(); knob.position.set(0.08, 0.55, 0.29);
+  const disc = cyl(knob, 0.09, 0.09, 0.05, MAT.alu, 0, 0, 0, 16); disc.rotation.x = Math.PI / 2;
+  box(knob, 0.17, 0.035, 0.035, MAT.dark, 0, 0, 0.035);
+  g.add(knob);
+  if (withKnob) { knob.name = 'gacha-knob'; knob.userData.dyn = true; }
   box(g, 0.18, 0.12, 0.05, MAT.dark, -0.1, 0.22, 0.26);
   cyl(g, 0.27, 0.27, 0.06, MAT.white, 0, 0.78, 0, 20);
   for (let i = 0; i < 9; i++) capsule(g, 0.07, CAP_COLS[i % 7], (rnd() - 0.5) * 0.3, 0.9 + rnd() * 0.15, (rnd() - 0.5) * 0.3, rnd() * 3, rnd() * 3);
@@ -210,7 +217,7 @@ export function gachaShop(rnd) {
   wallLamp(g, -1.6, 3.0, MAT.dark); wallLamp(g, 1.6, 3.0, MAT.dark);
   // 문 앞 작은 뽑기 기계 2대 (진짜 뽑기 가게처럼)
   miniGacha(g, rnd, -2.45, FZ + 0.65, 0x3f7fe0);
-  miniGacha(g, rnd, 2.5, FZ + 0.65, 0xffb000);
+  miniGacha(g, rnd, 2.5, FZ + 0.65, 0xffb000, true); // 이 기계에서 캡슐이 굴러 나옴 (뽑기 연출, GACHA_OUT)
   sideDetails(g, MAT.white, 0xfff1e0);
   // 지붕 위 거대 캡슐 돔: 돌림판 받침(흰·금) + 꼬마전구 둘레 + 유리 돔 + 캡슐 + 빨간 꼭지
   const Y = 0.3 + SHOP_H + 0.46, R = 2.05;

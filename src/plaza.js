@@ -37,43 +37,75 @@ export function cleanWalk(w, nowMs) {
     t: Math.min(n[4], nowMs), // 시계가 앞선 PC가 보낸 것도 '지금 출발'로
   };
 }
-// 가게 건물 바닥 자리 (x·z 네모)
-const shopRect = (s, pad = 0) => ({ x0: s.x - s.w / 2 - pad, x1: s.x + s.w / 2 + pad, z0: s.front - s.d - pad, z1: s.front + pad });
-// 걸어갈 곳 정하기: 광장 안으로, 가는 길에 가게 건물이 있으면 건물 앞에서 멈춘다
+// 걸어서 못 지나가는 곳 (arena-plaza.js PLAZA.shops[].rect + PLAZA.blocks): 돌린 네모 { x, z, yaw, x0, x1, z0, z1 } 또는 동그라미 { x, z, r }
+const obstacles = () => [...PLAZA.shops.map((s) => s.rect), ...(PLAZA.blocks || [])];
+// 광장 점 ↔ 물건 안쪽 좌표 (three.js rotation.y = yaw 와 같은 돌림)
+const toL = (o, x, z) => { const dx = x - o.x, dz = z - o.z, c = Math.cos(o.yaw), s = Math.sin(o.yaw); return [dx * c - dz * s, dx * s + dz * c]; };
+const toW = (o, lx, lz) => { const c = Math.cos(o.yaw), s = Math.sin(o.yaw); return [o.x + lx * c + lz * s, o.z - lx * s + lz * c]; };
+// 선분 from→from+d(0~1)가 장애물(여유 pad)에 처음 닿는 t. 안 닿으면 null. 이미 안에 있으면 0
+function hitT(o, from, to, pad) {
+  if (o.r != null) {
+    const fx = from[0] - o.x, fz = from[1] - o.z, dx = to[0] - from[0], dz = to[1] - from[1], R = o.r + pad;
+    const A = dx * dx + dz * dz, B = 2 * (fx * dx + fz * dz), C = fx * fx + fz * fz - R * R;
+    if (C <= 0) return 0;
+    if (A < 1e-12) return null;
+    const D = B * B - 4 * A * C;
+    if (D < 0) return null;
+    const t = (-B - Math.sqrt(D)) / (2 * A);
+    return t >= 0 && t <= 1 ? t : null;
+  }
+  const a = toL(o, from[0], from[1]), b = toL(o, to[0], to[1]);
+  const dx = b[0] - a[0], dz = b[1] - a[1];
+  let t0 = 0, t1 = 1;
+  for (const [oo, d, lo, hi] of [[a[0], dx, o.x0 - pad, o.x1 + pad], [a[1], dz, o.z0 - pad, o.z1 + pad]]) {
+    if (Math.abs(d) < 1e-9) { if (oo < lo || oo > hi) return null; continue; }
+    let u = (lo - oo) / d, v = (hi - oo) / d;
+    if (u > v) [u, v] = [v, u];
+    t0 = Math.max(t0, u); t1 = Math.min(t1, v);
+    if (t0 > t1) return null;
+  }
+  return t0;
+}
+const insideOb = (o, p, pad) => {
+  if (o.r != null) return Math.hypot(p[0] - o.x, p[1] - o.z) < o.r + pad;
+  const [lx, lz] = toL(o, p[0], p[1]);
+  return lx > o.x0 - pad && lx < o.x1 + pad && lz > o.z0 - pad && lz < o.z1 + pad;
+};
+// 걸어갈 곳 정하기: 광장 안으로, 가는 길에 건물·탁구대가 있으면 그 앞에서 멈춘다
 export function clipWalk(from, to) {
   const P = PLAZA;
-  let tx = clampN(to[0], P.minX, P.maxX), tz = clampN(to[1], P.minZ, P.maxZ);
+  const tx = clampN(to[0], P.minX, P.maxX), tz = clampN(to[1], P.minZ, P.maxZ);
   const dx = tx - from[0], dz = tz - from[1];
   let best = 1;
-  for (const r0 of [...P.shops.map((s) => shopRect(s)), ...(P.blocks || [])]) {
-    const r = { x0: r0.x0 - 0.35, x1: r0.x1 + 0.35, z0: r0.z0 - 0.35, z1: r0.z1 + 0.35 };
-    // 선분과 네모가 처음 만나는 곳 (slab 방식)
-    let t0 = 0, t1 = 1, hit = true;
-    for (const [o, d, a, b] of [[from[0], dx, r.x0, r.x1], [from[1], dz, r.z0, r.z1]]) {
-      if (Math.abs(d) < 1e-9) { if (o < a || o > b) { hit = false; break; } continue; }
-      let u = (a - o) / d, v = (b - o) / d;
-      if (u > v) [u, v] = [v, u];
-      t0 = Math.max(t0, u); t1 = Math.min(t1, v);
-      if (t0 > t1) { hit = false; break; }
-    }
-    if (hit && t0 > 0) best = Math.min(best, Math.max(0, t0 - 0.02)); // 이미 그 안에 있으면(t0 = 0) 빠져나가는 길은 막지 않음
+  for (const o of obstacles()) {
+    const t = hitT(o, from, [tx, tz], 0.35);
+    if (t != null && t > 0) best = Math.min(best, Math.max(0, t - 0.02)); // 이미 그 안에 있으면(t = 0) 빠져나가는 길은 막지 않음
   }
   return [from[0] + dx * best, from[1] + dz * best];
 }
 
 // 걸어갈 길 (꺾어 가기): 곧장 가는 길이 건물·탁구대에 막히면 모서리를 한두 번 돌아서 간다.
 // 돌려주는 것 = 지나갈 점들 [..., 도착점]. 걷기 정보는 한 구간씩 보낸다(꺾을 때마다 한 번 — 매 프레임 전송 없음)
-const allRects = () => [...PLAZA.shops.map((s) => shopRect(s)), ...(PLAZA.blocks || [])];
 const clear = (a, b) => { const c = clipWalk(a, b); return Math.hypot(c[0] - b[0], c[1] - b[1]) < 1e-3; };
 const dist2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-const inside = (p) => allRects().some((r) => p[0] > r.x0 - 0.36 && p[0] < r.x1 + 0.36 && p[1] > r.z0 - 0.36 && p[1] < r.z1 + 0.36);
+const inside = (p) => obstacles().some((o) => insideOb(o, p, 0.36));
+// 돌아갈 모서리: 네모는 네 귀퉁이, 동그라미는 둘레 10곳 (조금 떨어져서)
+function cornersOf(o, pad) {
+  if (o.r != null) {
+    const R = (o.r + pad) / Math.cos(Math.PI / 10);
+    return Array.from({ length: 10 }, (_, i) => [o.x + Math.cos((i / 10) * Math.PI * 2) * R, o.z + Math.sin((i / 10) * Math.PI * 2) * R]);
+  }
+  const out = [];
+  for (const lx of [o.x0 - pad, o.x1 + pad]) for (const lz of [o.z0 - pad, o.z1 + pad]) out.push(toW(o, lx, lz));
+  return out;
+}
 export function planWalk(from, to) {
   const P = PLAZA;
   const end = [clampN(to[0], P.minX, P.maxX), clampN(to[1], P.minZ, P.maxZ)];
   if (clear(from, end)) return [end];
   const pad = 0.62; // 모서리에서 조금 떨어져서 (clipWalk 여유 0.35보다 넉넉히)
   const corners = [];
-  for (const r of allRects()) for (const x of [r.x0 - pad, r.x1 + pad]) for (const z of [r.z0 - pad, r.z1 + pad]) {
+  for (const o of obstacles()) for (const [x, z] of cornersOf(o, pad)) {
     if (x >= P.minX && x <= P.maxX && z >= P.minZ && z <= P.maxZ && !inside([x, z])) corners.push([x, z]);
   }
   let best = null, bd = Infinity;
@@ -233,7 +265,8 @@ export function createPlazaView(world, handlers) {
   root.add(kim.sign.sp);
   tables.push({ sign: kim.sign }); // 카메라 앞 흐리게 (아래 update)
   // ⑤ 2대2에 불려 와 뛰어오는 김제빵 (src/plazaKim.js)
-  const runners = createKimRunners(root, { path: planWalk, bubble, blob: blobShadow });
+  const runners = createKimRunners(root, { path: planWalk, bubble, blob: blobShadow, home: PLAZA.kimHome });
+  const camObs = [...PLAZA.shops.map((s) => ({ ...s.rect, y1: s.h + 3 })), ...(PLAZA.camBlocks || [])];
 
   // 사람 한 명 그리기 정보 p = { id, nick(이름표 글자), title(글자), look, w, me, face(서 있을 때 바라볼 쪽, 없으면 null) }
   function put(p) {
@@ -259,10 +292,13 @@ export function createPlazaView(world, handlers) {
   // 화면 좌표 → 광장 (가게면 그 가게, 아니면 바닥 점)
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), hitP = new THREE.Vector3();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  // 가게 클릭 상자: 가게 안쪽 좌표 (돌린 가게라서 광선을 가게 안쪽 좌표로 돌려서 잰다). 앞 1.2m(문 앞 바닥·간판)도 가게로
   const boxes = PLAZA.shops.map((s) => {
-    const r = shopRect(s);
-    return { s, box: new THREE.Box3(new THREE.Vector3(r.x0, 0, r.z0), new THREE.Vector3(r.x1, s.h + 2.6, r.z1 + 1.2)) };
+    const r = s.rect;
+    const m = new THREE.Matrix4().makeRotationY(r.yaw).setPosition(r.x, 0, r.z);
+    return { s, box: new THREE.Box3(new THREE.Vector3(r.x0, 0, r.z0), new THREE.Vector3(r.x1, s.h + 2.6, r.z1 + 1.2)), inv: m.invert() };
   });
+  const lray = new THREE.Ray();
   // 탁구대 상자 (판 + 표지판 높이까지): 사람 대결용 t = 0~2, 김제빵 = 'kim'
   const tBox = (r, h) => new THREE.Box3(new THREE.Vector3(r.x0, 0, r.z0), new THREE.Vector3(r.x1, h, r.z1));
   const tableBoxes = [...PLAZA.tables.map((t, i) => ({ t: i, box: tBox(t.rect, 1.1) })), { t: 'kim', box: tBox(K.rect, 1.1) },
@@ -276,9 +312,10 @@ export function createPlazaView(world, handlers) {
     if (frame.on) ray.ray.applyMatrix4(frame.inv); // 경기장 거품 안: 세상 좌표 → 광장 좌표
     let best = null, bd = Infinity;
     for (const b of boxes) {
+      lray.copy(ray.ray).applyMatrix4(b.inv);
       // 카메라가 건물 상자 안(건물 앞 바로 앞)에 있으면 그 건물은 건너뜀 — 안 그러면 어디를 눌러도 건물이 눌림
-      if (b.box.containsPoint(ray.ray.origin)) continue;
-      if (ray.ray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = { shop: b.s }; } }
+      if (b.box.containsPoint(lray.origin)) continue;
+      if (lray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(lray.origin); if (d < bd) { bd = d; best = { shop: b.s }; } } // 돌림만 해서 거리는 그대로
     }
     for (const b of tableBoxes) {
       if (ray.ray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = b.t === 'kim' ? { kim: true } : { table: b.t }; } }
@@ -545,9 +582,13 @@ export function createPlazaView(world, handlers) {
       let px = me.disp[0] - fx * h, pz = me.disp[1] - fz * h;
       let py = CAM.lookY + Math.sin(cam.pitch) * cam.dist;
       if (camClamp) { const k = camClamp(me.disp, [px, pz]); px = me.disp[0] + (px - me.disp[0]) * k; pz = me.disp[1] + (pz - me.disp[1]) * k; py = CAM.lookY + (py - CAM.lookY) * Math.max(0.8, k); }
-      // 카메라가 가게 건물 안으로 들어가지 않게: 건물 앞면보다 뒤(북쪽)로는 안 간다
-      const wallZ = PLAZA.shops[0].front + 0.4;
-      if (pz < wallZ && me.disp[1] > wallZ) { const k = (me.disp[1] - wallZ) / (me.disp[1] - pz); px = me.disp[0] + (px - me.disp[0]) * k; pz = wallZ; }
+      // 카메라가 건물(가게·본관 기둥·유리 막대·빵집 등) 안으로 들어가지 않게: 들어가면 내 쪽으로 당긴다
+      { let k = 1;
+        const inCam = (x, y, z) => camObs.some((o) => (y >= (o.y0 ?? -1) && y <= (o.y1 ?? 9)) && insideOb(o, [x, z], 0.4));
+        if (!camObs.some((o) => insideOb(o, me.disp, 0.4) && (o.y0 ?? -1) < 1.5)) {
+          for (let i = 0; i < 14 && inCam(me.disp[0] + (px - me.disp[0]) * k, CAM.lookY + (py - CAM.lookY) * k, me.disp[1] + (pz - me.disp[1]) * k); i++) k *= 0.82;
+        }
+        px = me.disp[0] + (px - me.disp[0]) * k; pz = me.disp[1] + (pz - me.disp[1]) * k; py = CAM.lookY + (py - CAM.lookY) * Math.max(0.8, k); }
       const k = cam.init ? 1 - Math.exp(-dt * 8) : 1;
       cam.pos.lerp(tmpV.clone().set(px, py, pz), cam.init ? k : 1);
       if (!cam.init) cam.pos.set(px, py, pz);

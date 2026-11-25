@@ -5,10 +5,14 @@ import { addBox, canvasTex, seeded, std } from './arena-kit.js';
 import { buildMainHall } from './campusBuilding.js';
 import { closetShop, fameShop, gachaShop } from './campusShops.js';
 import { addLampGlow, makeDolphins, makeSea } from './campusFx.js';
+import { FOUNTAIN, KIM_SPOT, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS } from './campusLayout.js';
 import { bakery, board, clockTower, deck, foodTruck, fountain, photoZone, vending } from './campusProps.js';
 
 const FONT = (px) => `bold ${px}px Jua, sans-serif`;
-const rnd = seeded(2511);
+let rnd = seeded(2511);
+// 실제 광장(game = true)에서는: 탁구대·사람 표시는 광장 코드가 따로 그리고, 소품(나무·가로등·벤치…) 자리는 비워 둔다
+// (무료 모델을 한꺼번에 InstancedMesh로 채움 — src/campusModels.js). 시안 페이지는 지금 모양 → 버튼으로 모델
+let GAME = false;
 
 function cyl(parent, rt, rb, h, m, x, y, z, seg = 24) {
   const c = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m);
@@ -41,6 +45,7 @@ function table(x, z, color) {
 }
 function tree(s = 1) {
   const g = new THREE.Group();
+  if (GAME) { g.scale.setScalar(s); g.userData.prop = 'tree'; g.userData.seed = rnd(); return g; }
   cyl(g, 0.14, 0.2, 1.4, std(0x7a5233), 0, 0.7, 0, 8);
   const leaf = new THREE.MeshLambertMaterial({ color: rnd() < 0.5 ? 0x3f7f3f : 0x4f9a4a, flatShading: true });
   for (let k = 0; k < 3; k++) { const b = new THREE.Mesh(new THREE.ConeGeometry(1.2 - k * 0.3, 1.4, 7), leaf); b.position.y = 1.7 + k * 0.7; b.castShadow = true; g.add(b); } // 소나무 느낌
@@ -50,12 +55,14 @@ function tree(s = 1) {
 }
 function bench() {
   const g = new THREE.Group(); g.userData.prop = 'bench';
+  if (GAME) return g;
   addBox(g, 1.8, 0.42, 0.55, M.stone, 0, 0.21, 0); // 검은 돌 받침
   addBox(g, 1.8, 0.08, 0.55, M.wood, 0, 0.46, 0);
   return g;
 }
 function lamp() {
   const g = new THREE.Group(); g.userData.prop = 'lamp';
+  if (GAME) { addLampGlow(g, 4.05, 0); return g; }
   cyl(g, 0.06, 0.08, 4, M.alu, 0, 2, 0, 8);
   addBox(g, 0.9, 0.12, 0.25, M.alu, 0.35, 4.0, 0);
   addBox(g, 0.5, 0.06, 0.2, new THREE.MeshBasicMaterial({ color: 0xfff4d2 }), 0.55, 3.93, 0);
@@ -77,12 +84,13 @@ function slabTex() {
   return t;
 }
 
-export function buildCampus() {
+export function buildCampus({ game = false } = {}) {
+  GAME = game; rnd = seeded(2511); // 언제 지어도 같은 모습 (모든 PC가 같게)
   const root = new THREE.Group();
   const anim = [];
   // 언덕 위 땅 (광장 둘레 잔디) + 가장자리 절벽 아래 바다
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(70, 70), new THREE.MeshLambertMaterial({ color: 0x86b96a }));
-  ground.rotation.x = -Math.PI / 2; ground.position.set(-1, -0.02, 4); ground.receiveShadow = true; root.add(ground);
+  ground.rotation.x = -Math.PI / 2; ground.position.set(-1, -0.02, 4); ground.receiveShadow = true; ground.name = 'grass'; ground.userData.noBake = true; root.add(ground); // 눈이 오면 하얗게 (plazaSky)
   // 땅 둘레 숲 언덕 (사진 3: 숲 언덕 위 건물)
   const slope = std(0x4e7d3e, { flatShading: true });
   for (let i = 0; i < 40; i++) {
@@ -108,6 +116,9 @@ export function buildCampus() {
   const floorT = slabTex(); floorT.repeat.set(44 / 8, 44 / 8);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(45, 44), new THREE.MeshLambertMaterial({ map: floorT }));
   floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, 11.5); floor.receiveShadow = true; root.add(floor);
+  // 눈이 오면 돌바닥에 쌓이는 하얀 판 (plazaSky가 투명도를 바꿈)
+  const snowLayer = new THREE.Mesh(new THREE.PlaneGeometry(45, 44), new THREE.MeshLambertMaterial({ color: 0xf4f8fb, transparent: true, opacity: 0, depthWrite: false }));
+  snowLayer.rotation.x = -Math.PI / 2; snowLayer.position.set(0, 0.015, 11.5); snowLayer.visible = false; snowLayer.receiveShadow = true; root.add(snowLayer);
   // 네모 잔디밭 (사진 1) + 둘레 돌 턱
   for (const [x0, z0, x1, z1] of [[-21, -9, -17, 4], [17, -9, 21, 4], [-21, 15, -17, 23], [17, 26, 21, 30]]) {
     const lawn = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), new THREE.MeshLambertMaterial({ color: 0x5faa48 }));
@@ -133,26 +144,21 @@ export function buildCampus() {
   addBox(root, 15.5, 6.1, 0.2, std(0x15191c, { metalness: 0.4, roughness: 0.4 }), -16, 17.2, hall.frontA + 0.3); // 전광판 틀
 
   // 분수 + 가게 반원 (분수 (0,2) 둘레 반지름 약 8.5)
-  const F = [0, 2];
-  const fnt = fountain(anim); fnt.position.set(F[0], 0, F[1]); root.add(fnt);
-  const shops = [[gachaShop(rnd), -52], [closetShop(rnd), 0], [fameShop(rnd), 52]]; // 다듬은 가게 (src/campusShops.js)
-  for (const [g, deg] of shops) {
-    const a = (deg * Math.PI) / 180, R = 9;
-    g.position.set(F[0] + Math.sin(a) * R, 0, F[1] - Math.cos(a) * R);
-    g.rotation.y = -a; // 앞(+z)이 분수 쪽
-    root.add(g);
-  }
+  const place = (g, o) => { g.position.set(o.x, 0, o.z); g.rotation.y = o.yaw || 0; root.add(g); return g; };
+  const fnt = fountain(anim); fnt.position.set(FOUNTAIN[0], 0, FOUNTAIN[1]); root.add(fnt);
+  const BUILD = { shop: gachaShop, closet: closetShop, rank: fameShop }; // 다듬은 가게 (src/campusShops.js)
+  const shops = {};
+  for (const sp of SHOP_SPOTS) shops[sp.id] = place(BUILD[sp.id](rnd), sp);
 
-  const ct = clockTower(anim); ct.position.set(13.5, 0, -6.5); ct.rotation.y = -0.5; root.add(ct);
-  const bd = board(); bd.position.set(5, 0, 9.6); bd.rotation.y = -0.35; root.add(bd);
-  // 탁구대 (사람 대결 3대 + 김제빵)
-  for (const [x, z] of [[-14, 13], [14, 13], [0, 25]]) root.add(table(x, z, 0x2a5db0));
-  root.add(table(-14, 27, 0x2f8a4e));
-  const bk = bakery(anim); bk.position.set(-19.5, 0, 30.5); bk.rotation.y = Math.PI / 2 + 0.4; root.add(bk);
-  const pz = photoZone(); pz.position.set(-7, 0, 19.5); pz.rotation.y = 0.5; root.add(pz);
-  const ft = foodTruck(); ft.position.set(19.5, 0, 21); ft.rotation.y = -Math.PI / 2; root.add(ft);
-  const vd = vending(); vd.position.set(20.6, 0, 27); vd.rotation.y = -Math.PI / 2; root.add(vd);
-  const dk = deck(); dk.position.set(13, 0, 33.3); root.add(dk);
+  place(clockTower(anim), SPOTS.clock);
+  place(board(), SPOTS.board);
+  // 탁구대 (사람 대결 3대 + 김제빵) — 실제 광장은 arena-plaza.js가 그림
+  if (!GAME) { for (const [x, z] of TABLE_SPOTS) root.add(table(x, z, 0x2a5db0)); root.add(table(KIM_SPOT[0], KIM_SPOT[1], 0x2f8a4e)); }
+  const bk = place(bakery(anim), SPOTS.bakery);
+  place(photoZone(), SPOTS.photo);
+  place(foodTruck(), SPOTS.truck);
+  place(vending(), SPOTS.vending);
+  place(deck(), SPOTS.deck);
   // 가장자리 가로등·벤치·소나무
   for (const sx of [-1, 1]) {
     for (const z of [-6, 6, 18, 30]) { const l = lamp(); l.position.set(sx * 22.3, 0, z); l.rotation.y = sx > 0 ? Math.PI : 0; root.add(l); }
@@ -169,12 +175,14 @@ export function buildCampus() {
   }
   for (const sx of [-1, 1]) for (const z of [9, 20]) extra('trash', sx * 21.6, z + 1.5, rnd() * 6);
 
-  // 사람 대신 표시 (처음 서는 곳)
-  const me = new THREE.Group();
-  cyl(me, 0.28, 0.32, 0.9, std(0xffd23f), 0, 0.75, 0, 16);
-  const hd = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), std(0xf3d5b5)); hd.position.y = 1.5; me.add(hd);
-  me.position.set(0, 0, 10.5); root.add(me);
+  // 사람 대신 표시 (처음 서는 곳) — 시안만
+  if (!GAME) {
+    const me = new THREE.Group();
+    cyl(me, 0.28, 0.32, 0.9, std(0xffd23f), 0, 0.75, 0, 16);
+    const hd = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), std(0xf3d5b5)); hd.position.y = 1.5; me.add(hd);
+    me.position.set(SPAWN[0], 0, SPAWN[1]); root.add(me);
+  }
 
   root.traverse((o) => { if (o.isMesh && !o.material.transparent) o.receiveShadow = true; });
-  return { root, anim, bakery: bk, dolphins };
+  return { root, anim, bakery: bk, dolphins, shops, ground, snowLayer };
 }
