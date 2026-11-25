@@ -117,6 +117,8 @@ function setSky(k) {
   scene.fog = new THREE.Fog(s.fog, 60, 260);
   hemi.color.set(s.hemi[0]); hemi.intensity = s.hemi[1] * (hq ? 0.6 : 1);
   sun.color.set(s.sun[0]); sun.intensity = s.sun[1] * (hq ? 1.1 : 1);
+  const night = k === 'night' ? 1 : k === 'sunset' ? 0.35 : 0;
+  root.traverse((o) => { for (const m of [].concat(o.material || [])) if (m.userData?.glow) m.emissiveIntensity = m.userData.glow[0] + (m.userData.glow[1] - m.userData.glow[0]) * night; });
 }
 setSky('day');
 
@@ -125,8 +127,9 @@ const CAMS = {
   shops: { pos: [0, 3.2, 8], look: [0, 3.5, -6] },
   top: { pos: [0, 66, 54], look: [0, 0, 4] },
   south: { pos: [-2, 4.5, 26], look: [14, -4, 60] }, // 바다 전망대 쪽을 바라봄
+  hall: { pos: [24, 22, 14], look: [-2, 14, -22] }, // 본관을 비스듬히 위에서
   edge: { pos: [-10, 3.4, 4], look: [-21, 1.8, 16] }, // 서쪽 가장자리 (나무·가로등·벤치·잔디밭)
-  building: { pos: [-19, 1.8, -5], look: [-6, 9, -26] }, // 필로티 아래로 뒤쪽 산
+  building: { pos: [-15, 1.7, -4], look: [-5, 11, -24] }, // 필로티 아래로 뒤쪽 산
 };
 function setCam(k) {
   const c = CAMS[k];
@@ -135,7 +138,8 @@ function setCam(k) {
 setCam(new URLSearchParams(location.search).get('cam') || 'spawn');
 const q = new URLSearchParams(location.search).get('sky');
 if (q && SKY[q]) setSky(q);
-if (new URLSearchParams(location.search).get('props') === '1') { swapProps(true); document.querySelector('[data-k="props"]')?.classList.add('on'); }
+// 무료 소품은 기본으로 켬 (사용자 확정 11/25: 다 쓰기), ?props=0이면 끔
+if (new URLSearchParams(location.search).get('props') !== '0') { swapProps(true); document.querySelector('[data-k="props"]')?.classList.add('on'); }
 if (new URLSearchParams(location.search).get('hq') === '1') { setHQ(true); document.querySelector('[data-k="hq"]')?.classList.add('on'); }
 
 document.getElementById('bar').addEventListener('click', (e) => {

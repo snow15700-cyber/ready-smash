@@ -2,6 +2,7 @@
 // 배치는 docs/dev/plaza.md 20장 배치도 초안. 위가 북쪽(−z). 좌표는 광장 좌표와 같은 m 단위.
 import * as THREE from 'three';
 import { addBox, canvasTex, clockTex, seeded, std, textTex } from './arena-kit.js';
+import { buildMainHall } from './campusBuilding.js';
 
 const FONT = (px) => `bold ${px}px Jua, sans-serif`;
 const rnd = seeded(2511);
@@ -64,21 +65,6 @@ function glassTex(cols, rows) {
   t.wrapS = THREE.RepeatWrapping;
   return t;
 }
-function glassBar(parent, x0, x1, z0, z1, y0, y1) {
-  const w = x1 - x0, d = z1 - z0, h = y1 - y0;
-  const mat = (len) => { const t = glassTex(16, 5); t.repeat.set(Math.max(1, Math.round(len / 14)), 1); return new THREE.MeshStandardMaterial({ map: t, roughness: 0.12, metalness: 0.45, emissive: 0x041818, emissiveIntensity: 0.3 }); };
-  const mx = mat(w), mz = mat(d);
-  const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [mz, mz, M.white, std(0x1c2627), mx, mx]);
-  bar.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); bar.castShadow = true; parent.add(bar);
-  // 지붕: 흰 난간 띠 + 지붕 정원(사진 2)
-  addBox(parent, w + 0.3, 0.5, d + 0.3, M.white, bar.position.x, y1 + 0.25, bar.position.z);
-  addBox(parent, w * 0.55, 0.3, d * 0.5, M.roofGrass, bar.position.x - w * 0.12, y1 + 0.55, bar.position.z);
-  addBox(parent, w * 0.25, 1.2, d * 0.6, M.white, bar.position.x + w * 0.3, y1 + 0.9, bar.position.z - d * 0.1);
-  // 아래 면 짙은 띠 (떠 있는 느낌)
-  addBox(parent, w + 0.02, 0.5, d + 0.02, std(0x1a2122), bar.position.x, y0 + 0.25, bar.position.z);
-  return bar;
-}
-
 // ── 가게 3개 (건물 + 지붕 위 상징). 각 그룹의 +z가 앞(문) 쪽
 const SW = 5.2, SD = 4.0, SH = 3.4; // 가게 너비·깊이·높이
 
@@ -391,11 +377,7 @@ export function buildCampus() {
   pitch.rotation.x = -Math.PI / 2; pitch.position.set(-29, 0.01, -4); root.add(pitch);
 
   // 본관: 떠 있는 유리 막대 2개 + 검은 돌 기둥 (사진 1·2)
-  glassBar(root, -36, 8, -30, -17, 13, 25); // 막대 ① (높게, 바닥에서 13m 떠 있음)
-  glassBar(root, 0, 40, -25, -14.5, 8.5, 18); // 막대 ② (조금 낮게, 앞쪽)
-  addBox(root, 7, 13, 9, M.stone, -4, 6.5, -24).castShadow = true; // 검은 돌 기둥 (사진 1)
-  addBox(root, 6, 8.5, 8, M.stone, 13, 4.25, -20).castShadow = true;
-  addBox(root, 4, 13, 6, M.stone, -32, 6.5, -24);
+  const hall = buildMainHall(root, rnd); // 다듬은 본관 (src/campusBuilding.js)
   // 본관 앞면 전광판 (경기 점수·오늘의 1등)
   const scr = canvasTex(1024, 384, (g, w, h) => {
     g.fillStyle = '#0b1020'; g.fillRect(0, 0, w, h);
@@ -404,7 +386,8 @@ export function buildCampus() {
     g.fillStyle = '#9fe0ff'; g.font = FONT(56); g.fillText('🏆 오늘의 1등  박OO  12승', w / 2, 270);
   });
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(15, 5.6), new THREE.MeshBasicMaterial({ map: scr }));
-  screen.position.set(-16, 16.6, -16.94); root.add(screen);
+  screen.position.set(-16, 17.2, hall.frontA + 0.42); root.add(screen); // 세로 핀(0.06+0.11) 앞으로
+  addBox(root, 15.5, 6.1, 0.2, std(0x15191c, { metalness: 0.4, roughness: 0.4 }), -16, 17.2, hall.frontA + 0.3); // 전광판 틀
 
   // 분수 + 가게 반원 (분수 (0,2) 둘레 반지름 약 8.5)
   const F = [0, 2];
