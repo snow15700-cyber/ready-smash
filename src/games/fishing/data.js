@@ -43,12 +43,16 @@ export function pickFish(near = 0, rnd = Math.random) {
   return x < c ? FISH.mackerel : x < c + r ? FISH.seabream : FISH.goldball;
 }
 
+// 단계 (fishing.md 8장 '등급 숨기기', 11/25 사용자 확정): 누구나 일반 리듬으로 시작 → 희귀면 한 번, 전설이면 두 번 "무겁다!"로 리듬이 올라감
+export const STAGES = ['common', 'rare', 'legend'];
+export const STAGE_FISH = { common: FISH.mackerel, rare: FISH.seabream, legend: FISH.goldball }; // 단계마다 박자(bpm)·노트 수 기준
+export const stageOf = (f) => STAGES.indexOf(f.grade);
+
 // 입질 순서: tok(톡 = 약한 떨림) · fake(가짜 풍덩 = 약한 떨림 2~3번) · real(진짜, 항상 마지막)
+// 등급을 숨기므로 입질 순서는 등급과 상관없이 고름 (순서로 등급을 알아채지 못하게)
+const SEQS = [['tok'], ['tok', 'fake'], ['tok', 'fake', 'tok'], ['tok', 'tok', 'fake'], ['tok', 'fake', 'tok', 'fake']];
 export function biteSeq(f, rnd = Math.random) {
-  let s;
-  if (f.grade === 'common') s = rnd() < 0.5 ? ['tok'] : ['tok', 'fake'];
-  else if (f.grade === 'rare') s = rnd() < 0.5 ? ['tok', 'fake', 'tok'] : ['tok', 'tok', 'fake'];
-  else s = ['tok', 'fake', 'tok', 'fake'];
+  let s = [...SEQS[Math.floor(rnd() * SEQS.length)]];
   if (TUNE.fake === 0) s = s.slice(0, 1);
   if (TUNE.fake === 2) s.splice(1 + Math.floor(rnd() * s.length), 0, 'fake');
   return [...s, 'real'];

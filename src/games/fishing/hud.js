@@ -103,7 +103,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
     g.font = JUA(20); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
     g.fillText('🎣', dx - 22, dy); g.fillText('🌊', dx + dw + 22, dy);
     R.shown = R.shown === undefined ? R.dist : R.shown + (R.dist - R.shown) * 0.2;
-    g.fillText(S.fish.emoji, dx + dw * clamp(R.shown / 100, 0, 1), dy);
+    g.fillText('❓', dx + dw * clamp(R.shown / 100, 0, 1), dy); // 무슨 물고기인지는 잡을 때까지 비밀
     if (S.t > 0.4) {
       // 기본 원 (박자마다 두근)
       const pr = br * (1 + R.pulse * 0.12);
@@ -120,7 +120,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
         const r = br * (1 + Math.max(0, k) * (n.fin ? 3.2 : 2.4));
         g.globalAlpha = clamp((1 - k) * 3, 0, 1);
         g.lineWidth = (n.fin ? 12 : 7) * u; g.strokeStyle = 'rgba(10,25,45,.5)'; g.beginPath(); g.arc(b.x, b.y, r, 0, 7); g.stroke();
-        g.lineWidth = (n.fin ? 8 : 4) * u; g.strokeStyle = n.fin ? '#ffd23a' : GRADE[S.fish.grade].color === '#9fb4c8' ? '#ffb02e' : GRADE[S.fish.grade].color; g.beginPath(); g.arc(b.x, b.y, r, 0, 7); g.stroke();
+        g.lineWidth = (n.fin ? 8 : 4) * u; g.strokeStyle = n.fin ? '#ffd23a' : R.song.grade === 'common' ? '#ffb02e' : GRADE[R.song.grade].color; g.beginPath(); g.arc(b.x, b.y, r, 0, 7); g.stroke();
         if (n.fin) { g.fillStyle = 'rgba(255,210,58,.12)'; g.beginPath(); g.arc(b.x, b.y, r, 0, 7); g.fill(); }
         g.globalAlpha = 1;
       }
@@ -173,7 +173,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
     g.restore();
   }
 
-  // 집중선 컷인 (희귀·전설)
+  // 집중선 컷인 (단계가 오를 때 "무겁다!" · 잡을 때 희귀·전설 공개)
   if (S.cutin && S.cutin.t < 1.0) {
     const C = S.cutin, k = C.t;
     const a = k < 0.1 ? k / 0.1 : k > 0.8 ? 1 - (k - 0.8) / 0.2 : 1;
@@ -254,7 +254,7 @@ function drawResult(g, W, H, S, u) {
   } else {
     g.font = JUA(28); g.fillStyle = '#fff'; g.fillText(R.title, 0, -26);
     g.font = UI(600, 14); g.fillStyle = 'rgba(255,255,255,.8)'; g.fillText(R.sub, 0, 10);
-    if (R.fish) { g.font = UI(600, 13); g.fillStyle = 'rgba(255,255,255,.55)'; g.fillText(`(${R.fish.emoji} ${R.fish.name}였어요)`, 0, 42); }
+    if (R.regret) { g.font = JUA(18); g.fillStyle = GRADE[R.grade].color; g.fillText(R.regret, 0, 44); }
   }
   g.restore();
 }

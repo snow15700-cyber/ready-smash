@@ -61,6 +61,7 @@ export const snd = {
   patience: () => [880, 1320].forEach((f, i) => tone(f, f, 0.16, { type: 'triangle', gain: 0.1, at: i * 0.07 })), // ✨ 참기
   hook: (grade) => { tone(170, 55, 0.22, { type: 'triangle', gain: 0.55 }); noise(0.09, { f: 3000, q: 0.7, gain: 0.35 }); if (grade === 'Perfect') tone(1568, 1568, 0.2, { type: 'triangle', gain: 0.12, at: 0.05 }); },
   miss: () => { tone(330, 200, 0.25, { type: 'triangle', gain: 0.14 }); tone(220, 140, 0.35, { type: 'triangle', gain: 0.14, at: 0.16 }); },
+  runLine: () => { for (let i = 0; i < 26; i++) noise(0.025, { f: 3600 + i * 40, q: 9, gain: 0.13, at: i * 0.028 }); tone(200, 90, 0.5, { type: 'triangle', gain: 0.3 }); }, // 단계가 올라갈 때 줄이 확 풀림 '지이이익'
   reel: () => noise(0.022, { f: 2400 + Math.random() * 400, q: 6, gain: 0.15 }),
   drag: () => noise(0.02, { f: 4300 + Math.random() * 500, q: 9, gain: 0.12 }),
   pump: (good) => { tone(good ? 240 : 180, 90, 0.18, { type: 'triangle', gain: 0.4 }); noise(0.12, { f: 1500, gain: 0.2 }); },

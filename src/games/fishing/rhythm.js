@@ -24,12 +24,13 @@ const PROGS = [
 const KEYS = [55, 57, 58, 60, 62]; // G A B♭ C D (미디 번호)
 const midi = (n) => 440 * 2 ** ((n - 69) / 12);
 
-export function makeSong(fish, rnd = Math.random) {
+// avoidKey: 단계가 올라갈 때 앞 단계와 다른 조로 (바뀐 게 확 느껴지게)
+export function makeSong(fish, rnd = Math.random, avoidKey = null) {
   const pick = (a) => a[Math.floor(rnd() * a.length)];
   return {
     grade: fish.grade,
     bpm: fish.bpm + Math.round((rnd() - 0.5) * 8),
-    key: pick(KEYS),
+    key: pick(KEYS.filter((k) => k !== avoidKey)),
     prog: pick(PROGS),
     drum: Math.floor(rnd() * 3),
     lastBar: -1,

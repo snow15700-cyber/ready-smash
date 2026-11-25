@@ -2,12 +2,13 @@
 //   던지기: 3방향 고정 + 끌어올리는 속도로 거리 3단계 → 기포(모두가 같은 곳) 가까이면 희귀·전설 ↑
 //   입질: 톡(약한 떨림) · 가짜 풍덩(약한 떨림 2~3번)은 참고, 진짜는 찌가 쏙 + '!' + 강한 떨림 → 빨리 누르기
 //   줄다리기: 화면 가운데 기본 원에 줄어드는 원이 닿을 때 누르기(박자에 맞춰 연속) → 거리 게이지
+//   등급 숨기기: 누구나 일반 리듬으로 시작, 희귀·전설이면 마지막 큰 노트 뒤 "무겁다!" → 리듬이 한 단계씩 올라감. 잡을 때 공개
 // 서버·코인·저장 없음(최고 기록만 이 브라우저). 오른쪽 위 ⚙️로 판정 시간·가짜 비율·기포·물고기·소리를 바꿔 보며 정한다.
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 import * as THREE from 'three';
 import { buildCampus } from '../../campusMock.js';
 import { makeCharacter } from '../../scene.js';
-import { FISH, GRADE, TUNE, biteSeq, fishSize, pickFish } from './data.js';
+import { FISH, GRADE, STAGES, STAGE_FISH, TUNE, biteSeq, fishSize, pickFish, stageOf } from './data.js';
 import { activeBubbles, bubbleNear } from './bubbles.js';
 import { audioCtx, initSound, setSoundOn, snd, tickSound } from './sound.js';
 import { makePhrase, makeSong, playBeat, playFinish, playMelody } from './rhythm.js';
@@ -59,11 +60,11 @@ const S = {
   drag: null, power: 0, hint: null, aim: { dir: 0 },
   cast: null, bob: new THREE.Vector3(), dip: 0, dipV: 0, bobLanded: false, near: 0,
   seq: [], evI: -1, ev: null, nextEv: 0, calm: 0, alertT: -1,
-  fish: null, size: null, grade: '', R: null, land: null, result: null, model: null,
+  fish: null, stage: 0, size: null, grade: '', R: null, land: null, result: null, model: null,
   rodPitch: -0.95, rodPitchV: 0, bend: 0, rodKick: 0, hitstop: 0, slow: 0, shake: 0, zshake: 0, flash: 0, cutin: null, stamp: null,
   texts: [], judge: null, bubbles: [], bubbleNote: null, seenBubbles: new Set(),
 };
-window.__fish = { S, TUNE, cast: (dir, tier) => { initSound(); castTo(dir, tier); }, rt: () => (S.R ? nowS() - S.R.base : 0) };
+window.__fish = { S, TUNE, stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(), cast: (dir, tier) => { initSound(); castTo(dir, tier); }, rt: () => (S.R ? nowS() - S.R.base : 0) };
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const DECK = PIER.y + 0.04;
@@ -224,22 +225,42 @@ function hook(g, rt) {
 // 원은 2박 동안 줄어듦(마지막 큰 노트는 3박). 거리 게이지 0~100, 60에서 시작: Good −g · Perfect −1.4g · Miss +1.2g
 // (g = 60 ÷ (기준 노트 수 × 0.9)). 0 = 잡음 · 100 = 도망. 한 번만 더 맞추면 잡힐 때 → 마지막 큰 노트(맞추면 바로 잡힘)
 const rtNow = () => nowS() - S.R.base;
-function startRhythm() {
+// stage: 0 일반 · 1 희귀 · 2 전설 단계. 단계마다 그 등급의 박자·노트 수·음악(새 조)으로 새로 시작.
+// 두 번째 단계부터는 거리 50에서 (처음 60보다 덜 가혹하게 — 사용자 확정 11/25)
+function startRhythm(stage = 0) {
   setMode('fight');
-  const f = S.fish, song = makeSong(f);
+  const prev = S.R;
+  S.stage = stage;
+  const f = STAGE_FISH[STAGES[stage]], song = makeSong(f, Math.random, prev?.song.key);
   const spb = 60 / song.bpm;
-  const lead = f.grade === 'common' ? 0.5 : 1.0; // 희귀·전설은 집중선 컷인 뒤
+  const lead = stage === 0 ? 0.5 : 1.2; // 단계가 오르면 "무겁다!" 컷인 뒤
   const g = 60 / (f.notes * 0.9);
   S.R = {
     song, spb, base: nowS(), t0: lead + 4 * spb, // 첫 노트 구절의 첫 박 (그 전 1마디는 음악만 — 들어가는 마디)
-    queue: [], phrases: 0, notes: [], dist: 60, g, m: g * 1.2, lastBeat: -99, sched: -4, pulse: 0, side: 1,
-    hits: 0, perfects: 0, misses: 0, fin: null, aOff: 0, bump: 0, tilt: 0, reel: 0, slack: 0, burst: null,
+    queue: [], phrases: 0, notes: [], dist: stage === 0 ? 60 : 50, g, m: g * 1.2, lastBeat: -99, sched: -4, pulse: 0, side: 1,
+    hits: prev ? prev.hits : 0, perfects: prev ? prev.perfects : 0, misses: prev ? prev.misses : 0,
+    fin: null, aOff: 0, bump: 0, tilt: 0, reel: 0, slack: 0, burst: null, shown: prev ? prev.shown : undefined,
   };
   const ac = audioCtx(); if (ac) S.R.aOff = ac.currentTime - nowS();
   fillQueue();
-  if (f.grade !== 'common') S.cutin = { t: 0, txt: f.grade === 'legend' ? '✨ 전설 ✨' : '희귀!', sub: f.name, color: GRADE[f.grade].color };
-  // 맞출 때 물 위로 살짝 튀는 물고기
-  S.model = makeFishModel(f); S.model.visible = false; S.model.scale.setScalar(0.6 + S.size.k * 0.9); scene.add(S.model);
+  // 맞출 때 물 위로 살짝 튀는 물고기 = 아직 무슨 물고기인지 모르게 검은 그림자. 단계가 오를수록 크게
+  if (S.model) scene.remove(S.model);
+  S.model = makeShadowFish(); S.model.visible = false; S.model.scale.setScalar(0.7 + stage * 0.4); scene.add(S.model);
+}
+function makeShadowFish() {
+  const m = makeFishModel(FISH.mackerel), mat = new THREE.MeshStandardMaterial({ color: 0x1b2a3a, roughness: 0.6 });
+  m.traverse((o) => { if (o.isMesh) o.material = mat; });
+  return m;
+}
+// 마지막 큰 노트를 맞췄는데 아직 더 높은 등급: "끝인 줄 알았는데!" → 줄이 확 풀리며 다음 단계
+const HEAVY = [null, { txt: '❗ 무겁다!', sub: '아직 안 끝났어!' }, { txt: '‼ 엄청 무겁다!!', sub: '보통 놈이 아니야…' }];
+function stageUp() {
+  const next = S.stage + 1;
+  snd.runLine(); buzz([40, 30, 40, 30, 120]);
+  S.shake = 16; S.rodKick = -1; S.rodPitchV -= 8; S.hop = null;
+  S.cutin = { t: 0, ...HEAVY[next], color: GRADE[STAGES[next]].color };
+  startRhythm(next);
+  S.R.reel = -1; S.R.slack = 1.2; S.R.tilt = 1;
 }
 const beatT = (b) => S.R.t0 + b * S.R.spb;
 function fillQueue() { // 앞으로 2구절치 노트 시각을 늘 준비
@@ -307,7 +328,8 @@ function noteResult(n, res) {
   const p = res === 'Perfect';
   R.hits++; if (p) R.perfects++;
   playMelody(R.song, n.beat, p); // 내가 누른 소리가 멜로디가 됨
-  if (n.fin) { // 마지막 큰 노트: 크게 당겨 바로 잡음
+  if (n.fin) { // 마지막 큰 노트: 크게 당겨 바로 잡음 (아직 더 높은 등급이면 "무겁다!" → 다음 단계)
+    if (S.stage < stageOf(S.fish)) return stageUp();
     R.dist = 0; playFinish(R.song);
     S.hitstop = 0.08; S.flash = 0.8; S.shake = 14; S.rodPitchV += 10; R.bump = 2; R.burst = { t: 0, p: true, big: true };
     say(p ? '영차—!! ✨' : '영차—!!', { sx: 0.5, sy: 0.4, size: 56, color: '#ffd23a', life: 0.8, shake: 5 });
@@ -327,8 +349,10 @@ function noteResult(n, res) {
 // ── 잡기: 물 밖으로 들어 올림 (처음 0.2초 느린 동작 + 물방울) → 이름·cm 도장 '쾅'
 function startLand() {
   setMode('land');
-  if (!S.model) { S.model = makeFishModel(S.fish); scene.add(S.model); }
+  if (S.model) scene.remove(S.model); // 그림자 → 진짜 물고기 (여기서 처음 공개)
+  S.model = makeFishModel(S.fish); scene.add(S.model);
   const M = S.model; M.visible = true;
+  if (S.fish.grade !== 'common') S.cutin = { t: 0, txt: S.fish.grade === 'legend' ? '🌟 전설! 🌟' : '✨ 희귀!', sub: S.fish.name, color: GRADE[S.fish.grade].color };
   M.scale.setScalar(0.6 + S.size.k * 0.9);
   const y = seaHeight(S.bob.x, S.bob.z, S.now);
   S.land = { from: new THREE.Vector3(S.bob.x, y, S.bob.z), stamped: false };
@@ -369,13 +393,15 @@ const FAIL = {
 };
 function fail(kind) {
   snd.miss();
-  S.result = { ok: false, title: FAIL[kind][0], sub: FAIL[kind][1], fish: kind === 'far' || kind === 'late' ? S.fish : null };
+  // 등급은 숨김. 단, 희귀·전설 단계까지 가서 도망가면 아쉬움 한 줄 (사용자 확정 11/25)
+  const regret = kind === 'far' && S.stage >= 1 ? `…방금 그건 ${GRADE[S.fish.grade].label}급이었다` : '';
+  S.result = { ok: false, title: FAIL[kind][0], sub: FAIL[kind][1], regret, grade: S.fish?.grade };
   setMode('result');
   S.ev = null; S.alertT = -1;
 }
 function toReady() {
   setMode('ready');
-  S.result = null; S.R = null; S.land = null; S.stamp = null; S.cutin = null; S.bobLanded = false; S.ev = null; S.power = 0;
+  S.result = null; S.R = null; S.stage = 0; S.land = null; S.stamp = null; S.cutin = null; S.bobLanded = false; S.ev = null; S.power = 0;
   if (S.model) { scene.remove(S.model); S.model = null; }
 }
 
@@ -428,7 +454,7 @@ function update(dt, rdt) {
   const pitch0 = S.mode === 'fight' ? -0.75 : S.mode === 'ready' ? -0.95 : -1.05;
   S.rodPitchV += ((pitch0 - S.rodPitch) * 140 - S.rodPitchV * 11) * rdt;
   S.rodPitch += S.rodPitchV * rdt;
-  const wantBend = S.mode === 'fight' ? 0.45 : S.mode === 'land' ? 0.7 * (1 - clamp(S.t, 0, 1)) : (S.ev?.kind === 'real' && S.ev.fired) ? 0.4 : 0.05;
+  const wantBend = S.mode === 'fight' ? 0.45 + S.stage * 0.15 : S.mode === 'land' ? 0.7 * (1 - clamp(S.t, 0, 1)) : (S.ev?.kind === 'real' && S.ev.fired) ? 0.4 : 0.05;
   S.bend += (wantBend - S.bend) * Math.min(1, rdt * 10);
   S.rodKick *= 1 - Math.min(1, rdt * 7);
   rod.pose(S.rodPitch + S.rodKick * 0.25, clamp(S.bend + S.rodKick * 0.35, -0.3, 1.2), S.R ? S.R.side * 0.3 : 0, 0);
