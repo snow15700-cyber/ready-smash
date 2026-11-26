@@ -19,6 +19,7 @@ if (params.get('bubbles')) TUNE.bubbles = params.get('bubbles');
 for (const k of ['bSea', 'bPier', 'bBody']) TUNE[k] = params.get('beat') === '0' ? 0 : 1;
 // 음악 달아오름 시안(16장 C 1단계): 이 시안에서만 처음에 켬 (?heat=0 이면 끔)
 TUNE.heat = params.get('heat') === '0' ? 0 : 1;
+TUNE.heatC = params.get('heat') === '0' ? 0 : 1; // 2단계 색 달아오름도
 
 // ── 3D 장면 (캠퍼스 시안 = 광장과 같은 장면, 낚시터 포함)
 const canvas = document.getElementById('c');

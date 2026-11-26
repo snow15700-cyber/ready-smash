@@ -94,6 +94,14 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
   // 줄다리기: 거리 게이지 + 기본 원 + 줄어드는 원
   if (S.mode === 'fight' && S.R) {
     const R = S.R, b = baseAt(W, H), br = 36 * u;
+    // 색 달아오름(16장 C 2단계): 화면 가장자리 빛 — 겹(R.heatV 0~3)이 오를수록 진하고, 박마다 살짝 밝아짐
+    const hv = R.heatV || 0, hc = heatColor(hv);
+    if (hv > 0.02) {
+      const a = Math.min(1, hv / 3) * (0.22 + R.pulse * 0.12 * (R.pulseAmp || 1));
+      const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.38, W / 2, H / 2, Math.hypot(W, H) / 2);
+      vg.addColorStop(0, `rgba(${hc},0)`); vg.addColorStop(1, `rgba(${hc},${a})`);
+      g.fillStyle = vg; g.fillRect(0, 0, W, H);
+    }
     // 거리 게이지 (위): 왼쪽 🎣 = 잡음 · 오른쪽 🌊 = 도망
     const dw = Math.min(320, W - 140), dx = W / 2 - dw / 2, dy = W < 560 ? 100 : 64; // 휴대폰은 위 표시와 안 겹치게
     glass(g, dx - 40, dy - 16, dw + 80, 32, 16);
@@ -110,9 +118,15 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
       const pk = R.press || 0, pt = 1 - pk, squash = pk > 0 ? -0.14 * Math.sin(pt * Math.PI * 2) * (1 - pt * 0.6) : 0;
       const pr = br * (1 + R.pulse * 0.12 + squash);
       if (pk > 0) { g.fillStyle = `rgba(255,255,255,${pk * 0.28})`; g.beginPath(); g.arc(b.x, b.y, pr, 0, 7); g.fill(); }
+      if (hv > 0.02) { // 기본 원 둘레 빛 (색 달아오름)
+        const gr = g.createRadialGradient(b.x, b.y, pr * 0.9, b.x, b.y, pr * (1.5 + hv * 0.15 + R.pulse * 0.15));
+        gr.addColorStop(0, `rgba(${hc},${Math.min(1, hv / 2) * (0.5 + R.pulse * 0.3)})`); gr.addColorStop(1, `rgba(${hc},0)`);
+        g.fillStyle = gr; g.beginPath(); g.arc(b.x, b.y, pr * 2, 0, 7); g.fill();
+      }
+      if (R.heatFlash > 0) { const k = 1 - R.heatFlash; g.globalAlpha = R.heatFlash; g.lineWidth = 6 * u; g.strokeStyle = `rgb(${hc})`; g.beginPath(); g.arc(b.x, b.y, pr * (1 + k * 2.2), 0, 7); g.stroke(); g.globalAlpha = 1; } // 한 겹 오를 때 빛 고리
       g.fillStyle = 'rgba(15,25,50,.35)'; g.beginPath(); g.arc(b.x, b.y, pr, 0, 7); g.fill();
       g.lineWidth = 6 * u; g.strokeStyle = 'rgba(10,25,45,.55)'; g.beginPath(); g.arc(b.x, b.y, pr, 0, 7); g.stroke();
-      g.lineWidth = 3.5 * u; g.strokeStyle = '#ffffff'; g.beginPath(); g.arc(b.x, b.y, pr, 0, 7); g.stroke();
+      g.lineWidth = 3.5 * u; g.strokeStyle = hv > 0.5 ? `rgb(${mix('255,255,255', hc, Math.min(1, (hv - 0.5) / 2) * 0.6)})` : '#ffffff'; g.beginPath(); g.arc(b.x, b.y, pr, 0, 7); g.stroke();
       g.fillStyle = `rgba(255,255,255,${0.25 + R.pulse * 0.5})`; g.beginPath(); g.arc(b.x, b.y, 7 * u, 0, 7); g.fill();
       // 줄어드는 원 (다가오는 노트들) — 시간은 리듬 시계(R.rt). 마지막 큰 노트는 굵은 금색, 3박 동안 천천히
       const rt = R.rt ?? 0;
@@ -278,6 +292,10 @@ function drawResult(g, W, H, S, u) {
   g.restore();
 }
 
+// 색 달아오름 색: 겹 0~3 → 주황(1) · 분홍(2) · 금색(3) 사이를 부드럽게. 'r,g,b' 글자로 돌려줌
+const HEAT_COLS = ['255,150,40', '255,150,40', '255,80,150', '255,215,70'];
+function mix(a, b, k) { const A = a.split(',').map(Number), B = b.split(',').map(Number); return A.map((x, i) => Math.round(x + (B[i] - x) * k)).join(','); }
+function heatColor(v) { const i = Math.min(2, Math.floor(v)), k = Math.min(1, v - i); return mix(HEAT_COLS[i], HEAT_COLS[i + 1], k); }
 function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, Math.max(0, h), r); }
 function glass(g, x, y, w, h, r) {
   g.fillStyle = 'rgba(15,25,50,.58)'; g.strokeStyle = 'rgba(255,255,255,.2)'; g.lineWidth = 1;

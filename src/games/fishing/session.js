@@ -248,7 +248,7 @@ export function createFishing(opt) {
     S.R = {
       song, spb, base: nowS(), t0: lead + intro * spb, intro, // 첫 노트 구절의 첫 박 (그 전 intro박은 음악만 — 들어가는 마디)
       queue: [], phrases: 0, notes: [], dist, g: 1, m: (100 - dist) / f.missOut, lastBeat: -99, sched: -intro, pulse: 0, pulseAmp: 1, side: 1, pcombo: 0,
-      heat: prev ? prev.heat : 0, // 음악 달아오름(16장 C): 계속 맞춘 정도 — 단계가 올라가도 이어짐
+      heat: prev ? prev.heat : 0, heatV: prev ? prev.heatV : 0, heatL: prev ? prev.heatL : 0, // 음악 달아오름(16장 C): 계속 맞춘 정도 — 단계가 올라가도 이어짐
       hits: prev ? prev.hits : 0, perfects: prev ? prev.perfects : 0, misses: prev ? prev.misses : 0,
       fin: null, aOff: 0, bump: 0, tilt: 0, reel: 0, slack: 0, burst: null, shown: prev ? prev.shown : undefined,
     };
@@ -322,6 +322,11 @@ export function createFishing(opt) {
     R.pulse = Math.max(0, R.pulse - rdt / (spb * 0.5));
     BEAT.on = rt >= R.t0 - R.intro * spb; BEAT.spb = spb; BEAT.phase = (((rt - R.t0) / spb) % 1 + 1) % 1;
     R.press = Math.max(0, (R.press || 0) - rdt / 0.18);
+    // 색 달아오름(16장 C 2단계): 겹 수(0~3)를 부드럽게 따라가는 값 R.heatV — hud.js가 원 둘레·화면 가장자리 빛으로 그림
+    const hl = TUNE.heatC ? heatLayers(R.heat) : 0;
+    if (hl > (R.heatL || 0)) R.heatFlash = 1; // 한 겹 올라가는 순간 원에서 빛 고리가 퍼짐
+    R.heatL = hl; R.heatV = (R.heatV || 0) + (hl - (R.heatV || 0)) * Math.min(1, rdt * (hl > (R.heatV || 0) ? 6 : 2.5)); // 오를 땐 빨리, 식을 땐 천천히
+    R.heatFlash = Math.max(0, (R.heatFlash || 0) - rdt / 0.6);
     for (const n of R.notes) if (!n.res && rt > n.t + TUNE.noteG) noteResult(n, 'Miss');
     R.notes = R.notes.filter((n) => !n.res || rt - n.at < 0.5);
     // 손맛 연출 줄어들기
