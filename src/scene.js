@@ -1,5 +1,6 @@
 // Three.js 로우폴리 카툰 체육관, 탁구대, 캐릭터
 import * as THREE from 'three';
+import { canvasTex as baseCanvasTex } from './util.js';
 import { createFx } from './fx.js';
 import { makeBall, ballFx } from './balls.js';
 import { playCrack, playPeep, playRoar } from './audio.js';
@@ -526,15 +527,7 @@ export function createWorld(canvas) {
   return world;
 }
 
-function canvasTex(w, h, draw) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  return t;
-}
+const canvasTex = (w, h, draw) => baseCanvasTex(w, h, draw, 8);
 
 // 기본 배경: 체육관·강당 (배경 하나처럼 { root, sky, fog, far, light })
 function gymArena() {

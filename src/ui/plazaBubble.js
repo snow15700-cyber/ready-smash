@@ -5,6 +5,7 @@
 // - 같은 원 안 관전자끼리는 걷는 모습이 보인다(광장 채널). 응원(박수 등)은 그 사람 머리 위 말풍선.
 // - 기존 관전 화면(고정 카메라 시점들)은 이것으로 바뀌었다.
 import * as THREE from 'three';
+import { smoothstep as ease } from '../util.js';
 import { myEquip, myTitle } from '../account.js';
 import { titleText } from '../achievements.js';
 import { initAudio, playUI } from '../audio.js';
@@ -245,7 +246,6 @@ function resetWave() {
   if (aw) applyWave(aw, 1e5, 'off');
   if (world.table) { world.table.scale.setScalar(1); world.table.position.y = 0; }
 }
-const ease = (t) => t * t * (3 - 2 * t);
 const back = (t) => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
 // 광장 하늘·빛(plazaSky가 매 프레임 정한 것)과 경기장 하늘·빛을 섞는다. e = 0 광장, 1 경기장
 const hemi = world.scene.children.find((o) => o.isHemisphereLight), sun = world.scene.children.find((o) => o.isDirectionalLight);

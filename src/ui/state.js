@@ -21,7 +21,6 @@ if (IS_MOBILE) {
   document.body.classList.add('mobile');
 }
 export const myNick = () => account.nick || '플레이어';
-export const ease = (t) => t * t * (3 - 2 * t);
 export const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
 // 여러 화면이 함께 바꾸는 것 (다른 파일에서는 setGame 등으로 바꾼다)

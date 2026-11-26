@@ -16,7 +16,7 @@
 | 1 | 안 쓰는 큰 파일 지우기 | 중간 | 거의 없음 | 아주 작음 | ✓ test |
 | 2 | 안 쓰는 작은 코드 지우기 | 작음 | 거의 없음 | 작음 | ✓ test |
 | 3 | 옛 관전 화면 카메라 지우기 | 중간 | 낮음 | 작음 | ✓ test |
-| 4 | 반복되는 도우미 함수 한곳에 모으기 | 중간 | 낮음 | 중간 | |
+| 4 | 반복되는 도우미 함수 한곳에 모으기 | 중간 | 낮음 | 중간 | ✓ test |
 | 5 | 로컬 가짜 서버를 따로 떼기 | 중간 | 낮음 | 작음 | |
 | 6 | 안 쓰는 CSS(옛 화면 꾸밈) 지우기 | 중간 | 낮음~중간 | 중간 | |
 | 7 | 탁구채 모양을 `items.js`에서 떼기 | 중간 | 낮음~중간 | 중간 | |
@@ -70,6 +70,13 @@
 - **좋아지는 정도**: 중간. 나중에 고칠 때 한 곳만 고치면 돼요.
 - **고장 위험**: 낮음(계산을 그대로 옮기면 결과가 같아요). `npm run thumbs`로 목록 그림을 다시 찍어서 **그림이 안 바뀌었는지** 비교하면 확실해요.
 - **크기**: 약 10개 파일, 80줄 정도 줄어요.
+- **한 일(11/26)**: `src/util.js`에 `rng`(mulberry32)·`seeded`(LCG)·`canvasTex(w, h, draw, anisotropy=4)`·`smoothstep`·`easeOut`.
+  - `physics.js`·`outfits.js`·`items.js`·`balls.js`의 `rng` → util에서 불러옴(`physics.js`·`outfits.js`는 다른 파일이 쓰니 다시 내보냄).
+  - `table-kit.js`의 `rng`는 `arena-kit.js`의 `seeded`와 **같은 계산**이라 둘 다 util의 `seeded`를 씀(mulberry32와는 안 합침).
+  - `canvasTex`: `arena-kit.js`·`scene.js`는 선명도 8로 감싸서, `outfits.js`·`items.js`는 4(기본값). `table-kit.js`의 저장 기능 있는 버전은 그대로.
+  - `ease`: `t*t*(3-2t)` 쓰던 곳(state·intro·main·plazaBubble·bubbleFx·bubble-page) → `smoothstep`, `1-(1-k)^3` 쓰던 곳(balls·gachaShow·tables-legend) → `easeOut`. 
+    `arena-pets.js`(0~1로 자르는 버전)·`tables-rare.js`의 함수 안 `ease3`·`plaza.js`의 `easeInOut`은 모양이 달라 그대로.
+  - 확인: 목록 그림 149개를 고치기 전/후 코드로 찍어 비교 → 145개 똑같음, 4개(불꽃 머리·오락실·케이크·카펫 탁구대)는 원래 코드도 찍을 때마다 달라지는 것(무작위·시간).
 
 ## 5. 로컬 가짜 서버를 따로 떼기
 - **무엇**: `src/account.js`(912줄) 중 절반쯤(`localServer`·`localFish`·`localAch…`, 약 500줄)이 "서버 설정이 없을 때 쓰는 가짜 서버"예요.

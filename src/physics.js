@@ -1,5 +1,6 @@
 // 공 물리와 궤적 계산 (모든 PC가 같은 공식으로 궤적을 재생)
 // 좌표: x = 좌우, y = 위, z = 테이블 길이 방향. side 0은 +z 쪽, side 1은 -z 쪽.
+import { rng } from './util.js';
 
 export const G = 8.0;               // 중력 (게임용으로 실제보다 약간 느리게)
 export const TABLE_L = 2.74;
@@ -196,17 +197,8 @@ export function tossSegs(side, t0, x) {
   return { segs, ideal: { t, pos: posAt(s, t), side } };
 }
 
-// 결정론적 난수 (같은 seed면 모든 PC에서 같은 결과)
-export function rng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+// 결정론적 난수 (같은 seed면 모든 PC에서 같은 결과) — 계산은 util.js
+export { rng };
 
 const SHOT = {
   perfect: { T: 0.5, depth: 1.05, aim: 0.62, jit: 0.03 },

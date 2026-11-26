@@ -43,6 +43,7 @@
 
 ## 구조
 - `src/physics.js` 공 궤적(해석적 세그먼트), 판정 범위, 샷 계획. 결정론적(같은 입력 → 같은 결과).
+- `src/util.js` 같이 쓰는 도우미(`rng`·`seeded`·`canvasTex`·`smoothstep`·`easeOut`). 새로 복사하지 말고 여기서 불러오기(계산식은 바꾸지 않기).
 - `src/match.js` 경기 기준 로직(방장/혼자 모드에서만 실행). `computeShot`은 방장과 상대 PC가 같이 쓴다.
 - `src/game.js` 화면 쪽: 이벤트를 받아 공·캐릭터·링·소리 처리, 내 입력 판정, 상대 PC의 타격 예측.
 - `src/scene.js` Three.js 체육관·탁구대·캐릭터·카메라. `src/audio.js` Web Audio 합성음.
