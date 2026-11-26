@@ -4,6 +4,7 @@
 선착장·횟집·시세(14-1·14-6)는 낚시 쪽이라 `fishing.md` 14-9에.
 
 ## 상태
+- **11/26 선착장 1b 끝(test)**: 'ㄷ자' 선착장에 🐾 고양이 쉼터 자리가 생김 — `campusLayout.js CAT_NOOK`(동쪽 계단 아래 x 22.2~27.6 · z 39~42.6, 상자 더미·방석 3·생선 바구니·밥그릇 2). 고양이 배회·앉는 곳은 이 자리와 앞 판·팔(`WOODS`) 위로. 걷기 막는 곳은 `arena-plaza.js` blocks.
 - 11/26 설계(아래) — 사용자 확인 전.
 - **2단계 시안 `cats.html` (test)**: `src/games/cats/models.js makeCat(id)` 6마리 + 자세(`anim(t, pose)`). 물고기 그림 도구는 `fishing/models.js`의 `KIT`로 같이 씀. 털 무늬·눈 색·먹는 몸짓 = `COATS` 표. 시안 페이지 `src/games/cats/page.js`(`?t=2` 시각 고정).
   - 고칠 점이 있으면 `COATS` 값이나 `posePlay` 숫자만 바꾸면 됨.
@@ -24,7 +25,7 @@
 - **규칙 한 파일** `src/games/cats/rules.js`(three 없음): 하트 단계·하루 3마리·단계별 옷. 서버 SQL·로컬 가짜 서버·자동 점검이 같이 씀.
 - 밥은 `src/games/fishing/market.js cheapestIn(가방, 시각)` = 지금 시세가 가장 싼 생선.
 
-## 서버 (3단계에서 `36_cats.sql`)
+## 서버 (3단계에서 `37_cats.sql` — 36은 선착장 1b가 씀)
 - 표 `pingpong_cat(player_id, cat_id, pts, fed_day, fed_n, outfit jsonb)` (RLS 잠금).
 - `pingpong_cat_feed(token, cat)`: 하루 3마리 확인 → 가방(`pingpong_fish_bag`)에서 지금 가장 싼 것 하나 빼기(`pingpong__fish_price`) → 하트 점수 올림. 하트는 안 줄어듦.
 - `pingpong_cat_list(token)` · `pingpong_cat_wear(token, cat, slot, on)` (하트 단계로만 열림, 상점 아이템 아님).
