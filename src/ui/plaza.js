@@ -254,7 +254,7 @@ function stepWalk(from, to, nowMs) {
 }
 // 눌러서 뭔가 되는 곳 (광장 20장 ②)
 //  · 빵집: 김제빵이 빵집 위에서 말함 — 보통은 '이번엔 ○○을 만들어 볼까나...'(2대2 김제빵 내보내기와 같은 말), 10%는 재밌는 대사 (내 화면에서만)
-//  · 게시판: 누른 종이로 걸어가서 업데이트 / 오늘의 미션 / 치는 방법
+//  · 게시판: 누른 종이로 걸어가서 업데이트 / 오늘의 미션 / 치는 방법 · 낚시 게시판(계단 옆): 낚시 방법 / 팁 / 고양이
 //  · 시계탑: 쉬는 시간 안내 알림
 let lastKimLine = '';
 function onSpot(sp, at) {
@@ -265,10 +265,11 @@ function onSpot(sp, at) {
     while (line === lastKimLine);
     lastKimLine = line;
     view.spotSay(sp, '👨‍🍳 ' + line);
-  } else if (sp.id === 'board') {
-    const note = at[0] < -0.48 ? 0 : at[0] < 0.48 ? 1 : 2; // 왼쪽 업데이트 · 가운데 미션 · 오른쪽 치는 방법
+  } else if (sp.id === 'board' || sp.id === 'fishBoard') {
+    const note = at[0] < -0.48 ? 0 : at[0] < 0.48 ? 1 : 2; // 왼쪽 업데이트 · 가운데 미션 · 오른쪽 치는 방법 (낚시 게시판: 낚시 방법 · 팁 · 고양이)
     const open = () => {
-      if (note === 0) $('btn-updates').click();
+      if (sp.id === 'fishBoard') fishHooks.openBoard?.(note);
+      else if (note === 0) $('btn-updates').click();
       else if (note === 2) $('btn-howto').click();
       else showMissions();
     };

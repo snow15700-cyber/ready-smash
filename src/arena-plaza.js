@@ -61,6 +61,7 @@ export const PLAZA = {
     flat(KIM.chef[0] - 0.3, KIM.chef[0] + 0.3, KIM.z - 0.3, KIM.z + 0.3),
     box(SPOTS.clock, -1.3, 1.3, -1.3, 1.3),
     box(SPOTS.board, -1.8, 1.8, -0.35, 0.35),
+    box(SPOTS.fishBoard, -1.8, 1.8, -0.35, 0.35), // 낚시 게시판 (서쪽 계단 위 풀밭)
     { x: SPOTS.photo.x, z: SPOTS.photo.z, r: 2.1 },
     box(SPOTS.truck, -2.4, 2.9, -1.15, 3.0),
     box(SPOTS.vending, -0.6, 3.0, -0.45, 0.45),
@@ -84,6 +85,7 @@ export const PLAZA = {
   camBlocks: [
     box(SPOTS.clock, -1.3, 1.3, -1.3, 1.3, { y1: 11 }),
     box(SPOTS.bakery, -2.85, 2.85, -2.35, 2.4, { y1: 6 }),
+    box(SPOTS.fishBoard, -1.8, 1.8, -0.35, 0.35, { y1: 3.3 }), // 낚시 게시판 (계단 가는 길 옆)
     flat(-7.5, -0.5, -28.5, -19.5), flat(10, 16, -24, -16), flat(-34, -30, -27, -21), // 본관 검은 돌 기둥
     { ...flat(MARKET.x - MARKET.w / 2, MARKET.x + MARKET.w / 2, PIER.z0, MARKET.z + MARKET.d / 2), y0: PIER.y, y1: PIER.y + 3.4 }, // 횟집 (낚시 14장 1b)
     { ...flat(-36.3, 8.3, -30.3, -16.7), y0: 12.6, y1: 26.5 }, { ...flat(-0.3, 40.3, -25.3, -14.2), y0: 8.1, y1: 19.5 }, // 유리 막대 ①·②
@@ -92,6 +94,7 @@ export const PLAZA = {
   spots: [
     { id: 'bakery', ...SPOTS.bakery, box: [-2.9, 2.9, -2.4, 3.5, 6.2] }, // 김제빵 대사
     { id: 'board', ...SPOTS.board, box: [-1.85, 1.85, -0.5, 0.6, 3.3], front: (lx) => toWorld(SPOTS.board, lx, 1.4) }, // 업데이트·미션·치는 방법
+    { id: 'fishBoard', ...SPOTS.fishBoard, box: [-1.85, 1.85, -0.5, 0.6, 3.3], front: (lx) => toWorld(SPOTS.fishBoard, lx, 1.9) }, // 낚시 방법·팁·고양이 (src/games/fishing/board.js)
     { id: 'clock', ...SPOTS.clock, box: [-1.4, 1.4, -1.4, 1.4, 11.5] }, // 쉬는 시간 안내
     { id: 'market', x: MARKET.x, z: MARKET.z, y: PIER.y, yaw: 0, box: [-MARKET.w / 2, MARKET.w / 2, -MARKET.d / 2, MARKET.d / 2 + 0.6, 3.6], door: MARKET.door }, // 🍣 횟집 (낚시 14장 1b) — 문 앞으로 걸어가 횟집 창
     { id: 'market', x: BOARD.x, z: BOARD.z, y: PIER.y, yaw: 0, box: [-BOARD.w / 2, BOARD.w / 2, -0.3, 0.3, 2.1], door: MARKET.door }, // 📈 시세 칠판도 같은 창

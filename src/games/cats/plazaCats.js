@@ -5,7 +5,7 @@
 //  · 내 고양이 창(3c)은 아직
 import * as THREE from 'three';
 import { account, catFeed, catList, marketNow, syncServerClock } from '../../account.js';
-import { PIER, heightAt, onPier } from '../../campusLayout.js';
+import { heightAt, onPier } from '../../campusLayout.js';
 import { catHooks, fishHooks, plazaApi } from '../../ui/plaza.js';
 import { hud } from '../../ui/hud.js';
 import { esc, world } from '../../ui/state.js';
@@ -199,7 +199,7 @@ catHooks.frame = (now, p) => {
   for (const c of cats) {
     const s = catAt(c.id, ms);
     c.cur ||= { x: s.x, z: s.z };
-    let pose = s.pose, y = PIER.y + s.y, tailUp = false;
+    let pose = s.pose, y = s.y, tailUp = false;
     const eating = t - c.eatT < 2.6, ov = c.ov;
     c.wantYaw = s.yaw;
     if (eating) { pose = 'nod'; c.wantYaw = c.yaw; y = c.eatAt.y; }
@@ -207,7 +207,7 @@ catHooks.frame = (now, p) => {
       c.cur.x = s.x; c.cur.z = s.z;
       if (pose !== 'walk' && account.cats?.[c.id]?.readyAt > Date.now()) pose = 'belly'; // 배부르면 벌러덩 zzz
     } else {
-      y = PIER.y;
+      y = heightAt(c.cur.x, c.cur.z);
       const gone = !onP || Math.hypot(p[0] - me[0], p[1] - me[1]) > 30;
       if (ov.mode === 'come') {
         if (gone) { c.ov = { mode: 'return' }; }
@@ -246,11 +246,12 @@ catHooks.frame = (now, p) => {
         if (!ov.path || Math.hypot(ov.path.at(-1)[0] - tgt[0], ov.path.at(-1)[1] - tgt[1]) > 2) ov.path = catPath([c.cur.x, c.cur.z], tgt);
         ov.path[ov.path.length - 1] = tgt;
         pose = 'walk';
-        if (walkPath(c, ov.path, 1.3 * dt)) { c.ov = null; c.cur.x = s.x; c.cur.z = s.z; y = PIER.y + s.y; }
+        if (walkPath(c, ov.path, 1.3 * dt)) { c.ov = null; c.cur.x = s.x; c.cur.z = s.z; y = s.y; }
       }
     }
     const wear = account.cats?.[c.id]?.outfit || {}, wk = Object.keys(wear).sort().join(); // 내가 입힌 옷 (내 화면)
     if (c.wearKey !== wk) { c.wearKey = wk; setCatWear(c.m, wear); }
+    if (c.ov && !eating) y = heightAt(c.cur.x, c.cur.z); // 계단·광장 풀밭까지 다니니 바닥 높이를 따라감
     c.g.position.set(c.cur.x, y, c.cur.z);
     if (c.yaw == null) c.yaw = c.wantYaw;
     let dy = c.wantYaw - c.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));

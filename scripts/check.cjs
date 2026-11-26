@@ -313,6 +313,13 @@ async function sqlCheck() {
     must(f3.sold && !f3.bagged && f3.coins === 8, '가방이 꽉 찼을 때 바로 팔리지 않아요: ' + JSON.stringify(f3).slice(0, 200));
     const s1 = json(`public.pingpong_fish_sell(${tk}, 'horse')`);
     must(s1.coins === MK.sellCoins([['horse', 30]], Date.now(), brkPct).total, '종류별 팔기 코인이 달라요: ' + JSON.stringify(s1).slice(0, 200));
+    // 🐱 고양이 배회 (cats.md): 모든 쉬는 자리가 이어짐 · 바닥 높이를 따라감 · 계단 위 풀밭·횟집 앞까지 다님 (11/26 활동 범위 넓힘)
+    {
+      const CR = await import(path.join(ROOT, 'src', 'games', 'cats', 'rules.js')), CL = await import(path.join(ROOT, 'src', 'campusLayout.js'));
+      let up = 0, west = 0, badY = 0;
+      for (const id of CR.CAT_IDS) for (let t = 0; t < 86400e3; t += 60e3) { const q = CR.catAt(id, 1.79e12 + t); if (q.z < 39) up++; if (q.x < 2 && q.z > 39) west++; if (Math.abs(q.y - CL.heightAt(q.x, q.z)) > 0.1) badY++; }
+      must(CR.catPathOk() && up > 0 && west > 0 && badY === 0, `고양이 배회가 이상해요: 이어짐 ${CR.catPathOk()} · 계단 위 ${up} · 횟집 쪽 ${west} · 높이 틀림 ${badY}`);
+    }
     // 37 🐱 고양이 밥 (cats.md 3a): 가방 빔 → no_fish · 가장 싼 생선 하나 빠짐 · 1시간 안에 또 → wait · 10점이면 ♥ 오름
     must(json(`public.pingpong_cat_feed(${tk}, 'cheese')`).status === 'no_fish', '빈 가방인데 고양이 밥을 줬어요');
     must(json(`public.pingpong_cat_feed(${tk}, 'dog')`).status === 'bad_cat', '없는 고양이에게 밥을 줬어요');
@@ -698,11 +705,23 @@ async function browserChecks() {
       await waitFor(b, () => window.__smash.fish.F.S.mode === 'result', null, 30000, '잡기 연출 끝');
       await waitFor(a, (id) => performance.now() / 1000 - (window.__smash.plaza.view.figs.get(id)?.bubT ?? -99) < 30, bId, 20000, '잡으면 다른 사람 화면에 말풍선');
       await b.evaluate(() => document.querySelector('#fish-stop').click());
-      await waitFor(a, (id) => !window.__smash.fish.others.has(id), bId, 15000, '그만하면 다른 사람 화면에서 낚싯대 사라짐');
+      await waitFor(a, (id) => { const o = window.__smash.fish.others.get(id); return !window.__smash.plaza.pz.people.get(id)?.fi && (!o || !o.bob.visible); }, bId, 15000, '그만하면 다른 사람 화면에서 찌 사라짐');
+      // 계단·선착장에서는 탁구채 대신 낚싯대를 들고 다님 (11/26): 그만해도 판 위니까 낚싯대, 광장으로 올라가면 탁구채
+      must(await a.evaluate((id) => window.__smash.fish.others.has(id) && !window.__smash.plaza.view.figs.get(id).c.blade.visible, bId), '선착장에 선 사람이 낚싯대를 안 들고 있어요');
       must(await b.evaluate(() => !window.__smash.fish.on && !document.body.classList.contains('fishing-on')), '그만하기가 안 돼요');
       await b.evaluate((pt) => window.__smash.plaza.walkTo(pt), bHome); // 원래 자리로 (뒤 점검의 클릭을 가리지 않게)
       await waitFor(b, (pt) => Math.hypot(window.__smash.plaza.pz.myW.to[0] - pt[0], window.__smash.plaza.pz.myW.to[1] - pt[1]) < 0.3 && !window.__smash.plaza.pz.route.length, bHome, 30000, '원래 자리로');
       await b.waitForTimeout(4000); // 마지막 구간을 다 걸을 때까지
+      await waitFor(a, (id) => !window.__smash.fish.others.has(id), bId, 20000, '광장으로 올라가면 다시 탁구채');
+      // 🪧 낚시 게시판 (계단 옆): 광장 누를 곳에 있고, 창이 3장(낚시 방법·팁·고양이)으로 열림
+      const fb = await b.evaluate(async () => {
+        const { PLAZA } = await import('/src/arena-plaza.js'), m = await import('/src/games/fishing/board.js');
+        m.openFishBoard(2);
+        const el = document.querySelector('#fish-board'), r = [!!PLAZA.spots.find((x) => x.id === 'fishBoard'), !el.classList.contains('hidden'), el.querySelectorAll('.fb-tabs button').length, el.querySelectorAll('.fb-list li').length > 3];
+        el.querySelector('.fb-close').click();
+        return [...r, el.classList.contains('hidden')];
+      });
+      must(fb.join() === 'true,true,3,true,true', '낚시 게시판이 이상해요: ' + fb.join());
       await a.bringToFront();
       // 카메라가 건물 바로 앞(클릭 상자 안)에 있어도 바닥을 누르면 바닥, 옆 가게를 누르면 그 가게 (plaza.md 클릭)
       const camPick = await b.evaluate(() => {

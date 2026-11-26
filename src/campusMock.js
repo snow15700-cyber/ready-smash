@@ -7,7 +7,7 @@ import { closetShop, fameShop, gachaShop } from './campusShops.js';
 import { addLampGlow, makeDolphins, makeSea } from './campusFx.js';
 import { DECK, FOUNTAIN, KIM_SPOT, SEA_Y, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS } from './campusLayout.js';
 import { buildPierArea } from './campusPier.js';
-import { bakery, board, clockTower, deck, foodTruck, fountain, photoZone, vending } from './campusProps.js';
+import { bakery, board, clockTower, FISH_NOTES, deck, foodTruck, fountain, photoZone, vending } from './campusProps.js';
 
 const FONT = (px) => `bold ${px}px Jua, sans-serif`;
 let rnd = seeded(2511);
@@ -152,6 +152,7 @@ export function buildCampus({ game = false } = {}) {
 
   place(clockTower(anim), SPOTS.clock);
   place(board(), SPOTS.board);
+  place(board(FISH_NOTES), SPOTS.fishBoard); // 낚시 게시판 (전망대·서쪽 계단 옆 — 낚시 방법·팁·고양이)
   // 탁구대 (사람 대결 3대 + 김제빵) — 실제 광장은 arena-plaza.js가 그림
   if (!GAME) { for (const [x, z] of TABLE_SPOTS) root.add(table(x, z, 0x2a5db0)); root.add(table(KIM_SPOT[0], KIM_SPOT[1], 0x2f8a4e)); }
   const bk = place(bakery(anim), SPOTS.bakery);

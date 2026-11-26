@@ -419,3 +419,7 @@
   - 사용자가 할 것: SQL **35 → 36** 실행(`sql-to-run.md`) · 테스트(`test-checklist.md`의 🍣 가방·횟집 · ⚓ ㄷ자 선착장).
   - 1a ①~⑤ · 1b 모두 사용자 확정(11/26).
   - 고양이 3a(배회·밥 주기·하트, `37_cats.sql`) test. 다음 단계(14-8 순서): **3. 고양이** — 셋으로 나눔(3a·3b·3c, `cats.md`). 새 대화에서 "cats.md 보고 고양이 3a 해줘" → `docs/dev/cats.md`만 읽고 시작(서버는 `37_cats.sql`). 쉼터 자리는 `CAT_NOOK`, 밥은 `market.js cheapestIn`.
+
+## 15. 계단 낚싯대 · 낚시 게시판 (11/26 사용자 요청, test)
+- **낚싯대 들고 다니기**: 계단에 들어서면(선착장 쪽) 탁구채 대신 낚싯대, 광장으로 올라가면 탁구채. 나·다른 사람 모두 각 PC가 위치로 계산(메시지 없음) — `ui/fishing.js othersFrame`(`rodZone`).
+- **🪧 낚시 게시판**: 광장 게시판과 같은 모양(`campusProps.js board(FISH_NOTES)`), 자리 `campusLayout.js SPOTS.fishBoard`(서쪽 계단 가는 풀밭 길 바로 옆 잔디, 데크 쪽을 봄 — 길·카메라 안 가리게). 종이 3장 → `src/games/fishing/board.js` 창(🎣 낚시 방법 · 💡 낚시 팁 · 🐱 고양이, 탭으로 넘김). 누르면 그 종이 앞까지 걸어가서 열림(`ui/plaza.js onSpot`).
