@@ -3,10 +3,7 @@ import * as THREE from 'three';
 import { TY } from './physics.js';
 
 // 결정론적 난수 (무늬가 열 때마다 같게)
-export function rng(seed) {
-  let s = seed >>> 0;
-  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
-}
+export { seeded as rng } from './util.js'; // arena-kit의 seeded와 같은 계산 (mulberry32 rng와는 다름)
 
 // 캔버스 그림 → 텍스처 (key로 캐시: 같은 그림은 한 번만 그림)
 const texCache = {};

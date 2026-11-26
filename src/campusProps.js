@@ -147,7 +147,10 @@ export function clockTower(anim) {
 }
 
 // ── 게시판: 돌 받침 + 나무 기둥 + 작은 기와 지붕 + 코르크판 + 압정 꽂힌 종이 3장 + 위 조명
-export function board() {
+//  notes = 종이 3장 [제목, 종이 색, 기울기] — 광장 게시판(기본)과 낚시 게시판(FISH_NOTES)이 같은 모양
+export const MAIN_NOTES = [['📣 업데이트', '#fff6c8', -0.05], ['✅ 오늘의 미션', '#d8f5d0', 0.04], ['🏓 치는 방법', '#d7ecff', -0.03]];
+export const FISH_NOTES = [['🎣 낚시 방법', '#d7ecff', -0.04], ['💡 낚시 팁', '#fff6c8', 0.03], ['🐱 고양이', '#ffe1ea', -0.04]];
+export function board(notes = MAIN_NOTES) {
   const g = new THREE.Group();
   box(g, 3.6, 0.3, 0.7, MAT.granite, 0, 0.15, 0, 0.04);
   const post = wood(0x7a5233);
@@ -157,7 +160,6 @@ export function board() {
   box(g, 3.0, 1.6, 0.08, new THREE.MeshStandardMaterial({ map: cork, roughness: 0.9 }), 0, 1.75, 0);
   for (const [w, h, x, y] of [[3.12, 0.1, 0, 2.58], [3.12, 0.1, 0, 0.92], [0.1, 1.76, -1.53, 1.75], [0.1, 1.76, 1.53, 1.75]]) box(g, w, h, 0.14, post, x, y, 0.02);
   // 종이 3장 (제목 + 줄) + 압정
-  const notes = [['📣 업데이트', '#fff6c8', -0.05], ['✅ 오늘의 미션', '#d8f5d0', 0.04], ['🏓 치는 방법', '#d7ecff', -0.03]];
   notes.forEach(([t, bg, rot], i) => {
     const tex = canvasTex(240, 300, (c) => { c.fillStyle = bg; c.fillRect(0, 0, 240, 300); c.fillStyle = '#2b2a33'; c.font = FONT(36); c.textAlign = 'center'; c.fillText(t, 120, 60); c.fillStyle = 'rgba(43,42,51,.35)'; for (let k = 0; k < 6; k++) c.fillRect(30, 110 + k * 28, 150 + ((k * 37) % 40), 6); });
     const n = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 1.0), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }));

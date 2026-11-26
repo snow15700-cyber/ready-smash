@@ -4,12 +4,12 @@
 // - 합친 배경(arena-bake.js)의 메시는 꼭짓점마다 물건 가운데(piv)가 있어 그래픽 카드가 물건마다 따로 움직인다 (느린 PC도 가볍게).
 // - 합치지 않은 물건(움직이는 것·반투명 등)은 자바스크립트로 물건마다 크기를 바꾼다.
 import * as THREE from 'three';
+import { smoothstep as ease } from './util.js';
 
 export const WAVE_DUR = 2.0; // 초
 // 물결 반지름(m): 처음 1.2초에 22m까지 천천히(가까운 물건이 하나둘), 그다음 먼 곳까지 빠르게
 export const waveR = (q) => (q <= 0 ? -1 : q >= 1 ? 1e5 : q < 0.6 ? 22 * Math.pow(q / 0.6, 1.3) : 22 + ((q - 0.6) / 0.4) * 420);
 const W = 5; // 물건 하나가 사라지거나 솟는 동안 물결이 가는 거리(m)
-const ease = (t) => t * t * (3 - 2 * t);
 const back = (t) => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
 
 const VERT_HEAD = `

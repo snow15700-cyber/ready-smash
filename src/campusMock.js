@@ -7,7 +7,7 @@ import { closetShop, fameShop, gachaShop } from './campusShops.js';
 import { addLampGlow, makeDolphins, makeSea } from './campusFx.js';
 import { DECK, FOUNTAIN, KIM_SPOT, SEA_Y, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS } from './campusLayout.js';
 import { buildPierArea } from './campusPier.js';
-import { bakery, board, clockTower, deck, foodTruck, fountain, photoZone, vending } from './campusProps.js';
+import { bakery, board, clockTower, FISH_NOTES, deck, foodTruck, fountain, photoZone, vending } from './campusProps.js';
 
 const FONT = (px) => `bold ${px}px Jua, sans-serif`;
 let rnd = seeded(2511);
@@ -99,7 +99,7 @@ export function buildCampus({ game = false } = {}) {
     const x = Math.cos(a) * 36 - 1, z = Math.sin(a) * 36 + 4;
     // 바다 쪽(남쪽)은 바다가 높아져서(낚시 12장) 물 위로 드러나는 부분이 바위 절벽처럼 보이게
     const b = new THREE.Mesh(new THREE.IcosahedronGeometry(4 + rnd() * 2, 0), z > 20 ? seaRock : slope); b.position.set(x, -5 + rnd(), z); b.scale.y = 0.8; // 전망대 데크 위로 안 솟게 낮춤
-    if (!(x > -3 && x < 22 && z > 25)) root.add(b); // 전망대 아래는 절벽 벽·낚시터 계단 (campusPier.js)
+    if (!(x > -10 && x < 32 && z > 25)) root.add(b); // 전망대 아래는 절벽 벽·낚시터 계단·ㄷ자 선착장 (campusPier.js)
   }
   // 바다 (남·동쪽 아래)
   const sea = makeSea(SEA_Y); root.add(sea.group); anim.push(sea.update); // 물결 (src/campusFx.js). 낚시 12장: −12 → −6
@@ -152,6 +152,7 @@ export function buildCampus({ game = false } = {}) {
 
   place(clockTower(anim), SPOTS.clock);
   place(board(), SPOTS.board);
+  place(board(FISH_NOTES), SPOTS.fishBoard); // 낚시 게시판 (전망대·서쪽 계단 옆 — 낚시 방법·팁·고양이)
   // 탁구대 (사람 대결 3대 + 김제빵) — 실제 광장은 arena-plaza.js가 그림
   if (!GAME) { for (const [x, z] of TABLE_SPOTS) root.add(table(x, z, 0x2a5db0)); root.add(table(KIM_SPOT[0], KIM_SPOT[1], 0x2f8a4e)); }
   const bk = place(bakery(anim), SPOTS.bakery);
@@ -159,7 +160,7 @@ export function buildCampus({ game = false } = {}) {
   place(foodTruck(), SPOTS.truck);
   place(vending(), SPOTS.vending);
   place(deck(DECK.z1 - DECK.z0), SPOTS.deck); // 광장 끝 ~ 절벽 끝 (낚시 12장)
-  root.add(buildPierArea()); // 전망대 옆 돌계단 · 바로 밑 바위 턱 · 나무 선착장 (낚시터)
+  root.add(buildPierArea(anim)); // 전망대 옆 돌계단 · 바로 밑 바위 턱 · 나무 선착장 (낚시터)
   // 가장자리 가로등·벤치·소나무
   for (const sx of [-1, 1]) {
     for (const z of [-6, 6, 18, 30]) { const l = lamp(); l.position.set(sx * 22.3, 0, z); l.rotation.y = sx > 0 ? Math.PI : 0; root.add(l); }

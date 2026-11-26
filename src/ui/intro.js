@@ -10,7 +10,8 @@ import { breakAt } from '../breaks.js';
 import { ic } from '../icons.js';
 import { TEAM_NAME, looks, myId, playerNames, room, roomTpill, streakOf } from './room.js';
 import { holdPose } from './stage.js';
-import { $, ease, esc, game, lerp3, match, world } from './state.js';
+import { $, esc, game, lerp3, match, world } from './state.js';
+import { smoothstep as ease } from '../util.js';
 
 /* ───────── 경기 시작 전 연출 (약 10초, 1v1·2v2) ─────────
    ① 경기장(방장 배경)이 어둠 속에서 심장 소리 (1초) → ② VS 소개 5초: 상대 팀 → 우리 팀을 차례로 비추며

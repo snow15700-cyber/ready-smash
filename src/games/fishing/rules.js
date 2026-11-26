@@ -1,16 +1,56 @@
 // 낚시 규칙 — 서버(supabase/28_fishing.sql)와 똑같아야 하는 것만 모음 (three 없이, 자동 점검이 Node에서 불러 서버와 비교)
 //   던진 자리 · 기포 시간표 · 잡히는 것(종류·확률) · 크기 · 코인 · 최소 시간. fishing.md 8·9장
-// ⚠️ 여기를 바꾸면 28_fishing.sql(또는 새 SQL)과 account.js의 로컬 가짜 서버도 같이.
+// ⚠️ 여기를 바꾸면 28_fishing.sql(또는 새 SQL)과 localServer.js의 로컬 가짜 서버도 같이.
 
-// ── 선착장에서 던지기 (자유 던지기: 부채꼴 ±40°, 6~18m)
-export const STAND = { z: 44.6, xMin: 1.3, xMax: 20.8, zBack: 39.6 }; // 서는 곳: 전망대 밑 넓은 판(31_fish_pier_wide.sql — 판을 서쪽으로 넓힘). 앞 끝 z · 판 위 어디서든(zBack~z)
-export const CAST_MIN = 6, CAST_MAX = 18, CAST_ANG = 0.7;
+// ── 선착장에서 던지기 (자유 던지기: 부채꼴 ±40°, 6~18m, 늘 남쪽 바다 쪽으로)
+// 14장 1b(11/26 사용자 확정): 'ㄷ자' 선착장 — 앞 판 + 양 끝 팔 2개. 나무 판 어디서든 던짐(36_fish_pier_u.sql과 같게).
+//   찌가 나무 판(앞 판·팔·등대 받침) 위에 떨어지면 던진 방향 그대로 판을 넘어 물(판 끝 + 0.6m)까지 날아감.
+export const WOOD = [ // campusLayout.js PIER·ARMS·LH_BASES와 같은 숫자 (서버 SQL에 그대로 적혀 있음)
+  { x0: -6, x1: 28, z0: 39, z1: 46.5 }, // 앞 판
+  { x0: -6, x1: -2, z0: 46.5, z1: 57.5 }, // 서쪽 팔
+  { x0: 24, x1: 28, z0: 46.5, z1: 57.5 }, // 동쪽 팔
+  { x0: -8.4, x1: -6, z0: 54.6, z1: 57.5 }, // 서쪽 등대 돌 받침
+  { x0: 28, x1: 30.4, z0: 54.6, z1: 57.5 }, // 동쪽 등대 돌 받침
+];
+export const STANDS = [ // 서는 곳 (판 가장자리에서 조금 안쪽)
+  { x0: -5.3, x1: 27.3, z0: 39.6, z1: 45.6 },
+  { x0: -5.3, x1: -2.7, z0: 45.6, z1: 56.8 },
+  { x0: 24.7, x1: 27.3, z0: 45.6, z1: 56.8 },
+];
+export const STAND = { z: 45.6, xMin: -5.3, xMax: 27.3, zBack: 39.6 }; // 기포를 뽑는 줄(앞 판 앞쪽) · 예전 이름 그대로
+export const CAST_MIN = 6, CAST_MAX = 18, CAST_ANG = 0.7, WOOD_PAD = 0.6;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 export const castDist = (power) => CAST_MIN + (CAST_MAX - CAST_MIN) * clamp(power, 0, 1);
-export const standZ = (z) => clamp(z ?? STAND.z, STAND.zBack, STAND.z);
+// 서는 곳 안으로: 가장 가까운 서는 곳 네모로 (같은 거리면 앞 것)
+export function clampStand(x, z) {
+  x = Number.isFinite(x) ? x : 13; z = Number.isFinite(z) ? z : STAND.z;
+  let best = null, bd = Infinity;
+  for (const R of STANDS) {
+    const cx = clamp(x, R.x0, R.x1), cz = clamp(z, R.z0, R.z1), d = (cx - x) ** 2 + (cz - z) ** 2;
+    if (d < bd) { bd = d; best = [cx, cz]; }
+  }
+  return best;
+}
+// 낚시 중 좌우 걷기: 지금 서는 곳 네모 안에서만
+export function walkStand(x, z, dx) {
+  const R = STANDS.find((q) => x >= q.x0 - 1e-6 && x <= q.x1 + 1e-6 && z >= q.z0 - 1e-6 && z <= q.z1 + 1e-6) || STANDS[0];
+  return clamp(x + dx, R.x0, R.x1);
+}
+export const standZ = (z) => clamp(z ?? STAND.z, STAND.zBack, STANDS[1].z1);
+// 찌가 떨어지는 곳: 판 위면 같은 방향으로 판 밖(+0.6m)까지 (최대 4번 — 앞 판 → 팔 → 물)
 export function landingPoint(standX, aim, power, z = STAND.z) {
-  const d = castDist(power), a = -clamp(aim, -1, 1) * CAST_ANG;
-  return { x: standX + Math.sin(a) * d, z: standZ(z) + Math.cos(a) * d };
+  const [sx, sz] = clampStand(standX, z ?? STAND.z);
+  const d = castDist(power), a = -clamp(aim, -1, 1) * CAST_ANG, ux = Math.sin(a), uz = Math.cos(a);
+  let x = sx + ux * d, lz = sz + uz * d;
+  for (let i = 0; i < 4; i++) {
+    const R = WOOD.find((q) => x > q.x0 - WOOD_PAD && x < q.x1 + WOOD_PAD && lz > q.z0 - WOOD_PAD && lz < q.z1 + WOOD_PAD);
+    if (!R) break;
+    let t = (R.z1 + WOOD_PAD - lz) / uz;
+    if (ux > 1e-9) t = Math.min(t, (R.x1 + WOOD_PAD - x) / ux);
+    else if (ux < -1e-9) t = Math.min(t, (R.x0 - WOOD_PAD - x) / ux);
+    x += ux * (t + 0.001); lz += uz * (t + 0.001);
+  }
+  return { x, z: lz };
 }
 
 // ── 기포 시간표: 시간을 칸(114초)으로 나누고 칸 번호를 씨앗으로 1~2개 (모든 PC·서버가 같은 결과)

@@ -8,6 +8,7 @@
 //   userData.fx               튈 때·스매시 때 효과 (ballFx가 부른다)
 // 모양은 반지름 1로 만들고 BALL_R 배로 줄인다. 효과 그림(Sprite)은 줄이지 않은 root에 붙인다.
 import * as THREE from 'three';
+import { rng, easeOut as ease } from './util.js';
 import { fxTex } from './fx.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -49,16 +50,6 @@ function mesh(geo, m, parent, x = 0, y = 0, z = 0) {
   parent.add(o);
   return o;
 }
-function rng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 // 공 겉면 그림 (가로 = 경도 360°, 세로 = 위→아래). 앞(+z)의 가운데 = (W/4, H/2)
 const W = 1024, H = 512, PX = W / (Math.PI * 2); // 1라디안 = PX 픽셀
 const FX0 = W / 4, FY0 = H / 2;
@@ -83,7 +74,6 @@ function spr(name, color, size, parent, add = true) {
   return s;
 }
 const smooth = (a, b, k) => a + (b - a) * k;
-const ease = (k) => 1 - Math.pow(1 - Math.min(1, Math.max(0, k)), 3);
 
 // 공 뼈대: root(위치) → squash(크기 R·찌그러짐, 월드 방향) → spin(회전) → 모양
 // mode: 'spin' = 날아가는 방향으로 굴러감, 'face' = 앞(+z)이 날아가는 쪽을 봄, 'upright' = 위가 늘 위(제자리 빙글)

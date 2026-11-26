@@ -4,13 +4,13 @@
 //  · 다른 사람에게는 걷기처럼 내 상태(fi: 낚시 중·찌 자리)와 '잡았다' 한 번만 (광장 채널). 경기 중인 선수 PC에는 안 감(광장 채널 밖)
 //  · 희귀·전설·전설 탁구채를 낚으면 광장 모두에게 알림
 import * as THREE from 'three';
-import { account, fishDex, myEquip, srvNow, syncServerClock } from '../account.js';
+import { account, fishBagLoad, fishDex, myEquip, srvNow, syncServerClock } from '../account.js';
 import { PLAZA } from '../arena-plaza.js';
 import { applyLook } from '../items.js';
 import { activeBubbles, CATCH, LEGEND_PADDLES } from '../games/fishing/rules.js';
 import { makeBobber, makeBubbleFx, makeLine, makeRod, makeSplashes, seaHeight } from '../games/fishing/world.js';
-import { PIER, STAIRS } from '../campusLayout.js';
-import { fishHooks, plazaApi } from './plaza.js';
+import { PIER, STAIRS, stairAt } from '../campusLayout.js';
+import { catHooks, fishHooks, plazaApi } from './plaza.js';
 import { easeInOut, orbitBlend } from '../plaza.js';
 import { hud as toastHud } from './hud.js';
 import { curScreen } from './screen.js';
@@ -32,6 +32,8 @@ root.innerHTML = `
   <button id="fish-start" class="fish-start hidden" type="button">🎣 낚시하기</button>
   <canvas id="fish-hud" class="fish-hud hidden"></canvas>
   <div id="fish-bar" class="fish-bar hidden">
+    <button id="fish-shop" class="hidden" type="button">🍣 횟집</button>
+    <button id="fish-cats" class="hidden" type="button">🐱</button>
     <button id="fish-dex" type="button">📖 도감</button>
     <button id="fish-stop" type="button">그만하기</button>
   </div>
@@ -64,7 +66,33 @@ document.head.appendChild(css);
 $('fish-start').addEventListener('click', (e) => { e.stopPropagation(); start(); });
 $('fish-stop').addEventListener('click', (e) => { e.stopPropagation(); stop(); });
 $('fish-dex').addEventListener('click', (e) => { e.stopPropagation(); if (F && (F.S.mode === 'ready' || F.S.mode === 'result')) mod.openDex(); });
-for (const id of ['fish-start', 'fish-stop', 'fish-dex']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
+// 🍣 횟집 (fishing.md 14-6, 1a: 낚시 화면 버튼 — 선착장 건물은 1b). 35 전 서버·손님이면 가방을 몰라서 숨김
+let shopMod = null;
+$('fish-shop').addEventListener('click', async (e) => {
+  e.stopPropagation();
+  if (F && !(F.S.mode === 'ready' || F.S.mode === 'result')) { toastHud.toast('물고기를 다 낚은 뒤에 가요', 1800); return; }
+  shopMod ||= await import('../games/fishing/shop.js');
+  shopMod.openShop({ onSold: () => { renderMe(); bagBtn(); } });
+});
+// 선착장 🍣 횟집 건물·📈 칠판을 누르면 (14장 1b, ui/plaza.js onSpot → 문 앞까지 걸어간 뒤) 낚시 안 해도 횟집 창
+fishHooks.openMarket = async () => {
+  if (on && F && !(F.S.mode === 'ready' || F.S.mode === 'result')) return;
+  if (!account.loggedIn) { toastHud.toast('🍣 로그인하면 잡은 물고기를 가방에 모아 여기서 팔 수 있어요', 2600); return; }
+  try { shopMod ||= await import('../games/fishing/shop.js'); } catch { toastHud.toast('횟집을 불러오지 못했어요. 다시 눌러 주세요', 2200); return; }
+  shopMod.openShop({ onSold: () => { renderMe(); bagBtn(); } });
+};
+function bagBtn() {
+  const b = account.fishBag, el = $('fish-shop');
+  el.classList.toggle('hidden', !account.loggedIn || !Array.isArray(b));
+  $('fish-cats').classList.toggle('hidden', !account.loggedIn || !Array.isArray(b)); // 🐱 내 고양이 (cats.md 3c, 35 전 서버면 숨김)
+  if (Array.isArray(b)) el.textContent = `🍣 횟집 · 🎒 ${b.reduce((a, x) => a + x.n, 0)}/30`;
+}
+$('fish-cats').addEventListener('click', async (e) => {
+  e.stopPropagation();
+  if (F && !(F.S.mode === 'ready' || F.S.mode === 'result')) { toastHud.toast('물고기를 다 낚은 뒤에 봐요', 1800); return; }
+  (await import('../games/cats/myCats.js')).openMyCats();
+});
+for (const id of ['fish-start', 'fish-stop', 'fish-dex', 'fish-shop', 'fish-cats']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
 
 // ── 시작 · 그만
 async function start() {
@@ -100,13 +128,15 @@ async function start() {
   document.body.classList.add('fish-fade');
   plazaApi.view.setCamOff(true);
   F.camFov0 = world.camera.fov;
-  if (account.loggedIn) { syncServerClock(); fishDex().then((d) => { if (d) dexMod.setServerDex(d); }); }
+  if (account.loggedIn) { syncServerClock(); fishDex().then((d) => { if (d) dexMod.setServerDex(d); }); fishBagLoad().then(bagBtn); }
+  bagBtn();
   plazaApi.sendInfo();
   resize();
 }
 function stop() {
   if (!on) return;
   on = false; me.b = null;
+  shopMod?.closeShop();
   F.setActive(false);
   document.body.classList.remove('fishing-on');
   for (const id of ['fish-hud', 'fish-bar', 'fish-chat']) $(id).classList.add('hidden');
@@ -123,7 +153,7 @@ function stop() {
   plazaApi.sendInfo();
   renderMe();
 }
-let fadeT = 0, preload = null;
+let fadeT = 0, preload = null, lastFrameT = 0;
 function hidePaddle(c) {
   if (c.handle) c.handle.visible = false;
   if (c.blade) c.blade.visible = false;
@@ -132,24 +162,28 @@ function hidePaddle(c) {
 
 // 낚시 한 판의 일 → 광장 사람들에게
 function onEvent(ev) {
+  catHooks.fishEvent?.(ev);
   if (ev.k === 'cast') { me.b = ev.to.map((v) => Math.round(v * 100) / 100); plazaApi.sendInfo(); }
   else if (ev.k === 'catch') {
     me.b = null; plazaApi.sendInfo();
     const c = ev.c;
     plazaApi.send({ k: 'fish', a: 'catch', item: c.id, cm: c.kind === 'fish' ? ev.cm : 0 });
     setTimeout(() => renderMe(), 2500); // 서버가 준 코인을 오른쪽 위 카드에
+  } else if (ev.k === 'bag') { bagBtn(); renderMe();
   } else if (ev.k === 'miss' || ev.k === 'ready') { if (me.b) { me.b = null; plazaApi.sendInfo(); } }
 }
 
 // ── 입력 (낚시 중에만): 누르기·끌어올리기는 광장 화면 위 어디서나
 const cv = world.renderer.domElement;
-cv.addEventListener('pointerdown', (e) => { if (!on) return; e.preventDefault(); if (camFrom.t < 0.7) return; F.press({ x: e.clientX, y: e.clientY }); });
+cv.addEventListener('pointerdown', (e) => { if (!on || shopMod?.shopOpen()) return; e.preventDefault(); if (camFrom.t < 0.7) return; F.press({ x: e.clientX, y: e.clientY }); });
 addEventListener('pointermove', (e) => { if (on) F.moveDrag(e.clientX, e.clientY); });
 addEventListener('pointerup', (e) => { if (on) F.release(e.clientX, e.clientY); });
 addEventListener('pointercancel', () => { if (on) { F.S.drag = null; F.release(); } });
 addEventListener('blur', () => { if (on) { F.S.drag = null; F.release(); } });
 addEventListener('keydown', (e) => {
+  if (!on && e.code === 'Escape' && shopMod?.shopOpen()) { shopMod.closeShop(); return; } // 광장에서 연 횟집 창
   if (!on || e.target?.tagName === 'INPUT') return;
+  if (shopMod?.shopOpen()) { if (e.code === 'Escape') shopMod.closeShop(); return; } // 횟집 창이 떠 있으면 낚시 키 안 먹음
   if (e.code === 'Escape') { if (!mod.dexOpen()) stop(); return; }
   if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'KeyA' || e.code === 'KeyD') return; // 광장에서는 선 자리 그대로
   if (camFrom.t < 0.7) return; // 카메라가 날아가는 동안은 던지지 않음
@@ -180,8 +214,12 @@ function renderChat() {
 }
 
 // ── 다른 사람 낚시 모습 (fishing.md 12장 ③): 낚싯대를 들고 바다를 봄 · 던진 곳에 찌(물결 따라) · 줄 · 잡으면 말풍선·물보라
+// + 낚싯대 들고 다니기 (11/26 사용자): 광장에서 계단에 들어서면(선착장 쪽) 탁구채 대신 낚싯대, 광장으로 올라가면 다시 탁구채.
+//   나·다른 사람 모두, 각 PC가 캐릭터 위치로 계산 (메시지 없음 · 보기만 다름)
 const others = new Map(); // id → { rod, bob, line, b, at }
 const tipW = new THREE.Vector3(), toV = new THREE.Vector3();
+const rodZone = (x, z) => !!stairAt(x, z) || PLAZA.onPier(x, z);
+const CARRY_PITCH = -0.32; // 들고 걸을 때: 거의 세워서 조금 앞으로
 function otherOf(id, f) {
   let o = others.get(id);
   if (o && o.fig !== f) { dropOther(id); o = null; }
@@ -191,33 +229,39 @@ function otherOf(id, f) {
     f.c.group.add(rod.root);
     const bob = makeBobber(); bob.visible = false; plazaApi.view.root.add(bob);
     const line = makeLine(); line.line.visible = false; plazaApi.view.root.add(line.line);
-    o = { fig: f, rod, bob, line, b: null, at: 0 };
+    o = { fig: f, rod, bob, line, b: null, at: 0, pitch: CARRY_PITCH };
     others.set(id, o);
   }
   return o;
+}
+function showPaddle(c) {
+  const model = c.paddleModel;
+  if (model) model.visible = true;
+  if (c.handle) c.handle.visible = !model;
+  if (c.blade) c.blade.visible = !model;
 }
 function dropOther(id) {
   const o = others.get(id); if (!o) return;
   o.fig.c.group.remove(o.rod.root);
   plazaApi.view.root.remove(o.bob, o.line.line);
-  if (o.fig.c.handle) o.fig.c.handle.visible = true;
-  if (o.fig.c.blade) o.fig.c.blade.visible = true;
-  if (o.fig.c.paddleModel) o.fig.c.paddleModel.visible = true;
+  showPaddle(o.fig.c);
   others.delete(id);
 }
-function othersFrame(now) {
-  const people = plazaApi.people();
-  for (const id of [...others.keys()]) { const p = people.get(id), f = plazaApi.view.figs.get(id); if (!p?.fi || !f) dropOther(id); }
-  for (const [id, p] of people) {
-    if (!p.fi) continue;
-    const f = plazaApi.view.figs.get(id);
-    if (!f || !f.c.group.visible || !PLAZA.onPier(f.disp?.[0] ?? 0, f.disp?.[1] ?? 0)) continue;
+function othersFrame(now, dt) {
+  const people = plazaApi.people(), figs = plazaApi.view.figs;
+  const wants = (f) => f && f.c.group.visible && f.disp && rodZone(f.disp[0], f.disp[1]);
+  for (const id of [...others.keys()]) if (!wants(figs.get(id))) dropOther(id);
+  for (const [id, f] of figs) {
+    if (!wants(f)) continue;
     const o = otherOf(id, f);
     hidePaddle(f.c);
-    const b = p.fi.b;
+    const fi = f.me ? null : people.get(id)?.fi;
+    const b = fi?.b ?? null;
     if (String(b) !== String(o.b)) { o.b = b; o.at = now; }
     const landed = b && now - o.at > 0.7; // 던지고 날아가는 동안은 찌를 안 보임
-    o.rod.pose(b ? -1.05 : -0.95, b ? 0.12 : 0.05, 0, 0);
+    const want = fi ? (b ? -1.05 : -0.95) : CARRY_PITCH; // 낚시 중이면 바다 쪽으로 눕힘, 아니면 들고 다님
+    o.pitch += (want - o.pitch) * Math.min(1, dt * 6);
+    o.rod.pose(o.pitch, b ? 0.12 : 0.05, 0, 0);
     o.bob.visible = !!landed;
     o.line.line.visible = !!landed;
     if (landed) {
@@ -253,8 +297,11 @@ fishHooks.onSay = (p, text) => { if (p) addChat(p.nick, text); };
 
 // ── 광장(ui/plaza.js)이 부르는 것
 fishHooks.on = () => on;
+fishHooks.spot = () => (on && F ? { x: F.S.standX, z: F.S.standZ, mode: F.S.mode } : null); // 고양이가 옆에 앉을 자리
 fishHooks.state = () => (on ? { b: me.b } : null);
-fishHooks.hidden = () => { if (on) stop(); $('fish-start').classList.add('hidden'); pierBubbles(0, null); };
+// 🪧 낚시 게시판 (전망대·서쪽 계단 옆): 종이를 누르면 낚시 방법 · 팁 · 고양이 창 (ui/plaza.js onSpot → 앞까지 걸어간 뒤)
+fishHooks.openBoard = async (n) => { if (on) return; (await import('../games/fishing/board.js')).openFishBoard(n); };
+fishHooks.hidden = () => { if (on) stop(); shopMod?.closeShop(); $('fish-start').classList.add('hidden'); pierBubbles(0, null); };
 
 // ── 낚시 안 할 때도 낚시터(계단에 들어선 순간부터 판 위)에서는 기포가 보임 (11/25 사용자: 그래야 자리를 옮겨 다님)
 //  낚시 중에는 낚시 화면(session.js)이 같은 기포를 그림. 시각 = 서버 시각(모든 사람이 같은 곳·같은 때)
@@ -281,7 +328,7 @@ fishHooks.frame = (now, p, walking) => {
   const can = !on && curScreen === 'lobby' && !plazaApi.seat() && !walking && PLAZA.onPier(p[0], p[1]);
   $('fish-start').classList.toggle('hidden', !can);
   if (can && !mod && !preload) preload = Promise.all([import('../games/fishing/session.js'), import('../games/fishing/dex.js')]).catch(() => {}); // 판에 들어서면 미리 불러 둠 (누를 때 멈칫하지 않게)
-  if (others.size || [...plazaApi.people().values()].some((q) => q.fi)) othersFrame(now);
+  othersFrame(now, lastFrameT ? Math.min(0.1, now - lastFrameT) : 0.016); lastFrameT = now; // 계단·선착장에서는 낚싯대 (나·다른 사람)
   pierBubbles(now, p);
   if (!on) return;
   if (curScreen !== 'lobby' || plazaApi.seat()) { stop(); return; }

@@ -83,10 +83,11 @@ const myPid = () => (account.loggedIn ? account.player?.id ?? null : null);
 const inAI = () => game?.mode === 'ai';
 const myInfo = () => ({ id: myId, nick: myNick(), title: myTitle(), titleX: myNemesis(), look: myEquip(), at: pz.at, mob: IS_MOBILE, kim: inAI() });
 // 자주 바뀌는 것은 메시지로: 걷기·탁구대 자리·준비·경기 채널 코드·연승·선수 번호
-const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid(), kc: pz.kim, fi: fishHooks.state?.() ?? null });
+const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid(), kc: pz.kim, fi: fishHooks.state?.() ?? null, ct: catHooks.state?.() ?? null });
 // 낚시 (src/ui/fishing.js, fishing.md 12장)가 끼어드는 곳 — fishing.js가 채운다 (서로 불러오지 않게)
 //   on() 낚시 중인지 · state() 내 상태에 실을 낚시 정보 · frame(now, 내 자리) · hidden() 광장이 안 보임 · onMsg(m, 사람) · onSay(사람, 글)
 export const fishHooks = {};
+export const catHooks = {}; // 🐱 선착장 고양이 (src/games/cats/plazaCats.js)
 const cleanFi = (v) => (v && typeof v === 'object' ? { b: Array.isArray(v.b) && v.b.length === 2 && v.b.every(fin) && Math.abs(v.b[0]) < 80 && Math.abs(v.b[1]) < 120 ? [v.b[0], v.b[1]] : null } : null);
 const tagOf = (nick, rdy) => (rdy ? `${nick} ✅` : nick);
 // 꾸미기 창에서 입어 보는 중이면 그 모습 (내 화면에서만, 다른 사람에겐 장착한 것)
@@ -183,7 +184,7 @@ function rebuild() {
       w: m.id === myId ? null : cleanWalk(m.w, now),
       seat: mob ? null : cleanSeat(m.seat), rdy: !!m.rdy, code: typeof m.code === 'string' && /^[A-Z0-9]{4}$/.test(m.code) ? m.code : null,
       pid: (typeof m.pid === 'string' && m.pid.length <= 64) || Number.isInteger(m.pid) ? m.pid : null,
-      kim: m0.kim === true, called: cleanKim(m.kc), fi: cleanFi(m.fi),
+      kim: m0.kim === true, called: cleanKim(m.kc), fi: cleanFi(m.fi), ct: catHooks.clean?.(m.ct) ?? null,
     });
   }
   // 40명까지: 먼저 들어온 순서 (들어온 시각 → id 순, 모든 PC가 같은 규칙)
@@ -253,7 +254,7 @@ function stepWalk(from, to, nowMs) {
 }
 // 눌러서 뭔가 되는 곳 (광장 20장 ②)
 //  · 빵집: 김제빵이 빵집 위에서 말함 — 보통은 '이번엔 ○○을 만들어 볼까나...'(2대2 김제빵 내보내기와 같은 말), 10%는 재밌는 대사 (내 화면에서만)
-//  · 게시판: 누른 종이로 걸어가서 업데이트 / 오늘의 미션 / 치는 방법
+//  · 게시판: 누른 종이로 걸어가서 업데이트 / 오늘의 미션 / 치는 방법 · 낚시 게시판(계단 옆): 낚시 방법 / 팁 / 고양이
 //  · 시계탑: 쉬는 시간 안내 알림
 let lastKimLine = '';
 function onSpot(sp, at) {
@@ -264,10 +265,11 @@ function onSpot(sp, at) {
     while (line === lastKimLine);
     lastKimLine = line;
     view.spotSay(sp, '👨‍🍳 ' + line);
-  } else if (sp.id === 'board') {
-    const note = at[0] < -0.48 ? 0 : at[0] < 0.48 ? 1 : 2; // 왼쪽 업데이트 · 가운데 미션 · 오른쪽 치는 방법
+  } else if (sp.id === 'board' || sp.id === 'fishBoard') {
+    const note = at[0] < -0.48 ? 0 : at[0] < 0.48 ? 1 : 2; // 왼쪽 업데이트 · 가운데 미션 · 오른쪽 치는 방법 (낚시 게시판: 낚시 방법 · 팁 · 고양이)
     const open = () => {
-      if (note === 0) $('btn-updates').click();
+      if (sp.id === 'fishBoard') fishHooks.openBoard?.(note);
+      else if (note === 0) $('btn-updates').click();
       else if (note === 2) $('btn-howto').click();
       else showMissions();
     };
@@ -276,6 +278,10 @@ function onSpot(sp, at) {
     else walkTo(f, { then: open });
   } else if (sp.id === 'clock') {
     hud.toast(breakLines().join(' · '), 2600);
+  } else if (sp.id === 'market') { // 🍣 횟집·📈 칠판 (낚시 14장 1b): 문 앞으로 걸어가서 횟집 창
+    const p = posAt(pz.myW, Date.now()), open = () => fishHooks.openMarket?.();
+    if (Math.hypot(p[0] - sp.door[0], p[1] - sp.door[1]) < 1.6) open();
+    else walkTo(sp.door, { then: open });
   }
 }
 // 오늘의 미션 카드: 접혀 있으면 펼치고 반짝
@@ -817,7 +823,7 @@ export function plazaFrame(now) {
       closePhrases(); // 로비 캐릭터는 로비·경기 화면이 다시 켠다
     }
   }
-  if (!shown) { fishHooks.hidden?.(); bubbleStop(); if (!arenaPreview()) view.setInput(true); return false; }
+  if (!shown) { fishHooks.hidden?.(); catHooks.hidden?.(); bubbleStop(); if (!arenaPreview()) view.setInput(true); return false; }
   if (!bubbleArena()) for (const side of world.team) for (const c of side) c.group.visible = false; // 랠리하는 로비 캐릭터는 숨김
   // 걷는 중: 한 구간이 끝나면 다음 구간, 다 왔으면 도착해서 할 일 (가게 열기·혼자 하기)
   const nowMs = Date.now();
@@ -829,6 +835,7 @@ export function plazaFrame(now) {
   renderTables();
   windowFrame(p);
   view.update(now, myId);
+  catHooks.frame?.(now, p);
   fishHooks.frame?.(now, p, pz.route.length > 0 || Math.hypot(p[0] - pz.myW.to[0], p[1] - pz.myW.to[1]) > 0.05);
   sky ||= createPlazaSky(world);
   sky.update(now);
@@ -933,6 +940,7 @@ export const plazaApi = {
   view, people: () => pz.people, seat: () => pz.seat, myId: () => myId,
   send: (m) => pz.link?.send({ ...m, id: myId }), sendInfo,
   raining: () => !!sky && /비|소나기/.test(sky.label?.() || ''),
+  walkTo, pos: () => posAt(pz.myW, Date.now()),
 };
 export const plazaDebug = {
   pz, spot: onSpot, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list), fakeState: (m) => onState(m), get kimN() { return pz.kimN; },

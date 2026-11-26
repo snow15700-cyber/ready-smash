@@ -8,6 +8,7 @@
 // 주소: ?fx=1|2 · ?arena=beach · ?manual=1 (영상 찍기: window.__bubble.draw(t))
 import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 import * as THREE from 'three';
+import { smoothstep as ease } from './util.js';
 import { PLAZA } from './arena-plaza.js';
 import { applyLook } from './items.js';
 import { CHAR_Z, createWorld, makeCharacter } from './scene.js';
@@ -98,7 +99,6 @@ function prepare() {
   plaza.visible = true;
   world.arena.root.visible = true;
 }
-const ease = (t) => t * t * (3 - 2 * t);
 const back = (t) => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
 // q: 바뀌는 진행(0~1), enter: 광장 → 경기장
 function applyWave(q, enter) {
