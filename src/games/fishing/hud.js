@@ -253,7 +253,7 @@ function drawResult(g, W, H, S, u) {
     g.fillText(fish ? `${c.name} ${R.cm}cm` : c.kind === 'junk' ? `에이… ${c.name}네` : `${c.name}!`, 0, 32);
     g.font = UI(600, 13); g.fillStyle = 'rgba(255,255,255,.8)';
     g.fillText(`챔질 ${R.grade} · 리듬 Perfect ${R.perfects} · Good ${R.hits - R.perfects} · Miss ${R.misses}`, 0, 58);
-    const line = fish ? (R.rec ? '' : `이 물고기 최고 ${R.best}cm`) : c.kind === 'junk' ? '도감에 넣었어요 · 코인 0' : c.dup ? `이미 있어서 → 조각 ${PADDLE_DUP_PIECES}개` : R.coins != null ? '' : '옷장에 들어가요 (로그인하면)';
+    const line = fish ? `보통의 ${R.times}배${R.rec ? '' : ` · 이 물고기 최고 ${R.best}cm`}` : c.kind === 'junk' ? '도감에 넣었어요 · 코인 0' : c.dup ? `이미 있어서 → 조각 ${PADDLE_DUP_PIECES}개` : R.coins != null ? '' : '옷장에 들어가요 (로그인하면)';
     g.fillText(line, 0, 78);
     const badge = R.tier ? `${R.tier.icon} ${R.tier.label}!` : fish && R.rec && !R.first ? '🏆 새 기록!' : '';
     if (badge) {

@@ -7,7 +7,7 @@ export const TUNE = {
   fake: 1, // 가짜 비율: 0 적게 · 1 보통 · 2 많이
   bubbles: 'often', // 기포: 'normal' = 약 2분에 1~2곳·30초(기획) · 'often' = 시험용(약 50초마다)
   fish: 'random', // 'random' | 물고기 id | 'junk' | 'paddle'
-  size: 'random', // 크기 시험: 'random' | 고정 cm ('95' 월척 · '125' 대물 · '180' 괴물 · '300')
+  size: 'random', // 크기 시험: 'random' | 고정 크기 점수(50 = 보통 1배 · '95' 월척 · '125' 대물 · '180' 괴물 · '300', cm는 물고기 보통 크기 × 점수 ÷ 50)
   cond: 'auto', // 조건 물고기 시험: 'auto'(실제 쉬는 시간·밤) | 'break' | 'night' | 'rain'
   sound: true,
   cam: 2, // 카메라 연출 세기 (박자 두근·단계 확대·기울기): 0 끔 · 1 약 · 2 보통 · 3 강

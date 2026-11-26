@@ -36,7 +36,7 @@ async function showRank(kind = rankKind) {
   const unit = RANK[kind].unit;
   const MEDAL = ['', '<i class="mdl m1">1</i>', '<i class="mdl m2">2</i>', '<i class="mdl m3">3</i>']; // 금·은·동 동그라미 (새 디자인: 이모지 대신)
   const av = (nick) => `<em class="av">${esc([...nick][0] || '?')}</em>`;
-  const sub = (r) => (kind === 'wins' ? `<small>1v1 ${r.w1}승 · 2v2 ${r.w2}승</small>` : kind === 'fish' ? `<small>${CATCH[r.fish]?.emoji || '🐟'} ${esc(CATCH[r.fish]?.name || '')}</small>` : '');
+  const sub = (r) => (kind === 'wins' ? `<small>1v1 ${r.w1}승 · 2v2 ${r.w2}승</small>` : kind === 'fish' ? `<small>${CATCH[r.fish]?.emoji || '🐟'} ${esc(CATCH[r.fish]?.name || '')}${r.x != null ? ` · 보통의 ${+r.x}배` : ''}</small>` : '');
 
   // 1~3등: 시상대 (가운데 1등, 왼쪽 2등, 오른쪽 3등). 비어 있으면 '?' 자리
   const top = rows.slice(0, 3);

@@ -53,13 +53,14 @@ export function bubbleNear(x, z, list) {
 }
 
 // ── 잡히는 것 (fishing.md 9장, 11/25 사용자 확정): 물고기 17종 · 잡동사니 9개 · 1% 전설 탁구채
+// 다섯째 값 = 보통 크기(cm, 배율 1배일 때). 실제 크기 = 보통 크기 × 배율 (34_fish_luck.sql, fishing.md 13장)
 export const SPECIES = [
-  ['mackerel', '고등어', 'common', '🐟'], ['horse', '전갱이', 'common', '🐟'], ['rockfish', '볼락', 'common', '🐟'], ['greenling', '노래미', 'common', '🐟'],
-  ['flounder', '가자미', 'common', '🐟'], ['squid', '오징어', 'common', '🦑'], ['puffer', '복어', 'common', '🐡'],
-  ['seabream', '참돔', 'rare', '🐠'], ['blackporgy', '감성돔', 'rare', '🐟'], ['rockcod', '우럭', 'rare', '🐟'], ['yellowtail', '방어', 'rare', '🐟'], ['octopus', '문어', 'rare', '🐙'],
-  ['lattegoby', '라테 망둥어', 'rare', '☕', 'break'], ['moonhair', '달빛 갈치', 'rare', '🌙', 'night'], ['raindrop', '빗방울 숭어', 'rare', '🌧️', 'rain'],
-  ['goldball', '황금 탁구공 물고기', 'legend', '🏓'], ['dragon', '경주 용왕 물고기', 'legend', '🌊'],
-].map(([id, name, grade, emoji, cond]) => ({ kind: 'fish', id, name, grade, emoji, cond }));
+  ['mackerel', '고등어', 'common', '🐟', 30], ['horse', '전갱이', 'common', '🐟', 25], ['rockfish', '볼락', 'common', '🐟', 20], ['greenling', '노래미', 'common', '🐟', 30],
+  ['flounder', '가자미', 'common', '🐟', 30], ['squid', '오징어', 'common', '🦑', 30], ['puffer', '복어', 'common', '🐡', 25],
+  ['seabream', '참돔', 'rare', '🐠', 50], ['blackporgy', '감성돔', 'rare', '🐟', 40], ['rockcod', '우럭', 'rare', '🐟', 40], ['yellowtail', '방어', 'rare', '🐟', 70], ['octopus', '문어', 'rare', '🐙', 60],
+  ['lattegoby', '라테 망둥어', 'rare', '☕', 15, 'break'], ['moonhair', '달빛 갈치', 'rare', '🌙', 90, 'night'], ['raindrop', '빗방울 숭어', 'rare', '🌧️', 50, 'rain'],
+  ['goldball', '황금 탁구공 물고기', 'legend', '🏓', 40], ['dragon', '경주 용왕 물고기', 'legend', '🌊', 150],
+].map(([id, name, grade, emoji, base, cond]) => ({ kind: 'fish', id, name, grade, emoji, base, cond }));
 export const JUNK = [
   ['stick', '나뭇가지', '🪵'], ['can', '빈 캔', '🥫'], ['boot', '장화', '👢'], ['bottle', '페트병', '🧴'], ['kelp', '해초', '🌿'],
   ['shell', '조개껍데기', '🐚'], ['oldball', '낡은 탁구공', '🏓'], ['brokenpaddle', '부러진 탁구채', '🏓'], ['baguette', '김제빵의 바게트', '🥖'],
@@ -95,11 +96,11 @@ export function paddleCatch(owned, rnd = Math.random) {
   return { kind: 'paddle', id, name, grade: 'rare', emoji: '🏓', dup: !left.length };
 }
 
-// ── 크기: 종류·등급 상관없이 모두 같은 규칙 (사용자 확정 11/25). 최대 없음 + 긴 꼬리 (사용자 확정 11/25, fishing.md 11장)
-//   85cm까지는 예전과 같음(20 + 80·u^1.6, 큰 것은 드물게) → 85cm 위는 파레토 꼬리: 85 + 22.5·((1−q)^(−1/3.48) − 1)
-//   (q = 85cm 위에서의 위치 0~1). 난수 u 하나로 정해서 이어짐(85cm에서 끊기지 않음). 안전 상한 999cm.
-//   어림: 88cm↑ 약 8% · 110cm↑ 약 0.9% · 150cm↑ 약 0.1% · 200cm↑ 약 0.02%
-export const SIZE_MIN = 20, BIG_CM = 88;
+// ── 크기 = 물고기마다 '보통 크기' × 배율 (사용자 확정 11/26, fishing.md 13장)
+//   배율은 '크기 점수' s로 정함: s = cmOf(u) — 예전(11장) 모든 물고기 공통 크기 식 그대로(85까지 20 + 80·u^1.6, 그 위 파레토 긴 꼬리).
+//   배율 = s ÷ 50 (s 50 = 보통 1배). 월척·대물·괴물·월척 랭킹·업적은 s로 판정 → 어떤 물고기든 공평.
+//   어림(주사위 1번): s 88↑ 약 8% · 110↑ 약 0.9% · 150↑ 약 0.1% · 200↑ 약 0.02%
+export const SIZE_MIN = 20, BIG_CM = 88, X_BASE = 50;
 export const TAIL = { from: 85, s: 22.5, a: 3.48, cap: 999 };
 const U_TAIL = ((TAIL.from - SIZE_MIN) / 80) ** (1 / 1.6);
 export function cmOf(u) {
@@ -109,20 +110,39 @@ export function cmOf(u) {
   return Math.min(TAIL.cap, TAIL.from + TAIL.s * ((1 - q) ** (-1 / TAIL.a) - 1));
 }
 export const round1 = (x) => Math.round(x * 10) / 10;
-export function fishSize(rnd = Math.random) {
-  const cm = round1(cmOf(rnd()));
-  return { cm, k: sizeK(cm) };
+// 점수 s(소수 한 자리) → 그 물고기의 cm (서버: round(s × 보통 크기 / 50, 1)). 정수로 계산해서 서버와 반올림이 같게
+export const cmOfScore = (id, s) => Math.round((Math.round(s * 10) * (CATCH[id]?.base || X_BASE)) / X_BASE) / 10;
+export const scoreOfCm = (id, cm) => round1((cm * X_BASE) / (CATCH[id]?.base || X_BASE)); // 도감 최고 cm → 대략의 점수(등급 아이콘용)
+export const timesOf = (s) => round1(s / X_BASE); // 배율 (보통의 ○배)
+
+// ── 행운 주사위 (사용자 확정 11/26, fishing.md 13장): 크기 난수를 여러 번 뽑아 가장 큰 것. 화면에는 안 보여 줌
+//   초보자: 처음 잡는 물고기 10마리 = 3번 · 오늘(한국 날짜) 첫 3번 물고기 = 2번 · 그 밖 1번
+//   + 바다 술렁임: 이번 주 1등 기록이 하루 안 깨질 때마다 +1 (최대 +4, 깨지면 0 · 이번 주 기록에만)
+export const LUCK = { beginner: 10, beginnerDice: 3, day: 3, dayDice: 2, stormMax: 4 };
+export function luckDice({ caught = 0, dayN = 0, recordDays = 0 } = {}) {
+  const base = caught < LUCK.beginner ? LUCK.beginnerDice : dayN < LUCK.day ? LUCK.dayDice : 1;
+  return base + Math.min(LUCK.stormMax, Math.max(0, Math.floor(recordDays)));
 }
-// 크기 등급 (도장·컷인·결과 카드): 🏆 월척 88 · 🐋 대물 110 · 👑 괴물 150
+export function luckyU(dice, rnd = Math.random) {
+  let u = 0;
+  for (let i = 0; i < Math.max(1, dice); i++) u = Math.max(u, rnd());
+  return u;
+}
+// 크기 뽑기: { cm, s(점수), k(0~1 예전 쓰임새) }. id 없으면(시안) 보통 크기 50
+export function fishSize(id, dice = 1, rnd = Math.random) {
+  const s = round1(cmOf(luckyU(dice, rnd)));
+  return { cm: cmOfScore(id, s), s, k: sizeK(s) };
+}
+// 크기 등급 (도장·컷인·결과 카드) — 점수 s로: 🏆 월척 88(1.76배) · 🐋 대물 110(2.2배) · 👑 괴물 150(3배)
 export const SIZE_TIERS = [
   { id: 'monster', min: 150, icon: '👑', label: '괴물', color: '#ff5a7a' },
   { id: 'huge', min: 110, icon: '🐋', label: '대물', color: '#5ad1ff' },
   { id: 'big', min: BIG_CM, icon: '🏆', label: '월척', color: '#ffc21a' },
 ];
-export const sizeTier = (cm) => SIZE_TIERS.find((t) => cm >= t.min) || null;
-// 모형 크기(배): 20cm 0.55 · 46cm 약 0.95 · 88cm 약 1.6 · 150cm 2.5 · 200cm 3.25 · 최대 5
-export const modelScale = (cm) => Math.min(5, 0.55 + (cm - SIZE_MIN) * 0.015);
-export const sizeK = (cm) => Math.min(1, Math.max(0, (cm - SIZE_MIN) / 80)); // 0~1 (예전 쓰임새)
+export const sizeTier = (s) => SIZE_TIERS.find((t) => s >= t.min) || null;
+// 모형 크기(배, 점수 s로): 20 0.55 · 46 약 0.95 · 88 약 1.6 · 150 2.5 · 200 3.25 · 최대 5
+export const modelScale = (s) => Math.min(5, 0.55 + (s - SIZE_MIN) * 0.015);
+export const sizeK = (s) => Math.min(1, Math.max(0, (s - SIZE_MIN) / 80)); // 0~1 (예전 쓰임새)
 
 // ── 코인 (사용자 확정 11/25): 일반 3 · 희귀 8 · 전설 20 · 잡동사니·탁구채 0. 쉬는 시간 +50%(세트 '휴가 중'이면 더)
 export const FISH_COINS = { common: 3, rare: 8, legend: 20 };

@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { makeCharacter } from '../../scene.js';
 import { BIG_CM, FISH, GRADE, PADDLE_DUP_PIECES, STAGES, STAGE_FISH, TUNE, biteSeq, fishSize, pickCatch, stageOf } from './data.js';
 import { addPaddle, dexOpen, fishCount, modelImage, openDex, ownedPaddles, recordCatch } from './dex.js';
-import { CATCH, LEGEND_PADDLES, modelScale, sizeK, sizeTier } from './rules.js';
+import { CATCH, LEGEND_PADDLES, cmOfScore, luckDice, modelScale, sizeK, sizeTier } from './rules.js';
 import { fishCast, fishFinish } from '../../account.js';
 import { ACH } from '../../achievements.js';
 import { makeModel } from './models.js';
@@ -76,11 +76,16 @@ export function createFishing(opt) {
     if (c === 'fail') { S.fish = pickCatch(S.near, catchCtx()); S.srvSize = null; return true; } // 서버가 안 되면 이번 한 번은 이 브라우저에서
     S.castId = c.id; S.near = c.near;
     S.fish = c.kind === 'paddle' ? { kind: 'paddle', id: c.item, name: LEGEND_PADDLES.find(([x]) => x === c.item)?.[1] || c.item, grade: 'rare', emoji: '🏓', dup: !!c.dup } : CATCH[c.item];
-    S.srvSize = c.kind === 'fish' ? { cm: +c.cm, k: sizeK(+c.cm) } : { cm: 0, k: 0.3 };
+    const s = c.s != null ? +c.s : +c.cm; // s = 크기 점수(배율 × 50). 옛 서버(34 전)는 cm = 점수
+    S.srvSize = c.kind === 'fish' ? { cm: +c.cm, s, k: sizeK(s) } : { cm: 0, s: 0, k: 0.3 };
     return true;
   }
-  // ⚙️ 크기 시험 (로그인 안 했을 때만): 'random' | 고정 cm
-  const rollSize = () => (TUNE.size !== 'random' ? { cm: +TUNE.size, k: sizeK(+TUNE.size) } : fishSize());
+  // ⚙️ 크기 시험 (로그인 안 했을 때만): 'random' | 고정 점수(보통 50 = 1배). 서버 없을 때도 초보자 행운 주사위(이 브라우저 도감 기준)
+  const rollSize = () => {
+    const id = S.fish?.kind === 'fish' ? S.fish.id : null;
+    if (TUNE.size !== 'random') { const s = +TUNE.size; return { cm: cmOfScore(id, s), s, k: sizeK(s) }; }
+    return fishSize(id, luckDice({ caught: fishCount(), dayN: Infinity }));
+  };
   function catchCtx() {
     const h = new Date(Date.now() + 9 * 3600e3).getUTCHours(), c = TUNE.cond;
     return { owned: ownedPaddles(), cond: c === 'auto' ? { break: !!breakAt(), night: h >= 19 || h < 6, rain: false } : { [c]: true } };
@@ -251,7 +256,7 @@ export function createFishing(opt) {
     fillQueue();
     // 맞출 때 물 위로 살짝 튀는 물고기 = 아직 무슨 물고기인지 모르게 검은 그림자. 단계가 오를수록 크게
     if (S.model) scene.remove(S.model);
-    S.model = makeShadowFish(); S.model.visible = false; S.model.scale.setScalar(Math.max(0.7 + stage * 0.4, S.fish?.kind === 'fish' && S.size ? modelScale(S.size.cm) * 0.8 : 0)); scene.add(S.model); // 큰 놈은 그림자도 큼
+    S.model = makeShadowFish(); S.model.visible = false; S.model.scale.setScalar(Math.max(0.7 + stage * 0.4, S.fish?.kind === 'fish' && S.size ? modelScale(S.size.s) * 0.8 : 0)); scene.add(S.model); // 큰 놈은 그림자도 큼
   }
   function makeShadowFish() {
     const m = makeFishModel(FISH.mackerel), mat = new THREE.MeshStandardMaterial({ color: 0x1b2a3a, roughness: 0.6 });
@@ -369,7 +374,7 @@ export function createFishing(opt) {
     else if (c.kind === 'junk') S.cutin = { t: 0, txt: '에이…', sub: `${c.name}네 ${c.emoji}`, color: '#9fd3c0', dur: 0.9, dim: 0.1 };
     else if (c.grade !== 'common') S.cutin = { t: 0, txt: c.grade === 'legend' ? '🌟 전설! 🌟' : '✨ 희귀!', sub: c.name, color: GRADE[c.grade].color };
     // 크기가 드라마틱하게 (fishing.md 11장): 모형 크기 = cm에 비례, 클수록 느린 동작·물보라·흔들림·카메라 물러남·늦게 도장
-    const sc = c.kind === 'fish' ? modelScale(S.size.cm) : 1.2, tier = c.kind === 'fish' ? sizeTier(S.size.cm) : null;
+    const sc = c.kind === 'fish' ? modelScale(S.size.s) : 1.2, tier = c.kind === 'fish' ? sizeTier(S.size.s) : null;
     M.scale.setScalar(sc);
     const y = seaHeight(S.bob.x, S.bob.z, S.now);
     const T = { monster: { slow: 0.7, stamp: 1.9, end: 3.6, drops: 90, pow: 2.6, shake: 26 }, huge: { slow: 0.45, stamp: 1.4, end: 2.7, drops: 60, pow: 2, shake: 18 }, big: { slow: 0.3, stamp: 1.1, end: 2.1, drops: 40, pow: 1.6, shake: 10 } }[tier?.id] || { slow: 0.2, stamp: 1.0, end: 1.9, drops: 30, pow: 1.3, shake: 0 };
@@ -413,7 +418,7 @@ export function createFishing(opt) {
     }
     const img = c.kind === 'paddle' ? Object.assign(new Image(), { src: paddleImage(ITEM[c.id], 180) }) : modelImage(c.id);
     S.model.visible = false; S.bobLanded = false;
-    S.result = { ok: true, c, img, cm: S.size.cm, big: c.kind === 'fish' && S.size.cm >= BIG_CM, tier: c.kind === 'fish' ? sizeTier(S.size.cm) : null, grade: S.grade, calm: S.calm, ...r, perfects: R.perfects, hits: R.hits, misses: R.misses, near: S.near };
+    S.result = { ok: true, c, img, cm: S.size.cm, big: c.kind === 'fish' && S.size.s >= BIG_CM, tier: c.kind === 'fish' ? sizeTier(S.size.s) : null, times: c.kind === 'fish' ? Math.round(S.size.s / 5) / 10 : 0, grade: S.grade, calm: S.calm, ...r, perfects: R.perfects, hits: R.hits, misses: R.misses, near: S.near };
     emit({ k: 'catch', c, cm: S.size.cm, grade: S.grade });
     setMode('result');
   }
