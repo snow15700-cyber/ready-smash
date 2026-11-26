@@ -436,10 +436,7 @@ export class Game {
           this.playCue(this.expect.t);
         } else if (ev.kind === 'smash' && !mine) this.hud.toast((tierMsg ? tierMsg + ' · ' : '') + '스매시!');
         else if (tierMsg) this.hud.toast(tierMsg, 2600);
-        if (mine) {
-          this.stats.rally = ev.rally;
-          this.hud.hint('');
-        }
+        if (mine) this.hud.hint('');
         this.stats.rally = this.mode === 'ai' ? Math.ceil(ev.rally / 2) : ev.rally;
         if (ev.rally === 10 && this.mode !== 'ai') this.stats.rally10++;
         this.hud.stats(this.stats);

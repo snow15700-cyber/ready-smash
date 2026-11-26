@@ -46,7 +46,6 @@ export const STAIRS = [
   { side: 'west', x0: 0.5, x1: 3.7, z0: 39, z1: 43.5 },
   { side: 'east', x0: 18.3, x1: 21.5, z0: 39, z1: 43.5 },
 ];
-export const PIER_STAIRS = STAIRS[1]; // (예전 이름: 동쪽 계단)
 export const stairAt = (x, z) => STAIRS.find((S) => x > S.x0 && x <= S.x1 && z > S.z0 && z < S.z1);
 export const stairY = (z, S = STAIRS[1]) => (PIER.y * Math.min(1, Math.max(0, (z - S.z0) / (S.z1 - S.z0))));
 export const onPier = (x, z) => z > PIER.z0 && z < PIER.z1 + 0.5 && x > PIER.x0 - 0.5 && x < PIER.x1 + 0.5 && !STAIRS.some((S) => x > S.x0 && x <= S.x1 && z < S.z1);

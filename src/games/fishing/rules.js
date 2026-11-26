@@ -150,4 +150,3 @@ export const FISH_COINS = { common: 3, rare: 8, legend: 20 };
 export const MIN_SEC = { junk: 4, common: 6, rare: 11, legend: 16 };
 // 분당 상한: 1분에 25코인씩 쌓이는 주머니(최대 60)에서만 줄 수 있음 (쉬는 시간 보너스 포함)
 export const COIN_PER_MIN = 25, COIN_POCKET = 60;
-export const stageOfCatch = (c) => ['common', 'rare', 'legend'].indexOf(c.grade);
