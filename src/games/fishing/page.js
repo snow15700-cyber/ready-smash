@@ -17,7 +17,7 @@ if (params.get('cond')) TUNE.cond = params.get('cond');
 if (params.get('bubbles')) TUNE.bubbles = params.get('bubbles');
 // 주변 박자 연출 시안(B): 이 시안 페이지에서는 처음에 다 켜 둠 — ⚙️에서 하나씩 끄며 비교 (?beat=0 이면 다 끔)
 for (const k of ['bSea', 'bPier', 'bBody']) TUNE[k] = params.get('beat') === '0' ? 0 : 1;
-// 음악 달아오름 시안(16장 C 1단계): 이 시안에서만 처음에 켬 (?heat=0 이면 끔)
+// 음악·색 달아오름(16장 C): 기본 켬(광장도) — 시안에서는 ?heat=0 이면 끔
 TUNE.heat = params.get('heat') === '0' ? 0 : 1;
 TUNE.heatC = params.get('heat') === '0' ? 0 : 1; // 2단계 색 달아오름도
 
