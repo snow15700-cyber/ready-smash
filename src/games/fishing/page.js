@@ -5,14 +5,18 @@ import * as THREE from 'three';
 import { buildCampus } from '../../campusMock.js';
 import { account, autoLogin, fishDex, syncServerClock, srvNow } from '../../account.js';
 import { setServerDex } from './dex.js';
-import { setSoundOn } from './sound.js';
+import { autoLag, setSoundOn } from './sound.js';
 import { PIER, STAND } from './world.js';
 import { TUNE, createFishing, dexOpen, initSound, openDex } from './session.js';
+import { makeCat } from '../cats/models.js';
+import { BEAT } from './beat.js';
 
 const params = new URLSearchParams(location.search);
 if (params.get('fish')) TUNE.fish = params.get('fish');
 if (params.get('cond')) TUNE.cond = params.get('cond');
 if (params.get('bubbles')) TUNE.bubbles = params.get('bubbles');
+// 주변 박자 연출 시안(B): 이 시안 페이지에서는 처음에 다 켜 둠 — ⚙️에서 하나씩 끄며 비교 (?beat=0 이면 다 끔)
+for (const k of ['bSea', 'bPier', 'bBody', 'bShadow']) TUNE[k] = params.get('beat') === '0' ? 0 : 1;
 
 // ── 3D 장면 (캠퍼스 시안 = 광장과 같은 장면, 낚시터 포함)
 const canvas = document.getElementById('c');
@@ -36,7 +40,7 @@ scene.add(root);
 let online = false;
 const F = createFishing({ scene, camera, canWalk: true, isOnline: () => online, clock: srvNow });
 const S = F.S;
-window.__fish = Object.assign(F.dbg, { S, TUNE, openDex }); // 같은 물건 (점검이 __fish.hold를 바꾸면 낚시가 바로 봄)
+window.__fish = Object.assign(F.dbg, { S, TUNE, openDex, BEAT, scene }); // 같은 물건 (점검이 __fish.hold를 바꾸면 낚시가 바로 봄)
 autoLogin().then(async (r) => {
   if (r !== 'ok' || !account.loggedIn) return;
   online = true;
@@ -71,11 +75,22 @@ function resize() {
 }
 addEventListener('resize', resize); resize();
 
+// ⑥ 시안용 고양이: 광장의 ♥2 고양이처럼 내 옆에 앉아 줄다리기 때 까딱 (진짜 광장 고양이는 cats/plazaCats.js)
+const cat = makeCat('cheese'); cat.scale.setScalar(0.75); scene.add(cat);
+function tickCat() {
+  cat.visible = !!TUNE.bBody;
+  if (!cat.visible) return;
+  const p = F.me.group.position;
+  cat.position.set(p.x - 0.8, p.y, p.z + 0.9); cat.rotation.y = Math.atan2(p.x - cat.position.x, p.z - 0.6 - cat.position.z); // 내 옆(바다 쪽)에 앉아 나를 올려다봄
+  cat.userData.anim(S.now, S.mode === 'fight' ? 'nod' : 'sit');
+}
+
 let last = performance.now();
 renderer.setAnimationLoop((ms) => {
   const rdt = Math.min(0.05, (ms - last) / 1000); last = ms; // 탭이 숨겨지면 프레임이 멈춤 → 입질도 멈춤(돌아오면 이어서)
   F.frame(rdt);
   for (const f of anim) f(S.now);
+  tickCat();
   const W = innerWidth, H = innerHeight;
   renderer.setViewport(0, 0, W, H);
   renderer.render(scene, camera);
@@ -92,7 +107,7 @@ document.addEventListener('visibilitychange', () => {
 
 // ── ⚙️ 시험 설정
 const panel = document.getElementById('panel');
-document.getElementById('gear').addEventListener('click', () => panel.classList.toggle('open'));
+document.getElementById('gear').addEventListener('click', () => { panel.classList.toggle('open'); const el = document.getElementById('lagAuto'); if (el) el.textContent = Math.round(autoLag() * 1000); });
 for (const el of [panel, document.getElementById('gear')]) el.addEventListener('pointerdown', (e) => e.stopPropagation());
 const sync = () => panel.querySelectorAll('button').forEach((b) => b.classList.toggle('on', String(TUNE[b.dataset.k]) === b.dataset.v));
 panel.addEventListener('click', (e) => {

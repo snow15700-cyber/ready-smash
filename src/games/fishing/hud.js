@@ -106,7 +106,10 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
     g.fillText('❓', dx + dw * clamp(R.shown / 100, 0, 1), dy); // 무슨 물고기인지는 잡을 때까지 비밀
     if (S.t > 0.4 || S.stage > 0) {
       // 기본 원 (박자마다 두근)
-      const pr = br * (1 + R.pulse * 0.12);
+      // 누른 순간 '꾹' 눌렸다가 튀어나옴(R.press 1 → 0): 처음엔 작아졌다가 살짝 넘쳐서 돌아옴
+      const pk = R.press || 0, pt = 1 - pk, squash = pk > 0 ? -0.14 * Math.sin(pt * Math.PI * 2) * (1 - pt * 0.6) : 0;
+      const pr = br * (1 + R.pulse * 0.12 + squash);
+      if (pk > 0) { g.fillStyle = `rgba(255,255,255,${pk * 0.28})`; g.beginPath(); g.arc(b.x, b.y, pr, 0, 7); g.fill(); }
       g.fillStyle = 'rgba(15,25,50,.35)'; g.beginPath(); g.arc(b.x, b.y, pr, 0, 7); g.fill();
       g.lineWidth = 6 * u; g.strokeStyle = 'rgba(10,25,45,.55)'; g.beginPath(); g.arc(b.x, b.y, pr, 0, 7); g.stroke();
       g.lineWidth = 3.5 * u; g.strokeStyle = '#ffffff'; g.beginPath(); g.arc(b.x, b.y, pr, 0, 7); g.stroke();
@@ -131,6 +134,8 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
         g.globalAlpha = 1 - k;
         const col = n.res === 'Perfect' ? '#ffb02e' : n.res === 'Good' ? '#7fe3a0' : '#c9d3e0';
         out(n.combo ? `Perfect ×${n.combo}` : n.res, b.x, b.y - br - 22 * u - k * 20, (n.res === 'Perfect' ? 30 + Math.min(4, n.combo || 0) * 2 : 26) * u, n.combo >= 3 ? '#ffd23a' : col, 5);
+        const how = n.res === 'Miss' ? '너무' : '조금';
+        if (n.ea) out(n.ea === 'early' ? `◀ ${how} 빨라요` : `${how} 늦어요 ▶`, b.x, b.y + br + 24 * u + k * 10, 16 * u, n.ea === 'early' ? '#8fd0ff' : '#ffb3a0', 4); // 빠름·늦음
         if (n.res !== 'Miss') { g.lineWidth = 4; g.strokeStyle = col; g.beginPath(); g.arc(b.x, b.y, br * (1 + k * 0.8), 0, 7); g.stroke(); }
         g.globalAlpha = 1;
       }

@@ -10,6 +10,17 @@ import { history, nextLabel, period } from './games/fishing/market.js';
 import { CATCH } from './games/fishing/rules.js';
 import { nowMs } from './breaks.js';
 import { makeCharacter } from './scene.js';
+import { BEAT } from './games/fishing/beat.js';
+
+// ⑤ 선착장이 박자를 탐 (낚시 줄다리기 중, 내 화면에서만 — fishing.md 8장 'B' 시안): 등·등대·횟집 등 위의 빛 무리가 박마다 번쩍
+let haloTex = null;
+const makeHaloTex = () => canvasTex(64, 64, (c) => { const gr = c.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.3, 'rgba(255,255,255,.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, 64, 64); });
+function beatHalo(g, x, y, z, color, size) {
+  haloTex ||= makeHaloTex();
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+  s.position.set(x, y, z); s.scale.setScalar(size); s.visible = false; s.userData.noBake = true; s.userData.size = size; g.add(s);
+  return s;
+}
 
 const FONT = (px) => `bold ${px}px Jua, sans-serif`;
 const signTex = (text, bg, fg, w = 340) => canvasTex(w, 110, (c) => {
@@ -74,7 +85,8 @@ export function buildPierArea(anim = null) {
 
   // 가로등 (밤에 빛남): 서쪽 계단과 데크 사이 절벽 앞 + 두 팔 가운데 바깥쪽
   const lampMat = glowMat(0xfff4d2, 0xffe2a0, 0.25, 1.6);
-  const lamp = (x, z) => { cyl(0.06, 0.08, 3.2, metal, x, top + 1.6, z, 8); const h = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), lampMat); h.position.set(x, top + 3.3, z); g.add(h); };
+  const halos = [], beatSigns = []; // ⑤ 박자 빛 무리 · 들썩이는 간판
+  const lamp = (x, z) => { cyl(0.06, 0.08, 3.2, metal, x, top + 1.6, z, 8); const h = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), lampMat); h.position.set(x, top + 3.3, z); g.add(h); halos.push(beatHalo(g, x, top + 3.3, z, 0xffe2a0, 1.6)); };
   lamp(STAIRS[0].x1 + 0.6, P.z0 + 0.6);
   lamp(AW.x0 + 0.35, (AW.z0 + AW.z1) / 2); lamp(AE.x1 - 0.35, (AE.z0 + AE.z1) / 2);
   // 절벽에 건 구명 튜브
@@ -100,6 +112,7 @@ export function buildPierArea(anim = null) {
     cyl(L.r * 0.95, L.r * 0.95, 0.12, metal, L.x, yTop + 0.06, L.z, 14); // 둘레 발판
     const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.7, 10), glowMat(L.side === 'west' ? 0xd8fff0 : 0xfff0d0, L.side === 'west' ? 0x6dffb5 : 0xffb04a, 0.5, 3));
     lens.position.set(L.x, yTop + 0.47, L.z); g.add(lens);
+    halos.push(beatHalo(g, L.x, yTop + 0.47, L.z, L.side === 'west' ? 0x6dffb5 : 0xffb04a, 4.5));
     const cap = new THREE.Mesh(new THREE.ConeGeometry(0.62, 0.7, 10), band); cap.position.set(L.x, yTop + 1.17, L.z); cap.castShadow = true; g.add(cap);
     cyl(0.04, 0.04, 0.4, metal, L.x, yTop + 1.65, L.z, 6);
     const door = addBox(g, 0.5, 0.95, 0.06, woodDark, 0, 0, 0); // 문: 항구 쪽(안쪽)을 봄
@@ -124,9 +137,20 @@ export function buildPierArea(anim = null) {
   boat.position.set(BX, SEA_Y, BZ); boat.rotation.y = 0.08;
   boat.traverse((o) => { o.userData.noBake = true; if (o.isMesh) o.castShadow = true; });
   g.add(boat);
+  let lastBeat = null, hop = 0, flagK = 0, lastT = 0;
   anim?.push((t) => {
+    const dt = Math.min(0.1, Math.max(0, t - lastT)); lastT = t;
+    // ⑤ 박자: 배가 '통' 튀고 깃발이 펄럭, 등·등대 빛이 번쩍, 간판이 들썩 (낚시 줄다리기 중 + ⚙️에서 켰을 때만)
+    const on = BEAT.on && BEAT.fx.pier;
+    if (on && BEAT.n !== lastBeat) { lastBeat = BEAT.n; hop = BEAT.accent ? 1 : 0.6; flagK = 1; }
+    if (!on) lastBeat = null;
+    hop = Math.max(0, hop - dt * 5); flagK = Math.max(0, flagK - dt * 3);
+    const p = on ? BEAT.pulse * (BEAT.accent ? 1 : 0.65) : 0;
+    for (const s of halos) { s.visible = p > 0.02; s.material.opacity = p * 0.9; s.scale.setScalar(s.userData.size * (0.8 + p * 0.4)); }
+    for (const sg of beatSigns) sg.scale.set(1 + p * 0.06, 1 + p * 0.1, 1);
+    flag.rotation.y = Math.sin(t * 22) * 0.5 * flagK;
     const h = seaH(BX, BZ, t);
-    boat.position.y = h - 0.05;
+    boat.position.y = h - 0.05 + Math.sin(hop * Math.PI) * 0.12;
     boat.rotation.z = (seaH(BX + 1.5, BZ, t) - seaH(BX - 1.5, BZ, t)) * 0.12;
     boat.rotation.x = (seaH(BX, BZ + 1, t) - seaH(BX, BZ - 1, t)) * 0.15;
   });
@@ -151,9 +175,10 @@ export function buildPierArea(anim = null) {
     // 간판 (지붕 위, 남쪽을 봄) + 붉은 등 2개
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.78), new THREE.MeshBasicMaterial({ map: signTex('🍣 바다 횟집', '#fff8ea', '#c4382f', 360) }));
     sign.position.set(M.x, top + H + 0.6, z1 - 0.05); g.add(sign);
+    sign.userData.noBake = true; beatSigns.push(sign); // ⑤ 박자에 들썩
     addBox(g, 2.7, 0.86, 0.06, navy, M.x, top + H + 0.6, z1 - 0.1);
     const lanternM = glowMat(0xff6a4a, 0xff4a2a, 0.35, 2.2);
-    for (const px of [x0 + 0.45, x1 - 0.45]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), lanternM); l.scale.y = 1.3; l.position.set(px, top + H - 0.85, z1 + 0.62); g.add(l); }
+    for (const px of [x0 + 0.45, x1 - 0.45]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), lanternM); l.scale.y = 1.3; l.position.set(px, top + H - 0.85, z1 + 0.62); g.add(l); halos.push(beatHalo(g, px, top + H - 0.85, z1 + 0.62, 0xff6a4a, 1.4)); }
     // 사장님 = 기본 흰색 캐릭터 (사용자 11/26 — 문어·곰 등은 나중에). 탁구채 없이, 판매대 뒤에서 손님(남쪽)을 봄
     const boss = makeCharacter('#e0333c');
     boss.body.remove(boss.arm);

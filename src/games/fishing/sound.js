@@ -52,7 +52,12 @@ export function tone(f1, f2, dur, { type = 'sine', gain = 0.2, at = 0 } = {}) {
   o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.02);
 }
 
+// 소리가 귀에 닿기까지 늦는 시간(초): 브라우저가 알려 주는 값(블루투스 이어폰이면 0.1~0.3초) + ⚙️에서 더한 값.
+// 리듬 음악을 이만큼 먼저 틀어서, 들리는 박자 = 원이 닿는 순간 = 판정 순간이 되게 (fishing.md 8장 'A 판정 느낌')
+export function autoLag() { if (!ac) return 0; return Math.min(0.4, Math.max(0, (ac.outputLatency || 0) + (ac.baseLatency || 0))); }
+export function audioLag() { return Math.min(0.5, Math.max(0, autoLag() + (TUNE.lag || 0))); }
 export const snd = {
+  tap: () => { noise(0.025, { f: 1800, q: 4, gain: 0.07 }); }, // 노트가 없을 때 눌러도 '톡' (누른 게 느껴지게, 아주 작게)
   swing: () => noise(0.3, { f: 500, f2: 2800, q: 2, gain: 0.22 }),
   land: () => { tone(800, 220, 0.12, { gain: 0.14 }); noise(0.15, { type: 'lowpass', f: 1800, gain: 0.08 }); },
   tok: () => { tone(1300, 900, 0.05, { gain: 0.16 }); tone(700, 500, 0.04, { gain: 0.08, at: 0.01 }); },

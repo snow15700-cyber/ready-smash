@@ -17,10 +17,12 @@ import { makeModel } from './models.js';
 import { ITEM, makePaddle, paddleImage } from '../../items.js';
 import { breakAt } from '../../breaks.js';
 import { activeBubbles, bubbleNear } from './bubbles.js';
-import { audioCtx, initSound, quietSound, snd, tickSound } from './sound.js';
+import { audioCtx, audioLag, initSound, quietSound, snd, tickSound } from './sound.js';
 import { makePhrase, makeSong, playBeat, playFinish, playMelody } from './rhythm.js';
 import { PIER, SEA_Y, STAND, landingPoint, makeBobber, makeBubbleFx, makeFishModel, makeLine, makeRod, makeSplashes, seaHeight } from './world.js';
 import { drawHud, zoomRect } from './hud.js';
+import { BEAT } from './beat.js';
+import { makeBeatFx } from './beatFx.js';
 
 export { TUNE, openDex, dexOpen, initSound };
 
@@ -33,6 +35,7 @@ export function createFishing(opt) {
   const zoomCam = new THREE.PerspectiveCamera(30, 1, 0.05, 200); // 찌 확대 창
   const fx = makeSplashes(scene);
   const bubbleFx = makeBubbleFx(scene, fx);
+  const beatFx = makeBeatFx(scene, { makeShadow: () => makeShadowFish(), fx }); // 주변이 박자를 탐 (시안, ⚙️)
 
   // 나 (탁구채 대신 낚싯대)
   const me = makeCharacter('#e0333c');
@@ -281,8 +284,9 @@ export function createFishing(opt) {
   }
   function tickRhythm(rdt) {
     const R = S.R, rt = rtNow(), spb = R.spb;
-    // 음악: 0.25초 앞까지 박마다 미리 걸어 둠 (오디오 시각)
-    while (beatT(R.sched) < rt + 0.25) { playBeat(R.song, R.sched, R.aOff + R.base + beatT(R.sched), spb); R.sched++; }
+    // 음악: 0.25초 앞까지 박마다 미리 걸어 둠 (오디오 시각). 소리가 늦게 들리는 만큼(lag) 먼저 틀어서 들리는 박 = 원이 닿는 순간
+    const lag = audioLag();
+    while (beatT(R.sched) < rt + 0.25 + lag) { playBeat(R.song, R.sched, R.aOff + R.base + beatT(R.sched) - lag, spb); R.sched++; }
     // 노트 내보내기 (마지막 큰 노트를 기다리는 동안은 멈춤)
     if (!R.fin) {
       fillQueue();
@@ -304,10 +308,13 @@ export function createFishing(opt) {
     if (rt >= R.t0 - R.intro * spb && beat !== R.lastBeat) {
       R.lastBeat = beat;
       R.pulse = 1; R.pulseAmp = ((beat % 4) + 4) % 4 === 0 ? 1.6 : 1; S.rodKick = Math.max(S.rodKick, 0.2); // 마디 첫 박은 더 세게
+      BEAT.n = beat + S.stage * 10000; BEAT.pulse = 1; BEAT.accent = R.pulseAmp > 1; BEAT.side = -BEAT.side; // 주변 박자 (beat.js)
       if (beat === -2 && S.stage === 0) say('준비', { sx: 0.5, sy: 0.4, size: 34, life: spb * 0.9, rise: 0 });
       if (beat === -1 && S.stage === 0) say('시작!', { sx: 0.5, sy: 0.4, size: 34, life: spb * 0.9, rise: 0 });
     }
     R.pulse = Math.max(0, R.pulse - rdt / (spb * 0.5));
+    BEAT.on = rt >= R.t0 - R.intro * spb; BEAT.spb = spb; BEAT.phase = (((rt - R.t0) / spb) % 1 + 1) % 1;
+    R.press = Math.max(0, (R.press || 0) - rdt / 0.18);
     for (const n of R.notes) if (!n.res && rt > n.t + TUNE.noteG) noteResult(n, 'Miss');
     R.notes = R.notes.filter((n) => !n.res || rt - n.at < 0.5);
     // 손맛 연출 줄어들기
@@ -320,12 +327,15 @@ export function createFishing(opt) {
     const rt = rtNow();
     let near = null, bd = 1e9;
     for (const n of R.notes) if (!n.res) { const d = Math.abs(rt - n.t); if (d < bd) { bd = d; near = n; } }
-    if (!near || bd > 0.25) return; // 노트가 멀면 무시 (마구 눌러도 손해·이득 없음)
-    noteResult(near, bd <= TUNE.noteP ? 'Perfect' : bd <= TUNE.noteG ? 'Good' : 'Miss');
+    R.press = 1; // 판정과 상관없이 누른 순간 기본 원이 '꾹' (hud.js)
+    if (!near || bd > 0.25) { snd.tap(); return; } // 노트가 멀면 무시 (마구 눌러도 손해·이득 없음) — 작은 '톡'만
+    noteResult(near, bd <= TUNE.noteP ? 'Perfect' : bd <= TUNE.noteG ? 'Good' : 'Miss', rt - near.t);
   }
-  function noteResult(n, res) {
+  // d = 누른 시각 − 노트 시각(초, 음수 = 빨리). Perfect가 아니면 '빨라요/늦어요'를 작게 알려 줌 (안 누르고 지나간 놓침은 없음)
+  function noteResult(n, res, d = null) {
     const R = S.R;
     n.res = res; n.at = rtNow();
+    if (d !== null && res !== 'Perfect') n.ea = d < 0 ? 'early' : 'late';
     emit({ k: 'note', res }); // 고양이(cats.md 3b)가 Perfect '냥!' · 놓치면 귀 접힘
     const y = seaHeight(S.bob.x, S.bob.z, S.now);
     if (n.fin) R.fin = null;
@@ -513,6 +523,11 @@ export function createFishing(opt) {
         S.model.rotation.set(0, Math.PI / 2 + (S.R ? S.R.side : 1) * 0.6, (0.5 - k) * 1.4);
       } else S.hop = null;
     }
+    // 주변 박자 (시안 ⚙️ — 켠 것만)
+    if (S.mode !== 'fight') BEAT.on = false;
+    BEAT.pulse = Math.max(0, BEAT.pulse - rdt / (BEAT.spb * 0.5));
+    Object.assign(BEAT.fx, { sea: !!TUNE.bSea, pier: !!TUNE.bPier, body: !!TUNE.bBody, shadow: !!TUNE.bShadow });
+    beatFx.update(rdt, { bob: S.bob, now: S.now, stage: S.stage || 0, me, mode: S.mode });
     me.group.updateMatrixWorld(true);
     rod.tip.getWorldPosition(tipW);
 
@@ -614,6 +629,7 @@ export function createFishing(opt) {
       toReady();
       bubbleFx.update([], S.now, 0, seaHeight);
       quietSound(); // 파도 소리 끄기
+      BEAT.on = false; beatFx.hide();
       line.line.visible = false; bobber.visible = false;
     }
     me.group.visible = on;
