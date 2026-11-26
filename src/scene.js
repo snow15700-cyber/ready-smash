@@ -64,8 +64,11 @@ export function createWorld(canvas) {
   const urlBg = arenaFromUrl();
   const hemi = scene.children.find((o) => o.isHemisphereLight);
   let arena = null, arenaId = null;
-  // 몰입 연출용: 배경 재질의 원래 색을 기억해 두고 setFocus로 어둡게
+  // 몰입 연출용: 배경 재질의 원래 색을 기억해 두고 setFocus로 어둡게.
+  // 재질이 아니라 '물건(+몇 번째 재질)'을 기억한다: 물결 효과(bubbleFx prepWave)가 바닥·벽 같은 큰 물건의 재질을
+  // 복사본으로 바꿔 끼우므로, 그때그때 물건에 지금 붙어 있는 재질을 어둡게 해야 한다
   let envMats = [];
+  const envMat = (e) => (e.i < 0 ? e.o.material : e.o.material[e.i]);
   let bg0 = scene.background.clone();
   let focusK = 0;
   // 배경 코드(arenas.js, 약 170KB)는 첫 로딩을 빠르게 하려고 처음에는 안 받고, 체육관이 아닌 배경이 필요할 때 받는다
@@ -92,7 +95,7 @@ export function createWorld(canvas) {
   }
   function swapArena(id, next) {
     // 몰입 연출을 풀어 원래 색으로 되돌린 뒤 옛 배경을 치운다
-    for (const e of envMats) e.m.color.copy(e.c);
+    for (const e of envMats) envMat(e).color.copy(e.c);
     if (arena) { scene.remove(arena.root); disposeArena(arena.root); }
     arena = next;
     arenaId = id;
@@ -103,7 +106,8 @@ export function createWorld(canvas) {
     envMats = [];
     arena.root.traverse((o) => {
       if (o.userData.noFocus || !o.material) return;
-      for (const m of [].concat(o.material)) if (m.color && !envMats.some((e) => e.m === m)) envMats.push({ m, c: m.color.clone() });
+      const ms = [].concat(o.material);
+      ms.forEach((m, i) => { if (m.color) envMats.push({ o, i: Array.isArray(o.material) ? i : -1, c: m.color.clone() }); });
     });
     if (focusK) { const k = focusK; focusK = -1; world.setFocus(k); }
   }
@@ -140,7 +144,7 @@ export function createWorld(canvas) {
     if (plaza) plaza.root.visible = on;
     if (arena) arena.root.visible = !on;
     if (table) table.visible = !on;
-    if (on) { focusK = 0; for (const e of envMats) e.m.color.copy(e.c); }
+    if (on) { focusK = 0; for (const e of envMats) envMat(e).color.copy(e.c); }
     if (on || arena) applyEnv(on ? plaza : arena);
   }
   // 탁구대: 꾸미기로 바뀐다 (tables.js). 방에서는 방장 것, 로비·혼자 하기는 내 것 (main.js 루프). 보기만 다름
@@ -333,7 +337,7 @@ export function createWorld(canvas) {
       if (Math.abs(k - focusK) < 0.003) return;
       focusK = k;
       const f = Math.pow(1 - FOCUS_DARK * k, 2.2); // 눈으로 보는 밝기 기준으로 줄이기
-      for (const e of envMats) e.m.color.copy(e.c).multiplyScalar(f);
+      for (const e of envMats) envMat(e).color.copy(e.c).multiplyScalar(f);
       crowd.setDim(f); // 관중석도 같이 (경기 도중에 들어온 관중 포함)
       scene.background.copy(bg0).lerp(FOCUS_BG, k);
       scene.fog.color.copy(scene.background);
