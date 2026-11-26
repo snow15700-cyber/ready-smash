@@ -6,6 +6,7 @@ import { hud } from '../../ui/hud.js';
 import { esc } from '../../ui/state.js';
 import { CAT_NAME, CAT_IDS, OUTFITS, canWear, heartOf, heartProgress, heartsText } from './rules.js';
 import { COATS, makeCat, setCatWear } from './models.js';
+import { followChoice, setFollowChoice } from './plazaCats.js';
 
 const css = document.createElement('style');
 css.textContent = `
@@ -31,6 +32,8 @@ css.textContent = `
 #mycats .wear { grid-column: 1 / -1; display: flex; gap: 5px; flex-wrap: wrap; }
 #mycats .wear button { padding: 5px 9px; background: rgba(255,255,255,.12); font-size: 12px; }
 #mycats .wear button.on { background: linear-gradient(180deg, #ff8fb0, #ff5f8f); box-shadow: 0 3px 10px rgba(255,95,143,.35); }
+#mycats .wear button.go { background: linear-gradient(180deg, #7fd38a, #3fa85a); }
+#mycats .wear button.go.on { background: linear-gradient(180deg, #ffd23f, #f0a500); color: #3a2a00; }
 #mycats .wear button:disabled { opacity: .45; cursor: default; }
 #mycats .tip { padding: 0 16px 14px; font-size: 12px; color: rgba(255,255,255,.65); }
 @media (max-width: 560px) { #mycats .grid { grid-template-columns: 1fr; } }
@@ -81,20 +84,28 @@ function render() {
   el.querySelector('.grid').innerHTML = CAT_IDS.map((id) => {
     const me = mine[id], pts = me?.pts || 0, [a, b] = heartProgress(pts), out = me?.outfit || {};
     const left = me ? Math.ceil((me.readyAt - Date.now()) / 60000) : 0;
-    const meal = !me ? '아직 처음 만났어요 · 선착장에서 🐟를 줘 보세요' : left > 0 ? `😴 배불러요 · 다음 밥 ${left}분 뒤` : '🐟 지금 밥을 줄 수 있어요';
+    const meal0 = !me ? '아직 처음 만났어요 · 선착장에서 🐟를 줘 보세요' : left > 0 ? `😴 배불러요 · 다음 밥 ${left}분 뒤` : '🐟 지금 밥을 줄 수 있어요';
     const wear = OUTFITS.map((o) => {
       const ok = canWear(pts, o.slot), on = !!out[o.slot];
       if (!ok) return `<button disabled title="♥${o.heart}에 열려요">🔒 ♥${o.heart} ${o.icon}</button>`;
       if (o.later) return `<button disabled title="곧 나와요">${o.icon} 곧 나와요</button>`;
       return `<button class="${on ? 'on' : ''}" data-cat="${id}" data-slot="${o.slot}">${o.icon} ${esc(o.name)}${on ? ' ✓' : ''}</button>`;
     }).join('');
+    const fol = followChoice() === id;
+    const go = heartOf(pts) >= 3 ? `<button class="go${fol ? ' on' : ''}" data-go="${id}">🐾 ${fol ? '같이 다니는 중' : '데리고 다니기'}</button>` : `<button disabled title="♥3에 열려요">🔒 ♥3 🐾 데리고 다니기</button>`;
     return `<div class="card${me ? '' : ' new'}"><div class="pic"><img alt="" src="${catPic(id, out)}"></div>
       <div><div class="nm">${esc(CAT_NAME[id])}<small>${esc(COATS[id].note)}</small></div>
       <div class="ht">${heartsText(pts)}</div><div class="bar"><i style="width:${(a / b) * 100}%"></i></div>
-      <div class="meal">${heartOf(pts) >= 5 ? '💞 단짝!' : `다음 ♥까지 ${b - a}마리`} · ${meal}</div></div>
-      <div class="wear">${wear}</div></div>`;
+      <div class="meal">${heartOf(pts) >= 5 ? '💞 단짝!' : `다음 ♥까지 ${b - a}마리`} · ${meal0}</div></div>
+      <div class="wear">${go}${wear}</div></div>`;
   }).join('');
   for (const bt of el.querySelectorAll('.wear button[data-slot]')) bt.onclick = () => toggle(bt.dataset.cat, bt.dataset.slot);
+  for (const bt of el.querySelectorAll('.wear button[data-go]')) bt.onclick = () => { // 한 번에 한 마리 · 다시 누르면 집(선착장)으로
+    const id = bt.dataset.go, fol = followChoice() === id;
+    setFollowChoice(fol ? null : id);
+    hud.toast(fol ? `🏠 ${CAT_NAME[id]}는 선착장으로 돌아갔어요` : `🐾 ${CAT_NAME[id]}가 따라다녀요${heartOf(account.cats[id].pts) >= 5 ? ' · 가만히 있으면 어깨 위로!' : ''}`, 2200);
+    render();
+  };
 }
 async function toggle(cat, slot) {
   if (busy) return;

@@ -83,7 +83,7 @@ const myPid = () => (account.loggedIn ? account.player?.id ?? null : null);
 const inAI = () => game?.mode === 'ai';
 const myInfo = () => ({ id: myId, nick: myNick(), title: myTitle(), titleX: myNemesis(), look: myEquip(), at: pz.at, mob: IS_MOBILE, kim: inAI() });
 // 자주 바뀌는 것은 메시지로: 걷기·탁구대 자리·준비·경기 채널 코드·연승·선수 번호
-const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid(), kc: pz.kim, fi: fishHooks.state?.() ?? null });
+const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid(), kc: pz.kim, fi: fishHooks.state?.() ?? null, ct: catHooks.state?.() ?? null });
 // 낚시 (src/ui/fishing.js, fishing.md 12장)가 끼어드는 곳 — fishing.js가 채운다 (서로 불러오지 않게)
 //   on() 낚시 중인지 · state() 내 상태에 실을 낚시 정보 · frame(now, 내 자리) · hidden() 광장이 안 보임 · onMsg(m, 사람) · onSay(사람, 글)
 export const fishHooks = {};
@@ -184,7 +184,7 @@ function rebuild() {
       w: m.id === myId ? null : cleanWalk(m.w, now),
       seat: mob ? null : cleanSeat(m.seat), rdy: !!m.rdy, code: typeof m.code === 'string' && /^[A-Z0-9]{4}$/.test(m.code) ? m.code : null,
       pid: (typeof m.pid === 'string' && m.pid.length <= 64) || Number.isInteger(m.pid) ? m.pid : null,
-      kim: m0.kim === true, called: cleanKim(m.kc), fi: cleanFi(m.fi),
+      kim: m0.kim === true, called: cleanKim(m.kc), fi: cleanFi(m.fi), ct: catHooks.clean?.(m.ct) ?? null,
     });
   }
   // 40명까지: 먼저 들어온 순서 (들어온 시각 → id 순, 모든 PC가 같은 규칙)
