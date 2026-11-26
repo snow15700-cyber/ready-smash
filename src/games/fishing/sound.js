@@ -1,7 +1,7 @@
-// 낚시 소리 (Web Audio 합성 — 녹음 파일 없음): 잔잔한 파도 · 톡 · 풍덩 · 뽁(가짜가 튀어 오름) · 릴 드르륵 · 줄 끼이익 · 물보라 · 끊어짐 · 잡음
+// 낚시 소리 (Web Audio 합성 — 녹음 파일 없음): 잔잔한 파도 · 톡 · 풍덩 · 뽁(가짜가 튀어 오름) · 물보라 · 끊어짐 · 잡음
 import { TUNE } from './data.js';
 
-let ac = null, out = null, noiseBuf = null, whine = null, sea = null;
+let ac = null, out = null, noiseBuf = null, sea = null;
 export function initSound() {
   if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
   try {
@@ -10,12 +10,6 @@ export function initSound() {
     noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    // 줄이 팽팽할 때 '끼이익' (켜 두고 크기만 바꿈)
-    const o = ac.createOscillator(); o.type = 'sawtooth';
-    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 14;
-    const g = ac.createGain(); g.gain.value = 0;
-    o.connect(bp); bp.connect(g); g.connect(out); o.start();
-    whine = { o, bp, g };
     // 잔잔한 파도: 낮은 소리 노이즈를 천천히 크게·작게
     const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
     const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
@@ -24,11 +18,10 @@ export function initSound() {
     sea = { g: sg, lp };
   } catch { ac = null; }
 }
-// 낚시를 그만두면 파도·줄 소리를 줄여서 끔 (안 그러면 광장에서도 파도 소리가 계속 남 — 다시 낚시하면 tickSound가 되살림)
+// 낚시를 그만두면 파도 소리를 줄여서 끔 (안 그러면 광장에서도 파도 소리가 계속 남 — 다시 낚시하면 tickSound가 되살림)
 export function quietSound() {
   if (!ac) return;
   sea.g.gain.setTargetAtTime(0, ac.currentTime, 0.4);
-  whine.g.gain.setTargetAtTime(0, ac.currentTime, 0.05);
 }
 export function setSoundOn(on) { if (out) out.gain.setTargetAtTime(on ? 0.8 : 0, ac.currentTime, 0.05); }
 
@@ -82,12 +75,8 @@ export const snd = {
   win: (legend) => (legend ? [523, 659, 784, 1047, 1319] : [523, 659, 784, 1047]).forEach((f, i) => tone(f, f, 0.26, { type: 'triangle', gain: 0.16, at: 0.25 + i * 0.09 })),
 };
 
-// 매 프레임: 줄 장력 소리 + 파도 숨쉬기
-export function tickSound(t, tension) {
+// 매 프레임: 파도 숨쉬기
+export function tickSound(t) {
   if (!ac) return;
-  const k = Math.max(0, (tension - 0.55) / 0.45);
-  whine.g.gain.setTargetAtTime(k * k * 0.06, ac.currentTime, 0.03);
-  whine.o.frequency.setTargetAtTime(220 + tension * 460, ac.currentTime, 0.05);
-  whine.bp.frequency.setTargetAtTime(900 + tension * 1700, ac.currentTime, 0.05);
   sea.g.gain.setTargetAtTime(0.035 + 0.03 * (0.5 + 0.5 * Math.sin(t * 0.55)) * (0.6 + 0.4 * Math.sin(t * 0.21)), ac.currentTime, 0.3);
 }

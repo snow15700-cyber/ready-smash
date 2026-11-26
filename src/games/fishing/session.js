@@ -261,8 +261,12 @@ export function createFishing(opt) {
     fillQueue();
     // 맞출 때 물 위로 살짝 튀는 물고기 = 아직 무슨 물고기인지 모르게 검은 그림자. 단계가 오를수록 크게
     if (S.model) scene.remove(S.model);
-    S.model = makeShadowFish(); S.model.visible = false; S.model.scale.setScalar(Math.max(0.7 + stage * 0.4, S.fish?.kind === 'fish' && S.size ? modelScale(S.size.s) * 0.8 : 0)); scene.add(S.model); // 큰 놈은 그림자도 큼
+    S.model = shadowFish ||= makeShadowFish(); S.model.visible = false; S.model.scale.setScalar(Math.max(0.7 + stage * 0.4, S.fish?.kind === 'fish' && S.size ? modelScale(S.size.s) * 0.8 : 0)); scene.add(S.model); // 큰 놈은 그림자도 큼
   }
+  // 모형은 한 번 만든 걸 다시 씀(잡을 때마다 새로 만들면 무늬·재료가 GPU 메모리에 쌓임). 위치·크기·회전은 쓸 때마다 다시 정함
+  let shadowFish = null;
+  const models = new Map(); // 'fish:<id>' · 'paddle:<id>' → 모형 (종류가 33개뿐)
+  const cachedModel = (key, make) => { if (!models.has(key)) models.set(key, make()); return models.get(key); };
   function makeShadowFish() {
     const m = makeFishModel(FISH.mackerel), mat = new THREE.MeshStandardMaterial({ color: 0x1b2a3a, roughness: 0.6 });
     m.traverse((o) => { if (o.isMesh) o.material = mat; });
@@ -390,8 +394,8 @@ export function createFishing(opt) {
     setMode('land');
     if (S.model) scene.remove(S.model); // 그림자 → 진짜 물고기 (여기서 처음 공개)
     const c = S.fish;
-    if (c.kind === 'paddle') { S.model = new THREE.Group(); const p = makePaddle(ITEM[c.id]); p.scale.setScalar(3.4); S.model.add(p); }
-    else S.model = makeModel(c.id);
+    if (c.kind === 'paddle') S.model = cachedModel('paddle:' + c.id, () => { const g = new THREE.Group(), p = makePaddle(ITEM[c.id]); p.scale.setScalar(3.4); g.add(p); return g; });
+    else S.model = cachedModel('fish:' + c.id, () => makeModel(c.id));
     scene.add(S.model);
     const M = S.model; M.visible = true;
     if (c.kind === 'paddle') S.cutin = { t: 0, txt: '🏓 전설 탁구채!!', sub: c.dup ? `${c.name} — 이미 있어서 조각 ${PADDLE_DUP_PIECES}개` : c.name, color: '#ffc21a' };
@@ -403,6 +407,7 @@ export function createFishing(opt) {
     const y = seaHeight(S.bob.x, S.bob.z, S.now);
     const T = { monster: { slow: 0.7, stamp: 1.9, end: 3.6, drops: 90, pow: 2.6, shake: 26 }, huge: { slow: 0.45, stamp: 1.4, end: 2.7, drops: 60, pow: 2, shake: 18 }, big: { slow: 0.3, stamp: 1.1, end: 2.1, drops: 40, pow: 1.6, shake: 10 } }[tier?.id] || { slow: 0.2, stamp: 1.0, end: 1.9, drops: 30, pow: 1.3, shake: 0 };
     S.land = { from: new THREE.Vector3(S.bob.x, y, S.bob.z), stamped: false, sc, tier, T, pull: clamp((sc - 2) * 0.55, 0, 1.8) };
+    M.position.copy(S.land.from); // 다시 쓰는 모형이라 지난번 자리에 한 프레임 보이지 않게
     S.slow = T.slow; S.hop = null; S.shake = Math.max(S.shake, T.shake);
     fx.burst(S.bob.x, y, S.bob.z, T.drops, T.pow); snd.splash(1.2 + (T.pow - 1.3)); buzz(tier ? [60, 40, 160, 40, 220] : [30, 40, 80]);
     say(tier?.id === 'monster' ? '콰아아아앙!!!' : tier?.id === 'huge' ? '촤아아악!!' : '촤아악!', { at: bobAbove(1.2 + sc * 0.4), size: 40 + (sc - 1) * 14, life: 0.9, shake: tier ? 6 : 0 });
@@ -564,7 +569,7 @@ export function createFishing(opt) {
     if (S.judge) { S.judge.t += rdt; if (S.judge.t > 1.1) S.judge = null; }
     if (S.cutin) S.cutin.t += rdt;
     if (S.stamp) S.stamp.t += rdt;
-    tickSound(S.now, 0);
+    tickSound(S.now);
   }
 
   // ── 카메라: 어깨 높이 (사용자 확정 11/25)

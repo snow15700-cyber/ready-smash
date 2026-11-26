@@ -207,9 +207,12 @@ function addChat(nick, text) {
   while (chat.length > CHAT_KEEP) chat.shift();
   if (on) renderChat();
 }
+let chatDrawn = 0; // 마지막으로 그린 때 — 매 프레임 말고 0.5초에 한 번만 다시 그림(서서히 사라지는 건 CSS transition)
 function renderChat() {
   const now = performance.now() / 1000;
-  $('fish-chat').innerHTML = chat.filter((c) => now - c.t < CHAT_LIFE)
+  while (chat.length && now - chat[0].t >= CHAT_LIFE) chat.shift(); // 다 사라진 줄은 지움 → 다 사라지면 더는 안 그림
+  chatDrawn = now;
+  $('fish-chat').innerHTML = chat
     .map((c) => `<div style="opacity:${Math.min(1, (CHAT_LIFE - (now - c.t)) / 2).toFixed(2)}"><b>${esc(c.nick)}</b>${esc(c.text)}</div>`).join('');
 }
 
@@ -345,7 +348,7 @@ fishHooks.frame = (now, p, walking) => {
   }
   // 다른 사람 반투명 (새로 들어온 사람도)
   for (const f of plazaApi.view.figs.values()) if (!f.me && !f.fishOp) { f.c.setOpacity(OTHERS_OP, 1); f.fishOp = true; }
-  if (chat.length) renderChat();
+  if (chat.length && performance.now() / 1000 - chatDrawn > 0.5) renderChat();
 };
 // main.js: 3D를 그린 뒤 (찌 확대 창 · 낚시 화면 글자)
 export function fishAfterRender() {
