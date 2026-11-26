@@ -33,7 +33,6 @@ export const bub = {
 // 관전자 거품과 같은 효과(불꽃 띠·물건 하나둘). 네트워크는 0 (각자 PC에서, 'go'를 받은 시각 기준)
 let mw = { on: false, enter: true, t: -1, q: 0, look: null, env: null, cam: null };
 const mwOut = () => mw.on && !mw.enter;
-export const bubbleOn = () => bub.phase !== 'off';
 export const bubbleArena = () => bub.phase === 'in' || bub.phase === 'inside' || bub.phase === 'out' || mwOut(); // 경기장을 그리는 중
 export const bubbleLook = () => (mwOut() ? mw.look : bubbleArena() || bub.phase === 'join' ? bub.hostM?.look || null : null);
 export const bubbleSeated = () => bub.phase === 'inside' && bub.seated;
@@ -319,7 +318,6 @@ export function aiWaveCam(now) {
   cam.position.y += Math.sin(Math.PI * k) * 0.6;
   cam.lookAt(...lp(wc.look, fwd.toArray()));
 }
-export const aiWaveOn = () => !!aiW;
 const AI_CAM = 1.1; // 광장 카메라 → 경기 카메라 (초) // 마지막으로 본 광장 하늘·빛 (경기 시작 물결은 광장을 더 안 그리니까)
 // 경기 시작: VS 소개가 시작될 때 (intro.js). t = 탁구대 번호. 카메라는 광장 3인칭 자리에서 출발
 introHooks.waveStart = (t) => {
@@ -469,5 +467,4 @@ export function setSeated(on) {
   if (!on) world.crowd.setFirstPerson(true);
   renderBar();
 }
-export const bubbleDebug = bub;
 export const matchWaveDebug = () => mw; // 점검용: 선수 물결 상태

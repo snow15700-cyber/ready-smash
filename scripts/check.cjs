@@ -637,7 +637,8 @@ async function browserChecks() {
       // 광장 낚시 (fishing.md 12장): 판 위 '🎣 낚시하기' → 그 자리에서 낚시 · 다른 사람에게 찌가 보임 · 잡으면 말풍선 · 그만하기
       const bHome = await b.evaluate(() => window.__smash.plaza.pz.myW.to.slice());
       await b.evaluate(() => window.__smash.plaza.walkTo([9, 43.6]));
-      await waitFor(b, () => !document.querySelector('#fish-start').classList.contains('hidden'), null, 30000, '낚시 판에서 낚시하기 버튼');
+      // 버튼은 걷다 잠깐 멈춰도 뜰 수 있어서(느린 PC) 끝까지 걸어와 선 뒤에 누른다 — 낚시는 지금 서 있는 자리에서 시작
+      await waitFor(b, () => { const f = [...window.__smash.plaza.view.figs.values()].find((g) => g.me); return f?.disp && Math.hypot(f.disp[0] - 9, f.disp[1] - 43.6) < 0.2 && !document.querySelector('#fish-start').classList.contains('hidden'); }, null, 40000, '낚시 판 그 자리에 서서 낚시하기 버튼');
       // 판 위에서 판 바닥을 누르면 그 자리 (높이 0 평면이 아니라 낮은 판 바닥 — 예전엔 그 위 빈 공중이 눌림)
       const pierPick = await b.evaluate(() => {
         const { world, plaza } = window.__smash, cam = world.camera, rc = world.renderer.domElement.getBoundingClientRect();
