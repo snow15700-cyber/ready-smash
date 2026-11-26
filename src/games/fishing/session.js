@@ -53,7 +53,7 @@ export function createFishing(opt) {
     cast: null, bob: new THREE.Vector3(), dip: 0, dipV: 0, bobLanded: false, near: 0,
     seq: [], evI: -1, ev: null, nextEv: 0, calm: 0, alertT: -1,
     fish: null, stage: 0, size: null, grade: '', R: null, land: null, result: null, model: null,
-    rodPitch: -0.95, rodPitchV: 0, bend: 0, rodKick: 0, hitstop: 0, slow: 0, shake: 0, zshake: 0, flash: 0, cutin: null, stamp: null,
+    rodPitch: -0.95, rodPitchV: 0, bend: 0, camK: 0, rodKick: 0, hitstop: 0, slow: 0, shake: 0, zshake: 0, flash: 0, cutin: null, stamp: null,
     texts: [], judge: null, bubbles: [], bubbleNote: null, seenBubbles: new Set(),
   };
   const dbg = {
@@ -61,7 +61,7 @@ export function createFishing(opt) {
     // 디버그: 리듬 없이 바로 잡기 연출 (점검·스크린샷용). landNow = 던진 뒤(입질 기다리는 중) 바로 잡기 — 서버 연결 점검용
     landNow: () => { if (S.mode !== 'wait' || !S.fish) return false; S.size = S.srvSize || rollSize(); S.grade = 'Perfect'; S.R = { perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 }; startLand(); return true; },
     online: () => isOn(),
-    catchNow: () => { if (S.mode !== 'ready') return; const p = landingPoint(S.standX, 0, 0.5, S.standZ); S.bob.set(p.x, 0, p.z); S.bobLanded = true; S.fish = pickCatch(0, catchCtx()); S.size = rollSize(); S.grade = 'Perfect'; S.R = { perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 }; startLand(); }, stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(), cast: (aim = 0, power = 0.5) => { initSound(); castTo(aim, power); }, rt: () => (S.R ? nowS() - S.R.base : 0) };
+    catchNow: () => { if (S.mode !== 'ready') return; const p = landingPoint(S.standX, 0, 0.5, S.standZ); S.bob.set(p.x, 0, p.z); S.bobLanded = true; S.fish = pickCatch(0, catchCtx()); S.size = rollSize(); S.grade = 'Perfect'; S.R = { perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 }; startLand(); }, fightNow: () => { if (S.mode !== 'ready') return; const p = landingPoint(S.standX, 0, 0.5, S.standZ); S.bob.set(p.x, 0, p.z); S.bobLanded = true; S.cast = { to: new THREE.Vector3(p.x, 0, p.z) }; S.fish = pickCatch(0, catchCtx()); S.size = rollSize(); S.grade = 'Perfect'; startRhythm(); }, hit: () => pressNote(), stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(), cast: (aim = 0, power = 0.5) => { initSound(); castTo(aim, power); }, rt: () => (S.R ? nowS() - S.R.base : 0) };
   const rnd = (a, b) => a + Math.random() * (b - a);
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   const DECK = PIER.y + 0.04;
@@ -221,8 +221,9 @@ export function createFishing(opt) {
 
   // 리듬 (fishing.md 8장): 박자·패턴·음악은 rhythm.js가 한 마리마다·구절(4마디)마다 새로 조립 (반복 안 되게)
   // 시간은 진짜 시계(performance.now)로 잼 — 음악(오디오 시각)과 어긋나지 않고, 누른 순간을 정확히 잼.
-  // 원은 2박 동안 줄어듦(마지막 큰 노트는 3박). 거리 게이지 0~100, 60에서 시작: Good −g · Perfect −1.4g · Miss +1.2g
-  // (g = 60 ÷ (기준 노트 수 × 0.9)). 0 = 잡음 · 100 = 도망. 한 번만 더 맞추면 잡힐 때 → 마지막 큰 노트(맞추면 바로 잡힘)
+  // 원은 2박 동안 줄어듦(마지막 큰 노트는 3박). 거리 게이지 0~100, 60에서 시작: Good·Perfect 똑같이 −g · Miss +m
+  // (11/26 사용자 확정: 길이는 '시간'으로 — 단계마다 secs초 동안 나올 노트를 다 맞추면 마지막 큰 노트.
+  //  Perfect는 빨리 끝내지 않고 연출만 더 좋게. m = 처음부터 missOut번 놓치면 도망). 0 = 잡음 · 100 = 도망
   const rtNow = () => nowS() - S.R.base;
   // stage: 0 일반 · 1 희귀 · 2 전설 단계. 단계마다 그 등급의 박자·노트 수·음악(새 조)으로 새로 시작.
   // 두 번째 단계부터는 거리 50에서 (처음 60보다 덜 가혹하게 — 사용자 확정 11/25)
@@ -234,14 +235,19 @@ export function createFishing(opt) {
     const spb = 60 / song.bpm;
     // 단계가 오를 때는 기다림을 짧게 (사용자 요청 11/25: 약 3초 → 약 1.3초): 0.3초 + 음악만 2박, "무겁다!"는 첫 원 위에 짧게 겹침
     const lead = stage === 0 ? 0.5 : 0.3, intro = stage === 0 ? 4 : 2;
-    const g = 60 / ((S.fish?.kind === 'junk' ? 4 : f.notes) * 0.9); // 잡동사니는 짧게 (4노트쯤)
+    const dist = stage === 0 ? 60 : 50, secs = S.fish?.kind === 'junk' ? 3 : f.secs; // 잡동사니는 짧게 (3초쯤)
     S.R = {
       song, spb, base: nowS(), t0: lead + intro * spb, intro, // 첫 노트 구절의 첫 박 (그 전 intro박은 음악만 — 들어가는 마디)
-      queue: [], phrases: 0, notes: [], dist: stage === 0 ? 60 : 50, g, m: g * 1.2, lastBeat: -99, sched: -intro, pulse: 0, side: 1,
+      queue: [], phrases: 0, notes: [], dist, g: 1, m: (100 - dist) / f.missOut, lastBeat: -99, sched: -intro, pulse: 0, pulseAmp: 1, side: 1, pcombo: 0,
       hits: prev ? prev.hits : 0, perfects: prev ? prev.perfects : 0, misses: prev ? prev.misses : 0,
       fin: null, aOff: 0, bump: 0, tilt: 0, reel: 0, slack: 0, burst: null, shown: prev ? prev.shown : undefined,
     };
     const ac = audioCtx(); if (ac) S.R.aOff = ac.currentTime - nowS();
+    // g: 이번 패턴에서 secs초 안에 나오는 노트 수(N)를 세어, N번 맞추면 거리가 g만큼 남게 → 다음이 마지막 큰 노트
+    const R = S.R;
+    while (!R.queue.length || R.queue[R.queue.length - 1].beat * spb < secs) { for (const x of makePhrase(R.song)) R.queue.push({ beat: R.phrases * 16 + x }); R.phrases++; }
+    const N = Math.max(3, R.queue.filter((q) => q.beat * spb < secs).length);
+    R.g = dist / (N + 1);
     fillQueue();
     // 맞출 때 물 위로 살짝 튀는 물고기 = 아직 무슨 물고기인지 모르게 검은 그림자. 단계가 오를수록 크게
     if (S.model) scene.remove(S.model);
@@ -291,7 +297,7 @@ export function createFishing(opt) {
     const beat = Math.floor((rt - R.t0) / spb + 1e-6);
     if (rt >= R.t0 - R.intro * spb && beat !== R.lastBeat) {
       R.lastBeat = beat;
-      R.pulse = 1; S.rodKick = Math.max(S.rodKick, 0.2);
+      R.pulse = 1; R.pulseAmp = ((beat % 4) + 4) % 4 === 0 ? 1.6 : 1; S.rodKick = Math.max(S.rodKick, 0.2); // 마디 첫 박은 더 세게
       if (beat === -2 && S.stage === 0) say('준비', { sx: 0.5, sy: 0.4, size: 34, life: spb * 0.9, rise: 0 });
       if (beat === -1 && S.stage === 0) say('시작!', { sx: 0.5, sy: 0.4, size: 34, life: spb * 0.9, rise: 0 });
     }
@@ -318,7 +324,7 @@ export function createFishing(opt) {
     if (n.fin) R.fin = null;
     if (res === 'Miss') {
       // 놓침: 릴이 '지이익' 거꾸로 · 줄이 늘어짐 · 화면이 살짝 기울었다 돌아옴
-      R.dist = Math.min(100, R.dist + R.m); R.misses++;
+      R.dist = Math.min(100, R.dist + R.m); R.misses++; R.pcombo = 0;
       snd.noteMiss(); S.shake = Math.max(S.shake, 5); S.rodKick = -0.7;
       R.reel = -1; R.slack = 1; R.tilt = R.side;
       say('지이익…', { at: bobAbove(0.8), size: 28, color: '#c9d3e0', life: 0.7, shake: 2 });
@@ -327,6 +333,7 @@ export function createFishing(opt) {
     }
     const p = res === 'Perfect';
     R.hits++; if (p) R.perfects++;
+    R.pcombo = p ? R.pcombo + 1 : 0; if (p && R.pcombo >= 2) n.combo = R.pcombo; // Perfect 연속: '×3' 글자
     playMelody(R.song, n.beat, p); // 내가 누른 소리가 멜로디가 됨
     if (n.fin) { // 마지막 큰 노트: 크게 당겨 바로 잡음 (아직 더 높은 등급이면 "무겁다!" → 다음 단계)
       if (S.stage < stageOf(S.fish)) return stageUp();
@@ -337,12 +344,15 @@ export function createFishing(opt) {
       return startLand();
     }
     // 맞춤: 낚싯대를 '휙' 들어 올림 · 물고기가 살짝 튐 · 화면이 순간 확대 · Perfect는 원이 터지며 불꽃
-    R.dist = Math.max(1, R.dist - R.g * (p ? 1.4 : 1));
-    S.rodPitchV += p ? 7 : 5; S.rodKick = 1; S.shake = Math.max(S.shake, p ? 6 : 4);
-    R.bump = p ? 1.3 : 0.8; R.reel = 1; R.burst = { t: 0, p };
+    // Perfect도 거리는 Good과 같음(빨리 안 끝남) — 대신 연출이 더 큼: 더 크게 튐·번쩍·물보라, 연속이면 점점 더
+    R.dist = Math.max(1, R.dist - R.g);
+    const c = p ? Math.min(1, (R.pcombo - 1) / 4) : 0; // 연속 Perfect 0~1
+    S.rodPitchV += p ? 8 : 5; S.rodKick = 1; S.shake = Math.max(S.shake, p ? 7 + c * 3 : 4);
+    R.bump = p ? 1.4 + c * 0.4 : 0.8; R.reel = 1; R.burst = { t: 0, p };
+    if (p) S.flash = Math.max(S.flash, 0.18 + c * 0.17);
     R.side = -R.side;
-    S.hop = { t: 0, h: p ? 0.9 : 0.5 };
-    fx.burst(S.bob.x, y, S.bob.z, p ? 14 : 8, p ? 0.9 : 0.6);
+    S.hop = { t: 0, h: p ? 1 + c * 0.4 : 0.5 };
+    fx.burst(S.bob.x, y, S.bob.z, p ? 16 + Math.round(c * 10) : 8, p ? 1 + c * 0.3 : 0.6);
     buzz(p ? 25 : 15);
   }
 
@@ -509,6 +519,7 @@ export function createFishing(opt) {
     }
 
     fx.update(dt);
+    S.camK += ((S.mode === 'fight' ? S.stage : 0) - S.camK) * Math.min(1, rdt * (S.mode === 'fight' ? 4 : 2.5)); // 단계 카메라(확대·기울기): 잡으면 천천히 돌아옴
     S.shake = Math.max(0, S.shake - rdt * 30);
     S.zshake = Math.max(0, S.zshake - rdt * 40);
     S.flash = Math.max(0, S.flash - rdt * 4);
@@ -526,13 +537,18 @@ export function createFishing(opt) {
     const pull = S.mode === 'land' && S.land ? S.land.pull * clamp(S.t / 0.8, 0, 1) : 0; // 큰 놈을 낚으면 카메라가 물러남
     const back = S.standZ - 3.0 - pull, cz = Math.max(PIER.z0 + 0.4, back); // 판 뒤쪽에 서면 카메라가 절벽 안으로 안 가게 (대신 조금 높이)
     camera.position.set(S.standX + 0.95 + pull * 0.3, DECK + 2.15 + pull * 0.55 + (cz - back) * 0.7, cz);
-    S.camLook.set(S.standX - 0.4, SEA_Y + 0.4 + pull * 1.3, S.mode === 'land' ? S.standZ + 7 + pull : S.standZ + 11); // 광장 카메라와 이어 붙일 때 씀
     if (S.shake > 0) { camera.position.x += (Math.random() - 0.5) * S.shake * 0.012; camera.position.y += (Math.random() - 0.5) * S.shake * 0.012; }
+    // 단계 카메라 (11/26 사용자 확정): 희귀 단계 = 확대 + 오른쪽으로 약간 기울기, 전설 단계 = 더 확대 + 반대로 더 기울기. 확대할 때 찌 쪽을 봄
+    const cs = [0, 0.6, 1, 1.5][TUNE.cam ?? 2], k = S.camK * cs;
+    const lx = S.standX - 0.4, lz = S.mode === 'land' ? S.standZ + 7 + pull : S.standZ + 11, toBob = Math.min(1, k) * 0.35;
+    S.camLook.set(lx + (S.bob.x - lx) * toBob, SEA_Y + 0.4 + pull * 1.3, lz + (S.bob.z - lz) * toBob); // 광장 카메라와 이어 붙일 때도 씀
     camera.lookAt(S.camLook);
-    // 맞추면 순간 확대(bump) · 놓치면 살짝 기울기(tilt)
+    const roll = S.camK <= 1 ? 0.052 * S.camK : 0.052 - 0.157 * (S.camK - 1); // 0° → 3° → −6°
+    // 맞추면 순간 확대(bump) · 놓치면 살짝 기울기(tilt) · 박자마다 살짝 다가가는 '두근'(마디 첫 박은 더 세게, 단계가 오를수록 조금 더)
     const R = S.mode === 'fight' ? S.R : null;
-    camera.rotateZ(R ? R.tilt * 0.035 : 0);
-    const fov = (innerWidth < (opt.viewH?.() || innerHeight) ? 72 : 55) * (1 - (R ? R.bump : 0) * 0.025);
+    camera.rotateZ((R ? R.tilt * 0.035 : 0) + roll * cs);
+    const beat = R ? R.pulse * R.pulse * R.pulseAmp * (0.012 + S.stage * 0.004) * cs : 0;
+    const fov = (innerWidth < (opt.viewH?.() || innerHeight) ? 72 : 55) * (1 - (R ? R.bump : 0) * 0.025) * (1 - k * 0.045) * (1 - beat);
     if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   }
   // 찌 확대 창 카메라: 찌 자리의 물 높이를 따라 오르내려서, 파도가 있어도 창 안에서 찌가 제자리 → 잠기는 게 또렷
