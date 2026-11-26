@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { makeCharacter } from '../../scene.js';
 import { BIG_CM, FISH, GRADE, PADDLE_DUP_PIECES, STAGES, STAGE_FISH, TUNE, biteSeq, fishSize, pickCatch, stageOf } from './data.js';
 import { addPaddle, dexOpen, fishCount, modelImage, openDex, ownedPaddles, recordCatch } from './dex.js';
-import { CATCH, LEGEND_PADDLES, cmOfScore, luckDice, modelScale, sizeK, sizeTier } from './rules.js';
+import { CATCH, LEGEND_PADDLES, clampStand, cmOfScore, luckDice, modelScale, sizeK, sizeTier, walkStand } from './rules.js';
 import { fishCast, fishFinish } from '../../account.js';
 import { ACH } from '../../achievements.js';
 import { makeModel } from './models.js';
@@ -222,6 +222,7 @@ export function createFishing(opt) {
     say('탁!', { at: bobAbove(1), size: 52, color: col, life: 0.6, shake: 5 });
     fx.burst(S.bob.x, seaHeight(S.bob.x, S.bob.z, S.now), S.bob.z, 22, 1);
     startRhythm();
+    emit({ k: 'hook', g });
   }
 
   // 리듬 (fishing.md 8장): 박자·패턴·음악은 rhythm.js가 한 마리마다·구절(4마디)마다 새로 조립 (반복 안 되게)
@@ -325,6 +326,7 @@ export function createFishing(opt) {
   function noteResult(n, res) {
     const R = S.R;
     n.res = res; n.at = rtNow();
+    emit({ k: 'note', res }); // 고양이(cats.md 3b)가 Perfect '냥!' · 놓치면 귀 접힘
     const y = seaHeight(S.bob.x, S.bob.z, S.now);
     if (n.fin) R.fin = null;
     if (res === 'Miss') {
@@ -411,7 +413,8 @@ export function createFishing(opt) {
       fishFinish(id, true, S.grade === 'Perfect').then((x) => {
         if (!S.result?.ok || S.result.c !== c) return;
         if (x.status !== 'ok') { S.result.srvNote = x.status === 'too_fast' ? '너무 빨라서 인정 안 됨' : '서버 기록 실패'; return; }
-        Object.assign(S.result, { first: x.first, rec: x.rec, best: x.best, coins: x.coins, bonus: x.bonus, capped: x.capped, pieces: x.pieces });
+        Object.assign(S.result, { first: x.first, rec: x.rec, best: x.best, coins: x.coins, bonus: x.bonus, capped: x.capped, pieces: x.pieces, bagged: x.bagged, sold: x.sold, bagN: Array.isArray(x.bag) ? x.bag.reduce((a, b) => a + b.n, 0) : null });
+        if (x.bagged || x.sold) emit({ k: 'bag' });
         if (x.pieces) S.result.c = { ...c, dup: true };
         (x.new || []).forEach((n, i) => setTimeout(() => say(`🏅 업적 「${ACH[n.id]?.name || n.id}」 +${n.coins}`, { sx: 0.5, sy: 0.16, size: 26, color: '#ffe27a', life: 2.4, rise: 10 }), 600 + i * 900));
       });
@@ -451,7 +454,7 @@ export function createFishing(opt) {
   function update(dt, rdt) {
     S.t += dt; S.now = performance.now() / 1000; // 바다 물결 시각(광장·시안 모두 performance.now 기준)
     if (S.hint) { S.hint.t += rdt; if (S.hint.t > 2.2) S.hint = null; }
-    if (S.mode === 'ready' && S.walk && opt.canWalk) S.standX = clamp(S.standX + S.walk * 2.4 * dt, STAND.xMin, STAND.xMax);
+    if (S.mode === 'ready' && S.walk && opt.canWalk) S.standX = walkStand(S.standX, S.standZ, S.walk * 2.4 * dt);
     me.group.position.set(S.standX, DECK, S.standZ);
     me.setOpacity(S.mode === 'ready' ? 1 : 0.4, 1); // 낚시하는 동안 내 캐릭터 반투명 (내 화면에서만, 사용자 요청)
     if (S.R) S.R.rt = rtNow();
@@ -603,7 +606,7 @@ export function createFishing(opt) {
   // 탭이 숨겨졌다 돌아오면 리듬 시계를 밀어 줌 (진짜 시계라서)
   function resumeAfter(d) { if (S.R && d > 0) { S.R.base += d; S.R.sched = Math.max(S.R.sched, Math.floor((rtNow() - S.R.t0) / S.R.spb) + 1); } }
   // 그 자리에 서서 시작 / 그만
-  function standAt(x, z) { S.standX = Math.max(STAND.xMin, Math.min(STAND.xMax, x)); S.standZ = Math.max(STAND.zBack, Math.min(STAND.z, z)); }
+  function standAt(x, z) { [S.standX, S.standZ] = clampStand(x, z); } // ㄷ자 선착장: 가장 가까운 서는 곳 (rules.js)
   // 광장: 낚시를 그만두면 숨겨 두고 다음에 다시 씀 (만들기 한 번)
   function setActive(on) {
     if (!on) {

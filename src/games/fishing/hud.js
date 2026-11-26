@@ -263,7 +263,7 @@ function drawResult(g, W, H, S, u) {
     }
     if (R.coins != null || R.srvNote) { // 서버(로그인)에서 받은 코인
       g.font = UI(800, 14); g.fillStyle = R.srvNote ? '#ff9a9a' : '#ffd23a';
-      g.fillText(R.srvNote || (c.kind === 'fish' ? `🪙 +${R.coins}코인${R.bonus ? ' (☕ 쉬는 시간 +50%)' : ''}${R.capped ? ' · 분당 한도' : ''}` : c.kind === 'paddle' ? (R.pieces ? `🧩 조각 +${R.pieces}` : '🎽 옷장에 들어갔어요!') : '🪙 코인 0 (잡동사니)'), 0, ch / 2 - 22);
+      g.fillText(R.srvNote || (c.kind === 'fish' ? (R.bagged ? `🎒 가방에 넣었어요 ${R.bagN}/30 · 🍣 횟집에서 팔아요` : `${R.sold ? '🎒 가방이 꽉 차서 바로 팔았어요 · ' : ''}🪙 +${R.coins}코인${R.bonus ? ' (☕ +50%)' : ''}${R.capped ? ' · 분당 한도' : ''}`) : c.kind === 'paddle' ? (R.pieces ? `🧩 조각 +${R.pieces}` : '🎽 옷장에 들어갔어요!') : '🪙 코인 0 (잡동사니)'), 0, ch / 2 - 22);
     }
   } else {
     g.font = JUA(28); g.fillStyle = '#fff'; g.fillText(R.title, 0, -26);

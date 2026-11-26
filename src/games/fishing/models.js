@@ -594,3 +594,5 @@ export const JUNK_LIST = [
 export function makeModel(id) {
   return (FISH_MODELS[id] || JUNK_MODELS[id])();
 }
+// 고양이 모형(src/games/cats/models.js)이 같은 그림체로 쓰는 도구
+export const KIT = { toon, basic, finish, sph, mesh, noOl, makeMouth, makeBlush, blinker };

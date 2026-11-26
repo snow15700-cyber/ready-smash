@@ -1,21 +1,11 @@
 // 배경(arenas)들이 같이 쓰는 도구: 정해진 난수, 캔버스 그림, 빛 번짐, 하늘, 떨어지는 알갱이
 import * as THREE from 'three';
+import { seeded, canvasTex as baseCanvasTex } from './util.js';
 
 // 같은 배경이면 모든 PC에서 똑같이 보이게 (건물 높이·창문 불빛 등)
-export function seeded(seed) {
-  let s = seed >>> 0;
-  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
-}
+export { seeded }; // 계산은 util.js
 
-export function canvasTex(w, h, draw) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  return t;
-}
+export const canvasTex = (w, h, draw) => baseCanvasTex(w, h, draw, 8);
 
 // 빛 번짐 (차 라이트·신호등·가로등)
 let GLOW_TEX = null;

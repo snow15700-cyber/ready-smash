@@ -7,6 +7,7 @@
 // 쓰는 법: openGacha(cfg) → playGacha(results, pity) (results: [{ it, grade, dup, pieces }]) → (나가기·한 번 더는 cfg.onExit·onAgain)
 //   cfg: { coins() 지금 코인, free() 남은 무료 뽑기, price {1,10}, onAgain(n), onExit(), onDone(results), start: true면 처음에 1회·10회 버튼(시안), auto: 저절로 진행 }
 import * as THREE from 'three';
+import { easeOut as ease } from './util.js';
 import './gachaShow.css';
 import { GRADES, makePaddle, swatch, outfitImage, headImage, faceImage, ballImage, tableImage } from './items.js';
 import * as A from './audio.js';
@@ -94,7 +95,6 @@ const STAGE = ['common', 'rare', 'legend'];
 const mix = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
 const rgb = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const ease = (k) => 1 - Math.pow(1 - clamp(k, 0, 1), 3);
 const rand = (a, b) => a + Math.random() * (b - a);
 
 /* ───────── 소리 (audio.js) ───────── */

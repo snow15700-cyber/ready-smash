@@ -1,5 +1,6 @@
 // Three.js 로우폴리 카툰 체육관, 탁구대, 캐릭터
 import * as THREE from 'three';
+import { canvasTex as baseCanvasTex } from './util.js';
 import { createFx } from './fx.js';
 import { makeBall, ballFx } from './balls.js';
 import { playCrack, playPeep, playRoar } from './audio.js';
@@ -12,10 +13,8 @@ import { bakeArena } from './arena-bake.js';
 const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts });
 
 // 카메라: 어깨 뒤 낮게 + 공 따라가기 + 타격 흔들림
-// 관전 중계 카메라 (탁구대 옆, +x 쪽). follow: 공을 따라가는 정도
 // 관전 1인칭(관중석 내 자리): 눈높이 eye, 공을 따라 고개 돌리기 follow. backX: 관중석에 자리가 없을 때 (맨 뒤 가운데)
 const SEAT_CAM = { eye: 1.2, lookY: 0.8, fov: 58, maxFov: 100, follow: 0.55, lerp: 4, backX: -(HALF_W + 4.5) };
-const SIDE_CAM = { x: 4.3, y: 2.4, lookY: 0.7, fov: 50, follow: 0.12, lerp: 3, halfW: 2.6 }; // halfW: 화면 가로에 꼭 들어가야 하는 반폭(m)
 const CAM = { y: 1.5, back: 1.2, x: 0.3, lookY: 0.86, lookZ: 1.0, fov: 60, followChar: 0.75, followBall: 0.35, lerp: 7, shake: 0.05 };
 
 // 몰입 연출: 최대일 때 체육관 밝기를 이만큼 줄인다 (0.9 = 원래의 10%)
@@ -403,29 +402,6 @@ export function createWorld(canvas) {
       if (camera.fov !== P.fov) { camera.fov = P.fov; camera.updateProjectionMatrix(); }
       camera.lookAt(camLook);
     },
-    // 관전 중계 카메라: 탁구대 옆(관중석 쪽)에서 두 선수를 함께 본다. 공을 따라 살짝만 움직인다
-    // ballZ: 공의 앞뒤 위치 (탁구대 길이 방향)
-    // halfW: 화면 가로에 꼭 들어가야 하는 반폭 (2v2는 선수가 넓게 서서 더 크게)
-    updateSideCamera(dt, ballZ = 0, halfW = SIDE_CAM.halfW) {
-      const P = SIDE_CAM;
-      ballZ = Math.max(-HALF_L, Math.min(HALF_L, ballZ)); // 공이 탁구대 밖으로 멀리 날아가도 카메라는 탁구대 안쪽까지만 따라감
-      // 세로로 긴 화면(휴대폰)에서는 양쪽 선수가 다 보이게 뒤로 물러난다
-      // (최대 2배까지만 물러나고 — 벽 밖으로 안 나가게 — 그래도 모자라면 화각을 넓힌다)
-      const need = halfW / (Math.tan((P.fov * Math.PI) / 360) * camera.aspect * P.x);
-      const far = Math.min(2, Math.max(1, need));
-      const fov = need > far ? (Math.atan(halfW / (camera.aspect * P.x * far)) * 360) / Math.PI : P.fov;
-      const tp = new THREE.Vector3(P.x * far, P.lookY + (P.y - P.lookY) * far, ballZ * P.follow);
-      const tl = new THREE.Vector3(0, P.lookY, ballZ * P.follow * 1.6);
-      if (!camInit) { camPos.copy(tp); camLook.copy(tl); camInit = true; }
-      const k = 1 - Math.exp(-dt * P.lerp);
-      camPos.lerp(tp, k);
-      camLook.lerp(tl, k);
-      camera.position.copy(camPos);
-      if (this.shake > 0.001) camera.position.y += (Math.random() - 0.5) * this.shake * CAM.shake * 0.5;
-      this.shake *= Math.exp(-dt * 12);
-      if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
-      camera.lookAt(camLook);
-    },
     // 관전 '내 자리에서'(1인칭): 관중석에 선 내 캐릭터의 눈높이에서 탁구대를 본다. 고개는 공을 따라 돌아간다
     // spot: 내 자리 {x, z} (관중석 자리가 없으면 맨 뒤 가운데), halfW: 화면 가로에 꼭 들어가야 하는 반폭
     updateSeatCamera(dt, spot, ballX = 0, ballZ = 0, halfW = 2.5) {
@@ -551,15 +527,7 @@ export function createWorld(canvas) {
   return world;
 }
 
-function canvasTex(w, h, draw) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  return t;
-}
+const canvasTex = (w, h, draw) => baseCanvasTex(w, h, draw, 8);
 
 // 기본 배경: 체육관·강당 (배경 하나처럼 { root, sky, fog, far, light })
 function gymArena() {

@@ -23,9 +23,10 @@ export class Game {
   // authority: 이 PC가 경기를 계산하는지 (혼자 모드, 방장). 아니면 방장 이벤트를 받아 그리고 내 타격은 예측해서 먼저 보여준다
   // playerNames[side][slot]: 2v2 이름표용
   constructor(world, { mySide, mySlot = 0, mode, send, hud, authority = true, names = ['나', '상대'], playerNames = null, playerTitles = null, best = 0, onBest = null, onRally = null, looks = null, spectator = false }) {
-    // spectator: 관전 — 입력 없음, 모든 선수가 '남'(불투명·이름표), 카메라는 중계 시점(view: 'me' 관중석 내 자리 1인칭 | 'side' | 0 | 1)
+    // spectator: 관전(광장 경기장 거품) — 입력 없음, 모든 선수가 '남'(불투명·이름표)
+    // view: 'free' 걸어 다니며 보기(카메라는 광장이 정함) | 'me' 관중석 내 자리 1인칭 (src/ui/plazaBubble.js가 바꿈)
     this.spectator = spectator;
-    this.view = 'side';
+    this.view = 'free';
     if (spectator) { authority = false; mySlot = -1; }
     this.authority = authority;
     this.names = names;
@@ -85,7 +86,6 @@ export class Game {
       c.group.visible = slot === 0 || mode === '2v2';
       c.setOpacity(isMe ? 0.38 : 1, isMe ? 0.9 : 1);
       c.fade = isMe ? null : 1; // 카메라 바로 옆에 오면 흐리게 (2v2에서 뒤로 물러난 팀원)
-      c.watchNear = undefined; // 관전 시점용 (update에서 정함)
       // 꾸미기: looks[side][slot] = 그 선수의 장착 정보 (없으면 기본)
       applyLook(c, looks?.[side]?.[slot]);
       c.group.position.z = sideSign(side) * CHAR_Z;
@@ -574,12 +574,6 @@ export class Game {
           const q = Math.round(c.fade * 20) / 20; // 너무 자주 재질을 바꾸지 않게
           c.setOpacity(q, Math.max(q, 0.9));
         }
-        // 관전 중 A쪽/B쪽 시점: 그 쪽 선수는 '나'처럼 반투명 + 이름표 숨김 (화면을 가리지 않게)
-        if (this.spectator) {
-          const near = this.view !== 'side' && s === this.view;
-          if (c.watchNear !== near) { c.watchNear = near; c.setOpacity(near ? 0.38 : 1, near ? 0.9 : 1); c.fade = near ? null : 1; }
-          if (near) { c.setTag(null); continue; }
-        }
         // 이름표: 상대 팀만 (팀원은 가까워서 이름표가 엉뚱한 곳에 뜸). 다음에 칠 사람은 노랗게
         if ((two || this.spectator) && this.playerNames && (this.spectator || s !== me)) {
           const nx = this.order[this.turn];
@@ -591,23 +585,14 @@ export class Game {
 
     // 카메라 / 소리 위치
     const cam = w.camera;
-    if (this.spectator && this.view === 'free') {
-      // 광장 '경기장 거품' 관전 (src/ui/plazaBubble.js): 카메라·소리 위치는 걸어 다니는 3인칭 카메라가 정한다
-    } else if (this.spectator) {
-      // 관전: 옆 중계 화면, 또는 A쪽/B쪽 선수 어깨 뒤 (그 쪽에서 다음에 칠 사람)
-      w.crowd.setFirstPerson(this.view === 'me');
+    if (this.spectator) {
+      // 관전(광장 경기장 거품, src/ui/plazaBubble.js): 'free'면 카메라·소리 위치는 걸어 다니는 3인칭 카메라가 정한다
       if (this.view === 'me') {
-        // 내 자리에서 (관중석 내 캐릭터 눈높이, 1인칭)
+        // 관중석에 앉기: 내 자리에서 (관중석 내 캐릭터 눈높이, 1인칭)
+        w.crowd.setFirstPerson(true);
         const b = this.segs ? w.ball.position : null;
         w.updateSeatCamera(dt, w.crowd.mySpot(), b ? b.x : 0, b ? b.z : 0, this.mode === '2v2' ? 3.0 : undefined);
         A.setListener([cam.position.x, cam.position.y, cam.position.z], [1, 0, 0]);
-      } else if (this.view === 'side') {
-        w.updateSideCamera(dt, this.segs ? w.ball.position.z : 0, this.mode === '2v2' ? 4.0 : undefined);
-        A.setListener([cam.position.x, cam.position.y, cam.position.z], [0, 0, -1]);
-      } else {
-        const v = this.view, sl = this.activeSlot(v);
-        w.updateCamera(v, this.charX[v][sl], dt, this.segs ? w.ball.position.x : 0, this.charZ[v][sl]);
-        A.setListener([cam.position.x, cam.position.y, cam.position.z], v === 0 ? [1, 0, 0] : [-1, 0, 0]);
       }
     } else {
       w.updateCamera(me, this.charX[me][this.mySlot], dt, this.segs ? w.ball.position.x : 0, this.charZ[me][this.mySlot]);

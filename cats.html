@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>고양이 모형 시안</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Jua, sans-serif; background: #ffeef3; color: #23304a; }
+    h1 { margin: 14px 16px 2px; font-size: 24px; }
+    p.hint { margin: 0 16px 10px; font-size: 14px; color: #6b5a6a; }
+    .wrap { position: relative; margin: 0 16px 16px; }
+    #c { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+    h2.sec { grid-column: 1 / -1; margin: 8px 0 0; font-size: 20px; }
+    h2.sec small { font-size: 13px; color: #6b5a6a; }
+    .cell { height: 210px; border-radius: 16px; background: linear-gradient(180deg, #ffe3ec, #ffc6d6); position: relative; cursor: grab; }
+    .cell.pose { background: linear-gradient(180deg, #e6f1ff, #bcd8f7); }
+    .cell span { position: absolute; left: 10px; bottom: 8px; font-size: 16px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+    .cell small { position: absolute; left: 10px; top: 8px; font-family: 'Pretendard Variable', sans-serif; font-size: 11px; color: #6b5a6a; }
+    @media (max-width: 700px) { .grid { grid-template-columns: repeat(2, 1fr); } .cell { height: 160px; } }
+  </style>
+</head>
+<body>
+  <h1>🐱 선착장 고양이 6마리 · 자세</h1>
+  <p class="hint">그림체 B '2등신 인형'(11/26 확정). 칸을 끌면 돌려 볼 수 있어요. (docs/dev/cats.md 2단계 시안)</p>
+  <div class="wrap"><div class="grid" id="grid"></div><canvas id="c"></canvas></div>
+  <script type="module" src="/src/games/cats/page.js"></script>
+</body>
+</html>
