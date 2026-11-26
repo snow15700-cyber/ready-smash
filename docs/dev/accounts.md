@@ -7,7 +7,7 @@
 ## PIN 계정·전적·랭킹 (1~3단계 main 배포됨)
 - 설계는 기획서 5장. 진짜 정보는 Supabase DB, 브라우저에는 로그인 열쇠(`smash-token`, 30일·쓸 때마다 연장)만. 복구 단어 없음, 손님 모드 유지(presence에 `guest: true`, 대기실에 '손님' 표시).
 - 서버: `supabase/01_accounts.sql`(사용자가 SQL Editor에서 직접 실행). 표 `pingpong_players`/`pingpong_sessions`는 RLS로 잠그고 `pingpong_login`·`signup`·`me`·`change_pin`·`logout` 함수(security definer)만 anon에 열어 둔다. PIN은 bcrypt, 토큰은 sha256. 5번 틀리면 5분 잠금.
-- 화면: `src/account.js`(서버가 없으면 localStorage 가짜 서버 `smash-local-db`로 같은 규칙). `main.js`의 로그인 화면(`#login`)·PIN 바꾸기(`#pin-change`)·로비 `me-bar`. 같은 브라우저의 탭은 같은 계정.
+- 화면: `src/account.js`(서버가 없으면 `src/localServer.js`의 localStorage 가짜 서버 `smash-local-db`로 같은 규칙). `main.js`의 로그인 화면(`#login`)·PIN 바꾸기(`#pin-change`)·로비 `me-bar`. 같은 브라우저의 탭은 같은 계정.
 - 2단계 전적: `supabase/02_records.sql`(01 다음에 실행). `pingpong_players`에 1v1/2v2 승패·`best_rally`, 상대 전적 표 `pingpong_h2h`(내 쪽 방향만). 함수 `pingpong_record_match`(10초 안 중복 무시)·`record_rally`·`h2h`.
   - 경기가 끝나면(`hud.gameOver` → `saveResult`) **각 PC가 자기 결과만** 기록. 로그인한 사람은 presence에 `pid`(선수 번호)를 실어 1v1 상대 전적에 쓴다. 대기실 `#room-h2h`에 '○○님과의 상대 전적 3승 2패'. 경기 중 나가면 기록 없음.
   - **패 수는 화면에 안 보인다**(사용자 확정): 로비 내 전적·랭킹은 승수만. 승패 둘 다 보이는 곳은 1v1 대기실 상대 전적뿐. (서버에는 패도 저장)
@@ -22,7 +22,7 @@
   - 화면: `game.stats.perfect3`(퍼펙트 3연속마다 +1)·`rally10`(랠리가 10이 될 때 +1, AI 제외) → `saveResult` → `finishMatch`(실패하면 `recordMatch`로 전적만). 대기실 `#room-coins`에 내역, 로비 `#me-coins`, 로그인 직후 `checkDaily`. 효과음 `playUI('coin')`.
 - **경기 확인(부정 방지, main 배포됨)**: `supabase/13_match_check.sql`(12 다음). 예전엔 서버가 브라우저의 '이겼다'를 그대로 믿어 함수만 불러도 코인이 쌓였다. 이제 방장이 경기 번호 `mid`(`newMatchId`)를 'go'에 싣고, 각 PC가 자기 토큰으로 `pingpong_match_join`(시작 30초 안, 쪽별 정원) → 끝나면 `pingpong_match_finish`(입장한 경기만·한 번만·시작 25초 전엔 거절) → `pingpong_match_ach` → `pingpong_match_people`(상대·팀원은 서버가 입장 기록에서 찾음). 혼자 하기 업적은 `pingpong_ai_ach`. 표 `pingpong_matches`·`pingpong_match_players`.
   - 사용자 확정: **같은 상대와 하루 5판**까지 보통 코인, 6판째부터 참여 +10만. 상대 열쇠 `opp_key` = 모드 + 상대 쪽 선수 번호(손님은 모두 'guest'). 하루 상한·랭킹 제한은 **없음**. 서로 이겼다고 하면 `disputed` 표시(운영자 쿼리는 13 파일 끝).
-  - **보안 구멍 막기 `supabase/18_security.sql`(17 다음, main 배포됨)**: 사용자 확정 — ① 한 사람은 **가장 최근에 입장한 경기만** 결과를 낼 수 있다(동시에 여러 가짜 경기 X, 아니면 `stale`). ② 상대 쪽에 로그인한 사람이 없는 경기(손님 상대 = 혼자 꾸민 가짜 경기와 구별 불가)는 **승수·패수·연승·승리 업적 X, 코인 하루 5판까지**(6판째부터 0). ③ 로그인한 같은 상대: 1~5판 보통, 6~10판 참여 +10만, **11판째부터 0**(승패·상대 전적은 계속). ④ 혼자 하기 최고 기록은 서버 `pingpong_ai_rally`가 인정한 친 횟수로만 올림, `pingpong_record_rally`는 닫음(화면의 `recordRally` 없앰). 로컬 가짜 서버(`account.js`)도 같은 규칙.
+  - **보안 구멍 막기 `supabase/18_security.sql`(17 다음, main 배포됨)**: 사용자 확정 — ① 한 사람은 **가장 최근에 입장한 경기만** 결과를 낼 수 있다(동시에 여러 가짜 경기 X, 아니면 `stale`). ② 상대 쪽에 로그인한 사람이 없는 경기(손님 상대 = 혼자 꾸민 가짜 경기와 구별 불가)는 **승수·패수·연승·승리 업적 X, 코인 하루 5판까지**(6판째부터 0). ③ 로그인한 같은 상대: 1~5판 보통, 6~10판 참여 +10만, **11판째부터 0**(승패·상대 전적은 계속). ④ 혼자 하기 최고 기록은 서버 `pingpong_ai_rally`가 인정한 친 횟수로만 올림, `pingpong_record_rally`는 닫음(화면의 `recordRally` 없앰). 로컬 가짜 서버(`localServer.js`)도 같은 규칙.
   - `supabase/14_close_old.sql`: 예전 함수(`record_match`·`finish_match`·`ach_match`·`ach_people`)를 anon에서 닫는다. **test를 main에 합친 뒤에** 실행(먼저 하면 main 배포본 기록이 안 됨).
 
 ## 업적·칭호 (①②③ main 배포됨, SQL 10·11은 사용자가 실행함)
@@ -31,7 +31,7 @@
 - ① `supabase/10_achievements.sql`: 표 `pingpong_ach`(id·grade)·`pingpong_ach_got`, 선수 `title`. 함수 `pingpong_achievements`(목록 + 새로 깬 것 `new`)·`pingpong_set_title`. 랭킹에 `title`.
 - ② `supabase/11_ach_match.sql`(10 다음): 선수 `ach_n`(누적 숫자 jsonb)·`ach_at`(10초 규칙). `pingpong_ach_match(token, mode, won, stats)` — 한 경기 업적은 바로, 누적은 `ach_n`에 더한 뒤 `pingpong__ach_check`(10의 것 + 누적)로. 지급은 `pingpong__ach_grant`. 오리·빵 탁구채 업적은 서버의 `equip`, 하루 판 수·아침 9시는 서버 시각(한국).
   - 화면: `game.js`의 `trackAch`(모든 이벤트에서 내 기록: 판정·방향(`lastLocal`)·타이밍·스매시·찬스볼·서브·점수 흐름·2v2 내 득점) → `achSummary(score)` → `ui/room.js` `saveResult` → `achMatch`. 혼자 하기는 `onRally`에서 친 횟수 1 이하면 `achMatch('ai', …, {aizero:1})`.
-  - 목록은 두 곳: `src/achievements.js`(`ACHS`, `live` = 지금 셀 수 있음)와 SQL insert. 로컬 가짜 서버는 `account.js`의 `localAchMatch`(같은 규칙).
+  - 목록은 두 곳: `src/achievements.js`(`ACHS`, `live` = 지금 셀 수 있음)와 SQL insert. 로컬 가짜 서버는 `localServer.js`의 `localAchMatch`(같은 규칙).
 - ③ `supabase/12_ach_people.sql`(11 다음): `pingpong_ach_people(token, mode, won, opp, mate)` — `achMatch` 다음에 부름(같은 경기 한 번만, `ach_n.people_at`). 천적 = h2h `lose_run` 5 → 칭호 「(상대 닉네임) 공포증」(`ach_n.nemesis`, 처음 깬 상대로 고정, `titleText(id, x)`·presence `titleX`·랭킹 `title_x`·player json `nemesis`). 복수 = 그 상대에게 3패 이상인데 이김. 짝꿍 = `ach_n.duo{팀원 번호: 승수}`. 뽑기 횟수 = 트리거 `pingpong_count_gacha`(코인이 100·900 줄면 `ach_n.gacha`). 출석 = `pingpong_daily`가 `ach_n.days`·`days_run`(이 SQL 넣은 날부터).
 - 이제 58개 모두 깰 수 있음. 다음 후보 ④: 연출 다듬기(승리 세리머니 등, 기획서 11장).
 
@@ -60,7 +60,7 @@
 - **① 구현**: `supabase/21_missions.sql`(20 다음). 선수 `mission` jsonb `{d, done[], cheer, cheer_at}`(날짜가 바뀌면 빈 것으로 봄), 경기 입장 기록 `mission_done`(한 경기 한 번). `pingpong__missions_of(date)` = 후보 6개(`duo, cheer3, rally10, opp3, win1, perf3`)의 2개 조합 15가지를 `(날짜 - 2026-01-01) × 7 mod 15`번째로(15일에 한 바퀴) — `src/missions.js`의 `missionsOf`와 같음(점검이 40일 비교).
   - `pingpong_missions(token)` 오늘 상태 · `pingpong_mission_match(token, match, perfect3, rally10)` = `match_finish` 다음에(결과를 낸 오늘 경기만) — 새 상대 = 이 경기 상대 중 오늘 결과 낸 다른 경기에서 만난 적 없는 사람, 상대 3명 = 오늘 결과 낸 경기들의 서로 다른 상대 수, 2대2·이김·랠리10·퍼펙트3. 상대 쪽에 로그인한 사람이 없으면 아무것도 안 셈. · `pingpong_mission_cheer(token)` = 응원 미션이 있는 날만, 1.5초에 한 번 셈, 3번이면 달성.
   - 화면: `src/ui/missions.js` — 로비 `#lb-missions`(내 전적 아래 유리 카드, **너비 = 위 전적 3칸 합친 너비**(사용자 요청, `.me-box`로 묶고 카드는 `width:0; min-width:100%`), 머리줄 눌러 접기 `smash-missions-fold`, 손님은 오늘 미션만 보이고 '로그인하면…'). **대기실에도** 같은 카드 `#room-missions`(오른쪽 위 꾸미기 알약 아래, 사용자 요청; 창 너비 1100px 미만은 머리줄만, 900px 미만은 숨김 — 위 가운데 결과 상자와 안 겹치게). `renderRoom`이 부름. 1분마다·날짜 바뀌면 다시 불러옴. 경기 뒤 `room.js` `saveResult`가 finish → **mission** → ach → people 순서, 대기실 코인 내역에 주황 알약 '🎯 미션 달성! …'(`.rc-mission`). 관전 응원은 `cheer.js` `sendCheer` → `cheerMission()` → 알림(toast).
-  - 로컬 가짜 서버(`account.js`)도 같은 규칙.
+  - 로컬 가짜 서버(`localServer.js`)도 같은 규칙.
 
 ## 32 공정한 결과 (사용자 확정 11/25, test · **32 실행 필요**, 33은 main에 합친 뒤)
 - 계기: 보안 점검 요약 1번(브라우저가 '이겼다'·친 횟수를 스스로 알림). 확인 결과 ① 혼자 하기를 치지 않고 함수만 불러도 1초 1번 인정 → 하루 상한 없이 시간당 약 1,200코인 ② 진 사람이 '이겼다'고 보내면 승리·코인이 들어가고 '서로 이겼다' 표시만 남음.

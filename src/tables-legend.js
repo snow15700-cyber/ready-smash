@@ -4,13 +4,13 @@
 //   bounce(p, smash, fx) 공이 판에 튐 · hit(p, smash, fx) 선수가 침 · score({ x, z, smash }, fx) 득점 (z = 공이 빠져나간 끝)
 // 효과는 공보다 작고 흐리게, 판 위 그림은 공보다 어둡게 (공이 잘 보이게).
 import * as THREE from 'three';
+import { easeOut as ease } from './util.js';
 import { TABLE_L, TABLE_W, HALF_L, HALF_W, TY, NET_H } from './physics.js';
 import { rng, canvasTex, lam, flat, shiny, put, box, cyl, roundBox, softTop, steamer, smooth, skirt } from './table-kit.js';
 
 const HL = HALF_L, HW = HALF_W;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, k) => a + (b - a) * k;
-const ease = (k) => 1 - Math.pow(1 - clamp(k, 0, 1), 3);
 const R = Math.random;
 
 // 위에서 본 모양이 둥근 네모(초타원)인 판 (거북이 등껍질)

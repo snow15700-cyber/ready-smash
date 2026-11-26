@@ -60,7 +60,7 @@
 ## 5. 서버·속임수 막기
 - 어떤 것이 걸릴지·몇 cm인지는 **서버가 정한다**(던질 때 서버가 뽑음). 브라우저는 잡았다/놓쳤다와 판정만 알린다.
 - 던지기부터 잡기까지 **물고기별 최소 시간**, 혼자 하기(`pingpong_ai_rally`)처럼 **지난 기록 이후 시간으로 분당 상한**(코인 표에 맞춰 약 20~25)을 넘으면 자른다.
-- SQL `28_fishing.sql`(번호는 만들 때 다시 확인), `pingpong_` 접두어, RLS + security definer. 로컬 가짜 서버(`account.js`)도 같은 규칙.
+- SQL `28_fishing.sql`(번호는 만들 때 다시 확인), `pingpong_` 접두어, RLS + security definer. 로컬 가짜 서버(`localServer.js`)도 같은 규칙.
 
 ## 5-2. 강화안 반영 (11/25 사용자가 준 설계안 'ASMR 사운드 이원화 및 PC 중심 웹 낚시 게임 손맛 극대화' 검토, 사용자 확정)
 > 설계안 요지: 소리 없이도 손맛(의성어·시각 햅틱), 원버튼 홀드 장력 밀당·펌핑, 장비 강화, 3단 가로 UI, 어탁 카드·아쿠아리움·주간 대회·실시간 티커 등.
@@ -241,7 +241,7 @@
   - `pingpong_fish_cast(token, x, aim, power, rain)` → `{ cast: { id, kind, item, grade, cm, dup, near } }`. 무엇이 걸릴지 서버가 정하고 **브라우저에 미리 알려 줌**(리듬 단계·공개 연출용. 코인·기록은 잡을 때 서버가 이 값으로 주므로 미리 알아도 얻는 것 없음). 다시 던지면 앞의 것은 사라짐. 비는 브라우저가 알려 준 광장 날씨를 믿음(피해 작음), 쉬는 시간·밤(한국 19~6시)은 서버 시각.
   - `pingpong_fish_finish(token, cast, ok, perfect)` → 한 번만. 던진 뒤 최소 시간(잡동사니 4 · 일반 6 · 희귀(탁구채 포함) 11 · 전설 16초) 안 되면 `too_fast`(아무것도 안 줌). 코인 + 쉬는 시간(세트 '휴가 중'이면 더) → **주머니**(1분에 25씩, 최대 60)를 넘으면 잘림(`capped`). 도감·기록, 탁구채는 옷장(없으면) 또는 조각 30. 챔질 Perfect 연속 `ach_n.fish_pr`(브라우저 말을 믿음). 업적은 여기서 바로 `pingpong__ach_grant`.
   - `pingpong_fish_dex(token)` 내 도감 + 어종별 기록 1명(같은 cm면 먼저 잡은 사람) · `pingpong_fish_rank('week'|'all')` 사람마다 가장 큰 한 마리, 50명.
-- `account.js`: `fishCast`·`fishFinish`·`fishDex`·`getFishRank` + 로컬 가짜 서버 `localFish`(같은 규칙).
+- `account.js`: `fishCast`·`fishFinish`·`fishDex`·`getFishRank` + 로컬 가짜 서버 `localServer.js`의 `localFish`(같은 규칙).
 - 업적(`achievements.js` 분류 'fish' 낚시): fish10 ★「초보 낚시꾼」 · fish_all ★★★「경주 강태공」 · junk_all ★★「바다 청소부」 · fish_bread ★「김제빵의 원수」 · fish_big ★★「월척 사냥꾼」 · fish_legend ★★★「용왕의 친구」 · fish_perf10 ★★「손맛의 달인」.
 - 랭킹 창 '🐟 월척' 탭(`ui/rank.js`): '이번 주 월척(월요일마다 새로)' / '역대 월척' 고르기, 값 = cm + 물고기 이름.
 - 낚시 시안: **같은 브라우저에서 게임에 로그인해 두면** 시안이 서버를 씀(위 태그 '🔗 닉네임 · 서버에 기록', ⚙️ 물고기·기포 줄은 숨김 — 서버는 기획대로의 기포만 앎). 결과 카드에 '🪙 +n코인'(쉬는 시간·분당 한도 표시), 업적 알림, 도감은 서버 기록 + '👑 어종별 기록'. 로그인 안 했으면 예전처럼 이 브라우저에만.
@@ -316,7 +316,7 @@
   - 주사위 3번이면 아주 드문 큰 놈 확률이 약 3배(괴물 약 1/900 → 1/300).
 - **실력은 조금만**: 크기는 운, 실력은 놓치느냐에만. 큰 놈이라고 리듬을 어렵게 하지 않음.
 - **월척 랭킹** = 점수(배율) 순서, 값은 cm + '보통의 ○배'. `pingpong_fish_log.score`(34 전 기록은 score = cm). 어종별 기록(도감)은 그 물고기 cm 그대로.
-- 코드: `rules.js` `fishSize(id, 주사위)`·`luckDice`·`cmOfScore`·`scoreOfCm`·`timesOf`, 로컬 가짜 서버 `account.js` `fishWeekTop`, SQL `pingpong__fish_dice`·`pingpong__fish_week_start`. 던지기 결과에 `s`(점수)가 더해짐. ⚙️ '크기 (시험)'은 이제 점수(50 = 보통).
+- 코드: `rules.js` `fishSize(id, 주사위)`·`luckDice`·`cmOfScore`·`scoreOfCm`·`timesOf`, 로컬 가짜 서버 `localServer.js` `fishWeekTop`, SQL `pingpong__fish_dice`·`pingpong__fish_week_start`. 던지기 결과에 `s`(점수)가 더해짐. ⚙️ '크기 (시험)'은 이제 점수(50 = 보통).
 - 서버 없이(로그인 안 함) 할 때도 초보자 행운(이 브라우저 도감의 물고기 수 기준)은 적용.
 - 자동 점검: 보통 크기 서버 == 화면, 주사위 개수(초보자·오늘·술렁임) 서버 == `luckDice`, 던지기 200번의 cm == `cmOfScore`.
 

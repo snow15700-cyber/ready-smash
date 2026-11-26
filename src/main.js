@@ -24,7 +24,8 @@ import { INTRO, intro, introFrame } from './ui/intro.js';
 import { checkDaily, showLobby, showLogin } from './ui/login.js';
 import { endRoom, room } from './ui/room.js';
 import { show, stopGame } from './ui/screen.js';
-import { $, ease, game, lerp3, match, preview, world } from './ui/state.js';
+import { $, game, lerp3, match, preview, world } from './ui/state.js';
+import { smoothstep as ease } from './util.js';
 import { plazaDebug, plazaFrame } from './ui/plaza.js';
 import { fishAfterRender, fishDebug } from './ui/fishing.js'; // 광장 낚시 (fishing.md 12장)
 import { aiWaveCam, bubbleArena, bubbleLook, bubbleSeated } from './ui/plazaBubble.js';

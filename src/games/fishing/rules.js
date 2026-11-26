@@ -1,6 +1,6 @@
 // 낚시 규칙 — 서버(supabase/28_fishing.sql)와 똑같아야 하는 것만 모음 (three 없이, 자동 점검이 Node에서 불러 서버와 비교)
 //   던진 자리 · 기포 시간표 · 잡히는 것(종류·확률) · 크기 · 코인 · 최소 시간. fishing.md 8·9장
-// ⚠️ 여기를 바꾸면 28_fishing.sql(또는 새 SQL)과 account.js의 로컬 가짜 서버도 같이.
+// ⚠️ 여기를 바꾸면 28_fishing.sql(또는 새 SQL)과 localServer.js의 로컬 가짜 서버도 같이.
 
 // ── 선착장에서 던지기 (자유 던지기: 부채꼴 ±40°, 6~18m)
 export const STAND = { z: 44.6, xMin: 1.3, xMax: 20.8, zBack: 39.6 }; // 서는 곳: 전망대 밑 넓은 판(31_fish_pier_wide.sql — 판을 서쪽으로 넓힘). 앞 끝 z · 판 위 어디서든(zBack~z)
