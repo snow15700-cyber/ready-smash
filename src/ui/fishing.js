@@ -10,7 +10,7 @@ import { applyLook } from '../items.js';
 import { activeBubbles, CATCH, LEGEND_PADDLES } from '../games/fishing/rules.js';
 import { makeBobber, makeBubbleFx, makeLine, makeRod, makeSplashes, seaHeight } from '../games/fishing/world.js';
 import { PIER, STAIRS } from '../campusLayout.js';
-import { fishHooks, plazaApi } from './plaza.js';
+import { catHooks, fishHooks, plazaApi } from './plaza.js';
 import { easeInOut, orbitBlend } from '../plaza.js';
 import { hud as toastHud } from './hud.js';
 import { curScreen } from './screen.js';
@@ -155,6 +155,7 @@ function hidePaddle(c) {
 
 // 낚시 한 판의 일 → 광장 사람들에게
 function onEvent(ev) {
+  catHooks.fishEvent?.(ev);
   if (ev.k === 'cast') { me.b = ev.to.map((v) => Math.round(v * 100) / 100); plazaApi.sendInfo(); }
   else if (ev.k === 'catch') {
     me.b = null; plazaApi.sendInfo();
@@ -279,6 +280,7 @@ fishHooks.onSay = (p, text) => { if (p) addChat(p.nick, text); };
 
 // ── 광장(ui/plaza.js)이 부르는 것
 fishHooks.on = () => on;
+fishHooks.spot = () => (on && F ? { x: F.S.standX, z: F.S.standZ, mode: F.S.mode } : null); // 고양이가 옆에 앉을 자리
 fishHooks.state = () => (on ? { b: me.b } : null);
 fishHooks.hidden = () => { if (on) stop(); shopMod?.closeShop(); $('fish-start').classList.add('hidden'); pierBubbles(0, null); };
 

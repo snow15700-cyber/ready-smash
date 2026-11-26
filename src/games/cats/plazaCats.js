@@ -1,15 +1,17 @@
 // 🐱 광장 선착장 고양이 6마리 (docs/dev/cats.md 3a): 배회(rules.js catAt — 서버 시각으로 모두 같은 자리) · 누르면 말풍선 창 · '🐟 주기'
 //  · 하트는 사람마다 따로(서버 37_cats.sql). 배부른 고양이(1시간 안에 내가 준)는 내 화면에서만 쉴 때 벌러덩 zzz
-//  · ♥1~♥2 행동(3b)·내 고양이 창(3c)은 아직
+//  · 3b (내 화면에서만, 하트는 내 것): ♥1 선착장에 오면 꼬리 세우고 달려와 다리에 비비기 · ♥2 낚시하면 옆에 앉아 리듬에 까딱,
+//    Perfect '냥!' 폴짝 · 놓치면 귀 접힘 · 잡으면 앞발 툭툭. 한 번에 하트 높은 순 3마리까지. 끝나면 제자리(배회)로 돌아감
+//  · 내 고양이 창(3c)은 아직
 import * as THREE from 'three';
 import { account, catFeed, catList, marketNow, syncServerClock } from '../../account.js';
-import { PIER } from '../../campusLayout.js';
-import { catHooks, plazaApi } from '../../ui/plaza.js';
+import { PIER, onPier } from '../../campusLayout.js';
+import { catHooks, fishHooks, plazaApi } from '../../ui/plaza.js';
 import { hud } from '../../ui/hud.js';
 import { esc, world } from '../../ui/state.js';
 import { SPECIES } from '../fishing/rules.js';
 import { makeCat } from './models.js';
-import { CAT_IDS, CAT_NAME, catAt, heartOf, heartProgress, heartsText } from './rules.js';
+import { CAT_IDS, CAT_NAME, catAt, catCanStand, catPath, heartOf, heartProgress, heartsText } from './rules.js';
 
 const SCALE = 0.75;
 const fishName = (id) => SPECIES.find((s) => s.id === id)?.name || '생선';
@@ -21,7 +23,7 @@ function build() {
   cats = CAT_IDS.map((id) => {
     const m = makeCat(id), g = new THREE.Group();
     m.scale.setScalar(SCALE); g.add(m); root.add(g);
-    return { id, m, g, yaw: null, eatT: -9, eatAt: null };
+    return { id, m, g, yaw: null, eatT: -9, eatAt: null, ov: null, cur: null, comeT: -999, earT: -9, hopT: -9, tapT: -9 };
   });
   // 누르기: 고양이 둘레 상자 (작아서 조금 넉넉하게)
   const box = new THREE.Box3(), hit = new THREE.Vector3();
@@ -121,7 +123,7 @@ async function feed(c) {
   const r = await catFeed(c.id);
   if (pop) pop.busy = false;
   if (r.status === 'ok') {
-    c.eatT = performance.now() / 1000; c.eatAt = c.g.position.clone();
+    c.eatT = performance.now() / 1000; c.eatAt = c.g.position.clone(); if (!c.ov) c.ov = { mode: 'hold' };
     floatSprite(fishTex, v3.copy(c.g.position).add(new THREE.Vector3(Math.sin(c.yaw || 0) * 0.3, 0.15, Math.cos(c.yaw || 0) * 0.3)), 2.2, 0, 0.3);
     setTimeout(() => floatSprite(heartTex, c.g.position.clone().add(new THREE.Vector3(0, 0.8, 0))), 900);
     const h = heartOf(r.pts);
@@ -133,30 +135,130 @@ async function feed(c) {
   renderPop();
 }
 
+// ── 3b: 다가오기 · 비비기 · 옆에 앉기 (내 화면만) ──
+const myHeart = (c) => heartOf(account.cats?.[c.id]?.pts || 0);
+let wasOnPier = false, wasFishing = false, lastT = 0;
+function callCats(me, force) {
+  const now = performance.now() / 1000;
+  const list = cats.filter((c) => myHeart(c) >= 1 && (force || now - c.comeT > 90)).sort((a, b) => myHeart(b) - myHeart(a)).slice(0, 3);
+  list.forEach((c, i) => {
+    if (!c.cur || (c.ov && c.ov.mode !== 'return' && c.ov.mode !== 'hold')) return; // 이미 옆에
+    c.comeT = now;
+    c.ov = { mode: 'come', slot: i, path: catPath([c.cur.x, c.cur.z], me), aim: me.slice() };
+  });
+}
+// 낚시 옆 자리: 왼쪽·오른쪽·뒤 (판 위인 곳으로)
+function besideSpot(sp, slot) {
+  const cand = [[-0.95, -0.15], [0.95, -0.15], [-0.6, -0.9], [0.6, -0.9], [0, -1.1]];
+  for (let k = 0; k < cand.length; k++) { const o = cand[(slot + k) % cand.length], x = sp.x + o[0], z = sp.z + o[1]; if (catCanStand(x, z)) return [x, z]; }
+  return [sp.x, sp.z - 1];
+}
+// 길 따라 dist만큼 걷기 → 다 왔으면 true
+function walkPath(c, path, d) {
+  while (path.length > 1 && d > 0) {
+    const [x1, z1] = path[1], dx = x1 - c.cur.x, dz = z1 - c.cur.z, L = Math.hypot(dx, dz);
+    if (L > 1e-4) c.wantYaw = Math.atan2(dx, dz);
+    if (L <= d) { c.cur.x = x1; c.cur.z = z1; path.shift(); d -= L; } else { c.cur.x += (dx / L) * d; c.cur.z += (dz / L) * d; d = 0; }
+  }
+  return path.length <= 1;
+}
+const textTex = (txt, color) => {
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64;
+  const x = cv.getContext('2d'); x.font = 'bold 44px Jua, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.lineWidth = 8; x.strokeStyle = '#fff'; x.strokeText(txt, 64, 34); x.fillStyle = color; x.fillText(txt, 64, 34);
+  return new THREE.CanvasTexture(cv);
+};
+let nyaTex = null, loveTex = null;
+catHooks.fishEvent = (ev) => {
+  if (!cats) return;
+  const t = performance.now() / 1000;
+  for (const c of cats) {
+    if (c.ov?.mode !== 'sit') continue;
+    if ((ev.k === 'note' && ev.res === 'Perfect') || (ev.k === 'hook' && ev.g === 'Perfect')) {
+      if (t - c.hopT > 0.5) { c.hopT = t; nyaTex ||= textTex('냥!', '#ff7b54'); floatSprite(nyaTex, c.g.position.clone().add(new THREE.Vector3(0, 0.75, 0)), 0.9, 0.35, 0.42); }
+    } else if ((ev.k === 'note' && ev.res === 'Miss') || ev.k === 'miss') c.earT = t + (ev.k === 'miss' ? 1.2 : 0);
+    else if (ev.k === 'catch') c.tapT = t;
+  }
+};
+
 // ── 매 프레임 (ui/plaza.js plazaFrame) ──
 catHooks.frame = (now, p) => {
   if (!cats) { build(); syncServerClock(); }
   // 로그인이 바뀌면 내 하트 다시 받기
   const who = account.loggedIn ? account.player?.id : null;
-  if (who !== loadedFor) { loadedFor = who; account.cats = null; if (who) catList(); }
-  const ms = marketNow(), t = performance.now() / 1000;
+  if (who !== loadedFor) { loadedFor = who; account.cats = null; for (const c of cats) c.ov = null; if (who) catList(); }
+  const ms = marketNow(), t = performance.now() / 1000, dt = Math.min(0.1, lastT ? t - lastT : 0); lastT = t;
   const camP = world.camera.position;
+  // 선착장에 내려오면 / 낚시를 시작하면 ♥1 이상 고양이를 부름
+  const sp = fishHooks.spot?.() || null, me = sp ? [sp.x, sp.z] : [p[0], p[1]];
+  const onP = onPier(p[0], p[1]) || !!sp;
+  if (account.cats && ((onP && !wasOnPier) || (sp && !wasFishing))) callCats(me, !!sp && !wasFishing);
+  wasOnPier = onP; wasFishing = !!sp;
   for (const c of cats) {
     const s = catAt(c.id, ms);
-    let pose = s.pose, x = s.x, z = s.z, y = PIER.y + s.y, yaw = s.yaw;
-    const eating = t - c.eatT < 2.6;
-    if (eating) { x = c.eatAt.x; z = c.eatAt.z; y = c.eatAt.y; pose = 'nod'; yaw = c.yaw; } // 내 화면: 먹는 동안 그 자리에서 냠냠
-    else {
-      if (t - c.eatT < 3.6) { const f = t - c.eatT - 2.6; x = c.eatAt.x + (x - c.eatAt.x) * f; z = c.eatAt.z + (z - c.eatAt.z) * f; } // 제자리로 천천히
+    c.cur ||= { x: s.x, z: s.z };
+    let pose = s.pose, y = PIER.y + s.y, tailUp = false;
+    const eating = t - c.eatT < 2.6, ov = c.ov;
+    c.wantYaw = s.yaw;
+    if (eating) { pose = 'nod'; c.wantYaw = c.yaw; y = c.eatAt.y; }
+    else if (!ov) {
+      c.cur.x = s.x; c.cur.z = s.z;
       if (pose !== 'walk' && account.cats?.[c.id]?.readyAt > Date.now()) pose = 'belly'; // 배부르면 벌러덩 zzz
+    } else {
+      y = PIER.y;
+      const gone = !onP || Math.hypot(p[0] - me[0], p[1] - me[1]) > 30;
+      if (ov.mode === 'come') {
+        if (gone) { c.ov = { mode: 'return' }; }
+        else {
+          if (Math.hypot(me[0] - ov.aim[0], me[1] - ov.aim[1]) > 2.5) { ov.path = catPath([c.cur.x, c.cur.z], me); ov.aim = me.slice(); }
+          ov.path[ov.path.length - 1] = [me[0], me[1] - 0.45];
+          pose = 'walk'; tailUp = true;
+          if (walkPath(c, ov.path, 2.0 * dt)) { c.ov = { mode: 'rub', t0: t, a: Math.atan2(c.cur.x - me[0], c.cur.z - me[1]), slot: ov.slot }; loveTex ||= textTex('💕', '#ff5f8f'); floatSprite(loveTex, new THREE.Vector3(c.cur.x, y + 0.7, c.cur.z), 1.4, 0.5, 0.4); }
+        }
+      } else if (ov.mode === 'rub') { // 다리 둘레를 한 바퀴 반 비비며 돌기
+        ov.a += dt * 1.6;
+        const r = 0.42, nx = me[0] + Math.sin(ov.a) * r, nz = me[1] + Math.cos(ov.a) * r;
+        c.cur.x += (nx - c.cur.x) * Math.min(1, dt * 6); c.cur.z += (nz - c.cur.z) * Math.min(1, dt * 6);
+        c.wantYaw = ov.a + Math.PI / 2; pose = 'walk'; tailUp = true;
+        if (gone) c.ov = { mode: 'return' };
+        else if (t - ov.t0 > 4.5) {
+          const fishing = fishHooks.spot?.();
+          c.ov = myHeart(c) >= 2 && fishing ? { mode: 'sit', slot: ov.slot, path: null } : { mode: 'return' };
+        }
+      } else if (ov.mode === 'sit') { // ♥2: 낚시하는 내 옆에 앉아 구경
+        const f = fishHooks.spot?.();
+        if (!f || gone) c.ov = { mode: 'return' };
+        else {
+          const to = besideSpot(f, ov.slot);
+          if (Math.hypot(to[0] - c.cur.x, to[1] - c.cur.z) > 0.08) { if (!ov.path || Math.hypot(ov.path.at(-1)[0] - to[0], ov.path.at(-1)[1] - to[1]) > 0.3) ov.path = catPath([c.cur.x, c.cur.z], to); pose = 'walk'; walkPath(c, ov.path, 1.4 * dt); }
+          else {
+            ov.path = null;
+            c.wantYaw = Math.atan2(f.x - c.cur.x, (f.z - 0.8) - c.cur.z); // 낚시하는 나를 올려다봄 (얼굴이 화면 쪽으로)
+            pose = t - c.tapT < 2.5 ? 'tap' : f.mode === 'fight' || f.mode === 'land' ? 'nod' : 'sit';
+          }
+        }
+      } else if (ov.mode === 'hold') { // 밥 먹고 난 직후: 잠깐 그 자리 → 돌아감
+        c.ov = { mode: 'return' };
+      } else if (ov.mode === 'return') {
+        const tgt = [s.x, s.z];
+        if (!ov.path || Math.hypot(ov.path.at(-1)[0] - tgt[0], ov.path.at(-1)[1] - tgt[1]) > 2) ov.path = catPath([c.cur.x, c.cur.z], tgt);
+        ov.path[ov.path.length - 1] = tgt;
+        pose = 'walk';
+        if (walkPath(c, ov.path, 1.3 * dt)) { c.ov = null; c.cur.x = s.x; c.cur.z = s.z; y = PIER.y + s.y; }
+      }
     }
-    c.g.position.set(x, y, z);
-    if (c.yaw == null) c.yaw = yaw;
-    let dy = yaw - c.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-    c.yaw += dy * Math.min(1, 0.12);
+    c.g.position.set(c.cur.x, y, c.cur.z);
+    if (c.yaw == null) c.yaw = c.wantYaw;
+    let dy = c.wantYaw - c.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+    c.yaw += dy * Math.min(1, dt * 7);
     c.g.rotation.y = c.yaw;
+    // 몸짓 효과: 귀 접힘(1.2초) · 폴짝 · 꼬리 세움
+    const fx = c.m.userData.fx;
+    const ek = t - c.earT; fx.ear = ek >= 0 && ek < 1.4 ? Math.min(1, (1.4 - ek) * 2) : 0;
+    const hk = t - c.hopT; fx.hop = hk >= 0 && hk < 0.45 ? Math.sin((hk / 0.45) * Math.PI) * 0.22 : 0;
+    fx.tailUp = tailUp;
     // 멀면 몸짓 계산 안 함 (선착장이 안 보이는 광장 위쪽)
-    v3.set(x, y, z); plazaApi.view.root.localToWorld(v3);
+    v3.set(c.cur.x, y, c.cur.z); plazaApi.view.root.localToWorld(v3);
     if (v3.distanceTo(camP) < 70) c.m.userData.anim(t + c.m.id, pose);
   }
   for (let i = floats.length - 1; i >= 0; i--) {
@@ -173,4 +275,4 @@ catHooks.frame = (now, p) => {
 };
 catHooks.hidden = () => closePop();
 // 점검·디버그: window.__smash.cats
-export const catsDebug = { get cats() { return cats; }, openPop: (id) => openPop(cats.find((c) => c.id === id)), feed: (id) => feed(cats.find((c) => c.id === id)), catAt };
+export const catsDebug = { get cats() { return cats; }, call: () => callCats(fishHooks.spot?.() ? [fishHooks.spot().x, fishHooks.spot().z] : plazaApi.pos(), true), openPop: (id) => openPop(cats.find((c) => c.id === id)), feed: (id) => feed(cats.find((c) => c.id === id)), catAt };

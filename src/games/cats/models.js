@@ -70,7 +70,8 @@ export function makeCat(id = 'cheese') {
   // 머리
   const head = new THREE.Group(); root.add(head);
   const skull = mesh(sph(0.27, 30, 22), fur); skull.scale.set(1.12, 0.95, 1); head.add(skull);
-  for (const sx of [1, -1]) { const e = ear(C.points ? mark : fur, pink); e.position.set(sx * 0.17, 0.18, -0.02); e.rotation.z = -sx * 0.4; head.add(e); }
+  const ears = [];
+  for (const sx of [1, -1]) { const e = ear(C.points ? mark : fur, pink); e.position.set(sx * 0.17, 0.18, -0.02); e.rotation.z = -sx * 0.4; e.userData.sx = sx; head.add(e); ears.push(e); }
   if (C.stripes) for (const x of [-0.06, 0, 0.06]) dot(head, mark, x, 0.215 - Math.abs(x) * 0.25, 0.15, 0.02, 0.045, 0.025, -0.55);
   if (C.spots) { dot(head, mark, -0.15, 0.1, 0.12, 0.1, 0.09, 0.08); dot(head, toon(C.mark2), 0.16, 0.13, 0.08, 0.08, 0.07, 0.08); }
   if (id === 'tuxedo') dot(head, light, 0, -0.1, 0.18, 0.13, 0.1, 0.08); // 흰 입가·턱
@@ -88,9 +89,10 @@ export function makeCat(id = 'cheese') {
   const zz = makeZzz(); zz.visible = false; g.add(zz);
 
   finish(g);
-  const parts = { root, body, head, paws, tail, eyes, zz, lift: null };
+  const parts = { root, body, head, paws, tail, eyes, ears, zz, lift: null, fx: {} };
   const blink = KIT.blinker(eyes);
-  g.userData = { id, coat: C, parts, faceZ: true, anim: (t, pose = 'sit') => posePlay(parts, t, pose, blink, C) };
+  // fx(3b, 바꿔서 씀): ear 0~1 귀 접힘 · hop m 폴짝 · tailUp 꼬리 세움
+  g.userData = { id, coat: C, parts, fx: parts.fx, faceZ: true, anim: (t, pose = 'sit') => posePlay(parts, t, pose, blink, C) };
   g.userData.anim(0, 'sit');
   return g;
 }
@@ -114,6 +116,7 @@ function posePlay(P, t, pose, blink, C) {
   paws.forEach((p, i) => { p.position.set(...PAW0[i]); p.rotation.set(0, 0, 0); p.scale.setScalar(1); });
   tail.position.set(0, 0.06, -0.14); tail.rotation.set(0, 0, 0);
   zz.visible = false;
+  for (const e of P.ears) { const sx = e.userData.sx, f = P.fx.ear || 0; e.rotation.set(-f * 0.9, 0, -sx * (0.4 + f * 0.7)); }
   blink(t);
   const breath = Math.sin(t * 2.4);
   body.scale.y = 1 + breath * 0.02;
@@ -155,5 +158,10 @@ function posePlay(P, t, pose, blink, C) {
     tail.rotation.y = 0.4 + Math.sin(t * 1.1) * 0.15;
     for (const e of eyes) e.scale.y = 0.1;
     zz.visible = true; zz.position.set(-0.05, 0.58 + Math.sin(t * 1.6) * 0.03, 0.3);
+  } else if (pose === 'tap') { // 잡은 물고기 툭툭 (앉아서 앞발 하나로)
+    head.rotation.x = 0.25;
+    paws[0].position.z += 0.07; paws[0].position.y += Math.max(0, Math.sin(t * 9)) * 0.07;
   }
+  if (P.fx.hop) root.position.y += P.fx.hop;
+  if (P.fx.tailUp) { tail.rotation.x = -1.3; tail.rotation.y = Math.sin(t * 6) * 0.12; } // 꼬리 세우고 끝만 살랑
 }

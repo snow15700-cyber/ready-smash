@@ -90,3 +90,16 @@ export function catAt(id, ms) {
   if (pts.length === 1) yaw = (h01(ci, k, 11) - 0.5) * 2.4; // 제자리: 남쪽(바다) 쪽을 보며 앉음
   return { x: s[0] + o[0], z: s[1] + o[1], y: s[2] ? CUSHION_Y : 0, yaw, pose };
 }
+
+// 3b: 고양이가 사람에게 다가가거나 돌아갈 길 [[x, z], ...] — 가장 가까운(막힘 없이 갈 수 있는) 쉬는 자리를 거쳐 그래프로
+// 양 끝에서 막힘 없이 갈 수 있는 자리 중 (끝까지 거리 + 그래프 길이)가 가장 짧은 짝
+const reach = (p) => { const ok = []; for (let i = 0; i < N; i++) if (clear(p, CAT_SPOTS[i])) ok.push(i); return ok.length ? ok : [...Array(N).keys()]; };
+const gap = (p, i) => Math.hypot(CAT_SPOTS[i][0] - p[0], CAT_SPOTS[i][1] - p[1]);
+export function catPath(from, to) {
+  if (clear(from, to)) return [from, to];
+  let best = null, bd = Infinity;
+  const B = reach(to);
+  for (const a of reach(from)) for (const b of B) { const d = gap(from, a) + dist[a][b] + gap(to, b); if (d < bd) { bd = d; best = [a, b]; } }
+  return [from, ...route(best[0], best[1]).map((i) => [CAT_SPOTS[i][0], CAT_SPOTS[i][1]]), to];
+}
+export const catCanStand = (x, z) => !blocked(x, z);

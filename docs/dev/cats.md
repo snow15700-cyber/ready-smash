@@ -17,7 +17,17 @@
 - 서버 `37_cats.sql`: 표 `pingpong_cat(player_id, cat_id, pts, fed_at, outfit)` · `pingpong_cat_list(token)` → cats [{id, pts, wait초}] · `pingpong_cat_feed(token, cat)` → ok{fish, pts, up, cats, bag} | wait{wait} | no_fish | bad_cat. 가장 싼 생선 = 시세순 + id순(`market.js cheapestIn`과 같음). 로컬 가짜 서버 `localServer.js`도 같은 규칙, `account.js catList·catFeed`(account.cats = {id: {pts, readyAt}}).
 - 점검(`check.cjs` SQL 부분): 빈 가방 no_fish · 없는 고양이 · 가장 싼 생선 == cheapestIn · 1시간 안 wait · 9→10점 ♥ 오름. 디버그 `window.__smash.cats.{cats, openPop(id), feed(id), catAt}`.
 - 낚시 중엔 광장 누르기가 꺼져서 고양이를 못 누름(3b에서 낚시 옆 고양이 할 때 같이 보기).
-- **다음 = 3b**(♥1~♥2 행동) → 새 대화 "cats.md 보고 고양이 3b 해줘".
+
+## 3b 한 것 (11/26, test · SQL 없음)
+- **내 화면에서만**(하트는 내 것 → 다른 사람에겐 고양이가 그냥 배회. 남에게 보이기는 4단계).
+- 부르기: 선착장에 내려오면(`onPier`) 또는 낚시를 시작하면 ♥1 이상 고양이 중 **하트 높은 순 3마리**가 꼬리 세우고 달려옴(2m/s, `rules.js catPath` — 쉬는 자리 그래프로 판 위만). 같은 고양이는 90초에 한 번(낚시 시작 때는 다시 부름).
+- ♥1: 도착하면 💕 + 다리 둘레를 4.5초 비비며 돌기 → 배회 자리로 돌아감(1.3m/s, 따라잡으면 배회로).
+- ♥2 + 낚시 중: 비빈 뒤 **내 옆에 앉음**(왼·오른·뒤 중 판 위인 곳, `catCanStand`), 나를 올려다봄(얼굴이 화면 쪽) · 줄다리기(fight·land) 동안 리듬에 까딱 · Perfect(챔질·음표) → 폴짝 + '냥!' · 음표 Miss·도망 → 귀 접힘 · 잡으면 앞발 툭툭(2.5초). 낚시를 그만두거나 멀어지면 돌아감.
+- 모형 `models.js`: `userData.fx` { ear 0~1 귀 접힘 · hop 폴짝 높이 · tailUp 꼬리 세움 } + 자세 'tap'(앞발 툭툭).
+- 낚시 소식: `session.js` emit에 `hook`(챔질 등급)·`note`(음표 판정) 추가 → `ui/fishing.js onEvent`가 `catHooks.fishEvent`로 넘김. `fishHooks.spot()` = 낚시 서는 자리·mode.
+- 디버그: `__smash.cats.call()`(지금 부르기).
+- 아직: 낚시 중엔 고양이를 못 누름(밥은 낚시 그만하고) · 밤에 졸기·비 오면 숨기·코 인사(14-4 '언제나')는 안 함.
+- **다음 = 3c**(🐱 내 고양이 창) → 새 대화 "cats.md 보고 고양이 3c 해줘".
 
 ## 사용자 확정 (11/26, 3단계 전)
 - **밥 = 1시간에 1마리**(고양이마다): 하루 3마리 제한은 없앰 → 자주자주 들어오게. 먹으면 배 보이고 zzz, 머리 위 '다음 밥까지 n분'.

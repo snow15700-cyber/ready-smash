@@ -222,6 +222,7 @@ export function createFishing(opt) {
     say('탁!', { at: bobAbove(1), size: 52, color: col, life: 0.6, shake: 5 });
     fx.burst(S.bob.x, seaHeight(S.bob.x, S.bob.z, S.now), S.bob.z, 22, 1);
     startRhythm();
+    emit({ k: 'hook', g });
   }
 
   // 리듬 (fishing.md 8장): 박자·패턴·음악은 rhythm.js가 한 마리마다·구절(4마디)마다 새로 조립 (반복 안 되게)
@@ -325,6 +326,7 @@ export function createFishing(opt) {
   function noteResult(n, res) {
     const R = S.R;
     n.res = res; n.at = rtNow();
+    emit({ k: 'note', res }); // 고양이(cats.md 3b)가 Perfect '냥!' · 놓치면 귀 접힘
     const y = seaHeight(S.bob.x, S.bob.z, S.now);
     if (n.fin) R.fin = null;
     if (res === 'Miss') {
