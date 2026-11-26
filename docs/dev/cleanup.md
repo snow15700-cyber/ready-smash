@@ -18,7 +18,7 @@
 | 3 | 옛 관전 화면 카메라 지우기 | 중간 | 낮음 | 작음 | ✓ test |
 | 4 | 반복되는 도우미 함수 한곳에 모으기 | 중간 | 낮음 | 중간 | ✓ test |
 | 5 | 로컬 가짜 서버를 따로 떼기 | 중간 | 낮음 | 작음 | ✓ test |
-| 6 | 안 쓰는 CSS(옛 화면 꾸밈) 지우기 | 중간 | 낮음~중간 | 중간 | |
+| 6 | 안 쓰는 CSS(옛 화면 꾸밈) 지우기 | 중간 | 낮음~중간 | 중간 | ✓ test |
 | 7 | 탁구채 모양을 `items.js`에서 떼기 | 중간 | 낮음~중간 | 중간 | |
 | 8 | 헷갈리는 파일 이름 바꾸기 | 중간 | 낮음 | 중간 | |
 | 9 | 옛 로비 카메라 정리 (`main.js`) | 중간 | 중간 | 중간 | |
@@ -94,6 +94,11 @@
 - **좋아지는 정도**: 중간. CSS가 약 15% 가벼워지고 디자인 고칠 때 덜 헷갈려요.
 - **고장 위험**: 낮음~중간(실수로 쓰는 걸 지우면 어떤 화면 모양이 깨질 수 있어요). 광장·꾸미기·랭킹·경기·뽑기 화면을 눈으로 확인.
 - **크기**: 약 200줄 삭제.
+- **한 일(11/26 ✓ test)**: `style.css` 1,379줄 → 1,174줄(약 205줄 삭제). CSS 이름을 모두 뽑아 `index.html`·`src/**/*.js`의 글자(문자열·class·id)에 한 번도 안 나오는 것만 지움:
+  옛 로비 버튼(`lb-left`·`lb-play`·`lb-friends`·`lb-label`·`lb-to-plaza`·`#btn-join`·`mobile-note`), 옛 방 목록(`rl-…`·`rl`·`room-labels`), 옛 대기실(`room-…`·`slot`·`slots`·`vs`·`code`·`h2h`·`ticket`·`waiting-list`·`leave-pill`·`#btn-start`·`#btn-room-lobby`·`#room.leaving`·`.screen.stage`),
+  방 코드 상자(`code-boxes`), 옛 관전(`watch-…`·`watching`·`spectating`·`spec-acts`·`wn-row`), 쉬는 시간 알약(`break-pill`·`room-break`), 그 밖에 `tiny`·`soon`·`center`·`glass`, 쓸 곳이 없어진 `@keyframes blink`·`breakGlow`, 주인 없는 설명 주석.
+  여러 이름이 묶인 줄(예: 유리 한 장 공통)은 안 쓰는 이름만 뺌. 이름을 조립해서 쓰는 `g-common/rare/legend/default`·`lv1~3`은 남김.
+  확인: 지우기 전/후 CSS로 로그인·가입·광장·업데이트·치는 방법·메뉴·PIN·랭킹·꾸미기·뽑기 탭을 PC·휴대폰 크기로 열어 **모든 요소의 꾸밈 값**을 비교 → 같음(알림 뜨는 타이밍·이모지 글자 폭 차이뿐).
 
 ## 7. 탁구채 모양을 `items.js`에서 떼기
 - **무엇**: `src/items.js`(1,406줄)에 ① 아이템 목록 ② 탁구채 3D 모양(약 940줄) ③ 목록 그림 그리기가 같이 있어요.
