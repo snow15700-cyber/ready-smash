@@ -130,7 +130,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
         const k = clamp((rt - n.at) / 0.5, 0, 1);
         g.globalAlpha = 1 - k;
         const col = n.res === 'Perfect' ? '#ffb02e' : n.res === 'Good' ? '#7fe3a0' : '#c9d3e0';
-        out(n.res, b.x, b.y - br - 22 * u - k * 20, (n.res === 'Perfect' ? 30 : 26) * u, col, 5);
+        out(n.combo ? `Perfect ×${n.combo}` : n.res, b.x, b.y - br - 22 * u - k * 20, (n.res === 'Perfect' ? 30 + Math.min(4, n.combo || 0) * 2 : 26) * u, n.combo >= 3 ? '#ffd23a' : col, 5);
         if (n.res !== 'Miss') { g.lineWidth = 4; g.strokeStyle = col; g.beginPath(); g.arc(b.x, b.y, br * (1 + k * 0.8), 0, 7); g.stroke(); }
         g.globalAlpha = 1;
       }
