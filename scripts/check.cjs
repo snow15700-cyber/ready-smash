@@ -316,11 +316,26 @@ async function sqlCheck() {
     const srvCm = psql(DB, `select string_agg(round(public.pingpong__fish_cm(u)::numeric, 3)::text, ',' order by n) from unnest(array[${us.join(',')}]::float8[]) with ordinality as x(u, n);`).split(',');
     us.forEach((u, i) => must(Math.abs(+srvCm[i] - R.cmOf(u)) < 0.002, `물고기 크기 식이 서버와 화면이 달라요: u=${u} 서버 ${srvCm[i]} 화면 ${R.cmOf(u)}`));
     must(R.cmOf(0.999) > 150 && R.cmOf(0.5) < 50, '긴 꼬리 크기가 이상해요');
-    // 실제 던지기 200번: 잡히는 것이 목록 안 · 크기 20~100
+    // 34 보통 크기 × 배율 + 행운 주사위 (fishing.md 13장): 보통 크기 서버 == rules.js, 주사위 개수 서버 == luckDice
+    const bases = Object.fromEntries(psql(DB, `select string_agg(id || ':' || base_cm, ',') from public.pingpong_fish where kind = 'fish';`).split(',').map((x) => x.split(':')));
+    must(R.SPECIES.every((s) => +bases[s.id] === s.base) && Object.keys(bases).length === R.SPECIES.length, '물고기 보통 크기가 서버와 화면이 달라요: ' + JSON.stringify(bases));
+    const pid = `(select id from public.pingpong_players where nick = '점검봇')`;
+    const dice = (n) => +psql(DB, `select public.pingpong__fish_dice(${pid}, ${n});`);
+    const nLog = +psql(DB, `select count(*) from public.pingpong_fish_log where player_id = ${pid};`);
+    must(nLog < 10 && dice(0) === R.luckDice({ caught: nLog, dayN: 0 }) && dice(0) === 3, '초보자 행운(주사위 3번)이 이상해요: ' + dice(0));
+    psql(DB, `insert into public.pingpong_fish_log(player_id, fish_id, cm, score) select ${pid}, 'mackerel', 18, 30 from generate_series(1, 10);`);
+    must(dice(0) === 2 && dice(2) === 2 && dice(3) === 1, '오늘의 첫 3마리 행운이 이상해요: ' + [dice(0), dice(2), dice(3)]);
+    psql(DB, `update public.pingpong_fish_log set at = public.pingpong__fish_week_start() where player_id = ${pid} and fish_id = 'dragon';`);
+    const kst = new Date(Date.now() + 9 * 3600e3), wk0 = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate() - (kst.getUTCDay() + 6) % 7) - 9 * 3600e3;
+    const storm = Math.min(4, Math.floor((Date.now() - wk0) / 864e5));
+    must(dice(5) === 1 + storm && dice(5) === R.luckDice({ caught: 99, dayN: 5, recordDays: (Date.now() - wk0) / 864e5 }), `바다 술렁임이 이상해요: 서버 ${dice(5)} 기대 ${1 + storm}`);
+    // 실제 던지기 200번: 잡히는 것이 목록 안 · 점수 20~999 · cm = 점수 × 보통 크기 ÷ 50 (서버 반올림 == rules.js cmOfScore)
     const many = JSON.parse(psql(DB, `set role anon; select json_agg(public.pingpong_fish_cast(${tk}, 13, null, 0, 0.5, true)->'cast')::text from generate_series(1, 200);`));
     const kinds = new Set(many.map((c) => c.kind));
-    must(many.every((c) => (c.kind === 'paddle' ? R.LEGEND_PADDLES.some(([id]) => id === c.item) : R.CATCH[c.item]?.kind === c.kind && (c.kind === 'junk' || (c.cm >= 20 && c.cm <= 999)))) && kinds.has('fish'),
-      '던지기 결과가 목록 밖이에요: ' + JSON.stringify(many.filter((c) => !R.CATCH[c.item]).slice(0, 3)));
+    must(many.every((c) => (c.kind === 'paddle' ? R.LEGEND_PADDLES.some(([id]) => id === c.item) : R.CATCH[c.item]?.kind === c.kind && (c.kind === 'junk' || (c.s >= 20 && c.s <= 999 && +c.cm === R.cmOfScore(c.item, +c.s))))) && kinds.has('fish'),
+      '던지기 결과가 목록 밖이에요: ' + JSON.stringify(many.filter((c) => !R.CATCH[c.item] || (c.kind === 'fish' && +c.cm !== R.cmOfScore(c.item, +c.s))).slice(0, 3)));
+    const today = +psql(DB, `select fish_day_n from public.pingpong_players where nick = '점검봇';`);
+    must(today === many.filter((c) => c.kind === 'fish').length + (c1.cast.kind === 'fish') + (c2.cast.kind === 'fish'), '오늘 뽑은 물고기 수(fish_day_n)가 안 맞아요: ' + today);
   }
   // 표는 브라우저가 직접 못 읽어야 한다 (RLS·권한)
   for (const t of ['pingpong_players', 'pingpong_sessions', 'pingpong_inventory', 'pingpong_matches', 'pingpong_fish_dex', 'pingpong_fish_log']) {

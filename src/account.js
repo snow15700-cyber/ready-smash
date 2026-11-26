@@ -326,7 +326,19 @@ export async function getFishRank(kind) {
   return Array.isArray(r) ? r : null;
 }
 
-// 로컬 가짜 서버의 낚시 (28과 같은 규칙)
+// 한국 월요일 0시 (이번 주 월척)
+function fishWeekStart(now) {
+  const k = new Date(now + 9 * 3600e3), dow = (k.getUTCDay() + 6) % 7; // 월요일 0
+  return Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate() - dow) - 9 * 3600e3;
+}
+// 이번 주 1등 한 마리 (점수가 같으면 먼저 잡은 것) — 바다 술렁임은 이 기록이 세워진 뒤 지난 날 수
+function fishWeekTop(db, now) {
+  const since = fishWeekStart(now);
+  let top = null;
+  for (const l of db.fishLog || []) if (l.at >= since && (!top || (l.s ?? l.cm) > (top.s ?? top.cm))) top = l;
+  return top;
+}
+// 로컬 가짜 서버의 낚시 (28·34와 같은 규칙)
 const FISH_ACH = ['fish10', 'fish_all', 'junk_all', 'fish_bread', 'fish_big', 'fish_legend', 'fish_perf10'];
 function localFish(fn, a, p, db, now) {
   if (fn === 'pingpong_fish_cast') {
@@ -335,7 +347,16 @@ function localFish(fn, a, p, db, now) {
     const near = FR.bubbleNear(pt.x, pt.z, FR.activeBubbles(nowMs() / 1000, 'normal'));
     const owned = (p.owned || []).filter((id) => FR.LEGEND_PADDLES.some(([x]) => x === id));
     const c = FR.rollCatch(near, { owned, cond: { break: !!breakAt(nowMs()), night: FR.isNight(nowMs()), rain: !!a.p_rain } });
-    p.fishCast = { id: Math.random().toString(36).slice(2), kind: c.kind, item: c.id, grade: c.grade, cm: c.kind === 'fish' ? FR.fishSize().cm : 0, dup: !!c.dup, near, at: now };
+    let size = { cm: 0, s: 0 };
+    if (c.kind === 'fish') { // 34: 보통 크기 × 배율 + 행운 주사위 (초보자 10마리 3번 · 오늘 첫 3마리 2번 · 이번 주 1등이 안 깨진 날 수만큼 +1, 최대 +4)
+      const day = new Date(nowMs() + 9 * 3600e3).toISOString().slice(0, 10);
+      if (p.fishDay !== day) { p.fishDay = day; p.fishDayN = 0; }
+      const top = fishWeekTop(db, now);
+      const dice = FR.luckDice({ caught: (db.fishLog || []).filter((l) => l.pid === p.id).length, dayN: p.fishDayN, recordDays: top ? (now - top.at) / 86400e3 : 0 });
+      p.fishDayN++;
+      size = FR.fishSize(c.id, dice);
+    }
+    p.fishCast = { id: Math.random().toString(36).slice(2), kind: c.kind, item: c.id, grade: c.grade, cm: size.cm, s: size.s, dup: !!c.dup, near, at: now };
     const { at, ...cast } = p.fishCast;
     return { status: 'ok', cast };
   }
@@ -367,7 +388,7 @@ function localFish(fn, a, p, db, now) {
       first = !e; rec = c.kind === 'fish' && (first || c.cm > e.best);
       p.fishDex[c.item] = { n: (e?.n || 0) + 1, best: Math.max(e?.best || 0, c.cm), at: rec ? now : e?.at || null };
       best = p.fishDex[c.item].best;
-      if (c.kind === 'fish') (db.fishLog ||= []).push({ pid: p.id, id: c.item, cm: c.cm, at: now });
+      if (c.kind === 'fish') (db.fishLog ||= []).push({ pid: p.id, id: c.item, cm: c.cm, s: c.s ?? c.cm, at: now });
     }
     const run = a.p_perfect ? (p.achN.fish_pr || 0) + 1 : 0;
     p.achN.fish_pr = run;
@@ -378,13 +399,13 @@ function localFish(fn, a, p, db, now) {
     const ok = {
       fish10: dex.filter((id) => FR.CATCH[id]?.kind === 'fish').length >= 10,
       fish_all: FR.SPECIES.every((s) => dex.includes(s.id)), junk_all: FR.JUNK.every((s) => dex.includes(s.id)),
-      fish_bread: c.item === 'baguette', fish_big: c.kind === 'fish' && c.cm >= FR.BIG_CM, fish_legend: c.kind === 'fish' && c.grade === 'legend', fish_perf10: run >= 10,
+      fish_bread: c.item === 'baguette', fish_big: c.kind === 'fish' && (c.s ?? c.cm) >= FR.BIG_CM, fish_legend: c.kind === 'fish' && c.grade === 'legend', fish_perf10: run >= 10,
     };
     p.ach ||= {};
     const fresh = [];
     for (const id of FISH_ACH) if (ok[id] && !p.ach[id]) { p.ach[id] = new Date(now).toISOString(); p.coins += REWARD[ACH[id].grade]; fresh.push({ id, coins: REWARD[ACH[id].grade] }); }
     const { at, ...cast } = c;
-    return { status: 'ok', caught: true, cast, coins: total, bonus: Math.min(brk, total), bonus_pct: brkPct, capped, first, rec, best, big: c.kind === 'fish' && c.cm >= FR.BIG_CM, pieces, new: fresh };
+    return { status: 'ok', caught: true, cast, coins: total, bonus: Math.min(brk, total), bonus_pct: brkPct, capped, first, rec, best, big: c.kind === 'fish' && (c.s ?? c.cm) >= FR.BIG_CM, pieces, new: fresh };
   }
   if (fn === 'pingpong_fish_dex') {
     const recs = {};
@@ -396,14 +417,14 @@ function localFish(fn, a, p, db, now) {
   }
   if (fn === 'pingpong_fish_rank') {
     if (!['week', 'all'].includes(a.p_kind)) return [];
-    const k = new Date(now + 9 * 3600e3), dow = (k.getUTCDay() + 6) % 7; // 월요일 0
-    const since = a.p_kind === 'week' ? Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate() - dow) - 9 * 3600e3 : -Infinity;
+    const since = a.p_kind === 'week' ? fishWeekStart(now) : -Infinity;
+    const sc = (l) => l.s ?? l.cm; // 34: 크기 점수(배율 × 50) 순서
     const best = {};
-    for (const l of db.fishLog || []) if (l.at >= since && (!best[l.pid] || l.cm > best[l.pid].cm)) best[l.pid] = l;
+    for (const l of db.fishLog || []) if (l.at >= since && (!best[l.pid] || sc(l) > sc(best[l.pid]))) best[l.pid] = l;
     const byId = Object.fromEntries(Object.values(db.players).map((q) => [q.id, q]));
-    const rows = Object.values(best).filter((l) => byId[l.pid]).sort((x, y) => y.cm - x.cm || x.at - y.at).slice(0, 50)
-      .map((l) => { const q = byId[l.pid]; return { nick: q.nick, title: q.title || null, title_x: q.achN?.nemesis || null, value: l.cm, fish: l.id }; });
-    rows.forEach((x, i) => { x.rank = i && rows[i - 1].value === x.value ? rows[i - 1].rank : i + 1; });
+    const rows = Object.values(best).filter((l) => byId[l.pid]).sort((x, y) => sc(y) - sc(x) || x.at - y.at).slice(0, 50)
+      .map((l) => { const q = byId[l.pid]; return { nick: q.nick, title: q.title || null, title_x: q.achN?.nemesis || null, value: l.cm, x: FR.timesOf(sc(l)), score: sc(l), fish: l.id }; });
+    rows.forEach((x, i) => { x.rank = i && rows[i - 1].score === x.score ? rows[i - 1].rank : i + 1; });
     return rows;
   }
   return null;
@@ -834,7 +855,7 @@ function localServer(fn, a) {
       .filter((x) => x.value > 0)
       .sort((x, y) => y.value - x.value || (x.nick < y.nick ? -1 : 1))
       .slice(0, 50);
-    rows.forEach((x, i) => { x.rank = i && rows[i - 1].value === x.value ? rows[i - 1].rank : i + 1; });
+    rows.forEach((x, i) => { x.rank = i && rows[i - 1].score === x.score ? rows[i - 1].rank : i + 1; });
     return rows;
   } else if (fn === 'pingpong_achievements' || fn === 'pingpong_set_title' || fn === 'pingpong_ach_match' || fn === 'pingpong_ach_people') {
     const p = me();
