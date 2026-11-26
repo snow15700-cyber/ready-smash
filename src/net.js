@@ -306,10 +306,15 @@ function joinLocal(code, me, h, listen) {
       members.delete(d.id); seen.delete(d.id); emitMembers();
     } else h.onMsg(d);
   };
+  let lastTick = performance.now();
   const hb = setInterval(() => {
     post({ k: '_hb', me });
     const now = performance.now();
-    for (const [id, t] of seen) if (now - t > 8000) { members.delete(id); seen.delete(id); } // 느린 PC(점검용 탭 여러 개)에서 신호가 늦어도 나간 걸로 안 치게
+    // 내 탭이 멈췄다 깨어난 거면(경기장 짓기 등, 그래픽 카드 없는 점검 PC는 5~8초) 그동안 못 받은 신호로 남을 내보내지 않는다
+    if (now - lastTick > 2500) for (const id of seen.keys()) seen.set(id, now);
+    lastTick = now;
+    // 상대 탭이 멈춰도 신호가 늦을 뿐 → 15초 넘게 없을 때만 나간 걸로 (진짜로 닫으면 _bye가 바로 감)
+    for (const [id, t] of seen) if (now - t > 15000) { members.delete(id); seen.delete(id); }
     emitMembers();
   }, 1000);
   // Supabase처럼 처음에는 '나를 뺀' 목록이 먼저 온다 (실제 서버와 같은 순서로 테스트하려고)

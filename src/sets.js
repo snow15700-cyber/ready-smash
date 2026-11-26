@@ -23,7 +23,6 @@ export const SETS = [
   { id: 'hero', name: '동네 히어로', head: 'head_mask', body: 'body_cape', third: 'paddle_hammer', kind: 'win', pct: 15 },
   { id: 'bear', name: '곰돌이', head: 'head_bear', body: 'body_bear', third: 'paddle_duck', kind: 'mission', pct: 15 },
 ];
-export const SET = Object.fromEntries(SETS.map((s) => [s.id, s]));
 
 // 장착 정보로 세트 찾기: { set, full } 또는 null (머리와 몸이 둘 다 맞아야 세트)
 export function setOf(equip) {

@@ -40,7 +40,6 @@ export function fitOf(model, def) {
   const k = def.w ? def.w / Math.max(size.x, size.z) : def.h / size.y;
   return { k, y: -box.min.y * k };
 }
-export const preloadModels = () => Promise.all([...new Set(Object.values(MODELS).flatMap((d) => d.files))].map(loadModel)).catch((e) => console.warn('[광장 소품 모델]', e));
 
 // 실제 광장: root 안의 소품 자리를 InstancedMesh로 채워 holder에 넣는다 (모델을 다 받은 뒤). 돌려줌: 밤에 켜지는 재질 목록
 export async function fillProps(root, holder, matFn = (m) => m) {
