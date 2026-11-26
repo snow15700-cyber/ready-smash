@@ -411,7 +411,8 @@ export function createFishing(opt) {
       fishFinish(id, true, S.grade === 'Perfect').then((x) => {
         if (!S.result?.ok || S.result.c !== c) return;
         if (x.status !== 'ok') { S.result.srvNote = x.status === 'too_fast' ? '너무 빨라서 인정 안 됨' : '서버 기록 실패'; return; }
-        Object.assign(S.result, { first: x.first, rec: x.rec, best: x.best, coins: x.coins, bonus: x.bonus, capped: x.capped, pieces: x.pieces });
+        Object.assign(S.result, { first: x.first, rec: x.rec, best: x.best, coins: x.coins, bonus: x.bonus, capped: x.capped, pieces: x.pieces, bagged: x.bagged, sold: x.sold, bagN: Array.isArray(x.bag) ? x.bag.reduce((a, b) => a + b.n, 0) : null });
+        if (x.bagged || x.sold) emit({ k: 'bag' });
         if (x.pieces) S.result.c = { ...c, dup: true };
         (x.new || []).forEach((n, i) => setTimeout(() => say(`🏅 업적 「${ACH[n.id]?.name || n.id}」 +${n.coins}`, { sx: 0.5, sy: 0.16, size: 26, color: '#ffe27a', life: 2.4, rise: 10 }), 600 + i * 900));
       });

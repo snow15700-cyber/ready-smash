@@ -3,6 +3,7 @@
 // 서버 설정이 없으면(로컬 테스트) 브라우저 안의 가짜 서버(src/localServer.js)로 똑같이 동작한다.
 import { ONLINE, getClient } from './net.js';
 import { koreaDay } from './missions.js';
+import { nowMs } from './breaks.js';
 import { localServer } from './localServer.js'; // 서버 설정이 없을 때 쓰는 가짜 서버
 
 // ?acct=2 처럼 주소에 붙이면 열쇠를 따로 보관한다 (한 브라우저에서 탭마다 다른 계정으로 테스트할 때)
@@ -308,7 +309,25 @@ export async function fishFinish(castId, ok, perfect) {
   if (!account.loggedIn || !castId) return { status: 'guest' };
   const r = await call('pingpong_fish_finish', { p_token: token(), p_cast: castId, p_ok: !!ok, p_perfect: !!perfect });
   if (r.player) account.player = { ...EMPTY_STATS, ...r.player };
+  if (Array.isArray(r.bag)) account.fishBag = r.bag;
   if (r.status === 'ok' && r.new?.length && account.ach) for (const n of r.new) account.ach.got.set(n.id, new Date().toISOString());
+  return r;
+}
+// 🎒 가방 · 🍣 팔기 (35_fish_bag.sql, fishing.md 14-6). account.fishBag = [{ id, n }] · null = 모름(손님 또는 35 전 서버 → 횟집 숨김)
+// 시세 시각: 서버면 서버 시각, 로컬 가짜 서버면 ?clock= 시험 시각
+export const marketNow = () => (ONLINE ? srvNow() : nowMs());
+export async function fishBagLoad() {
+  if (!account.loggedIn) { account.fishBag = null; return null; }
+  const r = await call('pingpong_fish_bag', { p_token: token() });
+  account.fishBag = r.status === 'ok' && Array.isArray(r.bag) ? r.bag : null;
+  return account.fishBag;
+}
+// id = 물고기 종류(그 종류 전부) 또는 null(전부). 결과 { status, coins, bonus, sold: [{ id, n, price }], bag }
+export async function fishSell(id = null) {
+  if (!account.loggedIn) return { status: 'guest' };
+  const r = await call('pingpong_fish_sell', { p_token: token(), p_fish: id });
+  if (r.player) account.player = { ...EMPTY_STATS, ...r.player };
+  if (Array.isArray(r.bag)) account.fishBag = r.bag;
   return r;
 }
 // 도감 (내 기록 + 어종별 기록). 손님은 dex 빈 목록

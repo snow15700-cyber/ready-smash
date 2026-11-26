@@ -4,7 +4,7 @@
 //  · 다른 사람에게는 걷기처럼 내 상태(fi: 낚시 중·찌 자리)와 '잡았다' 한 번만 (광장 채널). 경기 중인 선수 PC에는 안 감(광장 채널 밖)
 //  · 희귀·전설·전설 탁구채를 낚으면 광장 모두에게 알림
 import * as THREE from 'three';
-import { account, fishDex, myEquip, srvNow, syncServerClock } from '../account.js';
+import { account, fishBagLoad, fishDex, myEquip, srvNow, syncServerClock } from '../account.js';
 import { PLAZA } from '../arena-plaza.js';
 import { applyLook } from '../items.js';
 import { activeBubbles, CATCH, LEGEND_PADDLES } from '../games/fishing/rules.js';
@@ -32,6 +32,7 @@ root.innerHTML = `
   <button id="fish-start" class="fish-start hidden" type="button">🎣 낚시하기</button>
   <canvas id="fish-hud" class="fish-hud hidden"></canvas>
   <div id="fish-bar" class="fish-bar hidden">
+    <button id="fish-shop" class="hidden" type="button">🍣 횟집</button>
     <button id="fish-dex" type="button">📖 도감</button>
     <button id="fish-stop" type="button">그만하기</button>
   </div>
@@ -64,7 +65,20 @@ document.head.appendChild(css);
 $('fish-start').addEventListener('click', (e) => { e.stopPropagation(); start(); });
 $('fish-stop').addEventListener('click', (e) => { e.stopPropagation(); stop(); });
 $('fish-dex').addEventListener('click', (e) => { e.stopPropagation(); if (F && (F.S.mode === 'ready' || F.S.mode === 'result')) mod.openDex(); });
-for (const id of ['fish-start', 'fish-stop', 'fish-dex']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
+// 🍣 횟집 (fishing.md 14-6, 1a: 낚시 화면 버튼 — 선착장 건물은 1b). 35 전 서버·손님이면 가방을 몰라서 숨김
+let shopMod = null;
+$('fish-shop').addEventListener('click', async (e) => {
+  e.stopPropagation();
+  if (F && !(F.S.mode === 'ready' || F.S.mode === 'result')) { toastHud.toast('물고기를 다 낚은 뒤에 가요', 1800); return; }
+  shopMod ||= await import('../games/fishing/shop.js');
+  shopMod.openShop({ onSold: () => { renderMe(); bagBtn(); } });
+});
+function bagBtn() {
+  const b = account.fishBag, el = $('fish-shop');
+  el.classList.toggle('hidden', !account.loggedIn || !Array.isArray(b));
+  if (Array.isArray(b)) el.textContent = `🍣 횟집 · 🎒 ${b.reduce((a, x) => a + x.n, 0)}/30`;
+}
+for (const id of ['fish-start', 'fish-stop', 'fish-dex', 'fish-shop']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
 
 // ── 시작 · 그만
 async function start() {
@@ -100,13 +114,15 @@ async function start() {
   document.body.classList.add('fish-fade');
   plazaApi.view.setCamOff(true);
   F.camFov0 = world.camera.fov;
-  if (account.loggedIn) { syncServerClock(); fishDex().then((d) => { if (d) dexMod.setServerDex(d); }); }
+  if (account.loggedIn) { syncServerClock(); fishDex().then((d) => { if (d) dexMod.setServerDex(d); }); fishBagLoad().then(bagBtn); }
+  bagBtn();
   plazaApi.sendInfo();
   resize();
 }
 function stop() {
   if (!on) return;
   on = false; me.b = null;
+  shopMod?.closeShop();
   F.setActive(false);
   document.body.classList.remove('fishing-on');
   for (const id of ['fish-hud', 'fish-bar', 'fish-chat']) $(id).classList.add('hidden');
@@ -138,18 +154,20 @@ function onEvent(ev) {
     const c = ev.c;
     plazaApi.send({ k: 'fish', a: 'catch', item: c.id, cm: c.kind === 'fish' ? ev.cm : 0 });
     setTimeout(() => renderMe(), 2500); // 서버가 준 코인을 오른쪽 위 카드에
+  } else if (ev.k === 'bag') { bagBtn(); renderMe();
   } else if (ev.k === 'miss' || ev.k === 'ready') { if (me.b) { me.b = null; plazaApi.sendInfo(); } }
 }
 
 // ── 입력 (낚시 중에만): 누르기·끌어올리기는 광장 화면 위 어디서나
 const cv = world.renderer.domElement;
-cv.addEventListener('pointerdown', (e) => { if (!on) return; e.preventDefault(); if (camFrom.t < 0.7) return; F.press({ x: e.clientX, y: e.clientY }); });
+cv.addEventListener('pointerdown', (e) => { if (!on || shopMod?.shopOpen()) return; e.preventDefault(); if (camFrom.t < 0.7) return; F.press({ x: e.clientX, y: e.clientY }); });
 addEventListener('pointermove', (e) => { if (on) F.moveDrag(e.clientX, e.clientY); });
 addEventListener('pointerup', (e) => { if (on) F.release(e.clientX, e.clientY); });
 addEventListener('pointercancel', () => { if (on) { F.S.drag = null; F.release(); } });
 addEventListener('blur', () => { if (on) { F.S.drag = null; F.release(); } });
 addEventListener('keydown', (e) => {
   if (!on || e.target?.tagName === 'INPUT') return;
+  if (shopMod?.shopOpen()) { if (e.code === 'Escape') shopMod.closeShop(); return; } // 횟집 창이 떠 있으면 낚시 키 안 먹음
   if (e.code === 'Escape') { if (!mod.dexOpen()) stop(); return; }
   if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'KeyA' || e.code === 'KeyD') return; // 광장에서는 선 자리 그대로
   if (camFrom.t < 0.7) return; // 카메라가 날아가는 동안은 던지지 않음

@@ -7,6 +7,7 @@ import { breakAt, nowMs } from './breaks.js';
 import { koreaDay, missionsOf, MISSION_ALL, MISSION_COIN } from './missions.js';
 import { setOf, setAmount, setLabel } from './sets.js';
 import * as FR from './games/fishing/rules.js';
+import * as MK from './games/fishing/market.js';
 
 // 한국 월요일 0시 (이번 주 월척)
 function fishWeekStart(now) {
@@ -21,6 +22,9 @@ function fishWeekTop(db, now) {
   return top;
 }
 // 로컬 가짜 서버의 낚시 (28·34와 같은 규칙)
+const bagList = (p) => Object.entries(p.fishBag || {}).filter(([, n]) => n > 0).sort(([a], [b]) => (a < b ? -1 : 1)).map(([id, n]) => ({ id, n }));
+const bagN = (p) => MK.bagCount(bagList(p));
+const breakPctOf = (p) => { const st = setOf(p.equip); return st?.set.kind === 'break' ? 50 + setAmount(st.set, st.full) : 50; };
 const FISH_ACH = ['fish10', 'fish_all', 'junk_all', 'fish_bread', 'fish_big', 'fish_legend', 'fish_perf10'];
 function localFish(fn, a, p, db, now) {
   if (fn === 'pingpong_fish_cast') {
@@ -50,16 +54,19 @@ function localFish(fn, a, p, db, now) {
     if (!a.p_ok) { p.achN.fish_pr = 0; return { status: 'ok', caught: false, player: null }; }
     const stage = c.kind === 'junk' ? 'junk' : c.grade;
     if ((now - c.at) / 1000 < FR.MIN_SEC[stage]) return { status: 'too_fast' };
-    let base = 0, brk = 0, brkPct = 50;
+    // 35: 물고기는 가방에, 꽉 찼으면 그 자리에서 지금 시세로 (분당 주머니는 안 씀)
+    let base = 0, brk = 0, brkPct = 50, bagged = false, sold = false;
+    p.fishBag ||= {};
     if (c.kind === 'fish') {
-      base = FR.FISH_COINS[c.grade];
-      const st = setOf(p.equip);
-      if (st?.set.kind === 'break') brkPct = 50 + setAmount(st.set, st.full);
-      if (breakAt(nowMs())) brk = Math.ceil((base * brkPct) / 100);
+      if (bagN(p) < MK.BAG_MAX) { p.fishBag[c.item] = (p.fishBag[c.item] || 0) + 1; bagged = true; }
+      else {
+        sold = true;
+        base = Math.floor(MK.priceOf(c.item, nowMs()) / 10);
+        brkPct = breakPctOf(p);
+        if (breakAt(nowMs())) brk = Math.ceil((base * brkPct) / 100);
+      }
     }
-    const pocket = Math.min(FR.COIN_POCKET, (p.fishPocket ?? FR.COIN_POCKET) + Math.floor(((now - (p.fishPocketAt || now)) / 60000) * FR.COIN_PER_MIN));
-    let total = base + brk, capped = false;
-    if (total > pocket) { total = pocket; capped = true; }
+    const total = base + brk, capped = false;
     let first = false, rec = false, pieces = 0, best = 0;
     if (c.kind === 'paddle') {
       p.owned ||= [];
@@ -76,7 +83,6 @@ function localFish(fn, a, p, db, now) {
     p.achN.fish_pr = run;
     p.coins = (p.coins || 0) + total;
     p.pieces = (p.pieces || 0) + pieces;
-    p.fishPocket = pocket - total; p.fishPocketAt = now;
     const dex = Object.keys(p.fishDex || {});
     const ok = {
       fish10: dex.filter((id) => FR.CATCH[id]?.kind === 'fish').length >= 10,
@@ -87,8 +93,18 @@ function localFish(fn, a, p, db, now) {
     const fresh = [];
     for (const id of FISH_ACH) if (ok[id] && !p.ach[id]) { p.ach[id] = new Date(now).toISOString(); p.coins += REWARD[ACH[id].grade]; fresh.push({ id, coins: REWARD[ACH[id].grade] }); }
     const { at, ...cast } = c;
-    return { status: 'ok', caught: true, cast, coins: total, bonus: Math.min(brk, total), bonus_pct: brkPct, capped, first, rec, best, big: c.kind === 'fish' && (c.s ?? c.cm) >= FR.BIG_CM, pieces, new: fresh };
+    return { status: 'ok', caught: true, cast, coins: total, bonus: Math.min(brk, total), bonus_pct: brkPct, capped, bagged, sold, bag: bagList(p), first, rec, best, big: c.kind === 'fish' && (c.s ?? c.cm) >= FR.BIG_CM, pieces, new: fresh };
   }
+  if (fn === 'pingpong_fish_sell') {
+    const items = Object.entries(p.fishBag || {}).filter(([id, n]) => n > 0 && (a.p_fish == null || id === a.p_fish));
+    if (!items.length) return { status: 'empty', bag: bagList(p) };
+    const ms = nowMs(), brkPct = breakPctOf(p);
+    const r = MK.sellCoins(items, ms, breakAt(ms) ? brkPct : 0);
+    for (const [id] of items) delete p.fishBag[id];
+    p.coins = (p.coins || 0) + r.total;
+    return { status: 'ok', coins: r.total, bonus: r.bonus, bonus_pct: brkPct, sold: items.map(([id, n]) => ({ id, n, price: MK.priceOf(id, ms) })), bag: bagList(p) };
+  }
+  if (fn === 'pingpong_fish_bag') return { status: 'ok', bag: bagList(p) };
   if (fn === 'pingpong_fish_dex') {
     const recs = {};
     for (const q of Object.values(db.players)) for (const [id, e] of Object.entries(q.fishDex || {})) {
@@ -225,7 +241,7 @@ export function localServer(fn, a) {
     const p = me();
     if (!p && fn !== 'pingpong_fish_rank' && fn !== 'pingpong_fish_dex') return { status: 'no_session' };
     const r = localFish(fn, a, p, db, now);
-    if (r && !Array.isArray(r) && p && fn === 'pingpong_fish_finish' && r.status === 'ok') r.player = pj(p);
+    if (r && !Array.isArray(r) && p && (fn === 'pingpong_fish_finish' || fn === 'pingpong_fish_sell') && r.status === 'ok') r.player = pj(p);
     save();
     return r;
   }
