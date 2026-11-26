@@ -248,6 +248,7 @@ export function createFishing(opt) {
     S.R = {
       song, spb, base: nowS(), t0: lead + intro * spb, intro, // 첫 노트 구절의 첫 박 (그 전 intro박은 음악만 — 들어가는 마디)
       queue: [], phrases: 0, notes: [], dist, g: 1, m: (100 - dist) / f.missOut, lastBeat: -99, sched: -intro, pulse: 0, pulseAmp: 1, side: 1, pcombo: 0,
+      heat: prev ? prev.heat : 0, // 음악 달아오름(16장 C): 계속 맞춘 정도 — 단계가 올라가도 이어짐
       hits: prev ? prev.hits : 0, perfects: prev ? prev.perfects : 0, misses: prev ? prev.misses : 0,
       fin: null, aOff: 0, bump: 0, tilt: 0, reel: 0, slack: 0, burst: null, shown: prev ? prev.shown : undefined,
     };
@@ -278,6 +279,12 @@ export function createFishing(opt) {
     S.R.reel = -1; S.R.slack = 1.2; S.R.tilt = 1;
   }
   const beatT = (b) => S.R.t0 + b * S.R.spb;
+  // 음악 달아오름(16장 C 1단계): 맞춘 노트(Good 1 · Perfect 1.5)가 쌓일수록 악기가 한 겹씩 — 3 → 1겹, 7 → 2겹, 12 → 3겹.
+  // 놓치면 한 겹 아래 문턱으로 내려감. 숫자는 화면에 안 보임(8장 '콤보 없음' 그대로) — 귀로만
+  const HEAT_AT = [3, 7, 12];
+  const heatLayers = (h) => HEAT_AT.filter((x) => h >= x).length;
+  function heatAdd(R, p) { R.heat = Math.min(16, R.heat + (p ? 1.5 : 1)); }
+  function heatMiss(R) { const l = heatLayers(R.heat); R.heat = l >= 2 ? HEAT_AT[l - 2] : 0; }
   function fillQueue() { // 앞으로 2구절치 노트 시각을 늘 준비
     const R = S.R;
     while (R.queue.length < 12) { for (const x of makePhrase(R.song)) R.queue.push({ beat: R.phrases * 16 + x }); R.phrases++; }
@@ -286,7 +293,7 @@ export function createFishing(opt) {
     const R = S.R, rt = rtNow(), spb = R.spb;
     // 음악: 0.25초 앞까지 박마다 미리 걸어 둠 (오디오 시각). 소리가 늦게 들리는 만큼(lag) 먼저 틀어서 들리는 박 = 원이 닿는 순간
     const lag = audioLag();
-    while (beatT(R.sched) < rt + 0.25 + lag) { playBeat(R.song, R.sched, R.aOff + R.base + beatT(R.sched) - lag, spb); R.sched++; }
+    while (beatT(R.sched) < rt + 0.25 + lag) { playBeat(R.song, R.sched, R.aOff + R.base + beatT(R.sched) - lag, spb, TUNE.heat ? heatLayers(R.heat) : 0); R.sched++; }
     // 노트 내보내기 (마지막 큰 노트를 기다리는 동안은 멈춤)
     if (!R.fin) {
       fillQueue();
@@ -341,7 +348,7 @@ export function createFishing(opt) {
     if (n.fin) R.fin = null;
     if (res === 'Miss') {
       // 놓침: 릴이 '지이익' 거꾸로 · 줄이 늘어짐 · 화면이 살짝 기울었다 돌아옴
-      R.dist = Math.min(100, R.dist + R.m); R.misses++; R.pcombo = 0;
+      R.dist = Math.min(100, R.dist + R.m); R.misses++; R.pcombo = 0; heatMiss(R);
       snd.noteMiss(); S.shake = Math.max(S.shake, 5); S.rodKick = -0.7;
       R.reel = -1; R.slack = 1; R.tilt = R.side;
       say('지이익…', { at: bobAbove(0.8), size: 28, color: '#c9d3e0', life: 0.7, shake: 2 });
@@ -349,7 +356,7 @@ export function createFishing(opt) {
       return;
     }
     const p = res === 'Perfect';
-    R.hits++; if (p) R.perfects++;
+    R.hits++; if (p) R.perfects++; heatAdd(R, p);
     R.pcombo = p ? R.pcombo + 1 : 0; if (p && R.pcombo >= 2) n.combo = R.pcombo; // Perfect 연속: '×3' 글자
     playMelody(R.song, n.beat, p); // 내가 누른 소리가 멜로디가 됨
     if (n.fin) { // 마지막 큰 노트: 크게 당겨 바로 잡음 (아직 더 높은 등급이면 "무겁다!" → 다음 단계)
