@@ -35,7 +35,7 @@ export function createFishing(opt) {
   const zoomCam = new THREE.PerspectiveCamera(30, 1, 0.05, 200); // 찌 확대 창
   const fx = makeSplashes(scene);
   const bubbleFx = makeBubbleFx(scene, fx);
-  const beatFx = makeBeatFx(scene, { makeShadow: () => makeShadowFish(), fx }); // 주변이 박자를 탐 (시안, ⚙️)
+  const beatFx = makeBeatFx(scene); // 주변이 박자를 탐 (시안, ⚙️)
 
   // 나 (탁구채 대신 낚싯대)
   const me = makeCharacter('#e0333c');
@@ -526,8 +526,8 @@ export function createFishing(opt) {
     // 주변 박자 (시안 ⚙️ — 켠 것만)
     if (S.mode !== 'fight') BEAT.on = false;
     BEAT.pulse = Math.max(0, BEAT.pulse - rdt / (BEAT.spb * 0.5));
-    Object.assign(BEAT.fx, { sea: !!TUNE.bSea, pier: !!TUNE.bPier, body: !!TUNE.bBody, shadow: !!TUNE.bShadow });
-    beatFx.update(rdt, { bob: S.bob, now: S.now, stage: S.stage || 0, me, mode: S.mode });
+    Object.assign(BEAT.fx, { sea: !!TUNE.bSea, pier: !!TUNE.bPier, body: !!TUNE.bBody });
+    beatFx.update(rdt, { bob: S.bob, now: S.now, me, mode: S.mode });
     me.group.updateMatrixWorld(true);
     rod.tip.getWorldPosition(tipW);
 

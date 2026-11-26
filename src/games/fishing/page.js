@@ -16,7 +16,7 @@ if (params.get('fish')) TUNE.fish = params.get('fish');
 if (params.get('cond')) TUNE.cond = params.get('cond');
 if (params.get('bubbles')) TUNE.bubbles = params.get('bubbles');
 // 주변 박자 연출 시안(B): 이 시안 페이지에서는 처음에 다 켜 둠 — ⚙️에서 하나씩 끄며 비교 (?beat=0 이면 다 끔)
-for (const k of ['bSea', 'bPier', 'bBody', 'bShadow']) TUNE[k] = params.get('beat') === '0' ? 0 : 1;
+for (const k of ['bSea', 'bPier', 'bBody']) TUNE[k] = params.get('beat') === '0' ? 0 : 1;
 
 // ── 3D 장면 (캠퍼스 시안 = 광장과 같은 장면, 낚시터 포함)
 const canvas = document.getElementById('c');
