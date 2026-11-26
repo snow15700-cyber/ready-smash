@@ -8,6 +8,7 @@ import { koreaDay, missionsOf, MISSION_ALL, MISSION_COIN } from './missions.js';
 import { setOf, setAmount, setLabel } from './sets.js';
 import * as FR from './games/fishing/rules.js';
 import * as MK from './games/fishing/market.js';
+import * as CR from './games/cats/rules.js';
 
 // 한국 월요일 0시 (이번 주 월척)
 function fishWeekStart(now) {
@@ -232,6 +233,24 @@ export function localServer(fn, a) {
       fn = 'pingpong_ach_people';
       a = { p_token: a.p_token, p_mode: m.mode, p_won: won, p_opp: m.mode === '1v1' ? other(false) : null, p_mate: m.mode === '2v2' ? other(true) : null };
     }
+  }
+  if (fn === 'pingpong_cat_list' || fn === 'pingpong_cat_feed') { // 37 🐱 고양이 (서버와 같은 규칙)
+    const p = me();
+    if (!p) return { status: 'no_session' };
+    p.cats ||= {};
+    const ms = nowMs(), list = () => Object.entries(p.cats).sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([id, c]) => ({ id, pts: c.pts, wait: Math.max(0, Math.ceil((c.fedAt + CR.FEED_GAP_MS - ms) / 1000)) }));
+    if (fn === 'pingpong_cat_list') return { status: 'ok', cats: list() };
+    if (!CR.CAT_IDS.includes(a.p_cat)) return { status: 'bad_cat' };
+    const c = p.cats[a.p_cat];
+    if (c && ms - c.fedAt < CR.FEED_GAP_MS) return { status: 'wait', wait: Math.ceil((c.fedAt + CR.FEED_GAP_MS - ms) / 1000), cats: list() };
+    const fish = MK.cheapestIn(bagList(p), ms);
+    if (!fish) return { status: 'no_fish', bag: bagList(p) };
+    p.fishBag[fish]--;
+    const before = c?.pts || 0;
+    p.cats[a.p_cat] = { pts: before + 1, fedAt: ms };
+    save();
+    return { status: 'ok', fish, pts: before + 1, up: CR.heartOf(before + 1) > CR.heartOf(before), cats: list(), bag: bagList(p) };
   }
   if (fn.startsWith('pingpong_fish_')) {
     const p = me();

@@ -28,6 +28,7 @@ import { $, game, lerp3, match, preview, world } from './ui/state.js';
 import { smoothstep as ease } from './util.js';
 import { plazaDebug, plazaFrame } from './ui/plaza.js';
 import { fishAfterRender, fishDebug } from './ui/fishing.js'; // 광장 낚시 (fishing.md 12장)
+import { catsDebug } from './games/cats/plazaCats.js'; // 🐱 선착장 고양이 (cats.md)
 import { aiWaveCam, bubbleArena, bubbleLook, bubbleSeated } from './ui/plazaBubble.js';
 
 const lobbyDemo = createLobbyDemo();
@@ -229,4 +230,4 @@ const perf = new URLSearchParams(location.search).has('fps') ? (() => {
   };
 })() : null;
 requestAnimationFrame(loop);
-window.__smash = { plaza: plazaDebug, fish: fishDebug, PV, INTRO, world, shop: { testCoins, gacha, buyItem, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; }, get crowd() { return crowd; } };
+window.__smash = { plaza: plazaDebug, fish: fishDebug, cats: catsDebug, PV, INTRO, world, shop: { testCoins, gacha, buyItem, equipItem, myEquip }, get intro() { return intro; }, get game() { return game; }, get match() { return match; }, get room() { return room; }, get crowd() { return crowd; } };

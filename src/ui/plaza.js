@@ -87,6 +87,7 @@ const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rd
 // 낚시 (src/ui/fishing.js, fishing.md 12장)가 끼어드는 곳 — fishing.js가 채운다 (서로 불러오지 않게)
 //   on() 낚시 중인지 · state() 내 상태에 실을 낚시 정보 · frame(now, 내 자리) · hidden() 광장이 안 보임 · onMsg(m, 사람) · onSay(사람, 글)
 export const fishHooks = {};
+export const catHooks = {}; // 🐱 선착장 고양이 (src/games/cats/plazaCats.js)
 const cleanFi = (v) => (v && typeof v === 'object' ? { b: Array.isArray(v.b) && v.b.length === 2 && v.b.every(fin) && Math.abs(v.b[0]) < 80 && Math.abs(v.b[1]) < 120 ? [v.b[0], v.b[1]] : null } : null);
 const tagOf = (nick, rdy) => (rdy ? `${nick} ✅` : nick);
 // 꾸미기 창에서 입어 보는 중이면 그 모습 (내 화면에서만, 다른 사람에겐 장착한 것)
@@ -821,7 +822,7 @@ export function plazaFrame(now) {
       closePhrases(); // 로비 캐릭터는 로비·경기 화면이 다시 켠다
     }
   }
-  if (!shown) { fishHooks.hidden?.(); bubbleStop(); if (!arenaPreview()) view.setInput(true); return false; }
+  if (!shown) { fishHooks.hidden?.(); catHooks.hidden?.(); bubbleStop(); if (!arenaPreview()) view.setInput(true); return false; }
   if (!bubbleArena()) for (const side of world.team) for (const c of side) c.group.visible = false; // 랠리하는 로비 캐릭터는 숨김
   // 걷는 중: 한 구간이 끝나면 다음 구간, 다 왔으면 도착해서 할 일 (가게 열기·혼자 하기)
   const nowMs = Date.now();
@@ -833,6 +834,7 @@ export function plazaFrame(now) {
   renderTables();
   windowFrame(p);
   view.update(now, myId);
+  catHooks.frame?.(now, p);
   fishHooks.frame?.(now, p, pz.route.length > 0 || Math.hypot(p[0] - pz.myW.to[0], p[1] - pz.myW.to[1]) > 0.05);
   sky ||= createPlazaSky(world);
   sky.update(now);
@@ -937,6 +939,7 @@ export const plazaApi = {
   view, people: () => pz.people, seat: () => pz.seat, myId: () => myId,
   send: (m) => pz.link?.send({ ...m, id: myId }), sendInfo,
   raining: () => !!sky && /비|소나기/.test(sky.label?.() || ''),
+  walkTo, pos: () => posAt(pz.myW, Date.now()),
 };
 export const plazaDebug = {
   pz, spot: onSpot, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list), fakeState: (m) => onState(m), get kimN() { return pz.kimN; },

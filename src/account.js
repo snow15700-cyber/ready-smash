@@ -330,6 +330,26 @@ export async function fishSell(id = null) {
   if (Array.isArray(r.bag)) account.fishBag = r.bag;
   return r;
 }
+// 🐱 고양이 (37_cats.sql, docs/dev/cats.md). account.cats = { id: { pts, readyAt(이 PC 시각 ms) } } · null = 모름
+function setCats(list) {
+  if (!Array.isArray(list)) return;
+  const now = Date.now();
+  account.cats = Object.fromEntries(list.map((c) => [c.id, { pts: c.pts, readyAt: now + (c.wait || 0) * 1000 }]));
+}
+export async function catList() {
+  if (!account.loggedIn) { account.cats = null; return null; }
+  const r = await call('pingpong_cat_list', { p_token: token() });
+  if (r.status === 'ok') setCats(r.cats);
+  return account.cats;
+}
+// 결과 { status: ok | wait | no_fish | bad_cat | no_session | error, fish, pts, up, wait }
+export async function catFeed(cat) {
+  if (!account.loggedIn) return { status: 'guest' };
+  const r = await call('pingpong_cat_feed', { p_token: token(), p_cat: cat });
+  setCats(r.cats);
+  if (Array.isArray(r.bag)) account.fishBag = r.bag;
+  return r;
+}
 // 도감 (내 기록 + 어종별 기록). 손님은 dex 빈 목록
 export async function fishDex() {
   const r = await call('pingpong_fish_dex', { p_token: account.loggedIn ? token() : '' });

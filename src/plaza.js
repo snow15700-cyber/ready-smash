@@ -396,6 +396,7 @@ export function createPlazaView(world, handlers) {
   const tableBoxes = [...PLAZA.tables.map((t, i) => ({ t: i, box: tBox(t.rect, 1.1) })), { t: 'kim', box: tBox(K.rect, 1.1) },
     { t: 'kim', box: tBox({ x0: K.chef[0] - 0.45, x1: K.chef[0] + 0.45, z0: K.z - 0.45, z1: K.z + 0.45 }, 1.9) }]; // 김제빵을 눌러도
   const pBox = new THREE.Box3();
+  const pickers = []; // 다른 파일이 더하는 누를 것 (고양이 등): (광선) → { d: 거리, click() } | null
   function pick(px, py) {
     const rect = world.renderer.domElement.getBoundingClientRect();
     ndc.set(((px - rect.left) / rect.width) * 2 - 1, -((py - rect.top) / rect.height) * 2 + 1);
@@ -424,6 +425,7 @@ export function createPlazaView(world, handlers) {
       pBox.min.set(gp.x - 0.35, 0, gp.z - 0.35); pBox.max.set(gp.x + 0.35, 1.9, gp.z + 0.35);
       if (ray.ray.intersectBox(pBox, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = { person: id }; } }
     }
+    for (const pk of pickers) { const r = pk(ray.ray); if (r && r.d < bd) { bd = r.d; best = { extra: r }; } }
     if (best) return best;
     if (!groundHit(ray.ray, hitP)) return null;
     // 바닥의 자리 칸 근처를 눌렀으면 그 칸
@@ -477,7 +479,8 @@ export function createPlazaView(world, handlers) {
     ptrs.delete(e.pointerId);
     if (!active() || p.moved || p.btn !== 0 || performance.now() - p.t0 > 900) return;
     const h = pick(e.clientX, e.clientY);
-    if (h?.shop) handlers.onShop?.(h.shop);
+    if (h?.extra) h.extra.click();
+    else if (h?.shop) handlers.onShop?.(h.shop);
     else if (h?.spot) handlers.onSpot?.(h.spot, h.at);
     else if (h?.table != null) handlers.onTable?.(h.table);
     else if (h?.seat) handlers.onSeat?.(h.seat[0], h.seat[1]);
@@ -507,6 +510,7 @@ export function createPlazaView(world, handlers) {
   return {
     root,
     figs,
+    addPicker: (f) => pickers.push(f),
     cam,
     pick,
     setVisible(on) {

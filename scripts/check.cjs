@@ -313,6 +313,18 @@ async function sqlCheck() {
     must(f3.sold && !f3.bagged && f3.coins === 8, '가방이 꽉 찼을 때 바로 팔리지 않아요: ' + JSON.stringify(f3).slice(0, 200));
     const s1 = json(`public.pingpong_fish_sell(${tk}, 'horse')`);
     must(s1.coins === MK.sellCoins([['horse', 30]], Date.now(), brkPct).total, '종류별 팔기 코인이 달라요: ' + JSON.stringify(s1).slice(0, 200));
+    // 37 🐱 고양이 밥 (cats.md 3a): 가방 빔 → no_fish · 가장 싼 생선 하나 빠짐 · 1시간 안에 또 → wait · 10점이면 ♥ 오름
+    must(json(`public.pingpong_cat_feed(${tk}, 'cheese')`).status === 'no_fish', '빈 가방인데 고양이 밥을 줬어요');
+    must(json(`public.pingpong_cat_feed(${tk}, 'dog')`).status === 'bad_cat', '없는 고양이에게 밥을 줬어요');
+    psql(DB, `insert into public.pingpong_fish_bag(player_id, fish_id, n) select id, f, 1 from public.pingpong_players, unnest(array['mackerel', 'horse', 'squid']) f where nick = '점검봇' on conflict do nothing;`);
+    const cheap = MK.cheapestIn([{ id: 'horse', n: 1 }, { id: 'mackerel', n: 1 }, { id: 'squid', n: 1 }], Date.now());
+    const cf = json(`public.pingpong_cat_feed(${tk}, 'cheese')`);
+    must(cf.status === 'ok' && cf.fish === cheap && cf.pts === 1 && cf.bag.length === 2, '고양이 밥(가장 싼 생선)이 이상해요: ' + JSON.stringify([cf, cheap]).slice(0, 300));
+    const cw = json(`public.pingpong_cat_feed(${tk}, 'cheese')`);
+    must(cw.status === 'wait' && cw.wait > 3500, '1시간 안에 또 밥을 줬어요: ' + JSON.stringify(cw).slice(0, 200));
+    psql(DB, `update public.pingpong_cat set pts = 9, fed_at = now() - interval '61 minutes' where cat_id = 'cheese';`);
+    const cu = json(`public.pingpong_cat_feed(${tk}, 'cheese')`);
+    must(cu.status === 'ok' && cu.pts === 10 && cu.up === true && json(`public.pingpong_cat_list(${tk})`).cats[0].wait > 3500, '♥ 오르기·목록이 이상해요: ' + JSON.stringify(cu).slice(0, 200));
     // 잡동사니(바게트) · 챔질 Perfect 10연속 (위에서 이미 3번)
     for (let i = 0; i < 7; i++) { setCast('junk', i ? 'boot' : 'baguette', 'common', 0); json(`public.pingpong_fish_finish(${tk}, 'chk', true, true)`); }
     const got = json(`public.pingpong_achievements(${tk})`).got.map((g) => g.id);

@@ -418,4 +418,4 @@
   - 끝남(test): 1a 가방·횟집·시세(`35`) · 1b ㄷ자 선착장(`36`) · 고양이 2단계 모형 시안 `cats.html`(그림체 B '2등신 인형' 확정, `cats.md`).
   - 사용자가 할 것: SQL **35 → 36** 실행(`sql-to-run.md`) · 테스트(`test-checklist.md`의 🍣 가방·횟집 · ⚓ ㄷ자 선착장).
   - 1a ①~⑤ · 1b 모두 사용자 확정(11/26).
-  - 다음 단계(14-8 순서): **3. 고양이** — 셋으로 나눔(3a·3b·3c, `cats.md`). 새 대화에서 "cats.md 보고 고양이 3a 해줘" → `docs/dev/cats.md`만 읽고 시작(서버는 `37_cats.sql`). 쉼터 자리는 `CAT_NOOK`, 밥은 `market.js cheapestIn`.
+  - 고양이 3a(배회·밥 주기·하트, `37_cats.sql`) test. 다음 단계(14-8 순서): **3. 고양이** — 셋으로 나눔(3a·3b·3c, `cats.md`). 새 대화에서 "cats.md 보고 고양이 3a 해줘" → `docs/dev/cats.md`만 읽고 시작(서버는 `37_cats.sql`). 쉼터 자리는 `CAT_NOOK`, 밥은 `market.js cheapestIn`.
