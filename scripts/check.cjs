@@ -287,7 +287,6 @@ async function sqlCheck() {
     must(json(`public.pingpong_fish_finish(${tk}, '${c1.cast.id}', true, true)`).status === 'too_fast', '던지자마자 잡았다고 해도 인정됐어요');
     // 걸린 것을 정해 두고(운영자처럼) 30초 전에 던진 걸로 → 잡기
     const setCast = (kind, item, grade, cm) => psql(DB, `update public.pingpong_players set fish_cast = jsonb_build_object('id', 'chk', 'kind', '${kind}', 'item', '${item}', 'grade', '${grade}', 'cm', ${cm}, 'dup', false, 'near', 0, 'at', extract(epoch from clock_timestamp()) - 30) where nick = '점검봇';`);
-    const brkNow = psql(DB, `select public.pingpong__is_break(now());`) === 't';
     setCast('fish', 'dragon', 'legend', 95);
     const f1 = json(`public.pingpong_fish_finish(${tk}, 'chk', true, true)`);
     const ids = (f1.new || []).map((n) => n.id);
@@ -303,7 +302,7 @@ async function sqlCheck() {
     const srvP = psql(DB, `select string_agg(public.pingpong__fish_prices(to_timestamp(t / 1000.0)), ';' order by n) from unnest(array[${mts.join(',')}]::float8[]) with ordinality as x(t, n);`).split(';');
     const badP = mts.map((t, i) => { const p = MK.period(t), pr = MK.prices(p); return [`${p.day * 10 + p.idx}:${MK.MARKET_FISH.map((id) => pr.list[id]).join(',')}`, srvP[i], new Date(t).toISOString()]; }).filter(([a, b]) => a !== b);
     must(!badP.length, `시세가 서버와 달라요(${badP.length}곳): ` + JSON.stringify(badP.slice(0, 3)));
-    const brkPct = brkNow ? 50 : 0;
+    const brkPct = 0; // 팔 때 쉬는 시간 보너스 없음(사용자 11/26)
     const want = MK.sellCoins([['dragon', 1], ['mackerel', 1]], Date.now(), brkPct);
     const sold = json(`public.pingpong_fish_sell(${tk}, null)`);
     must(sold.status === 'ok' && sold.coins === want.total && sold.bag.length === 0, '팔기 코인이 market.js와 달라요: ' + JSON.stringify([sold, want]).slice(0, 300));
@@ -311,7 +310,7 @@ async function sqlCheck() {
     psql(DB, `insert into public.pingpong_fish_bag(player_id, fish_id, n) select id, 'horse', 30 from public.pingpong_players where nick = '점검봇';`);
     setCast('fish', 'seabream', 'rare', 50);
     const f3 = json(`public.pingpong_fish_finish(${tk}, 'chk', true, true)`);
-    must(f3.sold && !f3.bagged && f3.coins === (brkNow ? 12 : 8), '가방이 꽉 찼을 때 바로 팔리지 않아요: ' + JSON.stringify(f3).slice(0, 200));
+    must(f3.sold && !f3.bagged && f3.coins === 8, '가방이 꽉 찼을 때 바로 팔리지 않아요: ' + JSON.stringify(f3).slice(0, 200));
     const s1 = json(`public.pingpong_fish_sell(${tk}, 'horse')`);
     must(s1.coins === MK.sellCoins([['horse', 30]], Date.now(), brkPct).total, '종류별 팔기 코인이 달라요: ' + JSON.stringify(s1).slice(0, 200));
     // 잡동사니(바게트) · 챔질 Perfect 10연속 (위에서 이미 3번)
@@ -1020,7 +1019,7 @@ async function browserChecks() {
             const c0 = A.account.player.coins;
             Sh.openShop();
             const cards = document.querySelectorAll('#fshop .fc').length, rows = document.querySelectorAll('#fshop .board .row').length;
-            const want = MK.sellCoins([['mackerel', 2], ['seabream', 1]], B.nowMs(), B.breakAt(B.nowMs()) ? 50 : 0).total;
+            const want = MK.sellCoins([['mackerel', 2], ['seabream', 1]], B.nowMs()).total;
             document.querySelector('#fshop .all').click();
             for (let i = 0; i < 50 && !/🪙/.test(document.querySelector('#fshop .say').textContent); i++) await new Promise((r) => setTimeout(r, 100));
             return { cards, rows, got: A.account.player.coins - c0, want, bag: A.account.fishBag.length, say: document.querySelector('#fshop .say').textContent };

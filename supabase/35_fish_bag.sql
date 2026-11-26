@@ -5,7 +5,7 @@
 --  · 가방이 꽉 찼을 때 잡으면 그 자리에서 지금 시세로 팔림(사용자 결정 전 임시 — 추천안)
 --  · 시세 = src/games/fishing/market.js와 똑같이: 쉬는 시간이 시작될 때마다 새 '회차'(한국 날짜 × 10 + 몇 번째 쉬는 시간),
 --    회차 번호를 씨앗으로 LCG(기포와 같은 난수). 일반 7종 중 하나 = 대박 2배, 나머지 0.6~0.85배. 값은 0.1코인 단위.
---    희귀 8 · 전설 20 고정. 팔 때 합을 내림, 쉬는 시간이면 +50%(세트 '휴가 중'이면 더)
+--    희귀 8 · 전설 20 고정. 팔 때 합을 내림. 쉬는 시간 보너스는 없음(사용자 11/26)
 --  · 분당 주머니(28의 fish_pocket)는 이제 안 씀: 잡는 최소 시간(6·11·16초)과 가방 30칸이 속도를 막음
 
 -- 가방: 사람 × 물고기 종류 → 마리 수 (가격이 크기와 상관없어서 마리 수만)
@@ -100,12 +100,9 @@ begin
       insert into pingpong_fish_bag(player_id, fish_id, n) values (pl.id, v_item, 1)
         on conflict (player_id, fish_id) do update set n = pingpong_fish_bag.n + 1;
       v_bagged := true; v_bagn := v_bagn + 1;
-    else -- 가방이 꽉 참 → 바로 지금 시세로 (한 마리 값 내림 + 쉬는 시간)
+    else -- 가방이 꽉 참 → 바로 지금 시세로 (한 마리 값 내림, 쉬는 시간 보너스 없음)
       v_sold := true;
       base := pingpong__fish_price(v_item, now()) / 10;
-      select * into st from pingpong__set_of(pl.equip);
-      if st.kind = 'break' then brk_pct := 50 + st.amount; end if;
-      if pingpong__is_break(now()) then brk := (base * brk_pct + 99) / 100; end if;
     end if;
   end if;
   total := base + brk;
@@ -165,11 +162,6 @@ begin
   if t10 = 0 then return json_build_object('status', 'empty', 'bag', pingpong__fish_bag_json(pl.id)); end if;
   delete from pingpong_fish_bag where player_id = pl.id and (p_fish is null or fish_id = p_fish);
   v_coins := floor(t10 / 10.0);
-  if pingpong__is_break(now()) then
-    select * into st from pingpong__set_of(pl.equip);
-    if st.kind = 'break' then brk_pct := 50 + st.amount; end if;
-    brk := (v_coins * brk_pct + 99) / 100;
-  end if;
   update pingpong_players set coins = coins + v_coins + brk where id = pl.id returning * into pl;
   return json_build_object('status', 'ok', 'coins', v_coins + brk, 'bonus', brk, 'bonus_pct', brk_pct, 'sold', v_sold,
     'bag', pingpong__fish_bag_json(pl.id), 'player', pingpong__player_json(pl));

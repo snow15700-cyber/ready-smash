@@ -24,7 +24,6 @@ function fishWeekTop(db, now) {
 // 로컬 가짜 서버의 낚시 (28·34와 같은 규칙)
 const bagList = (p) => Object.entries(p.fishBag || {}).filter(([, n]) => n > 0).sort(([a], [b]) => (a < b ? -1 : 1)).map(([id, n]) => ({ id, n }));
 const bagN = (p) => MK.bagCount(bagList(p));
-const breakPctOf = (p) => { const st = setOf(p.equip); return st?.set.kind === 'break' ? 50 + setAmount(st.set, st.full) : 50; };
 const FISH_ACH = ['fish10', 'fish_all', 'junk_all', 'fish_bread', 'fish_big', 'fish_legend', 'fish_perf10'];
 function localFish(fn, a, p, db, now) {
   if (fn === 'pingpong_fish_cast') {
@@ -60,9 +59,7 @@ function localFish(fn, a, p, db, now) {
       if (bagN(p) < MK.BAG_MAX) { p.fishBag[c.item] = (p.fishBag[c.item] || 0) + 1; bagged = true; }
       else {
         sold = true;
-        base = Math.floor(MK.priceOf(c.item, nowMs()) / 10);
-        brkPct = breakPctOf(p);
-        if (breakAt(nowMs())) brk = Math.ceil((base * brkPct) / 100);
+        base = Math.floor(MK.priceOf(c.item, nowMs()) / 10); // 쉬는 시간 보너스 없음(사용자 11/26)
       }
     }
     const total = base + brk, capped = false;
@@ -97,8 +94,8 @@ function localFish(fn, a, p, db, now) {
   if (fn === 'pingpong_fish_sell') {
     const items = Object.entries(p.fishBag || {}).filter(([id, n]) => n > 0 && (a.p_fish == null || id === a.p_fish));
     if (!items.length) return { status: 'empty', bag: bagList(p) };
-    const ms = nowMs(), brkPct = breakPctOf(p);
-    const r = MK.sellCoins(items, ms, breakAt(ms) ? brkPct : 0);
+    const ms = nowMs(), brkPct = 0;
+    const r = MK.sellCoins(items, ms); // 쉬는 시간 보너스 없음(사용자 11/26)
     for (const [id] of items) delete p.fishBag[id];
     p.coins = (p.coins || 0) + r.total;
     return { status: 'ok', coins: r.total, bonus: r.bonus, bonus_pct: brkPct, sold: items.map(([id, n]) => ({ id, n, price: MK.priceOf(id, ms) })), bag: bagList(p) };

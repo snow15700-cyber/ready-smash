@@ -2,7 +2,6 @@
 // docs/dev/fishing.md 14-6. 규칙은 market.js, 코인은 서버(account.js fishSell)가 그 순간 시세로.
 // 낚시 화면 오른쪽 위 '🍣 횟집' 버튼(1a) · 선착장 횟집 건물·📈 칠판을 눌러도(1b, ui/fishing.js fishHooks.openMarket) 엶
 import { account, fishBagLoad, fishSell, marketNow } from '../../account.js';
-import { breakAt, nowMs } from '../../breaks.js';
 import { CATCH, SPECIES } from './rules.js';
 import { BAG_MAX, MARKET_FISH, bagCount, history, nextLabel, periodLabel, priceOf, sellCoins } from './market.js';
 import { modelImage } from './dex.js';
@@ -48,7 +47,6 @@ let el = null, busy = false, bossLine = '어서 와요! 오늘 시세 한번 보
 const name = (id) => CATCH[id]?.name || id;
 const emoji = (id) => CATCH[id]?.emoji || '🐟';
 const coin = (p10) => (p10 / 10).toFixed(1).replace(/\.0$/, '');
-const isBreak = () => !!breakAt(account.loggedIn ? marketNow() : nowMs());
 
 function build() {
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
@@ -81,7 +79,7 @@ function render() {
     const ch = d > 0 ? `<span class="up">▲${coin(d)}</span>` : d < 0 ? `<span class="dn">▼${coin(-d)}</span>` : '<span class="eq">–</span>';
     return `<div class="row${id === cur.jackpot ? ' hot' : ''}"><span>${emoji(id)}</span><span>${id === cur.jackpot ? '🔥 ' : ''}${name(id)}</span><span class="p">${coin(v)}</span>${ch}${spark(hist.map((h) => h.list[id]))}</div>`;
   }).join('');
-  el.querySelector('.note').innerHTML = `🔥 = 오늘의 대박(2배) · 크기와 상관없이 종류로만 · 희귀 8 · 전설 20은 늘 같아요<br>다음 시세: <b>${nextLabel(ms)}</b> 쉬는 시간${isBreak() ? ' · ☕ <b>지금 팔면 +50%</b>' : ''}`;
+  el.querySelector('.note').innerHTML = `🔥 = 오늘의 대박(2배) · 크기와 상관없이 종류로만 · 희귀 8 · 전설 20은 늘 같아요<br>다음 시세: <b>${nextLabel(ms)}</b> 쉬는 시간`;
 
   const bag = account.fishBag || [], n = bagCount(bag);
   el.querySelector('h3 small').textContent = account.loggedIn ? `🪙 ${account.player?.coins ?? 0}` : '';
@@ -97,7 +95,7 @@ function render() {
     box.appendChild(d);
   }
   const all = el.querySelector('.all');
-  const est = sellCoins(bag.map((b) => [b.id, b.n]), ms, isBreak() ? 50 : 0).total;
+  const est = sellCoins(bag.map((b) => [b.id, b.n]), ms).total;
   all.dataset.sell = ''; all.disabled = busy || !n;
   all.textContent = n ? `🍣 모두 팔기 · 🪙 약 ${est}` : '🍣 모두 팔기';
   el.querySelector('.say').textContent = bossLine;

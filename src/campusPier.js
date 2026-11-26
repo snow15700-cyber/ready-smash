@@ -9,6 +9,7 @@ import { ARMS, BOARD, CAT_NOOK, CLIFF, HARBOR, LH_BASES, LIGHTHOUSES, MARKET, PI
 import { history, nextLabel, period } from './games/fishing/market.js';
 import { CATCH } from './games/fishing/rules.js';
 import { nowMs } from './breaks.js';
+import { makeCharacter } from './scene.js';
 
 const FONT = (px) => `bold ${px}px Jua, sans-serif`;
 const signTex = (text, bg, fg, w = 340) => canvasTex(w, 110, (c) => {
@@ -153,13 +154,11 @@ export function buildPierArea(anim = null) {
     addBox(g, 2.7, 0.86, 0.06, navy, M.x, top + H + 0.6, z1 - 0.1);
     const lanternM = glowMat(0xff6a4a, 0xff4a2a, 0.35, 2.2);
     for (const px of [x0 + 0.45, x1 - 0.45]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), lanternM); l.scale.y = 1.3; l.position.set(px, top + H - 0.85, z1 + 0.62); g.add(l); }
-    // 사장님 (임시 🧑‍🍳 — 문어·곰은 나중에 고름): 판매대 뒤 간단한 사람 모양
-    const boss = new THREE.Group(); boss.position.set(M.x + 0.7, top, z1 - 0.75); g.add(boss);
-    cyl(0.28, 0.32, 0.9, white, 0, 1.05, 0, 10, boss);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 10), std(0xf3c9a0)); head.position.set(0, 1.78, 0); boss.add(head);
-    cyl(0.2, 0.24, 0.32, white, 0, 2.12, 0, 10, boss); // 요리 모자
-    const hatTop = new THREE.Mesh(new THREE.SphereGeometry(0.27, 12, 8), white); hatTop.position.set(0, 2.33, 0); hatTop.scale.y = 0.7; boss.add(hatTop);
-    for (const ex of [-0.09, 0.09]) addBox(boss, 0.05, 0.05, 0.02, metal, ex, 1.82, 0.25);
+    // 사장님 = 기본 흰색 캐릭터 (사용자 11/26 — 문어·곰 등은 나중에). 탁구채 없이, 판매대 뒤에서 손님(남쪽)을 봄
+    const boss = makeCharacter('#e0333c');
+    boss.body.remove(boss.arm);
+    boss.group.position.set(M.x + 0.7, top + 0.5, z1 - 0.75); boss.group.rotation.y = Math.PI; boss.group.scale.setScalar(1.3); // 판매대 뒤 발판 위
+    g.add(boss.group);
   }
 
   // ── 📈 시세 칠판 (횟집 오른쪽 앞, 남쪽을 봄) — 진짜 시세(market.js)를 쉬는 시간마다 다시 그림
