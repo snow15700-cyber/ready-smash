@@ -335,7 +335,7 @@ function fishWeekStart(now) {
 function fishWeekTop(db, now) {
   const since = fishWeekStart(now);
   let top = null;
-  for (const l of db.fishLog || []) if (l.at >= since && (!top || (l.s ?? l.cm) > (top.s ?? top.cm))) top = l;
+  for (const l of db.fishLog || []) if (l.at >= since && (!top || l.cm > top.cm)) top = l; // 35: 1등 = 가장 긴 것
   return top;
 }
 // 로컬 가짜 서버의 낚시 (28·34와 같은 규칙)
@@ -418,13 +418,13 @@ function localFish(fn, a, p, db, now) {
   if (fn === 'pingpong_fish_rank') {
     if (!['week', 'all'].includes(a.p_kind)) return [];
     const since = a.p_kind === 'week' ? fishWeekStart(now) : -Infinity;
-    const sc = (l) => l.s ?? l.cm; // 34: 크기 점수(배율 × 50) 순서
+    const sc = (l) => l.s ?? l.cm; // 배율 표시용
     const best = {};
-    for (const l of db.fishLog || []) if (l.at >= since && (!best[l.pid] || sc(l) > sc(best[l.pid]))) best[l.pid] = l;
+    for (const l of db.fishLog || []) if (l.at >= since && (!best[l.pid] || l.cm > best[l.pid].cm)) best[l.pid] = l; // 35: 길이(cm) 순서
     const byId = Object.fromEntries(Object.values(db.players).map((q) => [q.id, q]));
-    const rows = Object.values(best).filter((l) => byId[l.pid]).sort((x, y) => sc(y) - sc(x) || x.at - y.at).slice(0, 50)
-      .map((l) => { const q = byId[l.pid]; return { nick: q.nick, title: q.title || null, title_x: q.achN?.nemesis || null, value: l.cm, x: FR.timesOf(sc(l)), score: sc(l), fish: l.id }; });
-    rows.forEach((x, i) => { x.rank = i && rows[i - 1].score === x.score ? rows[i - 1].rank : i + 1; });
+    const rows = Object.values(best).filter((l) => byId[l.pid]).sort((x, y) => y.cm - x.cm || x.at - y.at).slice(0, 50)
+      .map((l) => { const q = byId[l.pid]; return { nick: q.nick, title: q.title || null, title_x: q.achN?.nemesis || null, value: l.cm, x: FR.timesOf(sc(l)), fish: l.id }; });
+    rows.forEach((x, i) => { x.rank = i && rows[i - 1].value === x.value ? rows[i - 1].rank : i + 1; });
     return rows;
   }
   return null;

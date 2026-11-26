@@ -329,6 +329,11 @@ async function sqlCheck() {
     const kst = new Date(Date.now() + 9 * 3600e3), wk0 = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate() - (kst.getUTCDay() + 6) % 7) - 9 * 3600e3;
     const storm = Math.min(4, Math.floor((Date.now() - wk0) / 864e5));
     must(dice(5) === 1 + storm && dice(5) === R.luckDice({ caught: 99, dayN: 5, recordDays: (Date.now() - wk0) / 864e5 }), `바다 술렁임이 이상해요: 서버 ${dice(5)} 기대 ${1 + storm}`);
+    // 35 월척 랭킹 = 길이(cm) 순서: 배율(점수)은 가장 낮아도 더 긴 물고기가 1등
+    psql(DB, `insert into public.pingpong_players(nick, nick_key, pin_hash) select '길이봇', '길이봇', 'x' where not exists (select 1 from public.pingpong_players where nick = '길이봇');`);
+    psql(DB, `insert into public.pingpong_fish_log(player_id, fish_id, cm, score) select id, 'dragon', 100, 1 from public.pingpong_players where nick = '길이봇';`);
+    const lr = json(`public.pingpong_fish_rank('week')`);
+    must(lr[0]?.nick === '길이봇' && +lr[0].value === 100 && lr[1]?.nick === '점검봇', '월척 랭킹이 길이 순서가 아니에요: ' + JSON.stringify(lr).slice(0, 300));
     // 실제 던지기 200번: 잡히는 것이 목록 안 · 점수 20~999 · cm = 점수 × 보통 크기 ÷ 50 (서버 반올림 == rules.js cmOfScore)
     const many = JSON.parse(psql(DB, `set role anon; select json_agg(public.pingpong_fish_cast(${tk}, 13, null, 0, 0.5, true)->'cast')::text from generate_series(1, 200);`));
     const kinds = new Set(many.map((c) => c.kind));
