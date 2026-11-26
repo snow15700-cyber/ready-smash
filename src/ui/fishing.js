@@ -33,6 +33,7 @@ root.innerHTML = `
   <canvas id="fish-hud" class="fish-hud hidden"></canvas>
   <div id="fish-bar" class="fish-bar hidden">
     <button id="fish-shop" class="hidden" type="button">🍣 횟집</button>
+    <button id="fish-cats" class="hidden" type="button">🐱</button>
     <button id="fish-dex" type="button">📖 도감</button>
     <button id="fish-stop" type="button">그만하기</button>
   </div>
@@ -83,9 +84,15 @@ fishHooks.openMarket = async () => {
 function bagBtn() {
   const b = account.fishBag, el = $('fish-shop');
   el.classList.toggle('hidden', !account.loggedIn || !Array.isArray(b));
+  $('fish-cats').classList.toggle('hidden', !account.loggedIn || !Array.isArray(b)); // 🐱 내 고양이 (cats.md 3c, 35 전 서버면 숨김)
   if (Array.isArray(b)) el.textContent = `🍣 횟집 · 🎒 ${b.reduce((a, x) => a + x.n, 0)}/30`;
 }
-for (const id of ['fish-start', 'fish-stop', 'fish-dex', 'fish-shop']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
+$('fish-cats').addEventListener('click', async (e) => {
+  e.stopPropagation();
+  if (F && !(F.S.mode === 'ready' || F.S.mode === 'result')) { toastHud.toast('물고기를 다 낚은 뒤에 봐요', 1800); return; }
+  (await import('../games/cats/myCats.js')).openMyCats();
+});
+for (const id of ['fish-start', 'fish-stop', 'fish-dex', 'fish-shop', 'fish-cats']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
 
 // ── 시작 · 그만
 async function start() {

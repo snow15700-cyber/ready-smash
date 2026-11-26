@@ -234,13 +234,25 @@ export function localServer(fn, a) {
       a = { p_token: a.p_token, p_mode: m.mode, p_won: won, p_opp: m.mode === '1v1' ? other(false) : null, p_mate: m.mode === '2v2' ? other(true) : null };
     }
   }
-  if (fn === 'pingpong_cat_list' || fn === 'pingpong_cat_feed') { // 37 🐱 고양이 (서버와 같은 규칙)
+  if (fn === 'pingpong_cat_list' || fn === 'pingpong_cat_feed' || fn === 'pingpong_cat_wear') { // 37·38 🐱 고양이 (서버와 같은 규칙)
     const p = me();
     if (!p) return { status: 'no_session' };
     p.cats ||= {};
     const ms = nowMs(), list = () => Object.entries(p.cats).sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([id, c]) => ({ id, pts: c.pts, wait: Math.max(0, Math.ceil((c.fedAt + CR.FEED_GAP_MS - ms) / 1000)) }));
+      .map(([id, c]) => ({ id, pts: c.pts, outfit: c.outfit || {}, wait: Math.max(0, Math.ceil((c.fedAt + CR.FEED_GAP_MS - ms) / 1000)) }));
     if (fn === 'pingpong_cat_list') return { status: 'ok', cats: list() };
+    if (fn === 'pingpong_cat_wear') {
+      const o = CR.OUTFITS.find((x) => x.slot === a.p_slot);
+      if (!o) return { status: 'bad_slot' };
+      if (!CR.CAT_IDS.includes(a.p_cat)) return { status: 'bad_cat' };
+      const c = p.cats[a.p_cat];
+      if (a.p_on) {
+        if (!CR.canWear(c?.pts, a.p_slot)) return { status: 'locked', need: o.heart };
+        c.outfit = { ...(c.outfit || {}), [a.p_slot]: true };
+      } else if (c?.outfit) delete c.outfit[a.p_slot];
+      save();
+      return { status: 'ok', cats: list() };
+    }
     if (!CR.CAT_IDS.includes(a.p_cat)) return { status: 'bad_cat' };
     const c = p.cats[a.p_cat];
     if (c && ms - c.fedAt < CR.FEED_GAP_MS) return { status: 'wait', wait: Math.ceil((c.fedAt + CR.FEED_GAP_MS - ms) / 1000), cats: list() };
@@ -248,7 +260,7 @@ export function localServer(fn, a) {
     if (!fish) return { status: 'no_fish', bag: bagList(p) };
     p.fishBag[fish]--;
     const before = c?.pts || 0;
-    p.cats[a.p_cat] = { pts: before + 1, fedAt: ms };
+    p.cats[a.p_cat] = { ...(c || {}), pts: before + 1, fedAt: ms };
     save();
     return { status: 'ok', fish, pts: before + 1, up: CR.heartOf(before + 1) > CR.heartOf(before), cats: list(), bag: bagList(p) };
   }

@@ -325,6 +325,11 @@ async function sqlCheck() {
     psql(DB, `update public.pingpong_cat set pts = 9, fed_at = now() - interval '61 minutes' where cat_id = 'cheese';`);
     const cu = json(`public.pingpong_cat_feed(${tk}, 'cheese')`);
     must(cu.status === 'ok' && cu.pts === 10 && cu.up === true && json(`public.pingpong_cat_list(${tk})`).cats[0].wait > 3500, '♥ 오르기·목록이 이상해요: ' + JSON.stringify(cu).slice(0, 200));
+    // 38 옷: ♥1이면 방울 OK · 리본(♥2)은 locked · 벗기
+    const w1 = json(`public.pingpong_cat_wear(${tk}, 'cheese', 'bell', true)`), w2 = json(`public.pingpong_cat_wear(${tk}, 'cheese', 'ribbon', true)`);
+    must(w1.status === 'ok' && w1.cats[0].outfit.bell === true && w2.status === 'locked', '고양이 옷 입기가 이상해요: ' + JSON.stringify([w1, w2]).slice(0, 300));
+    const w3 = json(`public.pingpong_cat_wear(${tk}, 'cheese', 'bell', false)`);
+    must(w3.status === 'ok' && !w3.cats[0].outfit.bell && json(`public.pingpong_cat_wear(${tk}, 'cheese', 'cape', true)`).status === 'bad_slot', '고양이 옷 벗기가 이상해요: ' + JSON.stringify(w3).slice(0, 200));
     // 잡동사니(바게트) · 챔질 Perfect 10연속 (위에서 이미 3번)
     for (let i = 0; i < 7; i++) { setCast('junk', i ? 'boot' : 'baguette', 'common', 0); json(`public.pingpong_fish_finish(${tk}, 'chk', true, true)`); }
     const got = json(`public.pingpong_achievements(${tk})`).got.map((g) => g.id);

@@ -18,6 +18,32 @@ export const COATS = {
   siamese: { name: '샴', base: 0xf6ead6, light: 0xfffaf0, mark: 0x6b4a38, ring: 0x9fd0ff, points: true, eat: 'turn', note: '새침 · 고개 한 번 돌렸다 먹기' },
 };
 export const CAT_IDS = Object.keys(COATS);
+// 고양이 옷 색 (3c): 🔔 방울 목걸이 줄 · 🎀 리본 — 털 색에 잘 보이는 색으로 고양이마다
+export const WEAR_COLOR = {
+  cheese: { collar: 0xe0483e, ribbon: 0x6fb7ff }, mackerel: { collar: 0x2f6fb5, ribbon: 0xff9fbe }, calico: { collar: 0xff7fa8, ribbon: 0x8fd67a },
+  tuxedo: { collar: 0xd8303a, ribbon: 0xffcf3a }, black: { collar: 0xff9f1c, ribbon: 0xff6fa0 }, siamese: { collar: 0x4fc3b8, ribbon: 0xb58cff },
+};
+// 옷 입히기: wear = { bell: true, ribbon: true } (없는 칸은 벗음). 모양은 처음 입을 때 한 번 만듦
+export function setCatWear(g, wear = {}) {
+  const P = g.userData.parts, W = WEAR_COLOR[g.userData.id] || WEAR_COLOR.cheese;
+  P.wear ||= {};
+  if (wear.bell && !P.wear.bell) {
+    const b = new THREE.Group();
+    const band = mesh(new THREE.TorusGeometry(0.158, 0.026, 8, 30), toon(W.collar)); band.rotation.x = Math.PI / 2; b.add(band);
+    b.add(mesh(sph(0.05, 14, 10), toon(0xffd23f), 0, -0.04, 0.17));
+    b.add(noOl(mesh(new THREE.BoxGeometry(0.06, 0.007, 0.01), basic(0x8a6a10), 0, -0.048, 0.219)));
+    b.position.set(0, 0.05, 0.01); b.rotation.x = 0.12;
+    finish(b); P.body.add(b); P.wear.bell = b;
+  }
+  if (wear.ribbon && !P.wear.ribbon) {
+    const r = new THREE.Group(), m = toon(W.ribbon);
+    for (const sx of [1, -1]) { const w = mesh(new THREE.ConeGeometry(0.06, 0.12, 12), m, sx * 0.06, 0, 0); w.rotation.z = sx * Math.PI / 2; w.scale.z = 0.5; r.add(w); }
+    r.add(mesh(sph(0.03, 12, 8), m));
+    r.position.set(-0.17, 0.2, 0.08); r.rotation.set(0.3, 0, 0.5);
+    finish(r); P.head.add(r); P.wear.ribbon = r;
+  }
+  for (const k of ['bell', 'ribbon']) if (P.wear[k]) P.wear[k].visible = !!wear[k];
+}
 
 // 동그란 까만 눈 + 반짝이 2개 (ring = 뒤에 색 테)
 function eye(s, ring) {

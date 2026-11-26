@@ -10,6 +10,15 @@ export const PER_HEART = 10, MAX_HEART = 5;
 export const heartOf = (pts) => Math.min(MAX_HEART, Math.floor((pts || 0) / PER_HEART));
 // 다음 ♥까지 [지금 칸 안 점수, 칸 크기] (♥5면 [10, 10])
 export const heartProgress = (pts) => (heartOf(pts) >= MAX_HEART ? [PER_HEART, PER_HEART] : [(pts || 0) % PER_HEART, PER_HEART]);
+// 옷 (14-4): 하트로만 열림, 그 고양이 것. 3c는 bell·ribbon만 모양이 있음(나머지는 4·5단계) — 서버 38_cat_wear.sql과 같은 칸·하트
+export const OUTFITS = [
+  { slot: 'bell', heart: 1, icon: '🔔', name: '방울 목걸이' },
+  { slot: 'ribbon', heart: 2, icon: '🎀', name: '리본' },
+  { slot: 'hat', heart: 3, icon: '🎩', name: '모자', later: true },
+  { slot: 'coat', heart: 4, icon: '🧥', name: '옷', later: true },
+  { slot: 'set', heart: 5, icon: '✨', name: '전용 세트', later: true },
+];
+export const canWear = (pts, slot) => { const o = OUTFITS.find((x) => x.slot === slot); return !!o && heartOf(pts) >= o.heart; };
 export const heartsText = (pts) => '♥'.repeat(heartOf(pts)) + '♡'.repeat(MAX_HEART - heartOf(pts));
 
 // ── 배회: 쉬는 자리 그래프 (선착장 1b 'ㄷ자' 판 위) ──

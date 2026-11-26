@@ -10,7 +10,7 @@ import { catHooks, fishHooks, plazaApi } from '../../ui/plaza.js';
 import { hud } from '../../ui/hud.js';
 import { esc, world } from '../../ui/state.js';
 import { SPECIES } from '../fishing/rules.js';
-import { makeCat } from './models.js';
+import { makeCat, setCatWear } from './models.js';
 import { CAT_IDS, CAT_NAME, catAt, catCanStand, catPath, heartOf, heartProgress, heartsText } from './rules.js';
 
 const SCALE = 0.75;
@@ -67,6 +67,7 @@ css.textContent = `
 #cat-pop button { border: 0; border-radius: 12px; padding: 8px 14px; font: inherit; font-weight: 700; background: #ff7b54; color: #fff; cursor: pointer; }
 #cat-pop button:disabled { background: #c9c3bd; cursor: default; }
 #cat-pop .sm { font-size: 12px; color: #7a736b; margin-top: 6px; }
+#cat-pop .my { display: block; margin: 8px auto 0; padding: 5px 10px; background: #f3ece6; color: #6b5d50; font-size: 12px; }
 #cat-pop .x { position: absolute; right: 6px; top: 2px; background: none; color: #9a928a; padding: 2px 6px; font-size: 16px; }
 `;
 document.head.appendChild(css);
@@ -105,9 +106,10 @@ function renderPop() {
   else { btn = `<button class="feed"${pop.busy ? ' disabled' : ''}>🐟 주기</button>`; sm = '가방에서 지금 가장 싼 생선을 줘요'; }
   el.innerHTML = `<button class="x">×</button><div class="nm">${esc(CAT_NAME[c.id])}</div>
     <div class="ht">${heartsText(pts)}</div>${account.loggedIn ? `<div class="bar"><i style="width:${(a / b) * 100}%"></i></div>` : ''}
-    ${btn}<div class="sm">${sm}</div>`;
+    ${btn}<div class="sm">${sm}</div>${account.loggedIn ? '<button class="my">🐱 내 고양이</button>' : ''}`;
   el.querySelector('.x').onclick = closePop;
   el.querySelector('.feed')?.addEventListener('click', () => feed(c));
+  el.querySelector('.my')?.addEventListener('click', async () => { closePop(); (await import('./myCats.js')).openMyCats(); });
   placePop();
 }
 async function feed(c) {
@@ -247,6 +249,8 @@ catHooks.frame = (now, p) => {
         if (walkPath(c, ov.path, 1.3 * dt)) { c.ov = null; c.cur.x = s.x; c.cur.z = s.z; y = PIER.y + s.y; }
       }
     }
+    const wear = account.cats?.[c.id]?.outfit || {}, wk = Object.keys(wear).sort().join(); // 내가 입힌 옷 (내 화면)
+    if (c.wearKey !== wk) { c.wearKey = wk; setCatWear(c.m, wear); }
     c.g.position.set(c.cur.x, y, c.cur.z);
     if (c.yaw == null) c.yaw = c.wantYaw;
     let dy = c.wantYaw - c.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
