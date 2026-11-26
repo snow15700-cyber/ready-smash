@@ -388,7 +388,7 @@ export function createPlazaView(world, handlers) {
   // 눌러서 뭔가 되는 곳 (빵집·게시판·시계탑, 광장 20장 ②): 가게처럼 안쪽 좌표로 잼, 맞은 점(안쪽 좌표)도 같이 넘김
   const spotBoxes = (PLAZA.spots || []).map((sp) => {
     const [x0, x1, z0, z1, h] = sp.box;
-    const m = new THREE.Matrix4().makeRotationY(sp.yaw || 0).setPosition(sp.x, 0, sp.z);
+    const m = new THREE.Matrix4().makeRotationY(sp.yaw || 0).setPosition(sp.x, sp.y || 0, sp.z); // y: 낚시 선착장(횟집)처럼 낮은 곳
     return { sp, box: new THREE.Box3(new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x1, h, z1)), inv: m.invert() };
   });
   // 탁구대 상자 (판 + 표지판 높이까지): 사람 대결용 t = 0~2, 김제빵 = 'kim'

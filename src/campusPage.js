@@ -121,7 +121,9 @@ const CAMS = {
   photo: { pos: [-3.6, 2.4, 25.7], look: [-7, 2.4, 19.5] },
   board: { pos: [3.3, 2.0, 14.3], look: [5, 1.7, 9.6] },
   deck: { pos: [9, 3.2, 27], look: [14, 1, 36] },
-  sea: { pos: [13, 3.2, 34], look: [20, -6, 95] }, // 전망대에서 바다 (돌고래)
+  sea: { pos: [13, 3.2, 34], look: [20, -6, 95] },
+  pierTop: { pos: [11, 62, 47], look: [11, -6, 46] }, // 선착장 위에서 (낚시 14장 1b)
+  pier: { pos: [11, 9, 26], look: [11, -6, 50] }, // 전망대에서 선착장 내려다보기 // 전망대에서 바다 (돌고래)
   edge: { pos: [-10, 3.4, 4], look: [-21, 1.8, 16] }, // 서쪽 가장자리 (나무·가로등·벤치·잔디밭)
   building: { pos: [-15, 1.7, -4], look: [-5, 11, -24] }, // 필로티 아래로 뒤쪽 산
 };
@@ -130,6 +132,7 @@ function setCam(k) {
   camera.position.set(...c.pos); controls.target.set(...c.look); controls.update();
 }
 setCam(new URLSearchParams(location.search).get('cam') || 'spawn');
+{ const q = new URLSearchParams(location.search), cp = q.get('cpos'), cl = q.get('clook'); if (cp && cl) { camera.position.set(...cp.split(',').map(Number)); controls.target.set(...cl.split(',').map(Number)); controls.update(); } } // 점검용 카메라 (?cpos=x,y,z&clook=x,y,z)
 const q = new URLSearchParams(location.search).get('sky');
 if (q && SKY[q]) setSky(q);
 // 무료 소품은 기본으로 켬 (사용자 확정 11/25: 다 쓰기), ?props=0이면 끔

@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { makeCharacter } from '../../scene.js';
 import { BIG_CM, FISH, GRADE, PADDLE_DUP_PIECES, STAGES, STAGE_FISH, TUNE, biteSeq, fishSize, pickCatch, stageOf } from './data.js';
 import { addPaddle, dexOpen, fishCount, modelImage, openDex, ownedPaddles, recordCatch } from './dex.js';
-import { CATCH, LEGEND_PADDLES, cmOfScore, luckDice, modelScale, sizeK, sizeTier } from './rules.js';
+import { CATCH, LEGEND_PADDLES, clampStand, cmOfScore, luckDice, modelScale, sizeK, sizeTier, walkStand } from './rules.js';
 import { fishCast, fishFinish } from '../../account.js';
 import { ACH } from '../../achievements.js';
 import { makeModel } from './models.js';
@@ -452,7 +452,7 @@ export function createFishing(opt) {
   function update(dt, rdt) {
     S.t += dt; S.now = performance.now() / 1000; // 바다 물결 시각(광장·시안 모두 performance.now 기준)
     if (S.hint) { S.hint.t += rdt; if (S.hint.t > 2.2) S.hint = null; }
-    if (S.mode === 'ready' && S.walk && opt.canWalk) S.standX = clamp(S.standX + S.walk * 2.4 * dt, STAND.xMin, STAND.xMax);
+    if (S.mode === 'ready' && S.walk && opt.canWalk) S.standX = walkStand(S.standX, S.standZ, S.walk * 2.4 * dt);
     me.group.position.set(S.standX, DECK, S.standZ);
     me.setOpacity(S.mode === 'ready' ? 1 : 0.4, 1); // 낚시하는 동안 내 캐릭터 반투명 (내 화면에서만, 사용자 요청)
     if (S.R) S.R.rt = rtNow();
@@ -604,7 +604,7 @@ export function createFishing(opt) {
   // 탭이 숨겨졌다 돌아오면 리듬 시계를 밀어 줌 (진짜 시계라서)
   function resumeAfter(d) { if (S.R && d > 0) { S.R.base += d; S.R.sched = Math.max(S.R.sched, Math.floor((rtNow() - S.R.t0) / S.R.spb) + 1); } }
   // 그 자리에 서서 시작 / 그만
-  function standAt(x, z) { S.standX = Math.max(STAND.xMin, Math.min(STAND.xMax, x)); S.standZ = Math.max(STAND.zBack, Math.min(STAND.z, z)); }
+  function standAt(x, z) { [S.standX, S.standZ] = clampStand(x, z); } // ㄷ자 선착장: 가장 가까운 서는 곳 (rules.js)
   // 광장: 낚시를 그만두면 숨겨 두고 다음에 다시 씀 (만들기 한 번)
   function setActive(on) {
     if (!on) {

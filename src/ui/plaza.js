@@ -276,6 +276,10 @@ function onSpot(sp, at) {
     else walkTo(f, { then: open });
   } else if (sp.id === 'clock') {
     hud.toast(breakLines().join(' · '), 2600);
+  } else if (sp.id === 'market') { // 🍣 횟집·📈 칠판 (낚시 14장 1b): 문 앞으로 걸어가서 횟집 창
+    const p = posAt(pz.myW, Date.now()), open = () => fishHooks.openMarket?.();
+    if (Math.hypot(p[0] - sp.door[0], p[1] - sp.door[1]) < 1.6) open();
+    else walkTo(sp.door, { then: open });
   }
 }
 // 오늘의 미션 카드: 접혀 있으면 펼치고 반짝

@@ -73,6 +73,13 @@ $('fish-shop').addEventListener('click', async (e) => {
   shopMod ||= await import('../games/fishing/shop.js');
   shopMod.openShop({ onSold: () => { renderMe(); bagBtn(); } });
 });
+// 선착장 🍣 횟집 건물·📈 칠판을 누르면 (14장 1b, ui/plaza.js onSpot → 문 앞까지 걸어간 뒤) 낚시 안 해도 횟집 창
+fishHooks.openMarket = async () => {
+  if (on && F && !(F.S.mode === 'ready' || F.S.mode === 'result')) return;
+  if (!account.loggedIn) { toastHud.toast('🍣 로그인하면 잡은 물고기를 가방에 모아 여기서 팔 수 있어요', 2600); return; }
+  try { shopMod ||= await import('../games/fishing/shop.js'); } catch { toastHud.toast('횟집을 불러오지 못했어요. 다시 눌러 주세요', 2200); return; }
+  shopMod.openShop({ onSold: () => { renderMe(); bagBtn(); } });
+};
 function bagBtn() {
   const b = account.fishBag, el = $('fish-shop');
   el.classList.toggle('hidden', !account.loggedIn || !Array.isArray(b));
@@ -166,6 +173,7 @@ addEventListener('pointerup', (e) => { if (on) F.release(e.clientX, e.clientY); 
 addEventListener('pointercancel', () => { if (on) { F.S.drag = null; F.release(); } });
 addEventListener('blur', () => { if (on) { F.S.drag = null; F.release(); } });
 addEventListener('keydown', (e) => {
+  if (!on && e.code === 'Escape' && shopMod?.shopOpen()) { shopMod.closeShop(); return; } // 광장에서 연 횟집 창
   if (!on || e.target?.tagName === 'INPUT') return;
   if (shopMod?.shopOpen()) { if (e.code === 'Escape') shopMod.closeShop(); return; } // 횟집 창이 떠 있으면 낚시 키 안 먹음
   if (e.code === 'Escape') { if (!mod.dexOpen()) stop(); return; }
@@ -272,7 +280,7 @@ fishHooks.onSay = (p, text) => { if (p) addChat(p.nick, text); };
 // ── 광장(ui/plaza.js)이 부르는 것
 fishHooks.on = () => on;
 fishHooks.state = () => (on ? { b: me.b } : null);
-fishHooks.hidden = () => { if (on) stop(); $('fish-start').classList.add('hidden'); pierBubbles(0, null); };
+fishHooks.hidden = () => { if (on) stop(); shopMod?.closeShop(); $('fish-start').classList.add('hidden'); pierBubbles(0, null); };
 
 // ── 낚시 안 할 때도 낚시터(계단에 들어선 순간부터 판 위)에서는 기포가 보임 (11/25 사용자: 그래야 자리를 옮겨 다님)
 //  낚시 중에는 낚시 화면(session.js)이 같은 기포를 그림. 시각 = 서버 시각(모든 사람이 같은 곳·같은 때)

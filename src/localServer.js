@@ -28,8 +28,7 @@ const breakPctOf = (p) => { const st = setOf(p.equip); return st?.set.kind === '
 const FISH_ACH = ['fish10', 'fish_all', 'junk_all', 'fish_bread', 'fish_big', 'fish_legend', 'fish_perf10'];
 function localFish(fn, a, p, db, now) {
   if (fn === 'pingpong_fish_cast') {
-    const sx = Math.min(FR.STAND.xMax, Math.max(FR.STAND.xMin, +a.p_x || 13));
-    const pt = FR.landingPoint(sx, +a.p_aim || 0, a.p_power ?? 0.5, a.p_z == null ? undefined : +a.p_z);
+    const pt = FR.landingPoint(a.p_x == null ? 13 : +a.p_x, +a.p_aim || 0, a.p_power ?? 0.5, a.p_z == null ? undefined : +a.p_z); // 36: 서는 곳·판 넘기기는 landingPoint 안에서
     const near = FR.bubbleNear(pt.x, pt.z, FR.activeBubbles(nowMs() / 1000, 'normal'));
     const owned = (p.owned || []).filter((id) => FR.LEGEND_PADDLES.some(([x]) => x === id));
     const c = FR.rollCatch(near, { owned, cond: { break: !!breakAt(nowMs()), night: FR.isNight(nowMs()), rain: !!a.p_rain } });

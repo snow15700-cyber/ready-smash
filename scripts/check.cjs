@@ -266,6 +266,18 @@ async function sqlCheck() {
       must(srvB[i] === js, `기포 자리가 서버와 화면이 달라요: ${t} 서버 ${srvB[i]} 화면 ${js}`);
     });
     must(seen > 10, '기포가 거의 안 나와요: ' + seen);
+    // 36 ㄷ자 선착장: 서는 곳·찌 자리(판 위면 판 넘어 물까지) 서버 == rules.js landingPoint, 찌는 나무 판 위에 안 떨어짐
+    {
+      const ins = [];
+      for (let i = 0; i < 150; i++) ins.push([-9 + ((i * 7.31) % 40), 38 + ((i * 3.17) % 22), ((i * 0.37) % 2) - 1, (i * 0.113) % 1]);
+      const col = (k) => `array[${ins.map((q) => q[k]).join(',')}]::float8[]`;
+      const srvL = psql(DB, `select string_agg(round(l.x::numeric, 4) || ':' || round(l.z::numeric, 4), ' ' order by n) from generate_series(1, ${ins.length}) n, lateral public.pingpong__fish_land((${col(0)})[n], (${col(1)})[n], (${col(2)})[n], (${col(3)})[n]) l;`).split(' ');
+      ins.forEach((q, i) => {
+        const p = R.landingPoint(q[0], q[2], q[3], q[1]);
+        must(srvL[i] === p.x.toFixed(4) + ':' + p.z.toFixed(4), `36: 찌 자리가 서버와 화면이 달라요: ${q} 서버 ${srvL[i]} 화면 ${p.x.toFixed(4)}:${p.z.toFixed(4)}`);
+        must(!R.WOOD.some((w) => p.x > w.x0 && p.x < w.x1 && p.z > w.z0 && p.z < w.z1), `36: 찌가 나무 판 위에 떨어져요: ${q} → ${p.x}, ${p.z}`);
+      });
+    }
     // 30: 서버 시각 (브라우저 기포 시계 맞추기) — anon으로 부를 수 있고 지금 시각
     const srvMs = JSON.parse(psql(DB, `set role anon; select public.pingpong_now()::text;`)).ms;
     must(Math.abs(srvMs - Date.now()) < 120000, '서버 시각(pingpong_now)이 이상해요: ' + srvMs);
@@ -637,15 +649,15 @@ async function browserChecks() {
       // (광장 20장: 꾸미기 옷가게는 분수 북쪽 (0, −7), 앞면 z 약 −3.95 — 분수를 돌아서 가도 마지막 도착점은 가게 앞)
       const clip = await b.evaluate(() => { const pz = window.__smash.plaza.pz; window.__smash.plaza.walkTo([0, -9]); const end = pz.route.length ? pz.route[pz.route.length - 1] : pz.myW.to; return end[1]; });
       must(clip > -4.0, '가게 건물 안으로 걸어 들어가요: z=' + clip);
-      // 낚시터(fishing.md 12장): 광장 ↔ 전망대 밑 판은 돌계단(데크 서쪽·동쪽 2개, 가까운 쪽)으로만, 바닥 높이 · 데크에서 판으로 뛰어내리기·바다로 걷기 막힘
+      // 낚시터(fishing.md 12장·14장 1b): 광장 ↔ 전망대 밑 판은 돌계단(데크 서쪽·동쪽 2개, 가까운 쪽)으로만, 바닥 높이 · 데크에서 판으로 뛰어내리기·바다·항구로 걷기 막힘 · ㄷ자 양 팔 끝까지 걸어감
       const pier = await b.evaluate(async () => {
         const m = await import('/src/plaza.js'), { PLAZA } = await import('/src/arena-plaza.js'), h = (p) => +PLAZA.heightAt(p[0], p[1]).toFixed(2);
         const down = m.planWalk([0, 10], [8, 43]), up = m.planWalk([12, 44], [-5, 10]), downE = m.planWalk([16, 20], [19, 44]), upE = m.planWalk([20, 44], [15, 20]);
-        return { down, up, downE, upE, hDeck: h([11, 36]), hMid: h([20, 41]), hMidW: h([2, 41]), hPier: h([8, 43]), hPierW: h([1.5, 44.5]), jump: m.clipWalk([11, 37], [11, 43])[1], sea: m.planWalk([12, 44], [12, 60]).at(-1)[1], west: m.planWalk([2, 44], [-5, 44]).at(-1)[0], on: PLAZA.onPier(8, 43) && PLAZA.onPier(2, 44.5) && !PLAZA.onPier(11, 36) && !PLAZA.onPier(2, 41) };
+        return { down, up, downE, upE, hDeck: h([11, 36]), hMid: h([20, 41]), hMidW: h([2, 41]), hPier: h([8, 43]), hPierW: h([1.5, 44.5]), jump: m.clipWalk([11, 37], [11, 43])[1], sea: m.planWalk([12, 44], [12, 60]).at(-1)[1], west: m.planWalk([2, 44.8], [-5, 44.8]).at(-1)[0], westSea: m.clipWalk([-4, 44.8], [-9, 44.8])[0], armW: m.planWalk([8, 44], [-4, 56]).at(-1), armE: m.planWalk([12, 20], [26, 56]).at(-1), eastGrass: m.planWalk([15, 30], [27, 30]).at(-1)[0], on: PLAZA.onPier(8, 43) && PLAZA.onPier(2, 44.5) && PLAZA.onPier(-4, 56) && PLAZA.onPier(26, 50) && !PLAZA.onPier(11, 50) && !PLAZA.onPier(11, 36) && !PLAZA.onPier(2, 41) };
       });
       const viaSt = (r, x0, x1) => r.some((p) => p[0] > x0 && p[0] < x1 && p[1] > 43) && r.some((p) => p[0] > x0 && p[0] < x1 && p[1] < 39);
       must(viaSt(pier.down, 0.5, 3.7) && viaSt(pier.up, 0.5, 3.7) && viaSt(pier.downE, 18.3, 21.6) && viaSt(pier.upE, 18.3, 21.6) && pier.down.at(-1)[1] === 43 && pier.up.at(-1)[0] === -5, '낚시터 계단 길(서쪽·동쪽)이 이상해요: ' + JSON.stringify(pier));
-      must(pier.hDeck === 0.25 && pier.hMid < -1 && pier.hMid > -4 && pier.hMidW === pier.hMid && pier.hPier === -4.35 && pier.hPierW === -4.35 && pier.jump < 39 && pier.sea < 45.6 && pier.west > 0.5 && pier.on, '낚시터 높이·막힘이 이상해요: ' + JSON.stringify(pier));
+      must(pier.hDeck === 0.25 && pier.hMid < -1 && pier.hMid > -4 && pier.hMidW === pier.hMid && pier.hPier === -4.35 && pier.hPierW === -4.35 && pier.jump < 39 && pier.sea < 46.5 && pier.west === -5 && pier.westSea > -6 && pier.westSea < -5 && Math.hypot(pier.armW[0] + 4, pier.armW[1] - 56) < 0.01 && Math.hypot(pier.armE[0] - 26, pier.armE[1] - 56) < 0.01 && pier.eastGrass < 21.5 && pier.on, '낚시터(ㄷ자 선착장 14장 1b) 높이·막힘이 이상해요: ' + JSON.stringify(pier));
       // 광장 낚시 (fishing.md 12장): 판 위 '🎣 낚시하기' → 그 자리에서 낚시 · 다른 사람에게 찌가 보임 · 잡으면 말풍선 · 그만하기
       const bHome = await b.evaluate(() => window.__smash.plaza.pz.myW.to.slice());
       await b.evaluate(() => window.__smash.plaza.walkTo([9, 43.6]));

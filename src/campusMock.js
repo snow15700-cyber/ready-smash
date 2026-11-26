@@ -99,7 +99,7 @@ export function buildCampus({ game = false } = {}) {
     const x = Math.cos(a) * 36 - 1, z = Math.sin(a) * 36 + 4;
     // 바다 쪽(남쪽)은 바다가 높아져서(낚시 12장) 물 위로 드러나는 부분이 바위 절벽처럼 보이게
     const b = new THREE.Mesh(new THREE.IcosahedronGeometry(4 + rnd() * 2, 0), z > 20 ? seaRock : slope); b.position.set(x, -5 + rnd(), z); b.scale.y = 0.8; // 전망대 데크 위로 안 솟게 낮춤
-    if (!(x > -3 && x < 22 && z > 25)) root.add(b); // 전망대 아래는 절벽 벽·낚시터 계단 (campusPier.js)
+    if (!(x > -10 && x < 32 && z > 25)) root.add(b); // 전망대 아래는 절벽 벽·낚시터 계단·ㄷ자 선착장 (campusPier.js)
   }
   // 바다 (남·동쪽 아래)
   const sea = makeSea(SEA_Y); root.add(sea.group); anim.push(sea.update); // 물결 (src/campusFx.js). 낚시 12장: −12 → −6
@@ -159,7 +159,7 @@ export function buildCampus({ game = false } = {}) {
   place(foodTruck(), SPOTS.truck);
   place(vending(), SPOTS.vending);
   place(deck(DECK.z1 - DECK.z0), SPOTS.deck); // 광장 끝 ~ 절벽 끝 (낚시 12장)
-  root.add(buildPierArea()); // 전망대 옆 돌계단 · 바로 밑 바위 턱 · 나무 선착장 (낚시터)
+  root.add(buildPierArea(anim)); // 전망대 옆 돌계단 · 바로 밑 바위 턱 · 나무 선착장 (낚시터)
   // 가장자리 가로등·벤치·소나무
   for (const sx of [-1, 1]) {
     for (const z of [-6, 6, 18, 30]) { const l = lamp(); l.position.set(sx * 22.3, 0, z); l.rotation.y = sx > 0 ? Math.PI : 0; root.add(l); }
