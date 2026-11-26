@@ -145,7 +145,10 @@ function posePlay(P, t, pose, blink, C) {
     for (const e of eyes) e.scale.y = Math.min(e.scale.y, 0.25);
   } else if (pose === 'belly') { // 옆으로 벌러덩 누워 zzz (하루 3마리 다 먹으면) — 얼굴·배는 앞(+z)으로
     root.rotation.z = 1.35;
-    if (P.lift == null) { root.position.set(0, 0, 0); root.updateMatrixWorld(true); P.lift = -new THREE.Box3().setFromObject(root).min.y; }
+    if (P.lift == null) { // 몸 높이만 재려고 잠깐 떼어 냄 (붙인 채 재면 광장 선착장 높이·크기까지 들어가서 공중에 뜸)
+      const par = root.parent; par.remove(root); root.position.set(0, 0, 0); root.updateMatrixWorld(true);
+      P.lift = -new THREE.Box3().setFromObject(root).min.y; par.add(root);
+    }
     root.position.set(0.3, P.lift, 0);
     head.rotation.z = -0.45 + Math.sin(t * 0.8) * 0.04;
     paws.forEach((p, i) => { p.position.z += 0.03 + Math.sin(t * 1.3 + i) * 0.008; });
