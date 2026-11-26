@@ -37,7 +37,7 @@
 - 매 프레임 순서 `game.decideHit` → `match.update` → `game.update`(느린 PC에서 늦은 스윙이 버려지지 않게). 판정·물리는 결정론적(같은 입력 → 같은 결과).
 - 꾸미기 아이템은 **보기만 다름**(판정·네트워크 메시지 그대로).
 - 서버 SQL: 새 파일 `35_...sql`로 추가(사용자가 SQL Editor에서 직접 실행, 여러 번 실행해도 되게), 실행할 목록은 `docs/dev/sql-to-run.md`에 적어 둠). 테이블·함수는 `pingpong_` 접두어(Supabase를 다른 게임과 공유). 표는 RLS로 잠그고 security definer 함수만 anon에. 로컬 PostgreSQL 16으로 01부터 차례로 먼저 시험(`service postgresql start`, `extensions` 스키마·`anon` 역할을 만들어 흉내).
-- 서버 규칙을 바꾸면 **로컬 가짜 서버**(`src/account.js`의 `localServer`, 설정 없을 때 쓰임)도 같은 규칙으로.
+- 서버 규칙을 바꾸면 **로컬 가짜 서버**(`src/localServer.js`, 설정 없을 때 `account.js`의 `call`이 부름)도 같은 규칙으로.
 - 아이템 목록은 두 곳: `src/items.js`와 SQL insert. 아이템을 추가·수정하면 **`npm run thumbs`**로 목록 그림 다시 찍기.
 - 브라우저가 보낸 숫자는 믿지 않는다(코인·전적·기록은 서버가 계산하거나 상한을 둔다).
 
@@ -51,7 +51,7 @@
 - `src/main.js` 시작점: 화면 파일을 모두 불러오고 매 프레임 루프(로비 카메라·배경). 화면 흐름은 `src/ui/`:
   `plaza.js`(광장 로비 = 메인 화면: 걷기·채팅·가게·탁구대 자리·준비·한 판 더) · `plazaBubble.js`(경기장 거품: 원 안 = 그 경기장으로·관전, 듣기만) · `state.js`(공용: `$`·`world`·`game`/`match`/`preview`과 `setGame` 등 — 다른 파일이 바꾸는 변수는 여기에 두고 setter로) · `screen.js`(`show`·`stopGame`) · `hud.js`(경기 화면 글자) · `ai.js`(혼자 하기) · `room.js`(경기 채널: 탁구대 경기 시작·시계 맞추기·전적 저장) · `lobbyList.js`(로비 채널: 경기 중인 탁구대 정보) · `cheer.js`(관중석·응원) · `fishing.js`(광장 낚시: 판 위 버튼·낚시 화면·다른 사람 낚시 모습, 규칙은 `src/games/fishing/session.js`) · `login.js`(로그인·PIN·업데이트/치는 방법 창) · `rank.js` · `dress.js`(꾸미기) · `titles.js`(업적 알림·칭호) · `stage.js`(VS 소개의 탁구채 든 자세) · `intro.js`(VS 소개).
   새 화면 파일을 만들면 `main.js` 맨 위에서 꼭 불러온다(버튼 연결이 불러올 때 일어남).
-- `src/account.js` 서버 함수 부르기 + 로컬 가짜 서버. `src/achievements.js` 업적 목록.
+- `src/account.js` 서버 함수 부르기. `src/localServer.js` 로컬 가짜 서버. `src/achievements.js` 업적 목록.
 - `src/gachaShow.js` 뽑기 연출 화면(탁구공 깨기, 시안 `gacha.html`과 같은 코드).
 - `src/items.js` 아이템 목록·탁구채 모델·`applyLook`·목록 그림(`src/thumbs/`). `src/outfits.js` 몸. `src/balls.js` 탁구공. `src/fx.js` 효과 파티클.
 - `src/crowd.js` 관중석 캐릭터(관전). `src/plaza.js`·`src/plazaKim.js`·`src/bubbleFx.js`(광장 3D·뛰어오는 김제빵·거품 물결)·`src/arena-plaza.js`(광장 배경)·`src/plazaSky.js`(시간·날씨).

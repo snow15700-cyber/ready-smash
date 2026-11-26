@@ -17,7 +17,7 @@
 | 2 | 안 쓰는 작은 코드 지우기 | 작음 | 거의 없음 | 작음 | ✓ test |
 | 3 | 옛 관전 화면 카메라 지우기 | 중간 | 낮음 | 작음 | ✓ test |
 | 4 | 반복되는 도우미 함수 한곳에 모으기 | 중간 | 낮음 | 중간 | ✓ test |
-| 5 | 로컬 가짜 서버를 따로 떼기 | 중간 | 낮음 | 작음 | |
+| 5 | 로컬 가짜 서버를 따로 떼기 | 중간 | 낮음 | 작음 | ✓ test |
 | 6 | 안 쓰는 CSS(옛 화면 꾸밈) 지우기 | 중간 | 낮음~중간 | 중간 | |
 | 7 | 탁구채 모양을 `items.js`에서 떼기 | 중간 | 낮음~중간 | 중간 | |
 | 8 | 헷갈리는 파일 이름 바꾸기 | 중간 | 낮음 | 중간 | |
@@ -85,6 +85,8 @@
 - **좋아지는 정도**: 중간. 서버 규칙 고칠 때 찾기 쉬워요.
 - **고장 위험**: 낮음(옮기기만). `npm run check`가 손님·로그인·상점을 로컬 서버로 돌려 봐요.
 - **크기**: 파일 하나 새로, 내용 이동.
+- **한 일(11/26 ✓ test)**: `account.js` 329줄부터 끝까지(`fishWeekStart`·`fishWeekTop`·`localFish`·`localAchPeople`·`localAchMatch`·`localServer`)를 `src/localServer.js`로 그대로 옮김(글자 비교로 `export` 한 단어만 다름). `account.js`는 323줄.
+  가짜 서버가 쓰는 `store`·`validPin`·`AI_HITS_PER_COIN`·`AI_DAY_MAX`는 `account.js`에서 불러옴(서로 부르지만 함수 안에서만 써서 괜찮음). 문서·주석의 `account.js` 가짜 서버 → `localServer.js`. `npm run check` 모두 통과.
 
 ## 6. 안 쓰는 CSS(옛 화면 꾸밈) 지우기
 - **무엇**: `src/style.css`에 이제 없는 화면의 꾸밈이 남아 있어요. 예: 옛 방 목록(`rl-…`), 옛 대기실(`room-…`, `slots`, `waiting-list`, `btn-start`, `btn-join`), 옛 관전 화면(`watch-…`, `spectating`, `spec-…`), 옛 로비 버튼(`lb-…`), 방 코드 입력(`code-boxes`, `ticket`) 등 약 55개 이름(대략 200줄).

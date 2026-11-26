@@ -1,5 +1,5 @@
 // 세트 (머리 + 몸 = 세트, 세 번째 아이템까지 = 완전 세트). 기획: docs/dev/shop.md '머리·얼굴·세트'
-// ⚠️ 서버 supabase/24_sets.sql의 pingpong__set_of·보너스 계산, 로컬 가짜 서버(account.js)와 같게 유지한다.
+// ⚠️ 서버 supabase/24_sets.sql의 pingpong__set_of·보너스 계산, 로컬 가짜 서버(localServer.js)와 같게 유지한다.
 //
 // 세트를 입으면(서버가 장착 정보 equip으로 판단): 칭호(업적 set_<id>), 완전 세트면 칭호 하나 더(setfull_<id>),
 // 그리고 컨셉에 맞는 코인 보너스 (완전 세트 = 2배). 퍼센트는 그 판(그 상황)의 코인 합에 붙고 올림.
