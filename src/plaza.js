@@ -261,6 +261,22 @@ export function fireBand(inner, outer, dashes) {
 }
 
 // handlers: onGround([x, z]) · onShop(shop) · onSpot(spot, 맞은 점[안쪽 x, y, z]) · onTable(t) · onSeat(t, s) · onKim() · onPerson(id)
+// 카메라 두 자리 사이를 '빙 돌아' 잇기: 보는 점은 곧게, 카메라는 보는 점 둘레를 (방향·높이각·거리) 나눠 섞음
+//  → 직선으로 섞을 때처럼 캐릭터 옆을 스치거나 화면이 휙 돌지 않고, 캐릭터 둘레를 돌며 내려가는 느낌 (낚시 시작·그만)
+const _o0 = new THREE.Vector3(), _o1 = new THREE.Vector3(), _L = new THREE.Vector3();
+export function orbitBlend(camera, fromPos, fromLook, toPos, toLook, e) {
+  _o0.subVectors(fromPos, fromLook); _o1.subVectors(toPos, toLook);
+  const r0 = _o0.length() || 1e-3, r1 = _o1.length() || 1e-3;
+  const y0 = Math.atan2(_o0.x, _o0.z), y1 = Math.atan2(_o1.x, _o1.z);
+  const p0 = Math.asin(Math.max(-1, Math.min(1, _o0.y / r0))), p1 = Math.asin(Math.max(-1, Math.min(1, _o1.y / r1)));
+  const dy = Math.atan2(Math.sin(y1 - y0), Math.cos(y1 - y0));
+  const yaw = y0 + dy * e, pitch = p0 + (p1 - p0) * e, r = r0 + (r1 - r0) * e;
+  _L.lerpVectors(fromLook, toLook, e);
+  camera.position.set(_L.x + Math.sin(yaw) * Math.cos(pitch) * r, _L.y + Math.sin(pitch) * r, _L.z + Math.cos(yaw) * Math.cos(pitch) * r);
+  camera.lookAt(_L);
+}
+export const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
 export function createPlazaView(world, handlers) {
   const K = PLAZA.kim;
   const root = new THREE.Group();
@@ -485,7 +501,8 @@ export function createPlazaView(world, handlers) {
   // 창(랭킹·꾸미기)을 여는 동안 카메라가 날아갈 곳 (plaza.md 19장): want = { pos, look } (광장 좌표) | null.
   // p: 0 = 3인칭 카메라, 1 = 그 자리 (FOCUS_DUR초 동안 부드럽게). 날아가는 중 목표가 바뀌면(얼굴 보기 등) cur가 따라감
   // 다른 카메라(낚시 등)에서 3인칭 카메라로 돌아올 때: 그 자리에서 부드럽게 이어 감 (blendFrom)
-  const blend = { t: 1, dur: 1, pos: new THREE.Vector3(), q: new THREE.Quaternion(), fov: 55 };
+  const blend = { t: 1, dur: 1, pos: new THREE.Vector3(), look: new THREE.Vector3(), fov: 55 };
+  const lastLook = new THREE.Vector3(), toPos = new THREE.Vector3(); // 마지막으로 카메라가 본 점(월드)
   const focus = { want: null, p: 0, cur: { pos: new THREE.Vector3(), look: new THREE.Vector3() }, to: { pos: new THREE.Vector3(), look: new THREE.Vector3() } };
   return {
     root,
@@ -585,7 +602,10 @@ export function createPlazaView(world, handlers) {
     // 카메라를 내 캐릭터 뒤로 바로 (처음 들어올 때)
     resetCam() { cam.init = false; cam.manual = false; },
     // 지금 카메라 모습(위치·방향·화각)에서 출발해 dur초 동안 3인칭 카메라로 부드럽게 넘어감
-    blendFrom(c, dur = 1) { blend.pos.copy(c.position); blend.q.copy(c.quaternion); blend.fov = c.fov; blend.dur = dur; blend.t = 0; },
+    //  pos·look = 출발 카메라 자리·보는 점 (월드), 캐릭터 둘레를 돌며 넘어감(orbitBlend)
+    blendFrom(pos, look, fov, dur = 1) { blend.pos.copy(pos); blend.look.copy(look); blend.fov = fov; blend.dur = dur; blend.t = 0; },
+    // 지금 광장 카메라가 보는 점 (월드) — 낚시로 넘어갈 때 출발점
+    camLook() { return lastLook.clone(); },
     update(now, myId) {
       const dt = Math.min(0.1, now - (last || now));
       last = now;
@@ -703,12 +723,11 @@ export function createPlazaView(world, handlers) {
       // 세로로 긴 화면(휴대폰)은 가게 3개가 다 들어오게 화각을 넓힌다
       const fov = Math.min(80, Math.max(55, (2 * Math.atan(Math.tan(0.4) / world.camera.aspect) * 180) / Math.PI));
       if (Math.abs(world.camera.fov - fov) > 0.01) { world.camera.fov = fov; world.camera.updateProjectionMatrix(); }
-      world.camera.lookAt(toWorld(tmpV.copy(cam.look).lerp(focus.cur.look, fk)));
+      world.camera.lookAt(lastLook.copy(toWorld(tmpV.copy(cam.look).lerp(focus.cur.look, fk))));
       if (blend.t < 1) {
         blend.t = Math.min(1, blend.t + dt / blend.dur);
-        const e = blend.t * blend.t * (3 - 2 * blend.t);
-        world.camera.position.lerpVectors(blend.pos, world.camera.position, e);
-        world.camera.quaternion.slerpQuaternions(blend.q, world.camera.quaternion, e);
+        const e = easeInOut(blend.t);
+        orbitBlend(world.camera, blend.pos, blend.look, toPos.copy(world.camera.position), lastLook, e);
         world.camera.fov = blend.fov + (world.camera.fov - blend.fov) * e;
         world.camera.updateProjectionMatrix();
       }

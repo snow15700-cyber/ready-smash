@@ -48,7 +48,7 @@ export function createFishing(opt) {
 
   // ── 상태
   const S = {
-    mode: 'ready', t: 0, now: 0, holding: false, standX: 13, standZ: STAND.z, walk: 0,
+    mode: 'ready', camLook: new THREE.Vector3(), t: 0, now: 0, holding: false, standX: 13, standZ: STAND.z, walk: 0,
     drag: null, power: 0, hint: null, aim: 0,
     cast: null, bob: new THREE.Vector3(), dip: 0, dipV: 0, bobLanded: false, near: 0,
     seq: [], evI: -1, ev: null, nextEv: 0, calm: 0, alertT: -1,
@@ -526,8 +526,9 @@ export function createFishing(opt) {
     const pull = S.mode === 'land' && S.land ? S.land.pull * clamp(S.t / 0.8, 0, 1) : 0; // 큰 놈을 낚으면 카메라가 물러남
     const back = S.standZ - 3.0 - pull, cz = Math.max(PIER.z0 + 0.4, back); // 판 뒤쪽에 서면 카메라가 절벽 안으로 안 가게 (대신 조금 높이)
     camera.position.set(S.standX + 0.95 + pull * 0.3, DECK + 2.15 + pull * 0.55 + (cz - back) * 0.7, cz);
+    S.camLook.set(S.standX - 0.4, SEA_Y + 0.4 + pull * 1.3, S.mode === 'land' ? S.standZ + 7 + pull : S.standZ + 11); // 광장 카메라와 이어 붙일 때 씀
     if (S.shake > 0) { camera.position.x += (Math.random() - 0.5) * S.shake * 0.012; camera.position.y += (Math.random() - 0.5) * S.shake * 0.012; }
-    camera.lookAt(S.standX - 0.4, SEA_Y + 0.4 + pull * 1.3, S.mode === 'land' ? S.standZ + 7 + pull : S.standZ + 11);
+    camera.lookAt(S.camLook);
     // 맞추면 순간 확대(bump) · 놓치면 살짝 기울기(tilt)
     const R = S.mode === 'fight' ? S.R : null;
     camera.rotateZ(R ? R.tilt * 0.035 : 0);
