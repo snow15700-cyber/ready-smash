@@ -181,7 +181,7 @@ export const sizeTier = (s) => SIZE_TIERS.find((t) => s >= t.min) || null;
 export const modelScale = (s) => Math.min(5, 0.55 + (s - SIZE_MIN) * 0.015);
 
 // ── 코인 (사용자 확정 11/25): 일반 3 · 희귀 8 · 전설 20 · 잡동사니·탁구채 0. 쉬는 시간 +50%(세트 '휴가 중'이면 더)
-export const FISH_COINS = { common: 3, rare: 8, legend: 20 };
+export const FISH_COINS = { common: 5, rare: 20, legend: 40 }; // 팔 때 기본 값 (11/27 사용자 확정, 전: 3 · 8 · 20). 일반은 시세 0.6~2배 — 바꾸면 SQL(40)도
 // 속임수 막기: 던진 뒤 이만큼(초) 안 지나면 인정 안 함 (실제는 일반 약 12초 · 희귀 약 20초 · 전설 약 28초)
 export const MIN_SEC = { junk: 4, common: 6, rare: 11, legend: 16 };
 // 분당 상한: 1분에 25코인씩 쌓이는 주머니(최대 60)에서만 줄 수 있음 (쉬는 시간 보너스 포함)

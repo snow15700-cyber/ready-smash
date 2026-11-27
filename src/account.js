@@ -310,6 +310,7 @@ export async function fishFinish(castId, ok, perfect) {
   const r = await call('pingpong_fish_finish', { p_token: token(), p_cast: castId, p_ok: !!ok, p_perfect: !!perfect });
   if (r.player) account.player = { ...EMPTY_STATS, ...r.player };
   if (Array.isArray(r.bag)) account.fishBag = r.bag;
+  setFishDay(r);
   if (r.status === 'ok' && r.new?.length && account.ach) for (const n of r.new) account.ach.got.set(n.id, new Date().toISOString());
   return r;
 }
@@ -320,14 +321,18 @@ export async function fishBagLoad() {
   if (!account.loggedIn) { account.fishBag = null; return null; }
   const r = await call('pingpong_fish_bag', { p_token: token() });
   account.fishBag = r.status === 'ok' && Array.isArray(r.bag) ? r.bag : null;
+  setFishDay(r);
   return account.fishBag;
 }
-// id = 물고기 종류(그 종류 전부) 또는 null(전부). 결과 { status, coins, bonus, sold: [{ id, n, price }], bag }
+// 오늘 물고기를 팔아 받은 코인 { coins, cap } (40_fish_price_cap.sql — 하루 1000까지). null = 모름(40 전 서버 → 한도 글자 숨김)
+function setFishDay(r) { if (Number.isFinite(r?.day_coins)) account.fishDay = { coins: r.day_coins, cap: r.day_cap || 1000 }; }
+// id = 물고기 종류(그 종류 전부) 또는 null(전부). 결과 { status: ok | capped | empty, coins, sold: [{ id, n, price }], kept(한도 때문에 남긴 수), bag }
 export async function fishSell(id = null) {
   if (!account.loggedIn) return { status: 'guest' };
   const r = await call('pingpong_fish_sell', { p_token: token(), p_fish: id });
   if (r.player) account.player = { ...EMPTY_STATS, ...r.player };
   if (Array.isArray(r.bag)) account.fishBag = r.bag;
+  setFishDay(r);
   return r;
 }
 // 🐱 고양이 (37_cats.sql, docs/dev/cats.md). account.cats = { id: { pts, readyAt(이 PC 시각 ms) } } · null = 모름

@@ -310,9 +310,27 @@ async function sqlCheck() {
     psql(DB, `insert into public.pingpong_fish_bag(player_id, fish_id, n) select id, 'horse', 30 from public.pingpong_players where nick = '점검봇';`);
     setCast('fish', 'seabream', 'rare', 50);
     const f3 = json(`public.pingpong_fish_finish(${tk}, 'chk', true, true)`);
-    must(f3.sold && !f3.bagged && f3.coins === 8, '가방이 꽉 찼을 때 바로 팔리지 않아요: ' + JSON.stringify(f3).slice(0, 200));
+    must(f3.sold && !f3.bagged && f3.coins === MK.priceOf('seabream', Date.now()) / 10, '가방이 꽉 찼을 때 바로 팔리지 않아요: ' + JSON.stringify(f3).slice(0, 200));
     const s1 = json(`public.pingpong_fish_sell(${tk}, 'horse')`);
     must(s1.coins === MK.sellCoins([['horse', 30]], Date.now(), brkPct).total, '종류별 팔기 코인이 달라요: ' + JSON.stringify(s1).slice(0, 200));
+    // 40 하루 한도 1000 (fishing.md 19장): 비싼 것부터 한도 안에서만 · 나머지는 가방에 · 다 차면 capped · 꽉 찬 가방 바로 팔기도 막힘
+    must(s1.day_coins === sold.coins + f3.coins + s1.coins && s1.day_cap === MK.DAY_CAP, '오늘 판 코인이 이상해요: ' + JSON.stringify(s1).slice(0, 200));
+    psql(DB, `update public.pingpong_players set fish_day = (now() at time zone 'Asia/Seoul')::date, fish_day_coins = 975 where nick = '점검봇';
+      insert into public.pingpong_fish_bag(player_id, fish_id, n) select id, f, 2 from public.pingpong_players, unnest(array['dragon', 'seabream', 'mackerel', 'puffer']) f where nick = '점검봇' on conflict do nothing;`);
+    const capItems = [['dragon', 2], ['seabream', 2], ['mackerel', 2], ['puffer', 2]], capWant = MK.sellPlan(capItems, Date.now(), 25);
+    const sc = json(`public.pingpong_fish_sell(${tk}, null)`);
+    const scLeft = sc.bag.reduce((a, b) => a + b.n, 0);
+    must(sc.status === 'ok' && sc.coins === capWant.coins && sc.kept === capWant.kept && scLeft === capWant.kept && sc.day_coins === 975 + capWant.coins && sc.day_coins <= MK.DAY_CAP,
+      '하루 한도 팔기가 market.js sellPlan과 달라요: ' + JSON.stringify([sc, capWant]).slice(0, 400));
+    psql(DB, `update public.pingpong_players set fish_day_coins = 1000 where nick = '점검봇';`);
+    const sc2 = json(`public.pingpong_fish_sell(${tk}, null)`);
+    must(sc2.status === 'capped' && sc2.kept === scLeft, '한도가 다 찼는데 팔렸어요: ' + JSON.stringify(sc2).slice(0, 200));
+    psql(DB, `delete from public.pingpong_fish_bag where player_id = (select id from public.pingpong_players where nick = '점검봇');
+      insert into public.pingpong_fish_bag(player_id, fish_id, n) select id, 'horse', 30 from public.pingpong_players where nick = '점검봇';`);
+    setCast('fish', 'seabream', 'rare', 50);
+    const f4 = json(`public.pingpong_fish_finish(${tk}, 'chk', true, true)`);
+    must(f4.capped && !f4.sold && !f4.bagged && f4.coins === 0, '한도가 다 찼는데 꽉 찬 가방에서 바로 팔렸어요: ' + JSON.stringify(f4).slice(0, 200));
+    psql(DB, `delete from public.pingpong_fish_bag where player_id = (select id from public.pingpong_players where nick = '점검봇');`);
     // 🐱 고양이 배회 (cats.md): 모든 쉬는 자리가 이어짐 · 바닥 높이를 따라감 · 계단 위 풀밭·횟집 앞까지 다님 (11/26 활동 범위 넓힘)
     {
       const CR = await import(path.join(ROOT, 'src', 'games', 'cats', 'rules.js')), CL = await import(path.join(ROOT, 'src', 'campusLayout.js'));
@@ -1060,7 +1078,7 @@ async function browserChecks() {
             const c0 = A.account.player.coins;
             Sh.openShop();
             const cards = document.querySelectorAll('#fshop .fc').length, rows = document.querySelectorAll('#fshop .board .row').length;
-            const want = MK.sellCoins([['mackerel', 2], ['seabream', 1]], B.nowMs()).total;
+            const want = MK.sellPlan([['mackerel', 2], ['seabream', 1]], B.nowMs()).coins;
             document.querySelector('#fshop .all').click();
             for (let i = 0; i < 50 && !/🪙/.test(document.querySelector('#fshop .say').textContent); i++) await new Promise((r) => setTimeout(r, 100));
             return { cards, rows, got: A.account.player.coins - c0, want, bag: A.account.fishBag.length, say: document.querySelector('#fshop .say').textContent };

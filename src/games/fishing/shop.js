@@ -3,7 +3,8 @@
 // 낚시 화면 오른쪽 위 '🍣 횟집' 버튼(1a) · 선착장 횟집 건물·📈 칠판을 눌러도(1b, ui/fishing.js fishHooks.openMarket) 엶
 import { account, fishBagLoad, fishSell, marketNow } from '../../account.js';
 import { CATCH, SPECIES } from './rules.js';
-import { BAG_MAX, MARKET_FISH, bagCount, history, nextLabel, periodLabel, priceOf, sellCoins } from './market.js';
+import { BAG_MAX, MARKET_FISH, bagCount, history, nextLabel, periodLabel, priceOf, sellPlan } from './market.js';
+import { FISH_COINS } from './rules.js';
 import { modelImage } from './dex.js';
 
 const css = `
@@ -37,6 +38,8 @@ const css = `
 #fshop .fc .cnt { position: absolute; right: 8px; top: 6px; font: 800 13px 'Pretendard Variable', sans-serif; background: rgba(0,0,0,.45); border-radius: 99px; padding: 1px 7px; }
 #fshop .fc button { margin-top: 4px; padding: 5px 10px; background: rgba(255,255,255,.14); font-size: 12px; }
 #fshop .all { width: 100%; margin-top: 10px; height: 46px; font-size: 16px; background: linear-gradient(180deg, #ff8a1f, #e8590c); box-shadow: 0 6px 16px rgba(232,89,12,.35); }
+#fshop .day { margin-top: 6px; font-size: 12px; text-align: center; color: rgba(255,255,255,.7); }
+#fshop .day b { color: #ffd36b; }
 #fshop .all:disabled, #fshop .fc button:disabled { opacity: .45; cursor: default; }
 #fshop .empty { padding: 24px 6px; text-align: center; color: rgba(255,255,255,.6); font-size: 14px; }
 #fshop .boss { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-size: 13px; min-height: 34px; }
@@ -56,7 +59,7 @@ function build() {
   el = document.createElement('div'); el.id = 'fshop';
   el.innerHTML = `<div class="box"><div class="top"><h3>🍣 횟집<small></small></h3><button class="x" type="button">✕</button></div>
     <div class="body"><div class="panel"><h4>📈 오늘의 시세 <small class="when"></small></h4><div class="board"></div><div class="note"></div></div>
-    <div class="panel"><h4>🎒 내 가방 <small class="cnt"></small></h4><div class="bag"></div><button class="all" type="button"></button>
+    <div class="panel"><h4>🎒 내 가방 <small class="cnt"></small></h4><div class="bag"></div><button class="all" type="button"></button><div class="day"></div>
     <div class="boss"><span>🧑‍🍳</span><span class="say"></span></div></div></div></div>`;
   document.body.appendChild(el);
   for (const ev of ['pointerdown', 'pointerup', 'keydown']) el.addEventListener(ev, (e) => e.stopPropagation());
@@ -82,7 +85,7 @@ function render() {
     const ch = d > 0 ? `<span class="up">▲${coin(d)}</span>` : d < 0 ? `<span class="dn">▼${coin(-d)}</span>` : '<span class="eq">–</span>';
     return `<div class="row${id === cur.jackpot ? ' hot' : ''}"><span>${emoji(id)}</span><span>${id === cur.jackpot ? '🔥 ' : ''}${name(id)}</span><span class="p">${coin(v)}</span>${ch}${spark(hist.map((h) => h.list[id]))}</div>`;
   }).join('');
-  el.querySelector('.note').innerHTML = `🔥 = 오늘의 대박(2배) · 크기와 상관없이 종류로만 · 희귀 8 · 전설 20은 늘 같아요<br>다음 시세: <b>${nextLabel(ms)}</b> 쉬는 시간`;
+  el.querySelector('.note').innerHTML = `🔥 = 오늘의 대박(2배) · 크기와 상관없이 종류로만 · 희귀 ${FISH_COINS.rare} · 전설 ${FISH_COINS.legend}은 늘 같아요<br>다음 시세: <b>${nextLabel(ms)}</b> 쉬는 시간`;
 
   const bag = account.fishBag || [], n = bagCount(bag);
   el.querySelector('h3 small').textContent = account.loggedIn ? `🪙 ${account.player?.coins ?? 0}` : '';
@@ -98,9 +101,12 @@ function render() {
     box.appendChild(d);
   }
   const all = el.querySelector('.all');
-  const est = sellCoins(bag.map((b) => [b.id, b.n]), ms).total;
-  all.dataset.sell = ''; all.disabled = busy || !n;
-  all.textContent = n ? `🍣 모두 팔기 · 🪙 약 ${est}` : '🍣 모두 팔기';
+  // 하루 한도(40, market.js DAY_CAP): 오늘 판 코인 · 남은 한도 안에서만 팔림
+  const fd = account.fishDay, left = fd ? Math.max(0, fd.cap - fd.coins) : Infinity;
+  const plan = sellPlan(bag.map((b) => [b.id, b.n]), ms, left);
+  all.dataset.sell = ''; all.disabled = busy || !n || left <= 0;
+  all.textContent = !n ? '🍣 모두 팔기' : left <= 0 ? '🍣 오늘은 다 팔았어요' : `🍣 모두 팔기 · 🪙 약 ${plan.coins}${plan.kept ? ` (${plan.kept}마리는 내일)` : ''}`;
+  el.querySelector('.day').innerHTML = fd ? `오늘 판 코인 <b>${fd.coins}</b> / ${fd.cap} · 한도가 차면 남은 물고기는 내일 팔아요` : '';
   el.querySelector('.say').textContent = bossLine;
 }
 async function sell(id) {
@@ -110,9 +116,9 @@ async function sell(id) {
   if (r.status === 'ok') {
     const big = (r.sold || []).find((s) => CATCH[s.id]?.grade !== 'common');
     const hot = (r.sold || []).find((s) => s.id === history(marketNow(), 1)[0].jackpot);
-    bossLine = `🪙 +${r.coins}코인${r.bonus ? ` (☕ +${r.bonus})` : ''}! ` + (big ? `${name(big.id)}! 오늘 장사 잘 되겠네요 😆` : hot ? `${name(hot.id)} 오늘 금값인데, 타이밍 좋아요!` : '고마워요, 또 와요~');
+    bossLine = `🪙 +${r.coins}코인! ` + (r.kept ? `오늘은 여기까지 살게요. ${r.kept}마리는 내일 다시 가져와요 🙏` : big ? `${name(big.id)}! 오늘 장사 잘 되겠네요 😆` : hot ? `${name(hot.id)} 오늘 금값인데, 타이밍 좋아요!` : '고마워요, 또 와요~');
     onSold?.(r);
-  } else bossLine = r.status === 'empty' ? '가방이 비었는데요? 😅' : '앗, 계산이 안 됐어요. 다시 눌러 주세요';
+  } else bossLine = r.status === 'capped' ? '오늘은 더 못 사요 😅 내일 다시 와 주세요! (하루 1000코인까지)' : r.status === 'empty' ? '가방이 비었는데요? 😅' : '앗, 계산이 안 됐어요. 다시 눌러 주세요';
   render();
 }
 let onSold = null;
