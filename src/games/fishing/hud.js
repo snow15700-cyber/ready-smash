@@ -1,5 +1,5 @@
 // 낚시 화면 (2D 캔버스, 3D 위에 겹침) — 리듬 방식 (fishing.md 8장)
-//  준비: 꾹 누르는 동안 예상 범위 부채꼴(누를수록 길어짐) · 떨어질 자리 · 세기 막대(박 눈금) · 붉어짐(17장) · 기포 표시 / 입질: 찌 확대 창 테두리 · '!' / 줄다리기: 가운데 기본 원 + 줄어드는 원 · 거리 게이지
+//  준비: 꾹 누르는 동안 예상 범위(옅은 흰 부채꼴 + 지금 세기 흰 호) · 떨어질 자리 · 세기 막대(박 눈금) · 붉어짐(17장) · 기포 표시 / 입질: 찌 확대 창 테두리 · '!' / 줄다리기: 가운데 기본 원 + 줄어드는 원 · 거리 게이지
 //  공통: 의성어 · 판정 · 집중선 컷인 · 도장 '쾅' · 결과 카드 (소리 없이도 손맛)
 import * as THREE from 'three';
 import { GRADE } from './data.js';
@@ -53,16 +53,31 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
     grd.addColorStop(0, `rgba(255,60,30,${a * 0.12})`); grd.addColorStop(1, `rgba(230,20,20,${a})`);
     g.fillStyle = grd; g.fillRect(0, 0, W, H);
   }
-  // 예상 범위 부채꼴 (17장, 사용자 요청): 가장 가까이(6m) ~ 지금 세기까지, 누를수록 앞으로 길어짐. 점선 = 끝까지 모으면 닿는 곳
+  // 예상 범위 (17장, 11/27 사용자 요청 '세련되게'): 끝까지 모으면 닿는 부채꼴 전체 = 옅은 흰 면(약 10%) + 가는 테두리,
+  //   지금 세기 = 은은하게 빛나는 흰 호(누를수록 앞으로), 모은 만큼은 아주 살짝 더 밝게. 방향 = 떨어질 자리까지 가는 흰 선 + 거리 글자
   if (S.mode === 'ready' && S.charge) {
-    const arc = (pw) => { const pts = []; for (let i = 0; i <= 16; i++) { const L = landingPoint(S.standX, -1 + i / 8, pw, S.standZ); pts.push(proj(new THREE.Vector3(L.x, seaHeight(L.x, L.z, S.now), L.z))); } return pts; };
+    const fade = clamp((S.now - S.charge.t0) / 0.18, 0, 1), beat = S.B ? S.B.pulse * S.B.pulse : 0, full = S.power >= 1;
+    const at = (aim, pw) => { const L = landingPoint(S.standX, aim, pw, S.standZ); return proj(new THREE.Vector3(L.x, seaHeight(L.x, L.z, S.now), L.z)); };
+    const arc = (pw) => { const pts = []; for (let i = 0; i <= 24; i++) pts.push(at(-1 + i / 12, pw)); return pts; };
     const inner = arc(0), outer = arc(S.power), max = arc(1);
-    if (inner.every((p) => p.ok) && outer.every((p) => p.ok)) {
-      g.beginPath(); outer.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); for (let i = inner.length - 1; i >= 0; i--) g.lineTo(inner[i].x, inner[i].y); g.closePath();
-      g.fillStyle = `rgba(255,138,31,${0.14 + S.power * 0.12})`; g.fill();
-      g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,.35)'; g.stroke();
-      g.lineWidth = 3; g.strokeStyle = S.power >= 1 ? '#ff5a3a' : '#FF8A1F'; g.beginPath(); outer.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.stroke();
-      if (S.power < 1 && max.every((p) => p.ok)) { g.setLineDash([6, 8]); g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,.4)'; g.beginPath(); max.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.stroke(); g.setLineDash([]); }
+    const path = (pts, move = true) => pts.forEach((q, i) => (i || !move ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y)));
+    const band = (o, i) => { g.beginPath(); path(o); for (let k = i.length - 1; k >= 0; k--) g.lineTo(i[k].x, i[k].y); g.closePath(); };
+    if ([...inner, ...max].every((q) => q.ok)) {
+      g.save(); g.globalAlpha = fade; g.lineJoin = 'round'; g.lineCap = 'round';
+      band(max, inner); g.fillStyle = 'rgba(255,255,255,.10)'; g.fill(); // 끝까지 닿는 범위 전체
+      g.lineWidth = 1; g.strokeStyle = 'rgba(255,255,255,.28)'; g.stroke();
+      band(outer, inner); g.fillStyle = `rgba(255,255,255,${0.07 + beat * 0.04})`; g.fill(); // 지금까지 모은 만큼
+      g.shadowColor = 'rgba(255,255,255,.9)'; g.shadowBlur = 10 + beat * 8; // 지금 세기 호 (빛나는 흰 선)
+      g.lineWidth = (full ? 3 : 2.2) + beat * 1.2; g.strokeStyle = 'rgba(255,255,255,.95)'; g.beginPath(); path(outer); g.stroke();
+      g.shadowBlur = 0;
+      const p0 = at(S.aim, 0), p1 = at(S.aim, S.power); // 방향: 가장 가까운 곳 → 떨어질 자리
+      if (p0.ok && p1.ok) {
+        const lg = g.createLinearGradient(p0.x, p0.y, p1.x, p1.y); lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(1, 'rgba(255,255,255,.75)');
+        g.lineWidth = 1.5; g.strokeStyle = lg; g.beginPath(); g.moveTo(p0.x, p0.y); g.lineTo(p1.x, p1.y); g.stroke();
+        g.font = UI(700, 13 * u); g.textAlign = 'center'; g.textBaseline = 'bottom'; g.fillStyle = 'rgba(255,255,255,.95)';
+        g.shadowColor = 'rgba(10,25,45,.6)'; g.shadowBlur = 4; g.fillText(`${Math.round(castDist(S.power))}m`, p1.x, p1.y - 12 * u); g.shadowBlur = 0;
+      }
+      g.restore();
     }
   }
   // 준비: 떨어질 자리 표시 (누르는 동안 방향·세기를 따라 움직임, 안 누를 때는 가운데 중간에 흐리게)
@@ -74,8 +89,8 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
       const r = (on ? 13 : 9) * u * (1.15 - S.power * 0.35), pulse = 1 + Math.sin(S.now * 6) * 0.08;
       g.save(); g.translate(p.x, p.y); g.scale(pulse, pulse);
       g.lineWidth = 3; g.strokeStyle = 'rgba(10,25,45,.45)'; g.beginPath(); g.ellipse(0, 0, r, r * 0.45, 0, 0, 7); g.stroke();
-      g.lineWidth = 2; g.strokeStyle = on ? '#FF8A1F' : 'rgba(255,255,255,.6)'; g.beginPath(); g.ellipse(0, 0, r, r * 0.45, 0, 0, 7); g.stroke();
-      g.fillStyle = on ? '#FF8A1F' : 'rgba(255,255,255,.6)'; g.beginPath(); g.ellipse(0, 0, 3, 1.6, 0, 0, 7); g.fill();
+      g.lineWidth = 2; g.strokeStyle = on ? '#fff' : 'rgba(255,255,255,.6)'; g.beginPath(); g.ellipse(0, 0, r, r * 0.45, 0, 0, 7); g.stroke();
+      g.fillStyle = on ? '#fff' : 'rgba(255,255,255,.6)'; g.beginPath(); g.ellipse(0, 0, 3, 1.6, 0, 0, 7); g.fill();
       g.restore();
     }
     // 세기 막대 (누르는 동안): 가까이 ~ 멀리, 박 눈금(4박이면 3줄)
