@@ -256,8 +256,8 @@ export function createFishing(opt) {
     S.stage = stage;
     const f = STAGE_FISH[STAGES[stage]], song = makeSong(f, Math.random, prev?.song.key);
     const spb = 60 / song.bpm;
-    // 단계가 오를 때는 기다림을 짧게 (사용자 요청 11/25: 약 3초 → 약 1.3초): 0.3초 + 음악만 2박, "무겁다!"는 첫 원 위에 짧게 겹침
-    const lead = stage === 0 ? 0.5 : 0.3, intro = stage === 0 ? 4 : 2;
+    // 단계가 오를 때: 0.3초 + 새 단계 음악만 4박 먼저 들려줌(17장, 11/27 사용자 요청 — 예전 2박), "무겁다!"는 짧게 겹침
+    const lead = stage === 0 ? 0.5 : 0.3, intro = 4;
     const dist = stage === 0 ? 60 : 50, secs = S.fish?.kind === 'junk' ? 3 : f.secs; // 잡동사니는 짧게 (3초쯤)
     S.R = {
       song, spb, base: nowS(), t0: lead + intro * spb, intro, // 첫 노트 구절의 첫 박 (그 전 intro박은 음악만 — 들어가는 마디)

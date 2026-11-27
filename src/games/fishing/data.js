@@ -17,7 +17,7 @@ export const TUNE = {
   cam: 2, // 카메라 연출 세기 (박자 두근·단계 확대·기울기): 0 끔 · 1 약 · 2 보통 · 3 강
 };
 
-// 단계마다 쓰는 리듬·그림자 물고기 모양 (진짜 물고기 목록은 rules.js SPECIES). 리듬: bpm(한 마리마다 ±4 흔들림), secs = 그 단계를 다 맞출 때 걸리는 시간(초, 11/26 사용자 확정: 일반 6 · 희귀 +30% · 전설 +60%),
+// 단계마다 쓰는 리듬·그림자 물고기 모양 (진짜 물고기 목록은 rules.js SPECIES). 리듬: bpm(한 마리마다 ±4 흔들림), secs = 그 단계를 다 맞출 때 걸리는 시간(초, 11/26 사용자 확정: 일반 6 · 희귀 +30% · 전설 +60% → 11/27 전설도 +30%),
 // missOut = 처음부터 몇 번 놓치면 도망가는지. 박자 패턴·음악은 rhythm.js가 한 마리마다 새로 조립
 export const FISH = {
   mackerel: {
@@ -30,7 +30,7 @@ export const FISH = {
   },
   goldball: {
     grade: 'legend', body: 0xffc21a, belly: 0xfff3b8, ball: true,
-    bpm: 130, secs: 9.6, missOut: 10,
+    bpm: 130, secs: 7.8, missOut: 10, // 17장(11/27 사용자 확정): 전설 단계도 희귀와 같은 7.8초 (예전 9.6)
   },
 };
 export const GRADE = {
