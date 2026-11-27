@@ -10,26 +10,28 @@ export const TUNE = {
   size: 'random', // 크기 시험: 'random' | 고정 크기 점수(50 = 보통 1배 · '95' 월척 · '125' 대물 · '180' 괴물 · '300', cm는 물고기 보통 크기 × 점수 ÷ 50)
   cond: 'auto', // 조건 물고기 시험: 'auto'(실제 쉬는 시간·밤) | 'break' | 'night' | 'rain'
   sound: true,
+  lag: 0, // 소리 늦음 보정에 더할 값(초, 자동 측정값 위에 더함, + = 소리를 더 일찍). 🎵 박자 맞추기 창(syncCal.js)에서 본인이 맞추고 이 기기에 저장(sound.js setLag)
+  bSea: 1, bPier: 1, bBody: 1, // 주변 박자 연출(바다 물결·선착장·캐릭터·고양이) 1 = 켬 — 11/26 사용자 확정: ④⑤⑥ 모두 광장에도 (내 화면에서만)
+  heat: 1, // 16장 C 1단계: 계속 맞출수록 음악에 악기가 한 겹씩 더해짐(0~3겹, 놓치면 한 겹 빠짐). 1 = 켬 — 11/26 사용자 확정: 광장에도 (내 화면에서만)
+  heatC: 1, // 16장 C 2단계: 같은 겹 수로 기본 원 둘레·화면 가장자리 빛이 주황 → 분홍 → 금색. 1 = 켬 — 11/26 사용자 확정: 광장에도
+  chargeBeats: 4, // 17장: 끝까지 기 모으는 데 걸리는 박 수 (11/27 사용자 확정: 기본 4박, 시안 ⚙️에서 8박도)
   cam: 2, // 카메라 연출 세기 (박자 두근·단계 확대·기울기): 0 끔 · 1 약 · 2 보통 · 3 강
 };
 
-// 리듬: bpm(한 마리마다 ±4 흔들림), secs = 그 단계를 다 맞출 때 걸리는 시간(초, 11/26 사용자 확정: 일반 6 · 희귀 +30% · 전설 +60%),
+// 단계마다 쓰는 리듬·그림자 물고기 모양 (진짜 물고기 목록은 rules.js SPECIES). 리듬: bpm(한 마리마다 ±4 흔들림), secs = 그 단계를 다 맞출 때 걸리는 시간(초, 11/26 사용자 확정: 일반 6 · 희귀 +30% · 전설 +60% → 11/27 전설도 +30%),
 // missOut = 처음부터 몇 번 놓치면 도망가는지. 박자 패턴·음악은 rhythm.js가 한 마리마다 새로 조립
 export const FISH = {
   mackerel: {
-    id: 'mackerel', name: '고등어', grade: 'common', emoji: '🐟',
-    size: [24, 46], body: 0x3f6fa0, belly: 0xe8eef2, stripe: true,
+    grade: 'common', body: 0x3f6fa0, belly: 0xe8eef2, stripe: true,
     bpm: 100, secs: 6, missOut: 3,
   },
   seabream: {
-    id: 'seabream', name: '참돔', grade: 'rare', emoji: '🐠',
-    size: [35, 72], body: 0xe0646a, belly: 0xfbd3cf,
+    grade: 'rare', body: 0xe0646a, belly: 0xfbd3cf,
     bpm: 115, secs: 7.8, missOut: 7,
   },
   goldball: {
-    id: 'goldball', name: '황금 탁구공 물고기', grade: 'legend', emoji: '🏓',
-    size: [60, 104], body: 0xffc21a, belly: 0xfff3b8, ball: true,
-    bpm: 130, secs: 9.6, missOut: 10,
+    grade: 'legend', body: 0xffc21a, belly: 0xfff3b8, ball: true,
+    bpm: 130, secs: 7.8, missOut: 10, // 17장(11/27 사용자 확정): 전설 단계도 희귀와 같은 7.8초 (예전 9.6)
   },
 };
 export const GRADE = {
@@ -40,7 +42,6 @@ export const GRADE = {
 
 // ── 잡히는 것·크기·코인 규칙은 rules.js (서버와 같아야 해서 한곳에). 여기서는 시안의 ⚙️ 강제만 더함
 import { JUNK, SPECIES, paddleCatch, rollCatch } from './rules.js';
-export { BIG_CM, COND, JUNK, LEGEND_PADDLES, PADDLE_DUP_PIECES, SPECIES, fishSize } from './rules.js';
 // ctx: { cond: { break, night, rain }, owned: [가진 탁구채 id] }. 게임(로그인)에서는 서버가 같은 규칙으로 정함(5장)
 export function pickCatch(near = 0, ctx = {}, rnd = Math.random) {
   const f = TUNE.fish;
