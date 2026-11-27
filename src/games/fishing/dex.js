@@ -62,12 +62,14 @@ const css = `
 #dex.open { display: flex; }
 #dex .box { width: min(760px, calc(100vw - 24px)); max-height: calc(100vh - 32px); display: flex; flex-direction: column; border-radius: 22px; background: rgba(15,25,50,.82); border: 1px solid rgba(255,255,255,.18); color: #fff; overflow: hidden; }
 #dex .top { display: flex; align-items: center; gap: 8px; padding: 14px 16px 10px; }
-#dex .top h3 { margin: 0; font-size: 22px; font-weight: 400; flex: 1; }
+#dex .top h3 { margin: 0; font-size: 22px; font-weight: 400; flex: 1; white-space: nowrap; }
+#dex .tabs { display: flex; gap: 6px; }
 #dex .top h3 small { font-size: 14px; color: rgba(255,255,255,.65); margin-left: 6px; }
 #dex .tabs button, #dex .x { font: inherit; font-size: 15px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); color: #fff; border-radius: 99px; padding: 6px 14px; cursor: pointer; }
+#dex .tabs button { white-space: nowrap; }
 #dex .tabs button.on { background: #FF8A1F; border-color: #FF8A1F; }
 #dex .x { padding: 6px 12px; }
-#dex .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; padding: 4px 16px 16px; overflow-y: auto; }
+#dex .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); grid-auto-rows: max-content; align-content: start; gap: 10px; padding: 4px 16px 16px; overflow-y: auto; }
 #dex .card { position: relative; border-radius: 16px; padding: 6px 6px 8px; text-align: center; background: linear-gradient(180deg, rgba(191,230,251,.25), rgba(143,208,242,.12)); border: 2px solid rgba(255,255,255,.12); }
 #dex .card.rare { background: linear-gradient(180deg, rgba(110,160,255,.35), rgba(90,140,240,.15)); }
 #dex .card.legend { background: linear-gradient(180deg, rgba(255,214,90,.45), rgba(255,170,60,.18)); border-color: rgba(255,210,90,.5); }
@@ -79,6 +81,8 @@ const css = `
 #dex .cond { position: absolute; right: 8px; top: 6px; font-size: 18px; }
 #dex .gr { position: absolute; left: 8px; top: 8px; font-family: 'Pretendard Variable', sans-serif; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 99px; color: #0b1633; }
 #dex .big { color: #ffd23a; }
+/* 휴대폰 (좁은 화면): 탭은 둘째 줄로 — 글자가 쪼개지지 않게 */
+@media (max-width: 520px) { #dex .top { flex-wrap: wrap; } #dex .tabs { order: 3; width: 100%; } #dex .tabs button { flex: 1; } }
 `;
 let el = null, tab = 'fish';
 function build() {

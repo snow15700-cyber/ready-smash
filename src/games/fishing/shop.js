@@ -21,6 +21,7 @@ const css = `
 #fshop .panel h4 small { font: 600 12px 'Pretendard Variable', sans-serif; color: rgba(255,255,255,.6); }
 #fshop .board { background: #1f3b2f; border: 4px solid #8a5a32; border-radius: 12px; padding: 8px 10px; font-family: Jua, sans-serif; } /* 칠판 */
 #fshop .row { display: grid; grid-template-columns: 22px 1fr 64px 46px 56px; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,.14); font-size: 15px; }
+#fshop .row > span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #fshop .row:last-child { border-bottom: 0; }
 #fshop .row.hot { background: linear-gradient(90deg, rgba(255,120,40,.35), transparent); border-radius: 8px; padding-left: 4px; }
 #fshop .row .p { text-align: right; font-size: 17px; }
@@ -42,6 +43,8 @@ const css = `
 #fshop .boss span:first-child { font-size: 26px; }
 #fshop .boss .say { background: rgba(255,255,255,.12); border-radius: 12px; padding: 6px 10px; }
 @media (max-width: 640px) { #fshop .body { grid-template-columns: 1fr; } }
+/* 좁은 칠판(휴대폰 세로·가로 2단): 숫자 칸을 줄여 이름이 들어가게 */
+@media (max-width: 420px), (max-width: 900px) and (min-width: 641px) { #fshop .row { grid-template-columns: 20px 1fr 36px 44px 44px; gap: 4px; font-size: 14px; } #fshop .row .p { font-size: 15px; } #fshop .row svg { width: 44px; } }
 `;
 let el = null, busy = false, bossLine = '어서 와요! 오늘 시세 한번 보고 가요.';
 const name = (id) => CATCH[id]?.name || id;
