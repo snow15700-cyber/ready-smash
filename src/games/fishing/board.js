@@ -57,13 +57,14 @@ function build() {
   const css = document.createElement('style');
   css.textContent = `
 #fish-board { z-index: 80; } /* 광장 화면(.screen 10) 위 — 횟집·도감 창과 같은 층 */
-#fish-board .fb { width: min(460px, 100%); max-height: calc(100vh - 32px); overflow: auto; }
+#fish-board .fb { width: min(460px, 100%); max-height: calc(100vh - 64px); max-height: calc(100dvh - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow: hidden; }
 #fish-board .fb-tabs { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
 #fish-board .fb-tabs button { height: 34px; padding: 0 12px; border: 0; border-radius: 999px; font: 700 14px var(--font-ui, system-ui); color: #fff; background: rgba(255,255,255,.16); cursor: pointer; }
 #fish-board .fb-tabs button.on { background: #2ea3e6; }
 #fish-board .fb-title { justify-content: center; margin-top: 4px; }
-#fish-board .fb-list { margin: 2px 0 4px; padding-left: 20px; line-height: 1.6; font-size: 15px; color: #fff; }
+#fish-board .fb-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 2px 0 4px; padding-left: 20px; line-height: 1.6; font-size: 15px; color: #fff; }
 #fish-board .fb-list li { margin: 3px 0; }
+#fish-board .fb-tabs, #fish-board .fb-title, #fish-board .fb-close { flex: none; } /* 짧은 화면: 글 목록만 스크롤, 탭·'알겠어요!'는 늘 보이게 */
 #fish-board .fb-list b { color: #ffd36b; }`;
   document.head.appendChild(css);
   (document.getElementById('app') || document.body).appendChild(el);

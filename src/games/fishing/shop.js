@@ -9,7 +9,7 @@ import { modelImage } from './dex.js';
 const css = `
 #fshop { position: fixed; inset: 0; z-index: 80; display: none; align-items: center; justify-content: center; background: rgba(8,16,34,.45); backdrop-filter: blur(4px); font-family: 'Pretendard Variable', system-ui, sans-serif; color: #fff; }
 #fshop.open { display: flex; }
-#fshop .box { width: min(820px, calc(100vw - 24px)); max-height: calc(100vh - 32px); display: flex; flex-direction: column; border-radius: 22px; background: rgba(15,25,50,.86); border: 1px solid rgba(255,255,255,.18); overflow: hidden; }
+#fshop .box { width: min(820px, calc(100vw - 36px)); max-height: calc(100vh - 64px); max-height: calc(100dvh - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); display: flex; flex-direction: column; border-radius: 22px; background: rgba(15,25,50,.86); border: 1px solid rgba(255,255,255,.18); overflow: hidden; }
 #fshop .top { display: flex; align-items: center; gap: 10px; padding: 14px 16px 8px; }
 #fshop h3 { margin: 0; font: 400 22px Jua, sans-serif; flex: 1; }
 #fshop h3 small { font: 600 14px 'Pretendard Variable', sans-serif; color: rgba(255,255,255,.7); margin-left: 8px; }
