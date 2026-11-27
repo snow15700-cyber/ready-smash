@@ -17,8 +17,8 @@ export const STANDS = [ // 서는 곳 (판 가장자리에서 조금 안쪽)
   { x0: -5.3, x1: -2.7, z0: 45.6, z1: 56.8 },
   { x0: 24.7, x1: 27.3, z0: 45.6, z1: 56.8 },
 ];
-// 13-3 ⑤ 자리 = 장르 (11/27 사용자 확정): 가운데 앞 판 🎸 록 · 서쪽 팔 🎷 재즈 · 동쪽 팔 🎻 발라드 (STANDS 순서와 같음)
-export const STAND_GENRE = ['rock', 'jazz', 'ballad'];
+// 13-3 ⑤ 자리 = 장르 (11/27 사용자 확정, 같은 날 바꿈): 가운데 앞 판 🎷 재즈 · 서쪽 팔 🎻 발라드 · 동쪽 팔 🎸 록 (STANDS 순서와 같음)
+export const STAND_GENRE = ['jazz', 'ballad', 'rock'];
 export const GENRE_LABEL = { jazz: '🎷 재즈', rock: '🎸 록', ballad: '🎻 발라드' };
 export function standGenre(x, z) {
   const [cx, cz] = clampStand(x, z);
