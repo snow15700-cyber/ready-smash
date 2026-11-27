@@ -24,6 +24,7 @@
 | 9 | 옛 로비 카메라 정리 (`main.js`) | 중간 | 중간 | 중간 | |
 | 10 | 광장 화면 파일(`ui/plaza.js`) 나누기 | 큼 | 중간 | 큼 | |
 | 11 | (나중에) `game.js` 공 소식 처리 나누기 | 중간 | 중간~높음 | 큼 | |
+| **12** | **광장 '콘텐츠 콘센트' 만들기**(낚시·고양이 연결 고리 하나로) — **10번보다 먼저 하기 추천** | 큼 | 중간 | 중간 | 계획(11/27) |
 
 ---
 
@@ -141,6 +142,55 @@
 - 할 일: 처리마다 작은 함수로 나누기(`onShot` 등). 내용 순서는 그대로.
 - **고장 위험**: 중간~높음. 판정·예측과 바로 붙어 있어서, 순서가 한 줄만 바뀌어도 늦은 스윙·예측 취소가 달라질 수 있어요.
 - **추천**: 지금은 **하지 않기**. 경기 쪽을 크게 고칠 일이 생기면 그때 같이.
+
+---
+
+## 12. 광장 '콘텐츠 콘센트' 만들기 (계획 11/27, 사용자와 정함)
+
+**왜**: 앞으로 낚시 같은 콘텐츠를 더 붙일 계획이에요. 사용자와 정한 방향은 "전체를 다시 만들지 말고, 지금 방식(콘텐츠마다 `src/games/<게임>/` 폴더)을 유지하면서 광장에 꽂는 자리만 하나로 정리"예요.
+지금은 광장(`ui/plaza.js`)에 `fishHooks`·`catHooks`가 **따로** 있어서, 콘텐츠 하나를 붙일 때마다 광장 코드 여러 곳(아래 표)을 고쳐야 해요.
+
+**목표**: 새 콘텐츠는 **자기 폴더 안에서 `registerAddon({...})` 한 번**으로 광장에 붙고, 광장 코드는 콘텐츠 이름(낚시·고양이)을 몰라도 되게.
+
+### 지금 광장이 콘텐츠를 부르는 곳 (조사 11/27)
+| 광장(`ui/plaza.js`) 쪽 | 지금 | 콘센트에서는 |
+|---|---|---|
+| `myState()`의 `fi`·`ct` | `fishHooks.state()`·`catHooks.state()` | 콘텐츠마다 `key`('fi'·'ct')와 `state()` → 광장이 돌면서 채움 |
+| 받은 상태 정리 (`cleanFi`, `catHooks.clean`) | `cleanFi`가 **광장 파일 안**에 있음 | `clean(v)` — 낚시 쪽으로 옮김 |
+| `m.k === 'fish'` 메시지 | `fishHooks.onMsg` | 콘텐츠마다 `msgKind`('fish')와 `onMsg(m, 사람)` |
+| 채팅 받기 | `fishHooks.onSay` | `onSay(사람, 글)` (모두에게) |
+| 눌린 곳 `fishBoard`·`market` (`onSpot`) | `if (sp.id === ...)` | 콘텐츠마다 `spots: { fishBoard(sp, at, 도우미), market(...) }` |
+| 입력 막기·내 캐릭터 숨기기 | `fishHooks.on()` | `takesOver()` — 하나라도 true면 광장 걷기 멈춤·내 캐릭터 숨김 |
+| 다른 사람이 바다 보기 (`figOf`의 `p.fi`) | 광장이 직접 앎 | `face(p)` — 방향을 돌려주면 그쪽을 봄 |
+| 매 프레임 | `catHooks.frame`·`fishHooks.frame` (이 순서) | `frame(now, 내 자리, 걷는 중)` — **등록 순서 = 부르는 순서**(고양이 먼저 그대로) |
+| 광장이 안 보일 때 | `fishHooks.hidden`·`catHooks.hidden` | `hidden()` |
+| 콘텐츠끼리 | 고양이가 `fishHooks.spot()`·낚시가 `catHooks.fishEvent()` | `addon('fishing')?.spot?.()` 처럼 이름으로 찾아 부름 |
+
+### 할 일 (대화 2번)
+- **12-1 콘센트 + 낚시 옮기기**
+  - 새 파일 `src/ui/plazaAddons.js`: `registerAddon(def)`·`addons()`(등록 순서 목록)·`addon(id)`. 광장 정보 `plazaApi`도 여기로 옮겨서 콘텐츠가 `ui/plaza.js`를 직접 불러오지 않게(서로 불러오기 꼬임 방지). `plaza.js`가 시작할 때 `plazaApi`를 채움.
+  - `ui/plaza.js`: 위 표의 곳을 "`addons()` 돌면서 부르기"로 바꿈. `cleanFi`는 낚시로.
+  - `ui/fishing.js`: `fishHooks.xxx = ` → `registerAddon({ id: 'fishing', key: 'fi', msgKind: 'fish', spots: {...}, ... })`.
+- **12-2 고양이 옮기기 + 안내 쓰기**
+  - `games/cats/plazaCats.js`: `catHooks` → `registerAddon({ id: 'cats', key: 'ct', ... })`. 낚시 자리는 `addon('fishing')?.spot?.()`.
+  - `fishHooks`·`catHooks` 이름을 없앰(검색해서 0개 확인).
+  - 이 문서 끝에 **"새 콘텐츠 붙이는 법" 체크리스트**(폴더 만들기 · `registerAddon` · `main.js`에서 불러오기 · 광장 3D 건물은 `campusLayout.js` · 서버 SQL 번호 · 문서 `docs/dev/<게임>.md`)를 쓰고, `CLAUDE.md` 지도에 한 줄.
+
+### 지킬 것
+- **광장 메시지 모양 그대로**: `st` 메시지의 `fi`·`ct` 이름, `k: 'fish'` 메시지. (test·main 사람이 섞여 있어도 서로 보여야 함)
+- 프레임마다 부르는 순서 그대로(고양이 → 낚시). 겉모습·동작이 **똑같아야** 함.
+- 디버그 훅(`window.__smash.plaza`, `catsDebug` 등) 이름은 유지.
+
+### 확인할 것 (화면은 바꾼 곳만 Playwright로 짧게)
+- 빌드 + `node scripts/check.cjs --no-browser`(SQL은 안 바뀌지만 빌드 확인용).
+- 탭 두 개: A가 낚시 시작 → B 화면에서 A가 바다 보며 낚싯대 든 모습·잡았을 때 알림·채팅.
+- 낚시 게시판 3칸·횟집 문 눌러서 걸어가 열리기.
+- 낚시 중 걷기 막힘·끝나면 다시 걷기. 고양이 따라오기·낚시할 때 옆에 앉기·밥 주기.
+- 랭킹·꾸미기 창 열 때(광장 안 보일 때) 낚시가 멈추는지.
+- 광장 탁구대 1대1이 그대로 되는지(광장 코드를 건드리므로).
+
+### 10번(광장 파일 나누기)과의 관계
+12번을 먼저 하면 광장 파일에서 낚시·고양이 이야기가 빠져서 10번이 더 쉬워져요. 10번은 그 뒤에 원래 계획대로.
 
 ---
 
