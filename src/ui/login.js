@@ -35,7 +35,7 @@ export function renderMe() {
   renderFreeGacha();
 }
 
-// 로비: ⚙️ 내 계정 메뉴 (PIN 바꾸기·로그아웃), ❓ 치는 방법 창
+// 로비: ⚙️ 내 계정 메뉴 (PIN 바꾸기·박자 맞추기·로그아웃), ❓ 치는 방법 창
 $('btn-me-menu').addEventListener('click', (e) => {
   e.stopPropagation();
   playUI('click');
@@ -43,6 +43,12 @@ $('btn-me-menu').addEventListener('click', (e) => {
 });
 document.addEventListener('click', (e) => {
   if (!$('me-menu').contains(e.target)) $('me-menu').classList.add('hidden');
+});
+// 🎵 박자 맞추기 (낚시 리듬의 소리 보정, docs/dev/fishing.md 18장) — 손님도 됨(이 기기에만 저장). 낚시 코드는 누를 때 불러옴
+$('btn-sync').addEventListener('click', () => {
+  playUI('click');
+  $('me-menu').classList.add('hidden');
+  import('../games/fishing/syncCal.js').then((m) => m.openSyncCal());
 });
 $('btn-howto').addEventListener('click', () => { playUI('click'); $('howto').classList.remove('hidden'); });
 $('lnk-until09').addEventListener('click', () => playUI('click'));

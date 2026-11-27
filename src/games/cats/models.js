@@ -5,6 +5,7 @@
 // g.userData.anim(t, pose): pose = 'sit' | 'nod'(리듬에 까딱) | 'stand'(두리번) | 'walk' | 'loaf'(식빵) | 'belly'(배 보이고 zzz)
 import * as THREE from 'three';
 import { KIT } from '../fishing/models.js';
+import { BEAT } from '../fishing/beat.js';
 
 const { toon, basic, finish, sph, mesh, noOl, makeBlush } = KIT;
 
@@ -149,7 +150,10 @@ function posePlay(P, t, pose, blink, C) {
   tail.rotation.y = Math.sin(t * 2.0) * 0.25;
   if (pose === 'sit' || pose === 'nod') {
     head.position.y += breath * 0.004;
-    if (pose === 'nod') { head.rotation.x = Math.sin(t * 7.5) * 0.15; head.rotation.z = Math.sin(t * 3.75) * 0.08; } // 리듬에 까딱
+    if (pose === 'nod' && BEAT.on && BEAT.fx.body) { // 진짜 박자에 맞춰 까딱 + 꼬리 좌우 (fishing.md 8장 'B' ⑥ 시안)
+      const p = BEAT.pulse * (BEAT.accent ? 1.3 : 1);
+      head.rotation.x = p * 0.28; head.rotation.z = BEAT.side * 0.1 * p; tail.rotation.y = BEAT.side * 0.45 * (0.4 + p * 0.6);
+    } else if (pose === 'nod') { head.rotation.x = Math.sin(t * 7.5) * 0.15; head.rotation.z = Math.sin(t * 3.75) * 0.08; } // 리듬에 까딱 (정해진 빠르기)
     else head.rotation.z = Math.sin(t * 0.9) * 0.05;
     if (pose === 'sit' && C.eat === 'turn') head.rotation.y = Math.sin(t * 0.5) * 0.35; // 샴: 새침하게 고개 돌리기
   } else if (pose === 'stand' || pose === 'walk') { // 네 발로 섬: 몸을 앞뒤로 길게, 머리는 앞으로

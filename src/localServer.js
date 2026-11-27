@@ -25,6 +25,9 @@ function fishWeekTop(db, now) {
 // 로컬 가짜 서버의 낚시 (28·34와 같은 규칙)
 const bagList = (p) => Object.entries(p.fishBag || {}).filter(([, n]) => n > 0).sort(([a], [b]) => (a < b ? -1 : 1)).map(([id, n]) => ({ id, n }));
 const bagN = (p) => MK.bagCount(bagList(p));
+// 40: 오늘(한국 날짜) 물고기를 팔아 받은 코인 — 하루 MK.DAY_CAP까지
+const fishUsed = (p) => (p.fishDay === koreaDay(nowMs()) ? p.fishDayCoins || 0 : 0);
+const addFishDay = (p, c) => { const u = fishUsed(p); p.fishDay = koreaDay(nowMs()); p.fishDayCoins = u + c; };
 const FISH_ACH = ['fish10', 'fish_all', 'junk_all', 'fish_bread', 'fish_big', 'fish_legend', 'fish_perf10'];
 function localFish(fn, a, p, db, now) {
   if (fn === 'pingpong_fish_cast') {
@@ -54,16 +57,16 @@ function localFish(fn, a, p, db, now) {
     const stage = c.kind === 'junk' ? 'junk' : c.grade;
     if ((now - c.at) / 1000 < FR.MIN_SEC[stage]) return { status: 'too_fast' };
     // 35: 물고기는 가방에, 꽉 찼으면 그 자리에서 지금 시세로 (분당 주머니는 안 씀)
-    let base = 0, brk = 0, brkPct = 50, bagged = false, sold = false;
+    let base = 0, brk = 0, brkPct = 50, bagged = false, sold = false, capped = false;
     p.fishBag ||= {};
     if (c.kind === 'fish') {
       if (bagN(p) < MK.BAG_MAX) { p.fishBag[c.item] = (p.fishBag[c.item] || 0) + 1; bagged = true; }
-      else {
-        sold = true;
-        base = Math.floor(MK.priceOf(c.item, nowMs()) / 10); // 쉬는 시간 보너스 없음(사용자 11/26)
+      else { // 꽉 참 → 바로 지금 시세로 (쉬는 시간 보너스 없음), 오늘 한도(40)를 넘으면 못 팔고 놓아줌
+        base = Math.floor(MK.priceOf(c.item, nowMs()) / 10);
+        if (fishUsed(p) + base > MK.DAY_CAP) { base = 0; capped = true; } else { sold = true; addFishDay(p, base); }
       }
     }
-    const total = base + brk, capped = false;
+    const total = base + brk;
     let first = false, rec = false, pieces = 0, best = 0;
     if (c.kind === 'paddle') {
       p.owned ||= [];
@@ -90,18 +93,21 @@ function localFish(fn, a, p, db, now) {
     const fresh = [];
     for (const id of FISH_ACH) if (ok[id] && !p.ach[id]) { p.ach[id] = new Date(now).toISOString(); p.coins += REWARD[ACH[id].grade]; fresh.push({ id, coins: REWARD[ACH[id].grade] }); }
     const { at, ...cast } = c;
-    return { status: 'ok', caught: true, cast, coins: total, bonus: Math.min(brk, total), bonus_pct: brkPct, capped, bagged, sold, bag: bagList(p), first, rec, best, big: c.kind === 'fish' && (c.s ?? c.cm) >= FR.BIG_CM, pieces, new: fresh };
+    return { status: 'ok', caught: true, cast, coins: total, bonus: Math.min(brk, total), bonus_pct: brkPct, capped, day_coins: fishUsed(p), day_cap: MK.DAY_CAP, bagged, sold, bag: bagList(p), first, rec, best, big: c.kind === 'fish' && (c.s ?? c.cm) >= FR.BIG_CM, pieces, new: fresh };
   }
   if (fn === 'pingpong_fish_sell') {
     const items = Object.entries(p.fishBag || {}).filter(([id, n]) => n > 0 && (a.p_fish == null || id === a.p_fish));
-    if (!items.length) return { status: 'empty', bag: bagList(p) };
-    const ms = nowMs(), brkPct = 0;
-    const r = MK.sellCoins(items, ms); // 쉬는 시간 보너스 없음(사용자 11/26)
-    for (const [id] of items) delete p.fishBag[id];
-    p.coins = (p.coins || 0) + r.total;
-    return { status: 'ok', coins: r.total, bonus: r.bonus, bonus_pct: brkPct, sold: items.map(([id, n]) => ({ id, n, price: MK.priceOf(id, ms) })), bag: bagList(p) };
+    const day = { day_coins: fishUsed(p), day_cap: MK.DAY_CAP };
+    if (!items.length) return { status: 'empty', bag: bagList(p), ...day };
+    // 40: 오늘 한도 안에서 비싼 것부터 (쉬는 시간 보너스 없음)
+    const r = MK.sellPlan(items, nowMs(), MK.DAY_CAP - fishUsed(p));
+    if (!r.sold.length) return { status: 'capped', kept: r.kept, bag: bagList(p), ...day };
+    for (const [id, k] of r.sold) { p.fishBag[id] -= k; if (p.fishBag[id] <= 0) delete p.fishBag[id]; }
+    p.coins = (p.coins || 0) + r.coins;
+    addFishDay(p, r.coins);
+    return { status: 'ok', coins: r.coins, bonus: 0, bonus_pct: 0, sold: r.sold.map(([id, n, price]) => ({ id, n, price })), kept: r.kept, bag: bagList(p), day_coins: fishUsed(p), day_cap: MK.DAY_CAP };
   }
-  if (fn === 'pingpong_fish_bag') return { status: 'ok', bag: bagList(p) };
+  if (fn === 'pingpong_fish_bag') return { status: 'ok', bag: bagList(p), day_coins: fishUsed(p), day_cap: MK.DAY_CAP };
   if (fn === 'pingpong_fish_dex') {
     const recs = {};
     for (const q of Object.values(db.players)) for (const [id, e] of Object.entries(q.fishDex || {})) {

@@ -1,14 +1,16 @@
 // 🎒 물고기 가방 · 🍣 횟집 · 📈 시세표 규칙 (docs/dev/fishing.md 14-6, 사용자 확정 11/26)
 // 서버(supabase/35_fish_bag.sql)·로컬 가짜 서버(localServer.js)·화면이 같이 씀. three 없음(자동 점검이 Node에서 불러 서버와 비교).
-// ⚠️ 여기를 바꾸면 35(또는 새 SQL)도 같이.
+// ⚠️ 여기를 바꾸면 35·40(또는 새 SQL)도 같이.
 //  · 잡은 물고기는 가방(30칸)에. 코인은 횟집에서 팔 때. 잡동사니·전설 탁구채는 가방에 안 들어감(지금처럼)
 //  · 시세는 쉬는 시간이 시작될 때마다 바뀜(BREAKS 시작 시각). 주말·수업 전은 지난 마지막 시세 그대로
-//  · 일반 물고기 7종만 시세가 움직임: 하나는 🔥 오늘의 대박(2배), 나머지는 0.6~0.85배 → 평균 약 0.9배. 희귀 8 · 전설 20 그대로
+//  · 일반 물고기 7종만 시세가 움직임: 하나는 🔥 오늘의 대박(2배), 나머지는 0.6~0.85배 → 평균 약 0.9배. 희귀 20 · 전설 40 그대로(11/27, 전 8 · 20)
 //  · 값은 0.1코인 단위(시세표에 2.4처럼). 한 번 팔 때 합을 내림 → 하나씩 팔아도 이득 없음
+//  · 하루 한도 DAY_CAP(한국 날짜, 11/27 사용자 확정): 팔아서 받는 코인은 하루 1000까지. 비싼 것부터 한도 안에서만 팔리고 나머지는 가방에 (sellPlan)
 import { SPECIES, FISH_COINS, seeded } from './rules.js';
 import { BREAKS } from '../../breaks.js';
 
 export const BAG_MAX = 30;
+export const DAY_CAP = 1000;
 export const MARKET_FISH = SPECIES.filter((s) => s.grade === 'common').map((s) => s.id); // 7종 (rules.js 순서 = 서버 순서)
 export const JACKPOT_X = 2, LOW_X = 0.6, SPAN_X = 0.25;
 const STARTS = BREAKS.map((b) => b[0]); // 쉬는 시간 시작(하루 분) 590 650 690 830 890 950 1010 1070
@@ -58,6 +60,20 @@ export function sellCoins(items, ms, breakPct = 0) {
   const coins = Math.floor(t10 / 10);
   const bonus = breakPct ? Math.floor((coins * breakPct + 99) / 100) : 0;
   return { coins, bonus, total: coins + bonus };
+}
+// 한도 안에서 팔기 (서버 40 pingpong_fish_sell과 같게): 비싼 것부터(같은 값이면 id 순서), 남은 한도 left코인을 넘지 않게
+// → { sold: [[id, 마리, 값]], coins, kept(한도 때문에 남긴 마리 수) }
+export function sellPlan(items, ms, left = Infinity) {
+  const rows = items.map(([id, n]) => [id, n, priceOf(id, ms)]).filter((r) => r[1] > 0 && r[2] > 0)
+    .sort((a, b) => b[2] - a[2] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  const lim = Math.max(0, left) * 10, sold = [];
+  let t10 = 0, kept = 0;
+  for (const [id, n, p] of rows) {
+    const k = Math.min(n, Math.floor((lim - t10) / p));
+    if (k > 0) { sold.push([id, k, p]); t10 += k * p; }
+    kept += n - Math.max(0, k);
+  }
+  return { sold, coins: Math.floor(t10 / 10), kept };
 }
 export const bagCount = (bag) => bag.reduce((a, b) => a + b.n, 0);
 // 고양이 밥(14-3): 가방에서 지금 가장 싼 것

@@ -9,11 +9,11 @@ const NOTES = [
     title: '🎣 이렇게 낚아요',
     items: [
       '계단으로 선착장에 내려가 나무 판 위에 서면 <b>🎣 낚시하기</b> 버튼이 나와요',
-      '<b>마우스를 누른 채 위로 쓱 올리면</b> 찌를 던져요. 세게 올릴수록 멀리 가요',
+      '<b>화면(또는 스페이스바)을 꾹 누르면</b> 힘을 모아요. 오래 누를수록 멀리, <b>떼면 던져요</b>',
+      '누른 채 좌우로 밀면 그쪽으로 던져요 (스페이스바는 ← →)',
       '찌가 <b>톡톡</b> 움직이는 건 가짜예요. 꾹 참기!',
       '찌가 <b>쑥 들어가고 ‘!’</b>가 뜨면 바로 눌러서 당겨요',
       '걸리면 리듬 타임 🎵 <b>줄어드는 원이 가운데 원과 겹칠 때</b> 눌러요. 끝까지 맞추면 잡혀요',
-      '휴대폰은 화면을 위로 밀어 던지고, 톡 눌러서 당겨요',
     ],
   },
   {
@@ -22,10 +22,11 @@ const NOTES = [
     items: [
       '🫧 <b>기포</b>가 올라오는 곳에 던지면 좋은 물고기가 잘 물어요',
       '<b>무겁다!</b>가 뜨면 귀한 물고기예요. 정신 바짝! 🌟',
-      '잡은 물고기는 🎒 가방에 모여요. 🍣 <b>횟집</b>에 팔면 코인!',
+      '잡은 물고기는 🎒 가방에 모여요. 🍣 <b>횟집</b>에 팔면 코인! (하루 1000코인까지)',
       '📈 물고기 값은 쉬는 시간마다 바뀌어요. 비쌀 때 파세요',
       '📖 도감을 채우고, 🏆 랭킹에서 누가 제일 큰 물고기를 낚았는지 겨뤄 봐요',
       '✨ 아주 가끔 물에서 <b>전설 탁구채</b>가 올라와요!',
+      '소리랑 원이 안 맞는 것 같으면 <b>🎵 박자 맞추기</b>로 고쳐요',
     ],
   },
   {
@@ -54,14 +55,15 @@ function build() {
   </div>`;
   const css = document.createElement('style');
   css.textContent = `
-#fish-board { z-index: 7; }
-#fish-board .fb { width: min(460px, 100%); max-height: calc(100vh - 32px); overflow: auto; }
+#fish-board { z-index: 80; } /* 광장 화면(.screen 10) 위 — 횟집·도감 창과 같은 층 */
+#fish-board .fb { width: min(460px, 100%); max-height: calc(100vh - 64px); max-height: calc(100dvh - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow: hidden; }
 #fish-board .fb-tabs { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
 #fish-board .fb-tabs button { height: 34px; padding: 0 12px; border: 0; border-radius: 999px; font: 700 14px var(--font-ui, system-ui); color: #fff; background: rgba(255,255,255,.16); cursor: pointer; }
 #fish-board .fb-tabs button.on { background: #2ea3e6; }
 #fish-board .fb-title { justify-content: center; margin-top: 4px; }
-#fish-board .fb-list { margin: 2px 0 4px; padding-left: 20px; line-height: 1.6; font-size: 15px; color: #fff; }
+#fish-board .fb-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 2px 0 4px; padding-left: 20px; line-height: 1.6; font-size: 15px; color: #fff; }
 #fish-board .fb-list li { margin: 3px 0; }
+#fish-board .fb-tabs, #fish-board .fb-title, #fish-board .fb-close { flex: none; } /* 짧은 화면: 글 목록만 스크롤, 탭·'알겠어요!'는 늘 보이게 */
 #fish-board .fb-list b { color: #ffd36b; }`;
   document.head.appendChild(css);
   (document.getElementById('app') || document.body).appendChild(el);
