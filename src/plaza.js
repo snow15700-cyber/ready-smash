@@ -469,7 +469,7 @@ export function createPlazaView(world, handlers) {
     // 돌리기: 마우스는 오른쪽 버튼, 손가락은 한 손가락 끌기
     if ((p.btn === 2 || p.touch) && p.moved) {
       cam.yaw += dx * 0.006;
-      cam.pitch = clampN(cam.pitch + dy * 0.004, CAM.minPitch, CAM.maxPitch);
+      cam.pitch = cam.shownPitch = clampN((cam.shownPitch ?? cam.pitch) + dy * 0.004, CAM.minPitch, CAM.maxPitch);
       cam.manual = true;
     }
   });
@@ -697,9 +697,22 @@ export function createPlazaView(world, handlers) {
       const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw); // 카메라가 보는 방향
       const lookY = CAM.lookY + (PLAZA.heightAt?.(me.disp[0], me.disp[1]) || 0);
       const look = tmpV.set(me.disp[0] + fx * 1.2, lookY, me.disp[1] + fz * 1.2);
-      // 낚시 판·계단처럼 광장보다 낮은 곳: 카메라가 절벽·데크 난간 뒤로 숨지 않게 위로 들어 올림 (fishing.md 12장)
+      // 낚시 판·계단처럼 광장보다 낮은 곳: 나 → 카메라 사이를 절벽·데크(난간)가 실제로 가릴 때만 그만큼 위로 들어 올림 (fishing.md 12장)
       let pitch = cam.pitch;
-      if (lookY < CAM.lookY - 0.5) pitch = Math.max(pitch, Math.asin(Math.min(0.95, (CAM.lookY + 0.9 - lookY) / cam.dist)));
+      const floorY = lookY - CAM.lookY;
+      if (floorY < -0.5) {
+        const H = PLAZA.heightAt || (() => 0);
+        const blocked = (p) => { // 높은 땅(내 바닥 +0.5m 위) 윗면 +1.7m(데크 난간·풀숲) 아래를 지나면 가림
+          const c = Math.cos(p) * cam.dist, sy = Math.sin(p) * cam.dist;
+          for (let i = 2; i <= 16; i++) {
+            const f = i / 16, x = me.disp[0] - fx * c * f, z = me.disp[1] - fz * c * f, g = H(x, z);
+            if (g > floorY + 0.5 && lookY + sy * f < g + 1.7) return true;
+          }
+          return false;
+        };
+        for (let i = 0; i < 24 && blocked(pitch) && pitch < 1.3; i++) pitch += 0.05;
+      }
+      cam.shownPitch = pitch; // 오른쪽 끌기는 화면에 보이는 각도에서 출발 (안 움직이는 구간 없게)
       const h = Math.cos(pitch) * cam.dist;
       let px = me.disp[0] - fx * h, pz = me.disp[1] - fz * h;
       let py = lookY + Math.sin(pitch) * cam.dist;
