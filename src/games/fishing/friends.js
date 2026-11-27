@@ -260,7 +260,7 @@ function crab(inst) {
 }
 function crabBand() {
   const g = new THREE.Group();
-  const sand = mesh(new THREE.CylinderGeometry(0.75, 0.8, 0.06, 24), toon(0xf1d9a0), 0, 0.03, 0); g.add(sand);
+  if (!WORLD) g.add(mesh(new THREE.CylinderGeometry(0.75, 0.8, 0.06, 24), toon(0xf1d9a0), 0, 0.03, 0)); // 시안 받침 (광장에서는 friendsPier.js의 모래섬)
   const C = [crab('guitar'), crab('drum'), crab('guitar')];
   C.forEach((c, i) => { c.g.position.set((i - 1) * 0.45, 0.06, i === 1 ? -0.15 : 0.08); c.g.rotation.y = (1 - i) * 0.3; g.add(c.g); });
   finish(g);
