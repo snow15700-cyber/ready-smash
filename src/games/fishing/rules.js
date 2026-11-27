@@ -17,6 +17,14 @@ export const STANDS = [ // 서는 곳 (판 가장자리에서 조금 안쪽)
   { x0: -5.3, x1: -2.7, z0: 45.6, z1: 56.8 },
   { x0: 24.7, x1: 27.3, z0: 45.6, z1: 56.8 },
 ];
+// 13-3 ⑤ 자리 = 장르 (11/27 사용자 확정): 가운데 앞 판 🎸 록 · 서쪽 팔 🎷 재즈 · 동쪽 팔 🎻 발라드 (STANDS 순서와 같음)
+export const STAND_GENRE = ['rock', 'jazz', 'ballad'];
+export const GENRE_LABEL = { jazz: '🎷 재즈', rock: '🎸 록', ballad: '🎻 발라드' };
+export function standGenre(x, z) {
+  const [cx, cz] = clampStand(x, z);
+  if (cz <= STANDS[0].z1 + 1e-6) return STAND_GENRE[0]; // 앞 판 (팔과 만나는 모서리 줄도 앞 판)
+  return cx < (STANDS[0].x0 + STANDS[0].x1) / 2 ? STAND_GENRE[1] : STAND_GENRE[2];
+}
 export const STAND = { z: 45.6, xMin: -5.3, xMax: 27.3, zBack: 39.6 }; // 기포를 뽑는 줄(앞 판 앞쪽) · 예전 이름 그대로
 export const CAST_MIN = 6, CAST_MAX = 18, CAST_ANG = 0.7, WOOD_PAD = 0.6;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
