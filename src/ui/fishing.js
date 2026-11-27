@@ -50,7 +50,7 @@ css.textContent = `
 @keyframes fishPop { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.05); } }
 @keyframes fishFade { from { opacity: 0; } to { opacity: 1; } }
 .fish-hud, .fish-bar, .fish-chat { animation: fishFade .8s ease .7s both; } /* 카메라가 내려앉는 동안 낚시 글자가 천천히 나타남 */
-.fish-hud { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; }
+.fish-hud { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; } /* 100vh는 휴대폰 주소창까지 넣은 높이라 아래가 잘림 → 보이는 화면에 맞춤 */
 .fish-bar { position: absolute; right: 16px; top: 14px; display: flex; gap: 8px; }
 .fish-bar button { height: 40px; padding: 0 16px; border-radius: 999px; font-weight: 700; font-size: 15px; color: #fff; background: rgba(15,25,50,.55); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); backdrop-filter: blur(8px); }
 .fish-bar #fish-stop { background: rgba(224,51,60,.85); }
