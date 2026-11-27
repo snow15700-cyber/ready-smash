@@ -56,7 +56,7 @@ function build() {
   </div>`;
   const css = document.createElement('style');
   css.textContent = `
-#fish-board { z-index: 7; }
+#fish-board { z-index: 80; } /* 광장 화면(.screen 10) 위 — 횟집·도감 창과 같은 층 */
 #fish-board .fb { width: min(460px, 100%); max-height: calc(100vh - 32px); overflow: auto; }
 #fish-board .fb-tabs { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
 #fish-board .fb-tabs button { height: 34px; padding: 0 12px; border: 0; border-radius: 999px; font: 700 14px var(--font-ui, system-ui); color: #fff; background: rgba(255,255,255,.16); cursor: pointer; }
