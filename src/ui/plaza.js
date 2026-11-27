@@ -21,6 +21,7 @@ import { boardsFrame } from './plazaBoards.js';
 import { ic } from '../icons.js';
 import { joinPlaza, makeCode } from '../net.js';
 import { cleanWalk, createPlazaView, planWalk, posAt } from '../plaza.js';
+import { addons, plazaApi } from './plazaAddons.js';
 import { createPlazaSky } from '../plazaSky.js';
 import { AI_LOOK, startAI } from './ai.js';
 import { dressHooks, dressTabNow, openDress } from './dress.js';
@@ -83,17 +84,17 @@ const myPid = () => (account.loggedIn ? account.player?.id ?? null : null);
 const inAI = () => game?.mode === 'ai';
 const myInfo = () => ({ id: myId, nick: myNick(), title: myTitle(), titleX: myNemesis(), look: myEquip(), at: pz.at, mob: IS_MOBILE, kim: inAI() });
 // 자주 바뀌는 것은 메시지로: 걷기·탁구대 자리·준비·경기 채널 코드·연승·선수 번호
-const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid(), kc: pz.kim, fi: fishHooks.state?.() ?? null, ct: catHooks.state?.() ?? null });
-// 낚시 (src/ui/fishing.js, fishing.md 12장)가 끼어드는 곳 — fishing.js가 채운다 (서로 불러오지 않게)
-//   on() 낚시 중인지 · state() 내 상태에 실을 낚시 정보 · frame(now, 내 자리) · hidden() 광장이 안 보임 · onMsg(m, 사람) · onSay(사람, 글)
-export const fishHooks = {};
-export const catHooks = {}; // 🐱 선착장 고양이 (src/games/cats/plazaCats.js)
-const cleanFi = (v) => (v && typeof v === 'object' ? { b: Array.isArray(v.b) && v.b.length === 2 && v.b.every(fin) && Math.abs(v.b[0]) < 80 && Math.abs(v.b[1]) < 120 ? [v.b[0], v.b[1]] : null } : null);
+const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid(), kc: pz.kim, ...addonStates() });
+// 광장에 붙는 콘텐츠(낚시 등)는 ui/plazaAddons.js의 콘센트로 (cleanup.md 12번). 광장은 이름을 모르고 돌면서 부름
+function addonStates() { const o = {}; for (const a of addons()) if (a.key) o[a.key] = a.state?.() ?? null; return o; }
+function addonCleans(m) { const o = {}; for (const a of addons()) if (a.key) o[a.key] = a.clean?.(m[a.key]) ?? null; return o; }
+const addonBusy = () => addons().some((a) => a.takesOver?.());
+function addonFace(p) { for (const a of addons()) { const f = a.face?.(p); if (f != null) return f; } return null; }
 const tagOf = (nick, rdy) => (rdy ? `${nick} ✅` : nick);
 // 꾸미기 창에서 입어 보는 중이면 그 모습 (내 화면에서만, 다른 사람에겐 장착한 것)
 const myLook = () => (curScreen === 'dress' && preview ? preview.look : myEquip());
 const myFig = () => ({ id: myId, nick: tagOf(myNick(), pz.seat && pz.rdy), title: titleText(myTitle(), myNemesis()), look: myLook(), w: pz.myW, me: true, face: pz.seat ? faceOf(pz.seat) : pz.face });
-const figOf = (p) => ({ ...p, nick: tagOf(p.nick, p.seat && p.rdy), face: p.seat ? faceOf(p.seat) : p.fi ? Math.PI : null }); // 낚시 중이면 바다(+z) 쪽을 봄
+const figOf = (p) => ({ ...p, nick: tagOf(p.nick, p.seat && p.rdy), face: p.seat ? faceOf(p.seat) : addonFace(p) }); // 콘텐츠가 정한 방향 (낚시 중이면 바다 쪽)
 
 // 내 상태 보내기 (걷기·자리·준비가 바뀔 때만). 너무 잦으면 마지막 것만 조금 뒤에
 function sendInfo() {
@@ -184,7 +185,7 @@ function rebuild() {
       w: m.id === myId ? null : cleanWalk(m.w, now),
       seat: mob ? null : cleanSeat(m.seat), rdy: !!m.rdy, code: typeof m.code === 'string' && /^[A-Z0-9]{4}$/.test(m.code) ? m.code : null,
       pid: (typeof m.pid === 'string' && m.pid.length <= 64) || Number.isInteger(m.pid) ? m.pid : null,
-      kim: m0.kim === true, called: cleanKim(m.kc), fi: cleanFi(m.fi), ct: catHooks.clean?.(m.ct) ?? null,
+      kim: m0.kim === true, called: cleanKim(m.kc), ...addonCleans(m),
     });
   }
   // 40명까지: 먼저 들어온 순서 (들어온 시각 → id 순, 모든 PC가 같은 규칙)
@@ -211,7 +212,8 @@ function onMsg(link, m) {
   if (m.k === 'st') { onState(m); return; }
   if (m.k === 'call') { onCall(m); return; }
   if (m.k === 'inv') { onInvite(m); return; }
-  if (m.k === 'fish') { if (typeof m.id === 'string' && pz.people.has(m.id)) fishHooks.onMsg?.(m, pz.people.get(m.id)); return; }
+  const ad = addons().find((a) => a.msgKind && a.msgKind === m.k);
+  if (ad) { if (typeof m.id === 'string' && pz.people.has(m.id)) ad.onMsg?.(m, pz.people.get(m.id)); return; }
   if (m.k !== 'say' || typeof m.id !== 'string') return;
   const c = String(m.c);
   if (!Object.hasOwn(PHRASES, c) || !pz.people.has(m.id)) return; // 목록에 있는 문구·광장에 있는 사람만
@@ -219,7 +221,7 @@ function onMsg(link, m) {
   if (now - (pz.lastSay.get(m.id) ?? -9) < SAY_GAP * 0.9) return; // 너무 자주 오면 무시
   pz.lastSay.set(m.id, now);
   view.say(m.id, PHRASES[c]);
-  fishHooks.onSay?.(pz.people.get(m.id), PHRASES[c]);
+  for (const a of addons()) a.onSay?.(pz.people.get(m.id), PHRASES[c]);
 }
 
 // ───── 걷기 ─────
@@ -259,30 +261,32 @@ function stepWalk(from, to, nowMs) {
 let lastKimLine = '';
 function onSpot(sp, at) {
   playUI('click');
+  for (const a of addons()) { const f = a.spots?.[sp.id]; if (f) { f(sp, at); return; } }
   if (sp.id === 'bakery') {
     let line;
     do line = Math.random() < 0.1 ? KIM_FUNNY[(Math.random() * KIM_FUNNY.length) | 0] : breadLine((Math.random() * BREADS.length) | 0);
     while (line === lastKimLine);
     lastKimLine = line;
     view.spotSay(sp, '👨‍🍳 ' + line);
-  } else if (sp.id === 'board' || sp.id === 'fishBoard') {
-    const note = at[0] < -0.48 ? 0 : at[0] < 0.48 ? 1 : 2; // 왼쪽 업데이트 · 가운데 미션 · 오른쪽 치는 방법 (낚시 게시판: 낚시 방법 · 팁 · 고양이)
-    const open = () => {
-      if (sp.id === 'fishBoard') fishHooks.openBoard?.(note);
-      else if (note === 0) $('btn-updates').click();
+  } else if (sp.id === 'board') {
+    const note = boardNote(at); // 왼쪽 업데이트 · 가운데 미션 · 오른쪽 치는 방법
+    walkNear(sp.front(BOARD_X[note]), () => {
+      if (note === 0) $('btn-updates').click();
       else if (note === 2) $('btn-howto').click();
       else showMissions();
-    };
-    const p = posAt(pz.myW, Date.now()), f = sp.front([-0.95, 0, 0.95][note]);
-    if (Math.hypot(p[0] - f[0], p[1] - f[1]) < 1.6) open();
-    else walkTo(f, { then: open });
+    });
   } else if (sp.id === 'clock') {
     hud.toast(breakLines().join(' · '), 2600);
-  } else if (sp.id === 'market') { // 🍣 횟집·📈 칠판 (낚시 14장 1b): 문 앞으로 걸어가서 횟집 창
-    const p = posAt(pz.myW, Date.now()), open = () => fishHooks.openMarket?.();
-    if (Math.hypot(p[0] - sp.door[0], p[1] - sp.door[1]) < 1.6) open();
-    else walkTo(sp.door, { then: open });
   }
+}
+// 게시판(종이 3장): 누른 곳 → 몇 번째 종이 · 그 종이 앞 자리
+const boardNote = (at) => (at[0] < -0.48 ? 0 : at[0] < 0.48 ? 1 : 2);
+const BOARD_X = [-0.95, 0, 0.95];
+// pt 가까이(1.6m) 있으면 바로, 아니면 걸어가서 f()
+function walkNear(pt, f) {
+  const p = posAt(pz.myW, Date.now());
+  if (Math.hypot(p[0] - pt[0], p[1] - pt[1]) < 1.6) f();
+  else walkTo(pt, { then: f });
 }
 // 오늘의 미션 카드: 접혀 있으면 펼치고 반짝
 function showMissions() {
@@ -741,7 +745,7 @@ export const WIN_CAM = {
 };
 const win = { scr: '', u: [0, 1], yaw0: null, look: '' };
 function windowFrame(p) {
-  view.setInput(curScreen === 'lobby' && !fishHooks.on?.());
+  view.setInput(curScreen === 'lobby' && !addonBusy());
   const scr = curScreen === 'dress' || curScreen === 'rank' ? curScreen : '';
   if (scr !== win.scr) {
     if (scr === 'dress') {
@@ -755,7 +759,7 @@ function windowFrame(p) {
     view.put(myFig());
   }
   const login = curScreen === 'login' || curScreen === ''; // '' = 자동 로그인 기다리는 중 (로그인 화면과 같은 카메라)
-  view.setMeHidden(login || !!fishHooks.on?.()); // 낚시 중엔 낚시 캐릭터(낚싯대 든)가 대신 서 있음
+  view.setMeHidden(login || addonBusy()); // 낚시 중엔 낚시 캐릭터(낚싯대 든)가 대신 서 있음
   if (gm) view.setFocus(gachaCam(performance.now() / 1000));
   else if (login) {
     const L = WIN_CAM.login, a = L.base + Math.sin(performance.now() / 1000 * L.speed) * L.sway;
@@ -823,7 +827,7 @@ export function plazaFrame(now) {
       closePhrases(); // 로비 캐릭터는 로비·경기 화면이 다시 켠다
     }
   }
-  if (!shown) { fishHooks.hidden?.(); catHooks.hidden?.(); bubbleStop(); if (!arenaPreview()) view.setInput(true); return false; }
+  if (!shown) { for (const a of addons()) a.hidden?.(); bubbleStop(); if (!arenaPreview()) view.setInput(true); return false; }
   if (!bubbleArena()) for (const side of world.team) for (const c of side) c.group.visible = false; // 랠리하는 로비 캐릭터는 숨김
   // 걷는 중: 한 구간이 끝나면 다음 구간, 다 왔으면 도착해서 할 일 (가게 열기·혼자 하기)
   const nowMs = Date.now();
@@ -835,8 +839,8 @@ export function plazaFrame(now) {
   renderTables();
   windowFrame(p);
   view.update(now, myId);
-  catHooks.frame?.(now, p);
-  fishHooks.frame?.(now, p, pz.route.length > 0 || Math.hypot(p[0] - pz.myW.to[0], p[1] - pz.myW.to[1]) > 0.05);
+  const walking = pz.route.length > 0 || Math.hypot(p[0] - pz.myW.to[0], p[1] - pz.myW.to[1]) > 0.05;
+  for (const a of addons()) a.frame?.(now, p, walking);
   sky ||= createPlazaSky(world);
   sky.update(now);
   gachaFrame(now);
@@ -935,13 +939,14 @@ dressHooks.gachaIntro = (count) => {
 };
 
 // 점검·디버그용
-// 낚시(fishing.js)가 쓰는 광장 정보
-export const plazaApi = {
+// 광장에 붙는 콘텐츠가 쓰는 광장 정보 (ui/plazaAddons.js)
+Object.assign(plazaApi, {
   view, people: () => pz.people, seat: () => pz.seat, myId: () => myId,
   send: (m) => pz.link?.send({ ...m, id: myId }), sendInfo,
   raining: () => !!sky && /비|소나기/.test(sky.label?.() || ''),
-  walkTo, pos: () => posAt(pz.myW, Date.now()),
-};
+  walkTo, pos: () => posAt(pz.myW, Date.now()), walkNear, boardNote, boardX: BOARD_X,
+});
+
 export const plazaDebug = {
   pz, spot: onSpot, view, get sky() { return sky; }, walkTo, say, PHRASES, fakeList: (list) => onList(pz.link, list), fakeState: (m) => onState(m), get kimN() { return pz.kimN; },
   bubble: bub, get mwave() { return matchWaveDebug(); }, seat: setSeated, call: sendCall, callKim, person: onPerson, invite: sendInvite, sit: onSeat, table: onTable, kim: onKim, ready: toggleReady, unseat, state: tableState, afk: () => { pz.lastAct -= AFK_MS + 1000; },

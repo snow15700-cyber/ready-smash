@@ -14,7 +14,7 @@
   --font-ui: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif;
 }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #efe3cc; font-family: 'Jua', system-ui, sans-serif; color: #2b2a33; user-select: none; }
-#c { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; } /* 100vh 대신: 휴대폰 주소창 때문에 3D 화면 아래가 잘리지 않게 */
 .hidden { display: none !important; }
 button { font-family: inherit; font-size: 18px; border: 0; border-radius: 14px; padding: 12px 16px; cursor: pointer; background: #fff; color: #2b2a33; box-shadow: 0 4px 0 #d6c6a8; transition: transform .08s; }
 button:hover:not(:disabled) { transform: translateY(-1px); }

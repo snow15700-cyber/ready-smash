@@ -1,6 +1,6 @@
 // 🪧 낚시 게시판 (전망대·서쪽 계단 옆, 광장 게시판과 같은 모양 — campusProps.js FISH_NOTES)
 //  종이 3장을 누르면 이 창: 🎣 낚시 방법 · 💡 낚시 팁 · 🐱 고양이. 위 탭으로 서로 넘겨 봄. 글만 있음(서버·네트워크 없음)
-//  ui/fishing.js의 fishHooks.openBoard(n)가 필요할 때 불러옴
+//  ui/fishing.js의 openBoard(n)가 필요할 때 불러옴
 import { FEED_GAP_MS, PER_HEART } from '../cats/rules.js';
 
 const NOTES = [

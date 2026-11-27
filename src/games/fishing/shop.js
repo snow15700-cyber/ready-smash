@@ -1,6 +1,6 @@
 // 🍣 횟집 창: 📈 시세표(일반 7종 · ▲빨강/▼파랑 · 지난 8회 꺾은선 · 🔥 오늘의 대박) + 🎒 가방(종류별 팔기 · 모두 팔기)
 // docs/dev/fishing.md 14-6. 규칙은 market.js, 코인은 서버(account.js fishSell)가 그 순간 시세로.
-// 낚시 화면 오른쪽 위 '🍣 횟집' 버튼(1a) · 선착장 횟집 건물·📈 칠판을 눌러도(1b, ui/fishing.js fishHooks.openMarket) 엶
+// 낚시 화면 오른쪽 위 '🍣 횟집' 버튼(1a) · 선착장 횟집 건물·📈 칠판을 눌러도(1b, ui/fishing.js openMarket) 엶
 import { account, fishBagLoad, fishSell, marketNow } from '../../account.js';
 import { CATCH, SPECIES } from './rules.js';
 import { BAG_MAX, MARKET_FISH, bagCount, history, nextLabel, periodLabel, priceOf, sellPlan } from './market.js';
