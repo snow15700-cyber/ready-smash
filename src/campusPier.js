@@ -6,7 +6,9 @@
 import * as THREE from 'three';
 import { addBox, canvasTex, seeded, std } from './arena-kit.js';
 import { ARMS, BOARD, CAT_NOOK, CLIFF, HARBOR, LH_BASES, LIGHTHOUSES, MARKET, PIER, SEA_Y, STAIRS } from './campusLayout.js';
-import { history, nextLabel, period } from './games/fishing/market.js';
+import { BIG_FISH, MARKET_FISH, history, nextLabel, demandOf, period, wxFor } from './games/fishing/market.js';
+import { fishNews, newsKnown } from './account.js';
+import { liveWx } from './plazaSky.js';
 import { CATCH } from './games/fishing/rules.js';
 import { nowMs } from './breaks.js';
 import { makeCharacter } from './scene.js';
@@ -191,37 +193,55 @@ export function buildPierArea(anim = null) {
     const B = BOARD, frameM = woodDark;
     for (const ox of [-B.w / 2 + 0.08, B.w / 2 - 0.08]) { const leg = addBox(g, 0.07, 1.9, 0.07, frameM, B.x + ox, top + 0.95, B.z); leg.rotation.x = -0.08; }
     addBox(g, B.w, 1.18, 0.06, frameM, B.x, top + 1.25, B.z - 0.02);
-    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 360;
+    const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 720; // 두 칸: 왼쪽 일반 7 · 오른쪽 희귀 8 + 전설 2 (13-1 ②)
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     const face = new THREE.Mesh(new THREE.PlaneGeometry(B.w - 0.12, 1.06), new THREE.MeshBasicMaterial({ map: tex }));
     face.position.set(B.x, top + 1.25, B.z + 0.015); face.userData.noBake = true; face.name = 'priceBoard'; g.add(face);
     let shown = '';
     const draw = () => {
-      const ms = nowMs(), p = period(ms), key = p.day + ':' + p.idx;
+      const ms = nowMs(), p = period(ms), key = p.day + ':' + p.idx + ':' + wxFor(p) + ':' + JSON.stringify(demandOf(p)); // 📰 회차 날씨·🛒 지난 회차 판매를 알게 되면 값이 바뀌어 다시 그림
       if (key === shown) return;
       shown = key;
       const h = history(ms, 2), cur = h[1], prev = h[0];
       const c = cv.getContext('2d');
-      c.fillStyle = '#23402f'; c.fillRect(0, 0, 512, 360);
-      c.fillStyle = 'rgba(255,255,255,.05)'; for (let i = 0; i < 40; i++) c.fillRect((i * 97) % 512, (i * 53) % 360, 60, 2); // 분필 자국
-      c.fillStyle = '#fffbe8'; c.font = FONT(40); c.textAlign = 'left'; c.textBaseline = 'middle';
-      c.fillText('📈 오늘의 시세', 20, 34);
-      c.font = FONT(22); c.fillStyle = 'rgba(255,251,232,.75)'; c.textAlign = 'right'; c.fillText(`다음 ${nextLabel(ms)}`, 496, 38);
-      const ids = Object.keys(cur.list).sort((a, b) => (a === cur.jackpot ? -1 : b === cur.jackpot ? 1 : cur.list[b] - cur.list[a]));
-      ids.forEach((id, i) => {
-        const y = 86 + i * 39, v = cur.list[id], d = v - (prev.list[id] ?? v);
-        if (id === cur.jackpot) { c.fillStyle = 'rgba(255,140,60,.35)'; c.fillRect(12, y - 18, 488, 36); }
-        c.textAlign = 'left'; c.font = FONT(28); c.fillStyle = '#fffbe8';
-        c.fillText(`${id === cur.jackpot ? '🔥' : CATCH[id].emoji} ${CATCH[id].name}`, 22, y);
-        c.textAlign = 'right'; c.fillText((v / 10).toFixed(1), 400, y);
-        c.font = FONT(24); c.fillStyle = d > 0 ? '#ff7a7a' : d < 0 ? '#7ac0ff' : 'rgba(255,251,232,.55)';
-        c.fillText(d > 0 ? `▲${(d / 10).toFixed(1)}` : d < 0 ? `▼${(-d / 10).toFixed(1)}` : '–', 494, y);
-      });
+      c.fillStyle = '#23402f'; c.fillRect(0, 0, 1024, 720);
+      c.fillStyle = 'rgba(255,255,255,.05)'; for (let i = 0; i < 60; i++) c.fillRect((i * 197) % 1024, (i * 113) % 720, 110, 3); // 분필 자국
+      c.fillStyle = '#fffbe8'; c.font = FONT(70); c.textAlign = 'left'; c.textBaseline = 'middle';
+      c.fillText('📈 오늘의 시세', 30, 56);
+      c.font = FONT(40); c.fillStyle = 'rgba(255,251,232,.75)'; c.textAlign = 'right'; c.fillText(`다음 ${nextLabel(ms)}`, 994, 62);
+      c.fillStyle = 'rgba(255,251,232,.25)'; c.fillRect(511, 112, 3, 590); // 가운데 줄
+      const head = (x, y, t) => { c.textAlign = 'left'; c.font = FONT(34); c.fillStyle = '#ffe9a8'; c.fillText(t, x + 6, y); };
+      const line = (x, y, id) => {
+        const v = cur.list[id], d = v - (prev.list[id] ?? v), hot = id === cur.jackpot, leg = CATCH[id].grade === 'legend';
+        if (hot || leg) { c.fillStyle = hot ? 'rgba(255,140,60,.35)' : 'rgba(255,210,60,.2)'; c.fillRect(x, y - 24, 484, 48); }
+        c.textAlign = 'left'; c.font = FONT(38); c.fillStyle = '#fffbe8';
+        const nm = CATCH[id].name;
+        c.fillText(`${hot ? '🔥' : cur.news?.id === id ? '📰' : cur.demand?.[id] ? '🛒' : CATCH[id].emoji} ${nm.length > 6 ? nm.slice(0, 6) + '…' : nm}`, x + 8, y);
+        c.textAlign = 'right'; c.fillText((v / 10).toFixed(1), x + 372, y);
+        c.font = FONT(30); c.fillStyle = d > 0 ? '#ff7a7a' : d < 0 ? '#7ac0ff' : 'rgba(255,251,232,.55)';
+        c.fillText(d > 0 ? `▲${(d / 10).toFixed(1)}` : d < 0 ? `▼${(-d / 10).toFixed(1)}` : '–', x + 478, y);
+      };
+      const common = MARKET_FISH.slice().sort((a, b) => (a === cur.jackpot ? -1 : b === cur.jackpot ? 1 : cur.list[b] - cur.list[a]));
+      head(14, 136, '🐟 일반');
+      common.forEach((id, i) => line(14, 190 + i * 54, id));
+      const rare = BIG_FISH.filter((id) => CATCH[id].grade === 'rare'), legend = BIG_FISH.filter((id) => CATCH[id].grade === 'legend');
+      head(526, 136, '💎 희귀');
+      rare.forEach((id, i) => line(526, 184 + i * 48, id));
+      head(526, 584, '👑 전설');
+      legend.forEach((id, i) => line(526, 632 + i * 50, id));
+      // 📰 소식 (13-1 ④): 왼쪽 아래, 줄 바꿈
+      if (cur.news) {
+        head(14, 584, '📰 소식');
+        c.font = FONT(32); c.fillStyle = '#fff3c4'; c.textAlign = 'left';
+        const words = `${cur.news.text} (${cur.news.dir > 0 ? '×1.3' : '×0.7'})`.split(' '), lines = [''];
+        for (const w of words) { const t = lines.at(-1) ? lines.at(-1) + ' ' + w : w; if (c.measureText(t).width > 470 && lines.at(-1)) lines.push(w); else lines[lines.length - 1] = t; }
+        lines.slice(0, 3).forEach((l, i) => c.fillText(l, 22, 628 + i * 40));
+      }
       tex.needsUpdate = true;
     };
     draw();
     let next = 0;
-    anim?.push((t) => { if (t > next) { next = t + 20; draw(); } });
+    anim?.push((t) => { if (t > next) { next = t + 20; draw(); if (!newsKnown()) fishNews(liveWx()).then((ok) => ok && draw()); } }); // 📰 회차 날씨를 알리고 받기(알면 안 부름)
   }
 
   // ── 🐾 고양이 쉼터 (동쪽 계단 아래): 상자 더미 · 방석 · 생선 바구니 · 밥그릇 · 작은 간판 (고양이는 cats.md 3단계)

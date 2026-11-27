@@ -9,17 +9,18 @@
 //   onEvent: { k: 'cast', to: [x, z] } · { k: 'bite' } · { k: 'catch', c, cm, grade } · { k: 'miss' } · { k: 'ready' }
 import * as THREE from 'three';
 import { makeCharacter } from '../../scene.js';
-import { FISH, GRADE, STAGES, STAGE_FISH, TUNE, biteSeq, pickCatch, stageOf } from './data.js';
+import { FISH, GRADE, STAGES, TUNE, biteSeq, pickCatch, stageOf, stageRhythm } from './data.js';
 import { addPaddle, dexOpen, fishCount, modelImage, openDex, ownedPaddles, recordCatch } from './dex.js';
-import { BIG_CM, CATCH, LEGEND_PADDLES, PADDLE_DUP_PIECES, STAND, activeBubbles, bubbleNear, clampStand, cmOfScore, fishSize, isNight, landingPoint, luckDice, modelScale, sizeTier, walkStand } from './rules.js';
+import { BIG_CM, CATCH, LEGEND_PADDLES, PADDLE_DUP_PIECES, SPECIES, STAND, activeBubbles, bubbleNear, clampStand, cmOfScore, fishSize, isNight, landingPoint, luckDice, modelScale, sizeTier, walkStand } from './rules.js';
 import { PIER, SEA_Y } from '../../campusLayout.js';
 import { fishCast, fishFinish } from '../../account.js';
+import { QUAL_X, qualityOf } from './market.js';
 import { ACH } from '../../achievements.js';
 import { makeModel } from './models.js';
 import { ITEM, makePaddle, paddleImage } from '../../items.js';
 import { breakAt } from '../../breaks.js';
 import { audioCtx, audioLag, clockOff, initSound, quietSound, snd, tickSound } from './sound.js';
-import { makePhrase, makeSong, playBeat, playFinish, playMelody } from './rhythm.js';
+import { makePhrase, makeSong, playBeat, playFinish, playMelody, playRelease } from './rhythm.js';
 import { makeBobber, makeBubbleFx, makeFishModel, makeLine, makeRod, makeSplashes, seaHeight } from './world.js';
 import { drawHud, zoomRect } from './hud.js';
 import { BEAT } from './beat.js';
@@ -76,6 +77,16 @@ export function createFishing(opt) {
     online: () => isOn(),
     catchNow: () => { if (S.mode !== 'ready') return; fakeCast(); S.R = fakeRhythm(); startLand(); },
     fightNow: () => { if (S.mode !== 'ready') return; const p = fakeCast(); S.cast = { to: new THREE.Vector3(p.x, 0, p.z) }; startRhythm(); },
+    // 시안 ⚙️ '단계 바로 시험': 그 등급 물고기로 그 단계 줄다리기를 바로 시작 (희귀·전설 리듬을 처음부터 해 보기)
+    fightAt: (stage) => {
+      if (S.mode !== 'ready') return false;
+      initSound();
+      const p = fakeCast(), list = SPECIES.filter((f) => f.grade === STAGES[stage]);
+      if (list.length) S.fish = list[Math.floor(Math.random() * list.length)];
+      S.cast = { to: new THREE.Vector3(p.x, 0, p.z) };
+      startRhythm(stage);
+      return true;
+    },
     hit: () => pressNote(),
     stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(),
     cast: (aim = 0, power = 0.5) => { initSound(); castTo(aim, power); },
@@ -129,6 +140,7 @@ export function createFishing(opt) {
   }
   function release(x) {
     S.holding = false;
+    if (S.mode === 'fight') releaseNote();
     if (S.charge && S.mode === 'ready') {
       if (x !== undefined) moveDrag(x);
       chargeNow(); S.charge = null;
@@ -136,7 +148,7 @@ export function createFishing(opt) {
     }
   }
   // 누르다가 취소(휴대폰 제스처·창 밖으로): 던지지 않고 박자도 멈춤
-  function cancel() { S.holding = false; if (S.charge) { S.charge = null; S.power = 0; if (S.mode === 'ready') S.B = null; } }
+  function cancel() { S.holding = false; if (S.mode === 'fight') releaseNote(); if (S.charge) { S.charge = null; S.power = 0; if (S.mode === 'ready') S.B = null; } }
   // 방향: 누른 곳에서 좌우로 민 거리 (화면 짧은 변의 40% = 끝까지) → 부채꼴 −1 ~ 1. 스페이스로 누르면 ←→로
   function moveDrag(x) {
     const C = S.charge; if (!C || C.key || x === undefined) return;
@@ -153,7 +165,7 @@ export function createFishing(opt) {
   // ── 던지기 전부터 흐르는 박자 (17장): 누르는 순간이 첫 박. 기 모으기·던지기·입질 기다리는 동안 드럼·베이스만 가볍게.
   //   곡은 일반 리듬(고등어 BPM) — 등급은 숨기니까 누구나 같게. 줄다리기가 시작되면 그쪽 음악이 이어받음(S.B = null)
   function startBeatClock() {
-    const song = makeSong(STAGE_FISH.common), ac = audioCtx();
+    const song = makeSong(stageRhythm(0)), ac = audioCtx(); // 장르가 있으면 그 장르 음악·빠르기 (13-3)
     S.B = { song, spb: 60 / song.bpm, base: nowS(), sched: 0, lastBeat: -1, pulse: 0, aOff: ac ? clockOff() : 0 };
   }
   function tickBeatClock(rdt) {
@@ -284,7 +296,7 @@ export function createFishing(opt) {
     const B = stage === 0 ? S.B : null; S.B = null; // 기다리는 동안의 가벼운 박자 → 줄다리기가 같은 곡·같은 박자로 이어받음 (17장)
     const prev = S.R;
     S.stage = stage;
-    const f = STAGE_FISH[STAGES[stage]], song = B ? B.song : makeSong(f, Math.random, prev?.song.key);
+    const f = stageRhythm(stage), song = B ? B.song : makeSong(f, Math.random, prev?.song.key);
     const spb = B ? B.spb : 60 / song.bpm;
     // 단계가 오를 때: 0.3초 + 새 단계 음악만 먼저 들려줌(17장, 11/27 사용자 확정: 일반→희귀 4박 · 희귀→전설 8박 — 예전 2박), "무겁다!"는 짧게 겹침
     const lead = stage === 0 ? 0.5 : 0.3, intro = stage === 2 ? 8 : 4;
@@ -303,8 +315,8 @@ export function createFishing(opt) {
     }
     // g: 이번 패턴에서 secs초 안에 나오는 노트 수(N)를 세어, N번 맞추면 거리가 g만큼 남게 → 다음이 마지막 큰 노트
     const R = S.R;
-    while (!R.queue.length || R.queue[R.queue.length - 1].beat * spb < secs) { for (const x of makePhrase(R.song)) R.queue.push({ beat: R.phrases * 16 + x }); R.phrases++; }
-    const N = Math.max(3, R.queue.filter((q) => q.beat * spb < secs).length);
+    while (!R.queue.length || R.queue[R.queue.length - 1].beat * spb < secs) pushPhrase(R);
+    const N = Math.max(3, R.queue.filter((q) => q.beat * spb < secs).reduce((a, q) => a + (q.len ? 2 : 1), 0)); // 긴 노트는 시작·끝 두 번 판정
     R.g = dist / (N + 1);
     fillQueue();
     // 맞출 때 물 위로 살짝 튀는 물고기 = 아직 무슨 물고기인지 모르게 검은 그림자. 단계가 오를수록 크게
@@ -337,10 +349,13 @@ export function createFishing(opt) {
   const heatLayers = (h) => HEAT_AT.filter((x) => h >= x).length;
   function heatAdd(R, p) { R.heat = Math.min(16, R.heat + (p ? 1.5 : 1)); }
   function heatMiss(R) { const l = heatLayers(R.heat); R.heat = l >= 2 ? HEAT_AT[l - 2] : 0; }
+  function pushPhrase(R) { for (const x of makePhrase(R.song)) R.queue.push({ beat: R.phrases * 16 + x.b, len: x.len }); R.phrases++; }
   function fillQueue() { // 앞으로 2구절치 노트 시각을 늘 준비
     const R = S.R;
-    while (R.queue.length < 12) { for (const x of makePhrase(R.song)) R.queue.push({ beat: R.phrases * 16 + x }); R.phrases++; }
+    while (R.queue.length < 12) pushPhrase(R);
   }
+  // 아직 판정 안 된 횟수 (긴 노트 = 시작 + 끝)
+  const pendingOf = (R) => R.notes.reduce((a, n) => a + (!n.res ? (n.len ? 2 : 1) : n.len && !n.tail ? 1 : 0), 0);
   function tickRhythm(rdt) {
     const R = S.R, rt = rtNow(), spb = R.spb;
     // 음악: 0.25초 앞까지 박마다 미리 걸어 둠 (오디오 시각). 소리가 늦게 들리는 만큼(lag) 먼저 틀어서 들리는 박 = 원이 닿는 순간
@@ -352,13 +367,15 @@ export function createFishing(opt) {
       while (R.queue.length) {
         const q = R.queue[0], t = beatT(q.beat);
         if (t < rt + 0.05) { R.queue.shift(); continue; } // 이미 지난 박(큰 노트를 놓친 뒤)
-        const pending = R.notes.filter((n) => !n.res).length;
+        const pending = pendingOf(R);
         const fin = R.dist - R.g * pending <= R.g * 1.02;
         const appr = (fin ? 3 : 2) * spb;
         if (t - appr > rt) break;
         R.queue.shift();
-        const n = { t, beat: q.beat, appr, res: null, fin };
+        const len = fin ? 0 : q.len || 0; // 마지막 큰 노트는 늘 '톡'
+        const n = { t, beat: q.beat, appr, res: null, fin, len, tEnd: len ? beatT(q.beat + len) : 0, tail: null };
         R.notes.push(n);
+        if (len && !R.holdTip) { R.holdTip = true; say('꾹 누르고 바깥 원에서 떼기!', { sx: 0.5, sy: 0.3, size: 26, color: '#d9c2ff', life: spb * 3, rise: 0 }); }
         if (fin) { R.fin = n; say('마지막!', { sx: 0.5, sy: 0.4, size: 40, color: '#ffd23a', life: spb * 2, rise: 0, shake: 2 }); break; }
       }
     }
@@ -380,7 +397,8 @@ export function createFishing(opt) {
     R.heatL = hl; R.heatV = (R.heatV || 0) + (hl - (R.heatV || 0)) * Math.min(1, rdt * (hl > (R.heatV || 0) ? 6 : 2.5)); // 오를 땐 빨리, 식을 땐 천천히
     R.heatFlash = Math.max(0, (R.heatFlash || 0) - rdt / 0.6);
     for (const n of R.notes) if (!n.res && rt > n.t + TUNE.noteG) noteResult(n, 'Miss');
-    R.notes = R.notes.filter((n) => !n.res || rt - n.at < 0.5);
+    if (R.hold && rt > R.hold.tEnd + TUNE.noteG) tailResult(R.hold, 'Good', TUNE.noteG); // 끝 원을 지나도 꾹 — 늦게 뗀 걸로 (Good)
+    R.notes = R.notes.filter((n) => !n.res || (n.len && !n.tail) || rt - n.at < 0.5);
     // 손맛 연출 줄어들기
     R.bump = Math.max(0, R.bump - rdt * 8); R.tilt *= 1 - Math.min(1, rdt * 4); R.reel *= 1 - Math.min(1, rdt * 3); R.slack = Math.max(0, R.slack - rdt * 1.5);
     if (R.burst) { R.burst.t += rdt; if (R.burst.t > 0.5) R.burst = null; }
@@ -395,6 +413,19 @@ export function createFishing(opt) {
     if (!near || bd > 0.25) { snd.tap(); return; } // 노트가 멀면 무시 (마구 눌러도 손해·이득 없음) — 작은 '톡'만
     noteResult(near, bd <= TUNE.noteP ? 'Perfect' : bd <= TUNE.noteG ? 'Good' : 'Miss', rt - near.t);
   }
+  // 발라드 긴 노트(13-3): 시작을 맞추면 꾹 누르는 중(R.hold) → 끝 원에서 떼면 한 번 더 판정. 너무 일찍 떼면 Miss
+  function releaseNote() {
+    const R = S.R; if (!R || !R.hold) return;
+    const d = rtNow() - R.hold.tEnd, a = Math.abs(d);
+    tailResult(R.hold, a <= TUNE.noteP ? 'Perfect' : a <= TUNE.noteG ? 'Good' : 'Miss', d);
+  }
+  function tailResult(n, res, d) {
+    const R = S.R;
+    R.hold = null; n.tail = res;
+    const tn = { t: n.tEnd, beat: n.beat + n.len, appr: n.appr, res: null, fin: false, len: 0, tailOf: n };
+    R.notes.push(tn);
+    noteResult(tn, res, d);
+  }
   // d = 누른 시각 − 노트 시각(초, 음수 = 빨리). Perfect가 아니면 '빨라요/늦어요'를 작게 알려 줌 (안 누르고 지나간 놓침은 없음)
   function noteResult(n, res, d = null) {
     const R = S.R;
@@ -403,6 +434,7 @@ export function createFishing(opt) {
     emit({ k: 'note', res }); // 고양이(cats.md 3b)가 Perfect '냥!' · 놓치면 귀 접힘
     const y = seaHeight(S.bob.x, S.bob.z, S.now);
     if (n.fin) R.fin = null;
+    if (res === 'Miss' && n.len) n.tail = 'skip'; // 긴 노트 시작을 놓치면 끝은 판정 안 함 (한 번만 놓침)
     if (res === 'Miss') {
       // 놓침: 릴이 '지이익' 거꾸로 · 줄이 늘어짐 · 화면이 살짝 기울었다 돌아옴
       R.dist = Math.min(100, R.dist + R.m); R.misses++; R.pcombo = 0; heatMiss(R);
@@ -415,7 +447,9 @@ export function createFishing(opt) {
     const p = res === 'Perfect';
     R.hits++; if (p) R.perfects++; heatAdd(R, p);
     R.pcombo = p ? R.pcombo + 1 : 0; if (p && R.pcombo >= 2) n.combo = R.pcombo; // Perfect 연속: '×3' 글자
-    playMelody(R.song, n.beat, p); // 내가 누른 소리가 멜로디가 됨
+    if (n.tailOf) playRelease(R.song, n.beat, p); // 긴 노트 끝
+    else playMelody(R.song, n.beat, p, Math.random, n.len ? n.tEnd - n.t : 0); // 내가 누른 소리가 멜로디가 됨 (긴 노트는 음이 이어짐)
+    if (n.len) R.hold = n;
     if (n.fin) { // 마지막 큰 노트: 크게 당겨 바로 잡음 (아직 더 높은 등급이면 "무겁다!" → 다음 단계)
       if (S.stage < stageOf(S.fish)) return stageUp();
       R.dist = 0; playFinish(R.song);
@@ -480,12 +514,16 @@ export function createFishing(opt) {
   }
   function finishCatch() {
     const c = S.fish, R = S.R;
+    // ⭐ 품질 별(7장·13-1 ①): 줄다리기 정확도 → 별 0~3 → 횟집 값 배율. 물고기만 (잡동사니·탁구채는 별 없음)
+    const goods = R.hits - R.perfects, notes = R.hits + R.misses;
+    const q = c.kind === 'fish' ? qualityOf(R.perfects, goods, R.misses) : null;
+    const acc = notes ? Math.round(((R.perfects + goods / 2) / notes) * 100) : 100;
     let r = {};
     if (c.kind === 'paddle') { if (!c.dup && !isOn()) addPaddle(c.id); } // 로그인 안 했으면 가진 척만 (로그인: 서버가 옷장에 넣거나 조각 30개)
     else r = recordCatch(c, S.size.cm);
     if (S.castId) { // 서버에 알림 → 코인·업적이 오면 결과 카드에 더함
       const id = S.castId; S.castId = null;
-      fishFinish(id, true, S.grade === 'Perfect').then((x) => {
+      fishFinish(id, true, S.grade === 'Perfect', q).then((x) => {
         if (!S.result?.ok || S.result.c !== c) return;
         if (x.status !== 'ok') { S.result.srvNote = x.status === 'too_fast' ? '너무 빨라서 인정 안 됨' : '서버 기록 실패'; return; }
         Object.assign(S.result, { first: x.first, rec: x.rec, best: x.best, coins: x.coins, bonus: x.bonus, capped: x.capped, pieces: x.pieces, bagged: x.bagged, sold: x.sold, bagN: Array.isArray(x.bag) ? x.bag.reduce((a, b) => a + b.n, 0) : null });
@@ -496,7 +534,7 @@ export function createFishing(opt) {
     }
     const img = c.kind === 'paddle' ? Object.assign(new Image(), { src: paddleImage(ITEM[c.id], 180) }) : modelImage(c.id);
     S.model.visible = false; S.bobLanded = false;
-    S.result = { ok: true, c, img, cm: S.size.cm, big: c.kind === 'fish' && S.size.s >= BIG_CM, tier: c.kind === 'fish' ? sizeTier(S.size.s) : null, times: c.kind === 'fish' ? Math.round(S.size.s / 5) / 10 : 0, grade: S.grade, calm: S.calm, ...r, perfects: R.perfects, hits: R.hits, misses: R.misses, near: S.near };
+    S.result = { ok: true, c, img, cm: S.size.cm, big: c.kind === 'fish' && S.size.s >= BIG_CM, tier: c.kind === 'fish' ? sizeTier(S.size.s) : null, times: c.kind === 'fish' ? Math.round(S.size.s / 5) / 10 : 0, grade: S.grade, calm: S.calm, ...r, perfects: R.perfects, hits: R.hits, misses: R.misses, near: S.near, q, qx: q == null ? null : QUAL_X[q] / 10, acc };
     emit({ k: 'catch', c, cm: S.size.cm, grade: S.grade });
     setMode('result');
   }

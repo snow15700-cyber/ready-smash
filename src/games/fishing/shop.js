@@ -1,9 +1,10 @@
-// 🍣 횟집 창: 📈 시세표(일반 7종 · ▲빨강/▼파랑 · 지난 8회 꺾은선 · 🔥 오늘의 대박) + 🎒 가방(종류별 팔기 · 모두 팔기)
+// 🍣 횟집 창: 📈 시세표(일반 7종 + 희귀 8 · 전설 2(13-1 ②) · ▲빨강/▼파랑 · 지난 8회 꺾은선 · 🔥 오늘의 대박) + 🎒 가방(종류 × ⭐ 별마다 팔기 · 모두 팔기)
 // docs/dev/fishing.md 14-6. 규칙은 market.js, 코인은 서버(account.js fishSell)가 그 순간 시세로.
 // 낚시 화면 오른쪽 위 '🍣 횟집' 버튼(1a) · 선착장 횟집 건물·📈 칠판을 눌러도(1b, ui/fishing.js openMarket) 엶
-import { account, fishBagLoad, fishSell, marketNow } from '../../account.js';
+import { account, fishBagLoad, fishNews, fishSell, marketNow } from '../../account.js';
+import { liveWx } from '../../plazaSky.js';
 import { CATCH, SPECIES } from './rules.js';
-import { BAG_MAX, MARKET_FISH, bagCount, history, nextLabel, periodLabel, priceOf, sellPlan } from './market.js';
+import { BAG_MAX, BIG_FISH, BIG_SWING, DEMAND_UP, MARKET_FISH, QUAL_X, bagCount, history, nextLabel, periodLabel, priceOf, sellPlan, stars } from './market.js';
 import { FISH_COINS } from './rules.js';
 import { modelImage } from './dex.js';
 
@@ -17,7 +18,7 @@ const css = `
 #fshop button { font: 700 14px 'Pretendard Variable', sans-serif; border: 0; border-radius: 99px; cursor: pointer; color: #fff; }
 #fshop .x { background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); padding: 7px 12px; }
 #fshop .body { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 4px 16px 16px; overflow-y: auto; }
-#fshop .panel { border-radius: 16px; padding: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); min-width: 0; }
+#fshop .panel { border-radius: 16px; padding: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); min-width: 0; overflow: visible; } /* 공용 .panel의 overflow:auto면 휴대폰에서 칸이 눌려 잘림 */
 #fshop .panel h4 { margin: 0 0 8px; font: 400 17px Jua, sans-serif; display: flex; justify-content: space-between; align-items: baseline; }
 #fshop .panel h4 small { font: 600 12px 'Pretendard Variable', sans-serif; color: rgba(255,255,255,.6); }
 #fshop .board { background: #1f3b2f; border: 4px solid #8a5a32; border-radius: 12px; padding: 8px 10px; font-family: Jua, sans-serif; } /* 칠판 */
@@ -26,6 +27,15 @@ const css = `
 #fshop .row:last-child { border-bottom: 0; }
 #fshop .row.hot { background: linear-gradient(90deg, rgba(255,120,40,.35), transparent); border-radius: 8px; padding-left: 4px; }
 #fshop .row .p { text-align: right; font-size: 17px; }
+#fshop .news { margin: 0 0 8px; padding: 7px 10px; border-radius: 10px; background: rgba(255,230,120,.14); border: 1px solid rgba(255,220,110,.35); font-size: 13.5px; line-height: 1.4; }
+#fshop .news b { color: #ffe08a; margin-right: 4px; }
+#fshop .row .nw { font-size: 11px; margin-left: 3px; }
+#fshop .dem { margin: -2px 0 8px; padding: 6px 10px; border-radius: 10px; background: rgba(140,200,255,.12); border: 1px solid rgba(140,200,255,.3); font-size: 13px; line-height: 1.45; }
+#fshop .dem:empty { display: none; }
+#fshop .dem b { color: #bfe3ff; margin-right: 4px; }
+#fshop .sec { font-size: 13px; color: #ffe9a8; padding: 8px 0 2px; border-bottom: 1px solid rgba(255,255,255,.22); display: flex; justify-content: space-between; }
+#fshop .sec small { font: 600 11px 'Pretendard Variable', sans-serif; color: rgba(255,255,255,.6); }
+#fshop .row.leg { background: linear-gradient(90deg, rgba(255,210,60,.18), transparent); border-radius: 8px; padding-left: 4px; }
 #fshop .up { color: #ff6b6b; } #fshop .dn { color: #6bb7ff; } #fshop .eq { color: rgba(255,255,255,.55); }
 #fshop .row svg { width: 56px; height: 20px; }
 #fshop .note { font-size: 12px; color: rgba(255,255,255,.65); margin-top: 8px; line-height: 1.5; }
@@ -35,6 +45,8 @@ const css = `
 #fshop .fc.legend { background: linear-gradient(180deg, rgba(255,214,90,.45), rgba(255,170,60,.18)); }
 #fshop .fc img { width: 100%; aspect-ratio: 1; display: block; }
 #fshop .fc .nm { font: 400 14px Jua, sans-serif; }
+#fshop .fc .st { position: absolute; left: 8px; top: 5px; font: 400 14px Jua, sans-serif; color: #ffd23a; text-shadow: 0 1px 2px rgba(0,0,0,.6); letter-spacing: -1px; }
+#fshop .fc .st.no { color: rgba(255,255,255,.55); }
 #fshop .fc .cnt { position: absolute; right: 8px; top: 6px; font: 800 13px 'Pretendard Variable', sans-serif; background: rgba(0,0,0,.45); border-radius: 99px; padding: 1px 7px; }
 #fshop .fc button { margin-top: 4px; padding: 5px 10px; background: rgba(255,255,255,.14); font-size: 12px; }
 #fshop .all { width: 100%; margin-top: 10px; height: 46px; font-size: 16px; background: linear-gradient(180deg, #ff8a1f, #e8590c); box-shadow: 0 6px 16px rgba(232,89,12,.35); }
@@ -58,7 +70,7 @@ function build() {
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   el = document.createElement('div'); el.id = 'fshop';
   el.innerHTML = `<div class="box"><div class="top"><h3>🍣 횟집<small></small></h3><button class="x" type="button">✕</button></div>
-    <div class="body"><div class="panel"><h4>📈 오늘의 시세 <small class="when"></small></h4><div class="board"></div><div class="note"></div></div>
+    <div class="body"><div class="panel"><h4>📈 오늘의 시세 <small class="when"></small></h4><div class="news"></div><div class="dem"></div><div class="board"></div><div class="note"></div></div>
     <div class="panel"><h4>🎒 내 가방 <small class="cnt"></small></h4><div class="bag"></div><button class="all" type="button"></button><div class="day"></div>
     <div class="boss"><span>🧑‍🍳</span><span class="say"></span></div></div></div></div>`;
   document.body.appendChild(el);
@@ -66,7 +78,7 @@ function build() {
   el.addEventListener('click', (e) => {
     if (e.target === el || e.target.closest('.x')) return closeShop();
     const b = e.target.closest('[data-sell]');
-    if (b && !b.disabled) sell(b.dataset.sell || null);
+    if (b && !b.disabled) sell(b.dataset.sell || null, b.dataset.q ? +b.dataset.q : null);
   });
 }
 // 꺾은선 (지난 8회)
@@ -79,13 +91,26 @@ function spark(vals) {
 function render() {
   const ms = marketNow(), hist = history(ms, 8), cur = hist.at(-1), prev = hist.at(-2);
   el.querySelector('.when').textContent = `${periodLabel(cur.p)} 쉬는 시간부터`;
+  // 📰 소식 (13-1 ④): 그 물고기 값 ×1.3 / ×0.7 — 대구 날씨와 엮임
+  el.querySelector('.news').innerHTML = cur.news ? `<b>📰 소식</b>${cur.news.text} <small>(${cur.news.dir > 0 ? '×1.3' : '×0.7'})</small>` : '';
+  // 🛒 사람들이 판 만큼 (13-1 ③): 지난 쉬는 시간에 많이 팔린 1·2등 ▼ · 안 팔린 일반 물고기 ▲ (지금 쉬는 시간 판매는 안 보여 줌)
+  const dem = cur.demand || {}, dIds = (f) => Object.keys(dem).filter((id) => f(dem[id]));
+  const down = dIds((x) => x < 10).sort((a, b) => dem[a] - dem[b]), up = dIds((x) => x > 10);
+  el.querySelector('.dem').innerHTML = down.length || up.length
+    ? `<b>🛒 지난 쉬는 시간</b>${down.map((id) => `${name(id)} ×${dem[id] / 10}`).join(' · ')}${down.length ? ' (많이 팔려서 ▼)' : ''}${down.length && up.length ? '<br>' : ''}${up.length ? `${up.map(name).join(' · ')} ×${DEMAND_UP / 10} (안 팔려서 ▲)` : ''}` : '';
   const order = [cur.jackpot, ...MARKET_FISH.filter((id) => id !== cur.jackpot)];
-  el.querySelector('.board').innerHTML = order.map((id) => {
+  const row = (id, cls = '') => {
     const v = cur.list[id], d = v - prev.list[id];
     const ch = d > 0 ? `<span class="up">▲${coin(d)}</span>` : d < 0 ? `<span class="dn">▼${coin(-d)}</span>` : '<span class="eq">–</span>';
-    return `<div class="row${id === cur.jackpot ? ' hot' : ''}"><span>${emoji(id)}</span><span>${id === cur.jackpot ? '🔥 ' : ''}${name(id)}</span><span class="p">${coin(v)}</span>${ch}${spark(hist.map((h) => h.list[id]))}</div>`;
-  }).join('');
-  el.querySelector('.note').innerHTML = `🔥 = 오늘의 대박(2배) · 크기와 상관없이 종류로만 · 희귀 ${FISH_COINS.rare} · 전설 ${FISH_COINS.legend}은 늘 같아요<br>다음 시세: <b>${nextLabel(ms)}</b> 쉬는 시간`;
+    return `<div class="row${id === cur.jackpot ? ' hot' : ''}${cls}"><span>${emoji(id)}</span><span>${id === cur.jackpot ? '🔥 ' : ''}${name(id)}${cur.news?.id === id ? `<span class="nw" title="오늘의 소식">📰${cur.news.dir > 0 ? '▲' : '▼'}</span>` : ''}${dem[id] ? `<span class="nw" title="지난 쉬는 시간에 ${dem[id] < 10 ? '많이' : '안'} 팔려서">🛒${dem[id] < 10 ? '▼' : '▲'}</span>` : ''}</span><span class="p">${coin(v)}</span>${ch}${spark(hist.map((h) => h.list[id]))}</div>`;
+  };
+  // 희귀·전설도 오르내림 (13-1 ②): 칸을 나눠서 아래에
+  const grp = (g) => BIG_FISH.filter((id) => CATCH[id]?.grade === g);
+  const pct = (g) => Math.round(BIG_SWING[g][1] / 2 * 100);
+  el.querySelector('.board').innerHTML = order.map((id) => row(id)).join('')
+    + `<div class="sec">💎 희귀 <small>보통 ${FISH_COINS.rare} · ±${pct('rare')}%</small></div>` + grp('rare').map((id) => row(id)).join('')
+    + `<div class="sec">👑 전설 <small>보통 ${FISH_COINS.legend} · ±${pct('legend')}% · 언제 팔까?</small></div>` + grp('legend').map((id) => row(id, ' leg')).join('');
+  el.querySelector('.note').innerHTML = `🔥 = 오늘의 대박(2배, 일반만) · 크기와 상관없이 종류로만 · 희귀는 조금, 전설은 크게 오르내려요<br>🛒 많이 팔린 물고기는 다음 쉬는 시간에 값이 내려가고, 안 팔린 일반 물고기는 올라가요<br>⭐ 리듬을 잘 맞춘 물고기는 더 비싸요: ★★★ ×${QUAL_X[3] / 10} · ★★ ×${QUAL_X[2] / 10} · ★ ×${QUAL_X[1] / 10} · 별 없음 ×${QUAL_X[0] / 10}<br>다음 시세: <b>${nextLabel(ms)}</b> 쉬는 시간`;
 
   const bag = account.fishBag || [], n = bagCount(bag);
   el.querySelector('h3 small').textContent = account.loggedIn ? `🪙 ${account.player?.coins ?? 0}` : '';
@@ -93,30 +118,33 @@ function render() {
   const box = el.querySelector('.bag'); box.innerHTML = '';
   if (!account.loggedIn) box.innerHTML = '<div class="empty">로그인하면 잡은 물고기가 가방에 들어가요</div>';
   else if (!n) box.innerHTML = '<div class="empty">가방이 비었어요 · 물고기를 낚아 오세요 🎣</div>';
-  const sorted = [...bag].sort((a, b) => SPECIES.findIndex((s) => s.id === a.id) - SPECIES.findIndex((s) => s.id === b.id));
+  // 같은 종류라도 별마다 따로 칸 (41 — 별을 모르는 옛 서버면 q 없음 → 별 안 그림)
+  const sorted = [...bag].sort((a, b) => SPECIES.findIndex((s) => s.id === a.id) - SPECIES.findIndex((s) => s.id === b.id) || (b.q ?? 1) - (a.q ?? 1));
   for (const b of sorted) {
     const d = document.createElement('div'); d.className = `fc ${CATCH[b.id]?.grade || ''}`;
     d.appendChild(modelImage(b.id).cloneNode());
-    d.insertAdjacentHTML('beforeend', `<span class="cnt">×${b.n}</span><div class="nm">${name(b.id)}</div><button type="button" data-sell="${b.id}" ${busy ? 'disabled' : ''}>팔기 · ${coin(priceOf(b.id, ms) * b.n)}</button>`);
+    const st = b.q == null ? '' : `<span class="st${b.q ? '' : ' no'}" title="품질 값 ×${QUAL_X[b.q] / 10}">${stars(b.q)}</span>`;
+    d.insertAdjacentHTML('beforeend', `${st}<span class="cnt">×${b.n}</span><div class="nm">${name(b.id)}</div><button type="button" data-sell="${b.id}" ${b.q == null ? '' : `data-q="${b.q}"`} ${busy ? 'disabled' : ''}>팔기 · ${coin(priceOf(b.id, ms, b.q) * b.n)}</button>`);
     box.appendChild(d);
   }
   const all = el.querySelector('.all');
   // 하루 한도(40, market.js DAY_CAP): 오늘 판 코인 · 남은 한도 안에서만 팔림
   const fd = account.fishDay, left = fd ? Math.max(0, fd.cap - fd.coins) : Infinity;
-  const plan = sellPlan(bag.map((b) => [b.id, b.n]), ms, left);
+  const plan = sellPlan(bag.map((b) => [b.id, b.n, b.q]), ms, left);
   all.dataset.sell = ''; all.disabled = busy || !n || left <= 0;
   all.textContent = !n ? '🍣 모두 팔기' : left <= 0 ? '🍣 오늘은 다 팔았어요' : `🍣 모두 팔기 · 🪙 약 ${plan.coins}${plan.kept ? ` (${plan.kept}마리는 내일)` : ''}`;
   el.querySelector('.day').innerHTML = fd ? `오늘 판 코인 <b>${fd.coins}</b> / ${fd.cap} · 한도가 차면 남은 물고기는 내일 팔아요` : '';
   el.querySelector('.say').textContent = bossLine;
 }
-async function sell(id) {
+async function sell(id, q = null) {
   busy = true; render();
-  const r = await fishSell(id);
+  const r = await fishSell(id, q);
   busy = false;
   if (r.status === 'ok') {
     const big = (r.sold || []).find((s) => CATCH[s.id]?.grade !== 'common');
     const hot = (r.sold || []).find((s) => s.id === history(marketNow(), 1)[0].jackpot);
-    bossLine = `🪙 +${r.coins}코인! ` + (r.kept ? `오늘은 여기까지 살게요. ${r.kept}마리는 내일 다시 가져와요 🙏` : big ? `${name(big.id)}! 오늘 장사 잘 되겠네요 😆` : hot ? `${name(hot.id)} 오늘 금값인데, 타이밍 좋아요!` : '고마워요, 또 와요~');
+    const top = (r.sold || []).some((s) => s.q === 3);
+    bossLine = `🪙 +${r.coins}코인! ` + (r.kept ? `오늘은 여기까지 살게요. ${r.kept}마리는 내일 다시 가져와요 🙏` : top && !big ? '★★★! 손질이 필요 없을 만큼 싱싱하네요 ✨' : big ? `${name(big.id)}! 오늘 장사 잘 되겠네요 😆` : hot ? `${name(hot.id)} 오늘 금값인데, 타이밍 좋아요!` : '고마워요, 또 와요~');
     onSold?.(r);
   } else bossLine = r.status === 'capped' ? '오늘은 더 못 사요 😅 내일 다시 와 주세요! (하루 1000코인까지)' : r.status === 'empty' ? '가방이 비었는데요? 😅' : '앗, 계산이 안 됐어요. 다시 눌러 주세요';
   render();
@@ -126,6 +154,7 @@ export function openShop(opt = {}) {
   onSold = opt.onSold || null;
   if (!el) build();
   el.classList.add('open'); render();
+  fishNews(liveWx()).then((ok) => ok && el.classList.contains('open') && render());
   if (account.loggedIn) fishBagLoad().then(() => el.classList.contains('open') && render());
 }
 export function closeShop() { el?.classList.remove('open'); }

@@ -106,7 +106,7 @@ const WX = {
   rain: { cover: 0.85, fog: [25, 110], si: 0.15, hi: 0.78, clouds: 12, cloudGray: 0.65 },
   snow: { cover: 0.7, fog: [22, 100], si: 0.25, hi: 0.98, clouds: 12, cloudGray: 0.3 },
 };
-const weather = { wx: 'clear', temp: null, at: 0, busy: false };
+const weather = { wx: 'clear', temp: null, at: 0, busy: false, ok: false };
 async function fetchWeather() {
   // 서버 설정이 없는 로컬 테스트(점검 포함)에서는 바깥에 묻지 않고 맑음 (?wxlive=1 이면 받아 봄)
   if (weather.busy || !navigator.onLine || (!ONLINE && !Q.has('wxlive'))) { weather.at = Date.now(); return; }
@@ -122,11 +122,14 @@ async function fetchWeather() {
     weather.wx = wxOf(Number.isFinite(code) ? code : null);
     const t = Number(j?.current?.temperature_2m);
     weather.temp = Number.isFinite(t) ? Math.round(t) : null;
+    weather.ok = Number.isFinite(code);
   } catch { /* 못 받으면 지난 날씨 그대로 (처음이면 맑음) */ }
   weather.at = Date.now();
   weather.busy = false;
 }
 const currentWx = () => (WX[Q.get('wx')] ? Q.get('wx') : weather.wx);
+// 📰 시세 소식용(fishing.md 13-1 ④): 진짜로 받은 대구 날씨(또는 ?wx= 시험), 아직 못 받았으면 null — 맑음으로 잘못 알리지 않게
+export const liveWx = () => (WX[Q.get('wx')] ? Q.get('wx') : weather.ok ? weather.wx : null);
 
 // ───── 장면 ─────
 function skyMesh() {

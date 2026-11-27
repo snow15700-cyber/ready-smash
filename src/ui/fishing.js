@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { account, fishBagLoad, fishDex, myEquip, srvNow, syncServerClock } from '../account.js';
 import { PLAZA } from '../arena-plaza.js';
 import { applyLook } from '../items.js';
-import { activeBubbles, CATCH, LEGEND_PADDLES } from '../games/fishing/rules.js';
+import { activeBubbles, CATCH, GENRE_LABEL, LEGEND_PADDLES, standGenre } from '../games/fishing/rules.js';
 import { makeBobber, makeBubbleFx, makeLine, makeRod, makeSplashes, seaHeight } from '../games/fishing/world.js';
 import { PIER, STAIRS, stairAt } from '../campusLayout.js';
 import { addon, plazaApi, registerAddon } from './plazaAddons.js';
@@ -31,6 +31,7 @@ const root = Object.assign(document.createElement('div'), { id: 'fish-ui', class
 root.innerHTML = `
   <button id="fish-start" class="fish-start hidden" type="button">🎣 낚시하기</button>
   <canvas id="fish-hud" class="fish-hud hidden"></canvas>
+  <div id="fish-genre" class="fish-genre hidden"></div>
   <div id="fish-bar" class="fish-bar hidden">
     <button id="fish-shop" class="hidden" type="button">🍣 횟집</button>
     <button id="fish-cats" class="hidden" type="button">🐱</button>
@@ -54,16 +55,18 @@ css.textContent = `
 .fish-bar { position: absolute; right: 16px; top: 14px; display: flex; gap: 8px; }
 .fish-bar button { height: 40px; padding: 0 16px; border-radius: 999px; font-weight: 700; font-size: 15px; color: #fff; background: rgba(15,25,50,.55); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); backdrop-filter: blur(8px); }
 .fish-bar #fish-stop { background: rgba(224,51,60,.85); }
+.fish-genre { position: absolute; left: 16px; top: 12px; height: 32px; padding: 0 14px; display: flex; align-items: center; border-radius: 999px; font: 800 14px var(--font-ui, system-ui); color: #fff; background: rgba(15,25,50,.55); box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); backdrop-filter: blur(8px); pointer-events: none; animation: fishFade .8s ease .7s both; } /* 13-3 ⑤ 이 자리 장르 — 밑에 '잡은 물고기 n마리'(hud.js, y 52)가 있어서 그 위에 (휴대폰은 오른쪽 버튼 줄과 안 겹치게 그 아래) */
 .fish-chat { position: absolute; left: 16px; top: 70px; width: min(280px, 46vw); display: flex; flex-direction: column; gap: 6px; }
 .fish-chat div { padding: 7px 12px; border-radius: 14px; font: 600 14px var(--font-ui, system-ui); color: #fff; background: rgba(15,25,50,.5); backdrop-filter: blur(6px); transition: opacity .6s; }
 .fish-chat b { color: #ffd36b; margin-right: 6px; }
 .fish-ui .hidden { display: none !important; }
 body.fish-fade #lobby > *:not(#fish-ui), body.fish-fade #lb-free, body.fish-fade .lb-bottom, body.fish-fade .lb-icons { transition: opacity .5s ease, visibility 0s; }
 body.fishing-on #lobby > *:not(#fish-ui), body.fishing-on #lb-free, body.fishing-on .lb-bottom, body.fishing-on .lb-icons { visibility: hidden; opacity: 0; transition: opacity .5s ease, visibility 0s linear .5s; }
-@media (max-width: 560px) { .fish-start { bottom: 170px; } .fish-chat { top: 64px; width: 52vw; } .fish-chat div { font-size: 12px; } .fish-bar button { height: 36px; padding: 0 12px; font-size: 13px; } }
+@media (max-width: 560px) { .fish-start { bottom: 170px; } .fish-genre { top: 72px; height: 30px; padding: 0 12px; font-size: 13px; } .fish-genre.fight { display: none; } .fish-chat { top: 110px; width: 52vw; } .fish-chat div { font-size: 12px; } .fish-bar button { height: 36px; padding: 0 12px; font-size: 13px; } }
 `;
 document.head.appendChild(css);
 
+const startBtn = $('fish-start');
 $('fish-start').addEventListener('click', (e) => { e.stopPropagation(); start(); });
 $('fish-stop').addEventListener('click', (e) => { e.stopPropagation(); stop(); });
 $('fish-dex').addEventListener('click', (e) => { e.stopPropagation(); if (F && !F.busy()) mod.openDex(); });
@@ -117,13 +120,16 @@ async function start() {
   const f = plazaApi.view.figs.get(plazaApi.myId());
   const p = f?.disp || [...PLAZA.stairs.at(-1).bottom];
   F.standAt(p[0], p[1]);
+  const genre = standGenre(p[0], p[1]); // 13-3 ⑤ 선 자리 = 장르 (낚시 중 좌우로 걸어도 같은 판 안이라 그대로)
+  mod.TUNE.genre = genre;
+  $('fish-genre').textContent = `${GENRE_LABEL[genre]} 자리`;
   applyLook(F.me, myEquip());
   F.me.group.traverse((o) => { if (o.isMesh) o.castShadow = false; });
   hidePaddle(F.me);
   F.setActive(true);
   on = true; me.b = null; lastT = 0;
   document.body.classList.add('fishing-on');
-  for (const id of ['fish-hud', 'fish-bar', 'fish-chat']) $(id).classList.remove('hidden');
+  for (const id of ['fish-hud', 'fish-bar', 'fish-chat', 'fish-genre']) $(id).classList.remove('hidden');
   $('fish-start').classList.add('hidden');
   // 지금 광장 카메라 자리에서 출발해 낚시 카메라(어깨 높이)로 날아감
   camFrom.pos.copy(world.camera.position); camFrom.look.copy(plazaApi.view.camLook()); camFrom.fov = world.camera.fov; camFrom.t = 0;
@@ -142,7 +148,7 @@ function stop() {
   shopMod?.closeShop();
   F.setActive(false);
   document.body.classList.remove('fishing-on');
-  for (const id of ['fish-hud', 'fish-bar', 'fish-chat']) $(id).classList.add('hidden');
+  for (const id of ['fish-hud', 'fish-bar', 'fish-chat', 'fish-genre']) $(id).classList.add('hidden');
   hg.clearRect(0, 0, hudCv.width, hudCv.height);
   // 낚시 카메라 자리에서 낚시 전 광장 카메라 자리로 부드럽게 돌아옴 (광장 카메라는 그대로 두었음 — 바다 쪽으로 돌리면 데크 난간 뒤에 숨음)
   const mf = plazaApi.view.figs.get(plazaApi.myId());
@@ -327,6 +333,7 @@ function frame(now, p, walking) {
   // 버튼: 낚시 판 위에 서 있으면 (걷는 중·탁구대 자리·창이 떠 있으면 안 보임)
   const can = !on && curScreen === 'lobby' && !plazaApi.seat() && !walking && PLAZA.onPier(p[0], p[1]);
   $('fish-start').classList.toggle('hidden', !can);
+  if (can) { const t = `🎣 낚시하기 · ${GENRE_LABEL[standGenre(p[0], p[1])]}`; if (startBtn.textContent !== t) startBtn.textContent = t; } // 13-3 ⑤ 이 자리 장르
   if (can && !mod && !preload) preload = Promise.all([import('../games/fishing/session.js'), import('../games/fishing/dex.js')]).catch(() => {}); // 판에 들어서면 미리 불러 둠 (누를 때 멈칫하지 않게)
   othersFrame(now, lastFrameT ? Math.min(0.1, now - lastFrameT) : 0.016); lastFrameT = now; // 계단·선착장에서는 낚싯대 (나·다른 사람)
   pierBubbles(now, p);
@@ -335,6 +342,7 @@ function frame(now, p, walking) {
   const rdt = lastT ? Math.min(0.05, now - lastT) : 0.016;
   lastT = now;
   F.frame(rdt);
+  $('fish-genre').classList.toggle('fight', F.S.mode === 'fight'); // 휴대폰: 줄다리기 중엔 거리 게이지와 겹쳐서 숨김
   if (camFrom.t < 1) { // 광장 카메라 → 낚시 카메라 (부드럽게 출발·도착)
     camFrom.t = Math.min(1, camFrom.t + rdt / BLEND_IN);
     const e = easeInOut(camFrom.t), c = world.camera;
