@@ -35,6 +35,7 @@
 **11/25 사용자 변경: 출석 도장판·승리 세리머니는 잠깐 보류, 낚시(`docs/dev/fishing.md`)를 먼저.**
 
 ## 어디서나 지킬 규칙
+- **게임 만들기 대원칙**(`docs/dev/principles.md`): 새 기능은 참고 그림·숫자로 목표 정하기, 그림체 하나·어둡게 금지·상자로 때우기 금지, 효과는 준비→멈춤→돌아오기, 모든 모드 UI·소리 같게, Claude의 숫자는 사람이 해 보기 전까지 추측. 기획·디자인할 때 먼저 읽는다.
 - 매 프레임 순서 `game.decideHit` → `match.update` → `game.update`(느린 PC에서 늦은 스윙이 버려지지 않게). 판정·물리는 결정론적(같은 입력 → 같은 결과).
 - 꾸미기 아이템은 **보기만 다름**(판정·네트워크 메시지 그대로).
 - 서버 SQL: 새 파일 `40_...sql`로 추가(사용자가 SQL Editor에서 직접 실행, 여러 번 실행해도 되게), 실행할 목록은 `docs/dev/sql-to-run.md`에 적어 둠). 테이블·함수는 `pingpong_` 접두어(Supabase를 다른 게임과 공유). 표는 RLS로 잠그고 security definer 함수만 anon에. 로컬 PostgreSQL 16으로 01부터 차례로 먼저 시험(`service postgresql start`, `extensions` 스키마·`anon` 역할을 만들어 흉내).
