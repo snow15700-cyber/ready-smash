@@ -11,11 +11,12 @@
 - 새 게임은 같은 프로젝트에서: 코드 `src/games/<게임>/`, 문서 `docs/dev/<게임>.md`, 광장엔 `registerAddon`으로 꽂기(`cleanup.md` 12번).
 
 ## 문서 지도 (작업 주제에 맞는 파일만 읽는다)
+주제 문서는 **지금 모습만** 적는다(바뀌면 그 자리를 고쳐 쓰기, 과정은 git 기록에). 버린 것은 그 문서 맨 아래 **'안 하기로 한 것'에 한 줄**, 할 일은 '남은 일'에.
 | 주제 | 파일 |
 |---|---|
 | **게임 만들기 대원칙**(기획·디자인 전에 읽기) | `docs/dev/principles.md` |
 | 경기 규칙·조작·판정·찬스볼·동기화·WebRTC/TURN | `docs/dev/gameplay.md` |
-| 2v2·혼자 하기(AI)·모바일·관전 | `docs/dev/modes.md` |
+| 2v2·혼자 하기(김제빵)·휴대폰·관중석·응원 | `docs/dev/modes.md` |
 | 계정·전적·랭킹·코인·보안·업적·칭호·쉬는 시간 보너스 | `docs/dev/accounts.md` |
 | 상점·꾸미기·탁구채·몸·머리·얼굴·세트·뽑기 연출 | `docs/dev/shop.md` |
 | 탁구공 / 탁구대 / 배경(경기장) | `balls.md` / `tables.md` / `arenas.md` |
