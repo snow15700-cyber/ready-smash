@@ -23,7 +23,17 @@ function fishWeekTop(db, now) {
   return top;
 }
 // 로컬 가짜 서버의 낚시 (28·34와 같은 규칙)
-const bagList = (p) => Object.entries(p.fishBag || {}).filter(([, n]) => n > 0).sort(([a], [b]) => (a < b ? -1 : 1)).map(([id, n]) => ({ id, n }));
+// 41: 가방 칸 = 종류 × 별 — 열쇠 'id|별'(41 전 열쇠 'id'는 ★ 1개). 순서 = 서버(id → 별 많은 것)
+const bagKey = (id, q) => `${id}|${q}`;
+const bagSplit = (k) => { const [id, q] = k.split('|'); return { id, q: q == null ? MK.QUAL_DEF : +q }; };
+const bagList = (p) => Object.entries(p.fishBag || {}).filter(([, n]) => n > 0).map(([k, n]) => ({ ...bagSplit(k), n }))
+  .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : b.q - a.q));
+const bagTake = (p, id, q, k) => { // 옛 열쇠('id')도 ★로 같이 셈
+  for (const key of [bagKey(id, q), ...(q === MK.QUAL_DEF ? [id] : [])]) {
+    const t = Math.min(k, p.fishBag[key] || 0); p.fishBag[key] -= t; k -= t;
+    if (p.fishBag[key] <= 0) delete p.fishBag[key];
+  }
+};
 const bagN = (p) => MK.bagCount(bagList(p));
 // 40: 오늘(한국 날짜) 물고기를 팔아 받은 코인 — 하루 MK.DAY_CAP까지
 const fishUsed = (p) => (p.fishDay === koreaDay(nowMs()) ? p.fishDayCoins || 0 : 0);
@@ -58,11 +68,12 @@ function localFish(fn, a, p, db, now) {
     if ((now - c.at) / 1000 < FR.MIN_SEC[stage]) return { status: 'too_fast' };
     // 35: 물고기는 가방에, 꽉 찼으면 그 자리에서 지금 시세로 (분당 주머니는 안 씀)
     let base = 0, brk = 0, brkPct = 50, bagged = false, sold = false, capped = false;
+    const q = Math.min(3, Math.max(0, Math.round(a.p_q ?? MK.QUAL_DEF) || 0)); // 41: 별은 범위만 자름
     p.fishBag ||= {};
     if (c.kind === 'fish') {
-      if (bagN(p) < MK.BAG_MAX) { p.fishBag[c.item] = (p.fishBag[c.item] || 0) + 1; bagged = true; }
-      else { // 꽉 참 → 바로 지금 시세로 (쉬는 시간 보너스 없음), 오늘 한도(40)를 넘으면 못 팔고 놓아줌
-        base = Math.floor(MK.priceOf(c.item, nowMs()) / 10);
+      if (bagN(p) < MK.BAG_MAX) { const k = bagKey(c.item, q); p.fishBag[k] = (p.fishBag[k] || 0) + 1; bagged = true; }
+      else { // 꽉 참 → 바로 지금 시세(× 별 배율)로 (쉬는 시간 보너스 없음), 오늘 한도(40)를 넘으면 못 팔고 놓아줌
+        base = Math.floor(MK.priceOf(c.item, nowMs(), q) / 10);
         if (fishUsed(p) + base > MK.DAY_CAP) { base = 0; capped = true; } else { sold = true; addFishDay(p, base); }
       }
     }
@@ -93,19 +104,19 @@ function localFish(fn, a, p, db, now) {
     const fresh = [];
     for (const id of FISH_ACH) if (ok[id] && !p.ach[id]) { p.ach[id] = new Date(now).toISOString(); p.coins += REWARD[ACH[id].grade]; fresh.push({ id, coins: REWARD[ACH[id].grade] }); }
     const { at, ...cast } = c;
-    return { status: 'ok', caught: true, cast, coins: total, bonus: Math.min(brk, total), bonus_pct: brkPct, capped, day_coins: fishUsed(p), day_cap: MK.DAY_CAP, bagged, sold, bag: bagList(p), first, rec, best, big: c.kind === 'fish' && (c.s ?? c.cm) >= FR.BIG_CM, pieces, new: fresh };
+    return { status: 'ok', caught: true, cast, q: c.kind === 'fish' ? q : null, coins: total, bonus: Math.min(brk, total), bonus_pct: brkPct, capped, day_coins: fishUsed(p), day_cap: MK.DAY_CAP, bagged, sold, bag: bagList(p), first, rec, best, big: c.kind === 'fish' && (c.s ?? c.cm) >= FR.BIG_CM, pieces, new: fresh };
   }
   if (fn === 'pingpong_fish_sell') {
-    const items = Object.entries(p.fishBag || {}).filter(([id, n]) => n > 0 && (a.p_fish == null || id === a.p_fish));
+    const items = bagList(p).filter((b) => (a.p_fish == null || b.id === a.p_fish) && (a.p_q == null || b.q === a.p_q)).map((b) => [b.id, b.n, b.q]);
     const day = { day_coins: fishUsed(p), day_cap: MK.DAY_CAP };
     if (!items.length) return { status: 'empty', bag: bagList(p), ...day };
     // 40: 오늘 한도 안에서 비싼 것부터 (쉬는 시간 보너스 없음)
     const r = MK.sellPlan(items, nowMs(), MK.DAY_CAP - fishUsed(p));
     if (!r.sold.length) return { status: 'capped', kept: r.kept, bag: bagList(p), ...day };
-    for (const [id, k] of r.sold) { p.fishBag[id] -= k; if (p.fishBag[id] <= 0) delete p.fishBag[id]; }
+    for (const [id, k, , q] of r.sold) bagTake(p, id, q, k);
     p.coins = (p.coins || 0) + r.coins;
     addFishDay(p, r.coins);
-    return { status: 'ok', coins: r.coins, bonus: 0, bonus_pct: 0, sold: r.sold.map(([id, n, price]) => ({ id, n, price })), kept: r.kept, bag: bagList(p), day_coins: fishUsed(p), day_cap: MK.DAY_CAP };
+    return { status: 'ok', coins: r.coins, bonus: 0, bonus_pct: 0, sold: r.sold.map(([id, n, price, q]) => ({ id, q, n, price })), kept: r.kept, bag: bagList(p), day_coins: fishUsed(p), day_cap: MK.DAY_CAP };
   }
   if (fn === 'pingpong_fish_bag') return { status: 'ok', bag: bagList(p), day_coins: fishUsed(p), day_cap: MK.DAY_CAP };
   if (fn === 'pingpong_fish_dex') {
@@ -262,9 +273,9 @@ export function localServer(fn, a) {
     if (!CR.CAT_IDS.includes(a.p_cat)) return { status: 'bad_cat' };
     const c = p.cats[a.p_cat];
     if (c && ms - c.fedAt < CR.FEED_GAP_MS) return { status: 'wait', wait: Math.ceil((c.fedAt + CR.FEED_GAP_MS - ms) / 1000), cats: list() };
-    const fish = MK.cheapestIn(bagList(p), ms);
+    const cheap = MK.cheapestIn(bagList(p), ms), fish = cheap?.id; // 41: 가장 싼 칸(별 값으로)
     if (!fish) return { status: 'no_fish', bag: bagList(p) };
-    p.fishBag[fish]--;
+    bagTake(p, fish, cheap.q, 1);
     const before = c?.pts || 0;
     p.cats[a.p_cat] = { ...(c || {}), pts: before + 1, fedAt: ms };
     save();

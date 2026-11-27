@@ -14,6 +14,7 @@ import { addPaddle, dexOpen, fishCount, modelImage, openDex, ownedPaddles, recor
 import { BIG_CM, CATCH, LEGEND_PADDLES, PADDLE_DUP_PIECES, STAND, activeBubbles, bubbleNear, clampStand, cmOfScore, fishSize, isNight, landingPoint, luckDice, modelScale, sizeTier, walkStand } from './rules.js';
 import { PIER, SEA_Y } from '../../campusLayout.js';
 import { fishCast, fishFinish } from '../../account.js';
+import { QUAL_X, qualityOf } from './market.js';
 import { ACH } from '../../achievements.js';
 import { makeModel } from './models.js';
 import { ITEM, makePaddle, paddleImage } from '../../items.js';
@@ -480,12 +481,16 @@ export function createFishing(opt) {
   }
   function finishCatch() {
     const c = S.fish, R = S.R;
+    // ⭐ 품질 별(7장·13-1 ①): 줄다리기 정확도 → 별 0~3 → 횟집 값 배율. 물고기만 (잡동사니·탁구채는 별 없음)
+    const goods = R.hits - R.perfects, notes = R.hits + R.misses;
+    const q = c.kind === 'fish' ? qualityOf(R.perfects, goods, R.misses) : null;
+    const acc = notes ? Math.round(((R.perfects + goods / 2) / notes) * 100) : 100;
     let r = {};
     if (c.kind === 'paddle') { if (!c.dup && !isOn()) addPaddle(c.id); } // 로그인 안 했으면 가진 척만 (로그인: 서버가 옷장에 넣거나 조각 30개)
     else r = recordCatch(c, S.size.cm);
     if (S.castId) { // 서버에 알림 → 코인·업적이 오면 결과 카드에 더함
       const id = S.castId; S.castId = null;
-      fishFinish(id, true, S.grade === 'Perfect').then((x) => {
+      fishFinish(id, true, S.grade === 'Perfect', q).then((x) => {
         if (!S.result?.ok || S.result.c !== c) return;
         if (x.status !== 'ok') { S.result.srvNote = x.status === 'too_fast' ? '너무 빨라서 인정 안 됨' : '서버 기록 실패'; return; }
         Object.assign(S.result, { first: x.first, rec: x.rec, best: x.best, coins: x.coins, bonus: x.bonus, capped: x.capped, pieces: x.pieces, bagged: x.bagged, sold: x.sold, bagN: Array.isArray(x.bag) ? x.bag.reduce((a, b) => a + b.n, 0) : null });
@@ -496,7 +501,7 @@ export function createFishing(opt) {
     }
     const img = c.kind === 'paddle' ? Object.assign(new Image(), { src: paddleImage(ITEM[c.id], 180) }) : modelImage(c.id);
     S.model.visible = false; S.bobLanded = false;
-    S.result = { ok: true, c, img, cm: S.size.cm, big: c.kind === 'fish' && S.size.s >= BIG_CM, tier: c.kind === 'fish' ? sizeTier(S.size.s) : null, times: c.kind === 'fish' ? Math.round(S.size.s / 5) / 10 : 0, grade: S.grade, calm: S.calm, ...r, perfects: R.perfects, hits: R.hits, misses: R.misses, near: S.near };
+    S.result = { ok: true, c, img, cm: S.size.cm, big: c.kind === 'fish' && S.size.s >= BIG_CM, tier: c.kind === 'fish' ? sizeTier(S.size.s) : null, times: c.kind === 'fish' ? Math.round(S.size.s / 5) / 10 : 0, grade: S.grade, calm: S.calm, ...r, perfects: R.perfects, hits: R.hits, misses: R.misses, near: S.near, q, qx: q == null ? null : QUAL_X[q] / 10, acc };
     emit({ k: 'catch', c, cm: S.size.cm, grade: S.grade });
     setMode('result');
   }

@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { GRADE } from './data.js';
 import { PADDLE_DUP_PIECES, castDist, landingPoint } from './rules.js';
 import { seaHeight } from './world.js';
+import { stars } from './market.js';
 import { SEA_Y } from '../../campusLayout.js';
 
 const JUA = (px) => `${Math.round(px)}px Jua, 'Pretendard Variable', sans-serif`;
@@ -291,7 +292,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
 function drawResult(g, W, H, S, u) {
   const R = S.result;
   const a = clamp(S.t * 4, 0, 1), pop = 0.9 + 0.1 * Math.min(1, S.t * 5);
-  const cw = Math.min(340, W - 32), ch = R.ok ? (R.coins != null || R.srvNote ? 300 : 270) : 160;
+  const cw = Math.min(340, W - 32), ch = R.ok ? (R.coins != null || R.srvNote ? 356 : 326) : 160;
   g.save(); g.globalAlpha = a; g.translate(W / 2, H * 0.45); g.scale(pop, pop);
   glass(g, -cw / 2, -ch / 2, cw, ch, 24);
   g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -305,20 +306,30 @@ function drawResult(g, W, H, S, u) {
       g.font = UI(800, 12); const nt = '📖 NEW'; const nw = g.measureText(nt).width + 14;
       g.fillStyle = '#ff5a7a'; rr(g, cw / 2 - nw - 12, -ch / 2 + 16, nw, 22, 11); g.fill(); g.fillStyle = '#fff'; g.fillText(nt, cw / 2 - nw / 2 - 12, -ch / 2 + 27);
     }
+    g.save(); g.translate(0, -28); // 가운데 내용(그림~크기 배지)을 위로 — 별 줄이 들어가 카드가 커져서
     if (R.img?.complete && R.img.naturalWidth) g.drawImage(R.img, -50, -84, 100, 100);
     else { g.font = '54px sans-serif'; g.fillText(c.emoji, 0, -34); }
     g.font = JUA(26); g.fillStyle = '#fff';
     g.fillText(fish ? `${c.name} ${R.cm}cm` : c.kind === 'junk' ? `에이… ${c.name}네` : `${c.name}!`, 0, 32);
+    if (R.q != null) { // ⭐ 품질 별 (7장): 별 + 값 배율 — 크기 등급(월척·대물·괴물)과 따로
+      g.font = JUA(24); const st = stars(R.q), sw = g.measureText(st).width;
+      g.font = UI(800, 14); const qt = `  품질 값 ×${R.qx}`, qw = g.measureText(qt).width;
+      g.textAlign = 'left';
+      g.font = JUA(24); g.fillStyle = R.q ? '#ffd23a' : 'rgba(255,255,255,.45)'; g.fillText(st, -(sw + qw) / 2, 62);
+      g.font = UI(800, 14); g.fillStyle = R.q ? '#ffe9a8' : 'rgba(255,255,255,.7)'; g.fillText(qt, -(sw + qw) / 2 + sw, 63);
+      g.textAlign = 'center';
+    }
     g.font = UI(600, 13); g.fillStyle = 'rgba(255,255,255,.8)';
-    g.fillText(`챔질 ${R.grade} · 리듬 Perfect ${R.perfects} · Good ${R.hits - R.perfects} · Miss ${R.misses}`, 0, 58);
+    g.fillText(`리듬 정확도 ${R.acc ?? 100}% · Perfect ${R.perfects} · Good ${R.hits - R.perfects} · Miss ${R.misses}`, 0, 88);
     const line = fish ? `보통의 ${R.times}배${R.rec ? '' : ` · 이 물고기 최고 ${R.best}cm`}` : c.kind === 'junk' ? '도감에 넣었어요 · 코인 0' : c.dup ? `이미 있어서 → 조각 ${PADDLE_DUP_PIECES}개` : R.coins != null ? '' : '옷장에 들어가요 (로그인하면)';
-    g.fillText(line, 0, 78);
+    g.fillText(line, 0, 108);
     const badge = R.tier ? `${R.tier.icon} ${R.tier.label}!` : fish && R.rec && !R.first ? '🏆 새 기록!' : '';
     if (badge) {
       g.font = UI(800, 14); const tw = g.measureText(badge).width + 22;
-      g.fillStyle = R.tier ? R.tier.color : '#FF8A1F'; rr(g, -tw / 2, 90, tw, 26, 13); g.fill();
-      g.fillStyle = R.tier ? '#2a1a00' : '#fff'; g.fillText(badge, 0, 103);
+      g.fillStyle = R.tier ? R.tier.color : '#FF8A1F'; rr(g, -tw / 2, 120, tw, 26, 13); g.fill();
+      g.fillStyle = R.tier ? '#2a1a00' : '#fff'; g.fillText(badge, 0, 133);
     }
+    g.restore();
     if (R.coins != null || R.srvNote) { // 서버(로그인)에서 받은 코인
       g.font = UI(800, 14); g.fillStyle = R.srvNote ? '#ff9a9a' : '#ffd23a';
       g.fillText(R.srvNote || (c.kind === 'fish' ? (R.bagged ? `🎒 가방에 넣었어요 ${R.bagN}/30 · 🍣 횟집에서 팔아요` : R.capped ? '🎒 가방이 꽉 차고 오늘 판매 한도도 다 차서 놓아줬어요' : `${R.sold ? '🎒 가방이 꽉 차서 바로 팔았어요 · ' : ''}🪙 +${R.coins}코인${R.bonus ? ' (☕ +50%)' : ''}`) : c.kind === 'paddle' ? (R.pieces ? `🧩 조각 +${R.pieces}` : '🎽 옷장에 들어갔어요!') : '🪙 코인 0 (잡동사니)'), 0, ch / 2 - 22);

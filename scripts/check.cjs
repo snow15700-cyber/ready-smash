@@ -330,6 +330,29 @@ async function sqlCheck() {
     setCast('fish', 'seabream', 'rare', 50);
     const f4 = json(`public.pingpong_fish_finish(${tk}, 'chk', true, true)`);
     must(f4.capped && !f4.sold && !f4.bagged && f4.coins === 0, '한도가 다 찼는데 꽉 찬 가방에서 바로 팔렸어요: ' + JSON.stringify(f4).slice(0, 200));
+    // 41 ⭐ 품질 별 (fishing.md 7장): qualityOf 기준 · 가방은 종류 × 별 칸 · 별 범위 자름 · 값 = 시세 × 배율 · 별마다 팔기 · 꽉 찬 가방 바로 팔기도 별 값
+    {
+      const qs = [[10, 0, 0], [7, 3, 0], [5, 5, 0], [6, 2, 2], [0, 10, 0], [2, 3, 5], [0, 7, 3], [1, 2, 7], [0, 0, 1], [0, 0, 0]].map(([p, g, m]) => MK.qualityOf(p, g, m));
+      must(qs.join('') === '3322111001', '품질 별 기준(85·60·35%)이 이상해요: ' + qs.join(''));
+      must(MK.priceOf('seabream', Date.now(), 3) === 260 && MK.priceOf('seabream', Date.now(), 0) === 160 && MK.priceOf('seabream', Date.now()) === 200, '별 배율 값이 이상해요');
+    }
+    psql(DB, `update public.pingpong_players set fish_day_coins = 0 where nick = '점검봇';
+      delete from public.pingpong_fish_bag where player_id = (select id from public.pingpong_players where nick = '점검봇');`);
+    for (const q of [3, 0, 9]) { setCast('fish', 'mackerel', 'common', 30); must(json(`public.pingpong_fish_finish(${tk}, 'chk', true, true, ${q})`).q === Math.min(q, 3), '별이 잡기 결과에 안 와요'); }
+    setCast('fish', 'seabream', 'rare', 50);
+    const fq = json(`public.pingpong_fish_finish(${tk}, 'chk', true, true, 2)`);
+    const bq = fq.bag.map((b) => `${b.id}${b.q}x${b.n}`).join(',');
+    must(bq === 'mackerel3x2,mackerel0x1,seabream2x1', '가방이 별마다 칸이 안 나뉘어요: ' + bq);
+    const qItems = fq.bag.map((b) => [b.id, b.n, b.q]);
+    const sq = json(`public.pingpong_fish_sell(${tk}, 'mackerel', 3)`);
+    must(sq.status === 'ok' && sq.coins === MK.sellPlan([['mackerel', 2, 3]], Date.now()).coins && sq.bag.length === 2, '별마다 팔기가 이상해요: ' + JSON.stringify(sq).slice(0, 300));
+    const sqa = json(`public.pingpong_fish_sell(${tk}, null)`);
+    const qWant = MK.sellPlan(qItems.filter(([id, , q]) => !(id === 'mackerel' && q === 3)), Date.now(), MK.DAY_CAP - sq.coins);
+    must(sqa.status === 'ok' && sqa.coins === qWant.coins && JSON.stringify(sqa.sold.map((x) => [x.id, x.n, x.price, x.q])) === JSON.stringify(qWant.sold), '별 섞인 모두 팔기가 market.js와 달라요: ' + JSON.stringify([sqa.sold, qWant]).slice(0, 400));
+    psql(DB, `insert into public.pingpong_fish_bag(player_id, fish_id, q, n) select id, 'horse', 1, 30 from public.pingpong_players where nick = '점검봇';`);
+    setCast('fish', 'seabream', 'rare', 50);
+    const fq2 = json(`public.pingpong_fish_finish(${tk}, 'chk', true, true, 3)`);
+    must(fq2.sold && fq2.coins === Math.floor(MK.priceOf('seabream', Date.now(), 3) / 10), '꽉 찬 가방 바로 팔기에 별 값이 안 들어가요: ' + JSON.stringify(fq2).slice(0, 200));
     psql(DB, `delete from public.pingpong_fish_bag where player_id = (select id from public.pingpong_players where nick = '점검봇');`);
     // 🐱 고양이 배회 (cats.md): 모든 쉬는 자리가 이어짐 · 바닥 높이를 따라감 · 계단 위 풀밭·횟집 앞까지 다님 (11/26 활동 범위 넓힘)
     {
@@ -341,10 +364,11 @@ async function sqlCheck() {
     // 37 🐱 고양이 밥 (cats.md 3a): 가방 빔 → no_fish · 가장 싼 생선 하나 빠짐 · 1시간 안에 또 → wait · 10점이면 ♥ 오름
     must(json(`public.pingpong_cat_feed(${tk}, 'cheese')`).status === 'no_fish', '빈 가방인데 고양이 밥을 줬어요');
     must(json(`public.pingpong_cat_feed(${tk}, 'dog')`).status === 'bad_cat', '없는 고양이에게 밥을 줬어요');
-    psql(DB, `insert into public.pingpong_fish_bag(player_id, fish_id, n) select id, f, 1 from public.pingpong_players, unnest(array['mackerel', 'horse', 'squid']) f where nick = '점검봇' on conflict do nothing;`);
-    const cheap = MK.cheapestIn([{ id: 'horse', n: 1 }, { id: 'mackerel', n: 1 }, { id: 'squid', n: 1 }], Date.now());
+    const catBag = [{ id: 'horse', q: 1, n: 1 }, { id: 'horse', q: 0, n: 1 }, { id: 'mackerel', q: 3, n: 1 }, { id: 'squid', q: 2, n: 1 }]; // 41: 별 값으로 가장 싼 칸
+    psql(DB, `insert into public.pingpong_fish_bag(player_id, fish_id, q, n) select id, f, q, 1 from public.pingpong_players, (values ${catBag.map((b) => `('${b.id}', ${b.q})`).join(', ')}) v(f, q) where nick = '점검봇' on conflict do nothing;`);
+    const cheap = MK.cheapestIn(catBag, Date.now());
     const cf = json(`public.pingpong_cat_feed(${tk}, 'cheese')`);
-    must(cf.status === 'ok' && cf.fish === cheap && cf.pts === 1 && cf.bag.length === 2, '고양이 밥(가장 싼 생선)이 이상해요: ' + JSON.stringify([cf, cheap]).slice(0, 300));
+    must(cf.status === 'ok' && cf.fish === cheap.id && cf.pts === 1 && cf.bag.length === 3 && !cf.bag.some((b) => b.id === cheap.id && b.q === cheap.q), '고양이 밥(가장 싼 생선)이 이상해요: ' + JSON.stringify([cf, cheap]).slice(0, 300));
     const cw = json(`public.pingpong_cat_feed(${tk}, 'cheese')`);
     must(cw.status === 'wait' && cw.wait > 3500, '1시간 안에 또 밥을 줬어요: ' + JSON.stringify(cw).slice(0, 200));
     psql(DB, `update public.pingpong_cat set pts = 9, fed_at = now() - interval '61 minutes' where cat_id = 'cheese';`);
