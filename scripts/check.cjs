@@ -333,7 +333,7 @@ async function sqlCheck() {
     // 41 ⭐ 품질 별 (fishing.md 7장): qualityOf 기준 · 가방은 종류 × 별 칸 · 별 범위 자름 · 값 = 시세 × 배율 · 별마다 팔기 · 꽉 찬 가방 바로 팔기도 별 값
     {
       const qs = [[10, 0, 0], [7, 3, 0], [5, 5, 0], [6, 2, 2], [0, 10, 0], [2, 3, 5], [0, 7, 3], [1, 2, 7], [0, 0, 1], [0, 0, 0]].map(([p, g, m]) => MK.qualityOf(p, g, m));
-      must(qs.join('') === '3322111001', '품질 별 기준(85·60·35%)이 이상해요: ' + qs.join(''));
+      must(qs.join('') === '3221100001', '품질 별 기준(90·75·50%)이 이상해요: ' + qs.join(''));
       must(MK.priceOf('seabream', Date.now(), 3) === 260 && MK.priceOf('seabream', Date.now(), 0) === 160 && MK.priceOf('seabream', Date.now()) === 200, '별 배율 값이 이상해요');
     }
     psql(DB, `update public.pingpong_players set fish_day_coins = 0 where nick = '점검봇';

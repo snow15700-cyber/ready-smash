@@ -5,7 +5,7 @@
 //  · 시세는 쉬는 시간이 시작될 때마다 바뀜(BREAKS 시작 시각). 주말·수업 전은 지난 마지막 시세 그대로
 //  · 일반 물고기 7종만 시세가 움직임: 하나는 🔥 오늘의 대박(2배), 나머지는 0.6~0.85배 → 평균 약 0.9배. 희귀 20 · 전설 40 그대로(11/27, 전 8 · 20)
 //  · 값은 0.1코인 단위(시세표에 2.4처럼). 한 번 팔 때 합을 내림 → 하나씩 팔아도 이득 없음
-//  · ⭐ 품질 별(13-1 ①, 11/27 사용자 확정): 줄다리기 정확도(Perfect 1 · Good 0.5 · 놓침 0 ÷ 노트 수) 85%↑ ★★★ · 60%↑ ★★ · 35%↑ ★ · 그 아래 별 없음
+//  · ⭐ 품질 별(13-1 ①, 11/27 사용자 확정): 줄다리기 정확도(Perfect 1 · Good 0.5 · 놓침 0 ÷ 노트 수) 90%↑ ★★★ · 75%↑ ★★ · 50%↑ ★ · 그 아래 별 없음
 //    → 값 × 1.3 · 1.1 · 1.0 · 0.8 (QUAL_X, 10배 정수). 가방은 종류 × 별(q 0~3)로 칸이 따로. 크기는 값과 상관없음. 서버 41_fish_quality.sql
 //  · 하루 한도 DAY_CAP(한국 날짜, 11/27 사용자 확정): 팔아서 받는 코인은 하루 1000까지. 비싼 것부터 한도 안에서만 팔리고 나머지는 가방에 (sellPlan)
 import { SPECIES, FISH_COINS, seeded } from './rules.js';
@@ -23,7 +23,7 @@ export function qualityOf(perfects, goods, misses) {
   const n = perfects + goods + misses;
   if (n <= 0) return QUAL_DEF;
   const a = (2 * perfects + goods) * 50; // 정확도 × 100 × n
-  return a >= 85 * n ? 3 : a >= 60 * n ? 2 : a >= 35 * n ? 1 : 0;
+  return a >= 90 * n ? 3 : a >= 75 * n ? 2 : a >= 50 * n ? 1 : 0;
 }
 export const stars = (q) => (q == null ? '' : '★'.repeat(qq(q)) + '☆'.repeat(3 - qq(q)));
 const STARTS = BREAKS.map((b) => b[0]); // 쉬는 시간 시작(하루 분) 590 650 690 830 890 950 1010 1070
