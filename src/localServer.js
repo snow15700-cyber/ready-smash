@@ -281,7 +281,17 @@ export function localServer(fn, a) {
     save();
     return { status: 'ok', fish, pts: before + 1, up: CR.heartOf(before + 1) > CR.heartOf(before), cats: list(), bag: bagList(p) };
   }
+  if (fn === 'pingpong_fish_news') { // 43 📰: 회차마다 처음 알린 날씨 하나
+    const per = MK.periodKey(MK.period(nowMs()));
+    db.fishNews ||= {};
+    if (MK.WXS.includes(a.p_wx) && !db.fishNews[per]) db.fishNews[per] = a.p_wx;
+    const keys = Object.keys(db.fishNews).map(Number).sort((x, y) => y - x);
+    for (const k of keys.slice(12)) delete db.fishNews[k];
+    save();
+    return { status: 'ok', period: per, news: keys.slice(0, 12).map((k) => ({ p: k, wx: db.fishNews[k] })) };
+  }
   if (fn.startsWith('pingpong_fish_')) {
+    MK.setNewsWx(Object.entries(db.fishNews || {}).map(([p, wx]) => ({ p, wx }))); // 팔 때 값 = 저장된 회차 날씨로
     const p = me();
     if (!p && fn !== 'pingpong_fish_rank' && fn !== 'pingpong_fish_dex') return { status: 'no_session' };
     const r = localFish(fn, a, p, db, now);

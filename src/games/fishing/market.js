@@ -5,7 +5,10 @@
 //  · 시세는 쉬는 시간이 시작될 때마다 바뀜(BREAKS 시작 시각). 주말·수업 전은 지난 마지막 시세 그대로
 //  · 일반 물고기 7종: 하나는 🔥 오늘의 대박(2배), 나머지는 0.6~0.85배 → 평균 약 0.9배
 //  · 희귀·전설도 오르내림(13-1 ②, 11/27 사용자 확정 '중간'): 희귀 20 × 0.8~1.2(16~24) · 전설 40 × 0.5~1.5(20~60), 종류마다 따로, 평균은 그대로.
-//    🔥 대박은 일반 7종에서만. 씨앗은 따로(88001 + 회차 × 7919를 xorshift 두 번 — 일반 시세는 그대로 두고, 회차끼리 무늬가 안 생기게). 서버 42_fish_price_all.sql
+//    🔥 대박은 일반 7종에서만.
+//  · 📰 소식(13-1 ④, 11/27 사용자 확정): 회차마다 소식 1개 → 물고기 하나 값 ×1.3 또는 ×0.7 (오름·내림 반반). 대구 진짜 날씨와 엮음:
+//    그 회차에 처음 시세를 본 브라우저가 지금 날씨를 서버에 알려 줌(pingpong_fish_news, 회차마다 한 번만 저장) → 날씨 소식 반 · 보통 소식 반.
+//    날씨를 아직 모르면 보통 소식만. 대박 물고기를 건드리는 소식은 빼고 뽑음. 서버 43_fish_news.sql 씨앗은 따로(88001 + 회차 × 7919를 xorshift 두 번 — 일반 시세는 그대로 두고, 회차끼리 무늬가 안 생기게). 서버 42_fish_price_all.sql
 //  · 값은 0.1코인 단위(시세표에 2.4처럼). 한 번 팔 때 합을 내림 → 하나씩 팔아도 이득 없음
 //  · ⭐ 품질 별(13-1 ①, 11/27 사용자 확정): 줄다리기 정확도(Perfect 1 · Good 0.5 · 놓침 0 ÷ 노트 수) 90%↑ ★★★ · 75%↑ ★★ · 50%↑ ★ · 그 아래 별 없음
 //    → 값 × 1.3 · 1.1 · 1.0 · 0.8 (QUAL_X, 10배 정수). 가방은 종류 × 별(q 0~3)로 칸이 따로. 크기는 값과 상관없음. 서버 41_fish_quality.sql
@@ -19,6 +22,42 @@ export const MARKET_FISH = SPECIES.filter((s) => s.grade === 'common').map((s) =
 export const JACKPOT_X = 2, LOW_X = 0.6, SPAN_X = 0.25;
 export const BIG_FISH = SPECIES.filter((s) => s.grade !== 'common').map((s) => s.id); // 희귀 8 + 전설 2 (rules.js 순서 = 서버 42 순서)
 export const BIG_SWING = { rare: [0.8, 0.4], legend: [0.5, 1.0] }; // [가장 낮은 배율, 폭] — 희귀 0.8~1.2 · 전설 0.5~1.5
+// 📰 소식 목록 — [날씨(null = 보통), 물고기, 1 오름 / -1 내림, 글] (순서 = 서버 43). 날씨마다 오름 2 · 내림 2, 보통은 5 · 5
+export const NEWS_X = { 1: 13, '-1': 7 }; // ×10
+export const WXS = ['clear', 'cloudy', 'rain', 'snow'];
+export const NEWS = [
+  ['clear', 'squid', 1, '☀️ 맑은 날 오징어 말리기 딱! 오징어 값 상승'],
+  ['clear', 'mackerel', -1, '☀️ 날이 좋아 고등어가 많이 잡혀요 — 고등어 값 하락'],
+  ['clear', 'yellowtail', 1, '☀️ 바다 소풍 날씨 — 방어회 인기! 방어 값 상승'],
+  ['clear', 'horse', -1, '☀️ 전갱이 풍년이에요 — 전갱이 값 하락'],
+  ['cloudy', 'moonhair', 1, '☁️ 구름에 달이 가려 달빛 갈치가 귀해요 — 달빛 갈치 값 상승'],
+  ['cloudy', 'rockfish', -1, '☁️ 흐린 날 볼락이 잘 물어요 — 볼락 값 하락'],
+  ['cloudy', 'octopus', 1, '☁️ 흐린 날엔 문어숙회! 문어 값 상승'],
+  ['cloudy', 'greenling', -1, '☁️ 노래미가 많이 들어왔어요 — 노래미 값 하락'],
+  ['rain', 'raindrop', 1, '🌧️ 비가 와서 빗방울 숭어 값 상승!'],
+  ['rain', 'mackerel', -1, '🌧️ 비 오는 날엔 고등어구이 손님이 뚝 — 고등어 값 하락'],
+  ['rain', 'puffer', 1, '🌧️ 비 오는 날엔 따끈한 복국! 복어 값 상승'],
+  ['rain', 'flounder', -1, '🌧️ 비 때문에 가자미 손님이 줄었어요 — 가자미 값 하락'],
+  ['snow', 'yellowtail', 1, '❄️ 눈 오는 날엔 방어회! 방어 값 상승'],
+  ['snow', 'squid', -1, '❄️ 눈 때문에 오징어 손님이 뚝 — 오징어 값 하락'],
+  ['snow', 'lattegoby', 1, '❄️ 추운 날 따뜻한 라테 생각 — 라테 망둥어 값 상승'],
+  ['snow', 'flounder', -1, '❄️ 가자미가 많이 들어왔어요 — 가자미 값 하락'],
+  [null, 'seabream', 1, '🎉 단체 손님 예약! 참돔 값 상승'],
+  [null, 'octopus', 1, '📺 TV에 문어 요리가 나왔어요! 문어 값 상승'],
+  [null, 'rockcod', 1, '🍲 우럭 매운탕이 인기예요! 우럭 값 상승'],
+  [null, 'goldball', 1, '🏓 탁구 대회 시즌! 황금 탁구공 물고기 값 상승'],
+  [null, 'greenling', 1, '🧑‍🍳 사장님 추천 노래미 조림! 노래미 값 상승'],
+  [null, 'blackporgy', -1, '🎣 감성돔 낚시 대회 — 감성돔이 많이 들어와 값 하락'],
+  [null, 'puffer', -1, '⚠️ 복어 손질 요리사가 휴가 — 복어 값 하락'],
+  [null, 'dragon', -1, '🌊 용왕님이 쉬는 날 — 경주 용왕 물고기 값 하락'],
+  [null, 'rockfish', -1, '🐟 볼락 떼가 몰려왔어요 — 볼락 값 하락'],
+  [null, 'lattegoby', -1, '☕ 바닷가 카페 쉬는 날 — 라테 망둥어 값 하락'],
+].map(([wx, id, dir, text]) => ({ wx, id, dir, text }));
+// 회차마다 저장된 날씨 (서버 pingpong_fish_news가 알려 줌) — 열쇠 = 회차 번호(day × 10 + idx)
+const newsWx = new Map();
+export const periodKey = (p) => p.day * 10 + p.idx;
+export function setNewsWx(list) { for (const r of list || []) if (WXS.includes(r.wx)) newsWx.set(+r.p, r.wx); }
+export const wxFor = (p) => newsWx.get(periodKey(p)) || null;
 const xs32 = (x) => { x >>>= 0; x = (x ^ (x << 13)) >>> 0; x = (x ^ (x >>> 17)) >>> 0; return (x ^ (x << 5)) >>> 0; };
 export const QUAL_X = [8, 10, 11, 13]; // 별 0~3개의 값 배율 × 10 (서버 41과 같게)
 export const QUAL_DEF = 1; // 별 모르는 것(41 전에 잡은 것)은 ★ ×1.0
@@ -47,7 +86,14 @@ export const prevPeriod = (p) => (p.idx > 1 ? { day: p.day, idx: p.idx - 1 } : {
 export const periodLabel = (p) => { const m = STARTS[p.idx - 1]; return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
 
 // 그 회차의 시세 { 물고기 id(17종 모두): 값(0.1코인 단위 정수, 예 24 = 2.4코인) } + jackpot(id, 일반 7종 중)
-export function prices(p) {
+// 그 회차의 소식 (wx = 그 회차 날씨, 모르면 null) — 대박 물고기 소식은 뺌. 서버 43 pingpong__fish_news_pick과 같게
+export function newsOf(p, wx, jackpot) {
+  const r = seeded(xs32(xs32(99001 + periodKey(p) * 7919)));
+  const a = r(), b = r();
+  const pool = NEWS.filter((n) => n.id !== jackpot && (WXS.includes(wx) && a < 0.5 ? n.wx === wx : n.wx === null));
+  return pool[Math.floor(b * pool.length)] || null;
+}
+export function prices(p, wx = wxFor(p)) {
   const r = seeded(77003 + (p.day * 10 + p.idx) * 7919);
   const j = Math.floor(r() * MARKET_FISH.length);
   const out = {};
@@ -60,7 +106,9 @@ export function prices(p) {
     const g = SPECIES.find((s) => s.id === id).grade, [lo, span] = BIG_SWING[g];
     out[id] = Math.floor(FISH_COINS[g] * 10 * (lo + r2() * span) + 0.5);
   }
-  return { list: out, jackpot: MARKET_FISH[j] };
+  const news = newsOf(p, wx, MARKET_FISH[j]);
+  if (news) out[news.id] = Math.floor((out[news.id] * NEWS_X[news.dir] + 5) / 10);
+  return { list: out, jackpot: MARKET_FISH[j], news, wx };
 }
 // 물고기 하나의 지금 값(0.1코인 단위) — 별 q면 × 배율 후 반올림 (서버 pingpong__fish_qprice)
 export function priceOf(id, ms, q = QUAL_DEF) {

@@ -5,6 +5,7 @@ import { ONLINE, getClient } from './net.js';
 import { koreaDay } from './missions.js';
 import { nowMs } from './breaks.js';
 import { localServer } from './localServer.js'; // 서버 설정이 없을 때 쓰는 가짜 서버
+import { period, periodKey, setNewsWx } from './games/fishing/market.js';
 
 // ?acct=2 처럼 주소에 붙이면 열쇠를 따로 보관한다 (한 브라우저에서 탭마다 다른 계정으로 테스트할 때)
 const ACCT = new URLSearchParams(location.search).get('acct');
@@ -320,6 +321,20 @@ export async function fishFinish(castId, ok, perfect, q = null) {
 // 🎒 가방 · 🍣 팔기 (35_fish_bag.sql, fishing.md 7장). account.fishBag = [{ id, q(별 0~3, 41 전 서버면 없음), n }] · null = 모름(손님 또는 35 전 서버 → 횟집 숨김)
 // 시세 시각: 서버면 서버 시각, 로컬 가짜 서버면 ?clock= 시험 시각
 export const marketNow = () => (ONLINE ? srvNow() : nowMs());
+// 📰 시세 소식(43, fishing.md 13-1 ④): 지금 대구 날씨(wx, 모르면 null)를 알리고 최근 회차 날씨를 받아 market.js에 넣음
+// 지금 회차 날씨를 이미 알면 다시 안 부름(force면 부름). 로그인 안 해도 됨. 43 전 서버면 조용히 실패 → 소식은 보통 소식으로
+let newsAsk = 0;
+export const newsKnown = () => account.newsP === periodKey(period(marketNow()));
+export async function fishNews(wx = null, force = false) {
+  if (!force && newsKnown()) return true;
+  if (Date.now() - newsAsk < 15000 && !force) return false;
+  newsAsk = Date.now();
+  const r = await call('pingpong_fish_news', { p_wx: wx });
+  if (r?.status !== 'ok' || !Array.isArray(r.news)) return false;
+  setNewsWx(r.news);
+  if (r.news.some((n) => +n.p === +r.period)) account.newsP = +r.period;
+  return true;
+}
 export async function fishBagLoad() {
   if (!account.loggedIn) { account.fishBag = null; return null; }
   const r = await call('pingpong_fish_bag', { p_token: token() });

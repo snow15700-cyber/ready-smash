@@ -6,7 +6,9 @@
 import * as THREE from 'three';
 import { addBox, canvasTex, seeded, std } from './arena-kit.js';
 import { ARMS, BOARD, CAT_NOOK, CLIFF, HARBOR, LH_BASES, LIGHTHOUSES, MARKET, PIER, SEA_Y, STAIRS } from './campusLayout.js';
-import { BIG_FISH, MARKET_FISH, history, nextLabel, period } from './games/fishing/market.js';
+import { BIG_FISH, MARKET_FISH, history, nextLabel, period, wxFor } from './games/fishing/market.js';
+import { fishNews, newsKnown } from './account.js';
+import { liveWx } from './plazaSky.js';
 import { CATCH } from './games/fishing/rules.js';
 import { nowMs } from './breaks.js';
 import { makeCharacter } from './scene.js';
@@ -197,7 +199,7 @@ export function buildPierArea(anim = null) {
     face.position.set(B.x, top + 1.25, B.z + 0.015); face.userData.noBake = true; face.name = 'priceBoard'; g.add(face);
     let shown = '';
     const draw = () => {
-      const ms = nowMs(), p = period(ms), key = p.day + ':' + p.idx;
+      const ms = nowMs(), p = period(ms), key = p.day + ':' + p.idx + ':' + wxFor(p); // 📰 회차 날씨를 알게 되면 소식이 바뀌어 다시 그림
       if (key === shown) return;
       shown = key;
       const h = history(ms, 2), cur = h[1], prev = h[0];
@@ -214,7 +216,7 @@ export function buildPierArea(anim = null) {
         if (hot || leg) { c.fillStyle = hot ? 'rgba(255,140,60,.35)' : 'rgba(255,210,60,.2)'; c.fillRect(x, y - 24, 484, 48); }
         c.textAlign = 'left'; c.font = FONT(38); c.fillStyle = '#fffbe8';
         const nm = CATCH[id].name;
-        c.fillText(`${hot ? '🔥' : CATCH[id].emoji} ${nm.length > 6 ? nm.slice(0, 6) + '…' : nm}`, x + 8, y);
+        c.fillText(`${hot ? '🔥' : cur.news?.id === id ? '📰' : CATCH[id].emoji} ${nm.length > 6 ? nm.slice(0, 6) + '…' : nm}`, x + 8, y);
         c.textAlign = 'right'; c.fillText((v / 10).toFixed(1), x + 372, y);
         c.font = FONT(30); c.fillStyle = d > 0 ? '#ff7a7a' : d < 0 ? '#7ac0ff' : 'rgba(255,251,232,.55)';
         c.fillText(d > 0 ? `▲${(d / 10).toFixed(1)}` : d < 0 ? `▼${(-d / 10).toFixed(1)}` : '–', x + 478, y);
@@ -227,11 +229,19 @@ export function buildPierArea(anim = null) {
       rare.forEach((id, i) => line(526, 184 + i * 48, id));
       head(526, 584, '👑 전설');
       legend.forEach((id, i) => line(526, 632 + i * 50, id));
+      // 📰 소식 (13-1 ④): 왼쪽 아래, 줄 바꿈
+      if (cur.news) {
+        head(14, 584, '📰 소식');
+        c.font = FONT(32); c.fillStyle = '#fff3c4'; c.textAlign = 'left';
+        const words = `${cur.news.text} (${cur.news.dir > 0 ? '×1.3' : '×0.7'})`.split(' '), lines = [''];
+        for (const w of words) { const t = lines.at(-1) ? lines.at(-1) + ' ' + w : w; if (c.measureText(t).width > 470 && lines.at(-1)) lines.push(w); else lines[lines.length - 1] = t; }
+        lines.slice(0, 3).forEach((l, i) => c.fillText(l, 22, 628 + i * 40));
+      }
       tex.needsUpdate = true;
     };
     draw();
     let next = 0;
-    anim?.push((t) => { if (t > next) { next = t + 20; draw(); } });
+    anim?.push((t) => { if (t > next) { next = t + 20; draw(); if (!newsKnown()) fishNews(liveWx()).then((ok) => ok && draw()); } }); // 📰 회차 날씨를 알리고 받기(알면 안 부름)
   }
 
   // ── 🐾 고양이 쉼터 (동쪽 계단 아래): 상자 더미 · 방석 · 생선 바구니 · 밥그릇 · 작은 간판 (고양이는 cats.md 3단계)
