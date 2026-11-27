@@ -588,7 +588,7 @@ export function createFishing(opt) {
 
     // 기포 (모두가 같은 곳 — 시각으로 정함)
     S.bubbles = activeBubbles(clock() / 1000, TUNE.bubbles); // 서버 시각에 맞춘 시계 (모든 PC가 같은 기포)
-    for (const b of S.bubbles) if (!S.seenBubbles.has(b.id)) { S.seenBubbles.add(b.id); S.bubbleNote = { t: 0 }; }
+    for (const b of S.bubbles) if (!S.seenBubbles.has(b.id)) { S.seenBubbles.add(b.id); S.bubbleNote = { t: 0, genre: b.genre, mine: b.genre === standGenre(S.standX, S.standZ) }; }
     if (S.bubbleNote) { S.bubbleNote.t += rdt; if (S.bubbleNote.t > 3) S.bubbleNote = null; }
     bubbleFx.update(S.bubbles, S.now, rdt, seaHeight);
 

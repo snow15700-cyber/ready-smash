@@ -3,7 +3,7 @@
 //  공통: 의성어 · 판정 · 집중선 컷인 · 도장 '쾅' · 결과 카드 (소리 없이도 손맛)
 import * as THREE from 'three';
 import { GRADE } from './data.js';
-import { PADDLE_DUP_PIECES, castDist, landingPoint } from './rules.js';
+import { GENRE_LABEL, PADDLE_DUP_PIECES, castDist, landingPoint } from './rules.js';
 import { seaHeight } from './world.js';
 import { stars } from './market.js';
 import { SEA_Y } from '../../campusLayout.js';
@@ -42,7 +42,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
   if (S.bubbleNote && S.mode !== 'fight' && S.mode !== 'land') {
     const a = clamp(Math.min(S.bubbleNote.t * 4, (3 - S.bubbleNote.t) * 2), 0, 1);
     g.globalAlpha = a;
-    const txt = '🫧 기포가 올라와요! 근처에 던지면 귀한 물고기가 잘 와요';
+    const txt = S.bubbleNote.mine || !S.bubbleNote.genre ? '🫧 내 앞 바다에 기포가 올라와요! 근처에 던지면 귀한 물고기가 잘 와요' : `🫧 ${GENRE_LABEL[S.bubbleNote.genre]} 자리 바다에 기포가 올라와요`; // 13-3 🫧 어느 자리인지
     g.font = UI(700, clamp(m * 0.026, 12, 16)); const tw = g.measureText(txt).width + 28;
     glass(g, W / 2 - tw / 2, 58, tw, 34, 17); g.fillStyle = '#bff3ff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, W / 2, 76);
     g.globalAlpha = 1;

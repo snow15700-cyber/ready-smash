@@ -87,15 +87,22 @@ export const BUBBLE_SLOT = { normal: 114, often: 50 }; // often = 시안 시험�
 // 서버의 LCG와 같은 난수 (s·1664525 + 1013904223) mod 2³² — 곱이 2⁵³보다 작아서 JS 숫자로도 정확. 식은 util.js에 하나만
 import { seeded } from '../../util.js';
 export { seeded };
+// 13-3 🫧 (11/27 사용자 확정, 47_fish_bubbles_arms.sql): 기포마다 세 자리(앞 판 · 서쪽 팔 · 동쪽 팔) 중 하나를 같은 확률로 고르고,
+//   그 자리 바다 쪽 가장자리에서 던진 자리 → 앞 판은 남쪽 바다, 팔은 바깥 바다(앞·옆) — 세 장르 모두 기포 기회가 같음
+export const BUBBLE_EDGE = [ // [서는 곳 번호 = STANDS·STAND_GENRE 순서]: 던지는 가장자리 선
+  { x0: STAND.xMin, x1: STAND.xMax, z0: STAND.z, z1: STAND.z }, // 앞 판 앞줄
+  { x0: -5.3, x1: -5.3, z0: 46.5, z1: 56.8 }, // 서쪽 팔 바깥 줄
+  { x0: 27.3, x1: 27.3, z0: 46.5, z1: 56.8 }, // 동쪽 팔 바깥 줄
+];
 export function slotBubbles(n, len) {
   const r = seeded(91731 + n * 7919);
   const count = r() < 0.5 ? 1 : 2;
   const out = [];
   for (let i = 0; i < count; i++) {
-    const standX = STAND.xMin + r() * (STAND.xMax - STAND.xMin);
-    const p = landingPoint(standX, r() * 2 - 1, 0.05 + r() * 0.9);
+    const k = Math.min(2, Math.floor(r() * 3)), E = BUBBLE_EDGE[k], u = r();
+    const p = landingPoint(E.x0 + u * (E.x1 - E.x0), r() * 2 - 1, 0.05 + r() * 0.9, E.z0 + u * (E.z1 - E.z0));
     const start = n * len + r() * BUBBLE_JITTER;
-    out.push({ id: `${n}-${i}`, x: p.x, z: p.z, start, end: start + BUBBLE_LIFE });
+    out.push({ id: `${n}-${i}`, x: p.x, z: p.z, start, end: start + BUBBLE_LIFE, genre: STAND_GENRE[k] });
   }
   return out;
 }

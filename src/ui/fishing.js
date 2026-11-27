@@ -328,7 +328,7 @@ function pierBubbles(now, p) {
   const list = activeBubbles(srvNow() / 1000);
   pb.bfx.update(list, now, dt, seaHeight);
   pb.fx.update(dt);
-  for (const b of list) if (!pbSeen.has(b.id)) { pbSeen.add(b.id); toastHud.toast(`🫧 기포가 올라왔어요! ${Math.ceil(b.left)}초 동안 — 기포 위로 던지면 잘 잡혀요`, 2600); }
+  for (const b of list) if (!pbSeen.has(b.id)) { pbSeen.add(b.id); toastHud.toast(`🫧 ${GENRE_LABEL[b.genre] || ''} 자리 바다에 기포가 올라왔어요! ${Math.ceil(b.left)}초 동안 — 기포 위로 던지면 잘 잡혀요`, 2600); } // 13-3 🫧 어느 자리인지
 }
 function frame(now, p, walking) {
   // 버튼: 낚시 판 위에 서 있으면 (걷는 중·탁구대 자리·창이 떠 있으면 안 보임)
