@@ -96,7 +96,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
     }
     // 세기 막대 (누르는 동안): 가까이 ~ 멀리, 박 눈금(4박이면 3줄)
     if (S.charge || S.power > 0.01) {
-      const tw = 180 * u, ch = 12 * u, x0 = W / 2 - tw / 2, y0 = H - 128;
+      const tw = 180 * u, ch = 12 * u, x0 = W / 2 - tw / 2, y0 = H - (W < 560 ? 168 : 128); // 휴대폰은 손가락·화면 아래 막대에 안 가리게 더 위로
       glass(g, x0 - 12, y0 - 26, tw + 24, ch + 36, 12);
       g.font = UI(700, 12); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillText(`세기 ${Math.round(castDist(S.power))}m`, W / 2, y0 - 13);
@@ -275,7 +275,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
   const hint = hints[S.mode];
   if (hint) {
     g.font = UI(700, clamp(m * 0.032, 14, 20));
-    const tw = g.measureText(hint).width + 34, th = 40, hy = H - 74;
+    const tw = g.measureText(hint).width + 34, th = 40, hy = H - (W < 560 ? 104 : 74);
     glass(g, W / 2 - tw / 2, hy - th / 2, tw, th, th / 2);
     g.fillStyle = /지금/.test(hint) ? '#FF8A1F' : '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(hint, W / 2, hy + 1);
   }
