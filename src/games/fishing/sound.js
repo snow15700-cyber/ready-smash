@@ -54,23 +54,13 @@ export const snd = {
   swing: () => noise(0.3, { f: 500, f2: 2800, q: 2, gain: 0.22 }),
   land: () => { tone(800, 220, 0.12, { gain: 0.14 }); noise(0.15, { type: 'lowpass', f: 1800, gain: 0.08 }); },
   tok: () => { tone(1300, 900, 0.05, { gain: 0.16 }); tone(700, 500, 0.04, { gain: 0.08, at: 0.01 }); },
-  plunge: () => { tone(260, 60, 0.35, { gain: 0.45 }); noise(0.4, { type: 'lowpass', f: 1400, f2: 250, gain: 0.35 }); }, // 묵직한 '풍덩!'
-  popUp: () => { tone(420, 1100, 0.09, { gain: 0.18 }); }, // 가짜 풍덩이 다시 튀어 오름 '뽁'
   wiggle: () => { tone(900, 700, 0.04, { gain: 0.08 }); }, // 가짜 풍덩의 약한 떨림 하나
   alert: () => { tone(260, 60, 0.35, { gain: 0.45 }); noise(0.4, { type: 'lowpass', f: 1400, f2: 250, gain: 0.35 }); tone(1320, 1760, 0.12, { type: 'square', gain: 0.05, at: 0.02 }); }, // 진짜: 쑥 + '!'
-  beat: (accent) => { noise(0.03, { f: accent ? 2000 : 2600, q: 5, gain: accent ? 0.2 : 0.11 }); if (accent) tone(110, 70, 0.08, { type: 'triangle', gain: 0.18 }); }, // 릴 '탁' 박자
-  noteHit: (perfect) => { tone(perfect ? 1568 : 1175, perfect ? 1568 : 1175, 0.09, { type: 'triangle', gain: 0.14 }); noise(0.05, { f: 2400, q: 3, gain: 0.18 }); for (let i = 0; i < 4; i++) noise(0.02, { f: 2400, q: 6, gain: 0.1, at: 0.04 + i * 0.03 }); },
   noteMiss: () => { for (let i = 0; i < 7; i++) noise(0.02, { f: 4300, q: 9, gain: 0.1, at: i * 0.025 }); tone(300, 200, 0.15, { type: 'triangle', gain: 0.08 }); },
-  shatter: () => { noise(0.16, { type: 'highpass', f: 3500, gain: 0.18 }); tone(1800, 1200, 0.08, { type: 'triangle', gain: 0.06 }); },
-  patience: () => [880, 1320].forEach((f, i) => tone(f, f, 0.16, { type: 'triangle', gain: 0.1, at: i * 0.07 })), // ✨ 참기
   hook: (grade) => { tone(170, 55, 0.22, { type: 'triangle', gain: 0.55 }); noise(0.09, { f: 3000, q: 0.7, gain: 0.35 }); if (grade === 'Perfect') tone(1568, 1568, 0.2, { type: 'triangle', gain: 0.12, at: 0.05 }); },
   miss: () => { tone(330, 200, 0.25, { type: 'triangle', gain: 0.14 }); tone(220, 140, 0.35, { type: 'triangle', gain: 0.14, at: 0.16 }); },
   runLine: () => { for (let i = 0; i < 26; i++) noise(0.025, { f: 3600 + i * 40, q: 9, gain: 0.13, at: i * 0.028 }); tone(200, 90, 0.5, { type: 'triangle', gain: 0.3 }); }, // 단계가 올라갈 때 줄이 확 풀림 '지이이익'
-  reel: () => noise(0.022, { f: 2400 + Math.random() * 400, q: 6, gain: 0.15 }),
-  drag: () => noise(0.02, { f: 4300 + Math.random() * 500, q: 9, gain: 0.12 }),
-  pump: (good) => { tone(good ? 240 : 180, 90, 0.18, { type: 'triangle', gain: 0.4 }); noise(0.12, { f: 1500, gain: 0.2 }); },
   splash: (k = 1) => noise(0.45, { type: 'lowpass', f: 2400, f2: 300, gain: 0.3 * k }),
-  snap: () => { noise(0.12, { type: 'highpass', f: 3000, gain: 0.55 }); tone(1500, 180, 0.28, { type: 'square', gain: 0.1 }); },
   stamp: () => { tone(120, 60, 0.18, { type: 'triangle', gain: 0.5 }); noise(0.06, { type: 'lowpass', f: 900, gain: 0.3 }); },
   win: (legend) => (legend ? [523, 659, 784, 1047, 1319] : [523, 659, 784, 1047]).forEach((f, i) => tone(f, f, 0.26, { type: 'triangle', gain: 0.16, at: 0.25 + i * 0.09 })),
 };

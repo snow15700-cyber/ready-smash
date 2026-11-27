@@ -3,12 +3,8 @@
 import * as THREE from 'three';
 import { addBox, canvasTex, std } from '../../arena-kit.js';
 
-export { SEA_Y } from '../../campusLayout.js'; // 광장 바다 높이 (낚시 12장: −6)
-import { SEA_Y } from '../../campusLayout.js';
-// 선착장: 해변(z 48)에서 바다 쪽으로 다리 약 14m → 끝 넓은 판 (사람 4~5명)
-export { PIER } from '../../campusLayout.js'; // 자리는 광장 배치 파일 한곳에서
-import { STAND } from './rules.js';
-export { STAND, CAST_MIN, CAST_MAX, CAST_ANG, castDist, landingPoint } from './rules.js'; // 던지기 계산은 rules.js (서버와 같게)
+import { SEA_Y } from '../../campusLayout.js'; // 광장 바다 높이 (낚시 12장: −6)
+// 선착장 자리(PIER)는 campusLayout.js, 던지기 계산(STAND·landingPoint 등)은 rules.js에서 바로 불러 쓰기
 
 // 바다 물결 높이 (src/campusFx.js의 셰이더와 같은 식 — 찌·그림자가 물결을 따라 오르내리게)
 const WAVES = [[0.3, 1.0, 26, 0.55, 1.1], [-0.6, 0.8, 15, 0.32, 1.5], [0.9, 0.4, 11, 0.18, 2.1]].map(([dx, dy, L, A, s]) => {
@@ -20,8 +16,6 @@ export function seaHeight(x, z, t) {
   for (const w of WAVES) h += w.A * Math.sin(w.k * (w.dx * px + w.dy * py) + t * w.s);
   return SEA_Y + h;
 }
-
-const wood = std(0xa8794a, { roughness: 0.85 }), woodDark = std(0x6e4a2b, { roughness: 0.9 }), rope = std(0xd9c9a0);
 
 // 선착장·계단은 이제 광장 장면(buildCampus → src/campusPier.js)에 들어 있음 — 시안에서 따로 안 더함
 
@@ -85,8 +79,6 @@ export function makeLine() {
   return { line, set, mat };
 }
 
-// ── 던지는 자리 (자유롭게, 11/25 사용자 확정): aim −1(왼쪽 끝) ~ 1(오른쪽 끝, 화면 기준) = 부채꼴 ±40°
-//    power 0~1 = 거리 6m ~ 18m. 바다(+z)를 보고 서 있어서 화면 오른쪽 = 세계 −x
 // ── 긴 막대찌 + 빛나는 끝 (사용자 확정 11/25): 잠기면 막대가 쏙 사라짐. 원점 = 물에 뜨는 자리(물 높이)
 export function makeBobber() {
   const g = new THREE.Group();

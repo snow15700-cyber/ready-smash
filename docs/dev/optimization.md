@@ -19,7 +19,7 @@
 | 순서 | 할 일 | 좋아지는 정도 | 고장 위험 | 진행 |
 |---|---|---|---|---|
 | 1 | A 물고기 모형 메모리 쌓임 + B 채팅 매 프레임 + C 꺼진 소리 | 큼 | 낮음 | ✓ test (11/26) |
-| 2 | 안 쓰는 것 지우기 + 꼬인 곳 정리 (아래 2·3장) | 작음~중간 | 거의 없음 | |
+| 2 | 안 쓰는 것 지우기 + 꼬인 곳 정리 (아래 2·3장) | 작음~중간 | 거의 없음 | ✓ test (11/27) |
 | 3 | D 도장 페이드인 (겉모습이 바뀜 → 사용자 확인 먼저) | 작음 | 거의 없음 | |
 
 ### 1장. 실제로 손해가 나는 곳
@@ -53,6 +53,11 @@
   → `g.globalAlpha = ...`가 주석 안이라 실행 안 됨. 주석 밖으로 빼면 도장이 0.12초 동안 서서히 진해짐.
 
 ### 2장. 꼬인 곳 (같은 일을 여러 곳에서)
+
+> **2번 한 것(11/27, test)**: 2장·3장 모두. '싸우는 중' 확인은 `F.busy()`로, 횟집 여는 코드는 `openShopWin()` 하나(낚시 화면 🍣 버튼도 불러오기 실패 시 안내가 뜸).
+> `bubbles.js` 지움, `world.js`·`data.js`는 다시 내보내기 안 함(쓰는 쪽이 `rules.js`·`campusLayout.js`에서 바로). `rules.js`의 `seeded`는 `util.js` 것을 다시 내보냄(Node에서도 불러와짐 확인).
+> 밤 계산은 `isNight`, `dbg`는 `fakeRhythm`·`fakeCast`로 나눔(이름 그대로). 안 쓰는 소리 10개·재료 3개·`standZ`·`sizeK`·크기의 `k`·`FISH`의 옛 값·`zoomOnNow`·`camFov0`·같은 갈래 문구 지움.
+> 확인: 빌드 · 시안 `catchNow`/`fightNow`/던지기 · 광장에서 낚시 켜기 → 잡기 → 결과 → 그만하기, 오류 0개.
 
 - **"싸우는 중인가" 확인 4번**: `ui/fishing.js`에 `F && !(F.S.mode === 'ready' || F.S.mode === 'result')`(또는 반대)가 도감·횟집·고양이 버튼, `fishHooks.openMarket`에 따로 있음. `session.js`가 이미 `busy()`를 돌려줌 → `F?.busy()`로.
 - **횟집 여는 코드 두 벌**: `ui/fishing.js`의 `$('fish-shop')` 클릭 처리와 `fishHooks.openMarket`(둘 다 `shopMod ||= import(...)` + `openShop({ onSold })`) → 함수 하나로.

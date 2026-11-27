@@ -8,18 +8,18 @@
 //   onEvent: { k: 'cast', to: [x, z] } · { k: 'bite' } · { k: 'catch', c, cm, grade } · { k: 'miss' } · { k: 'ready' }
 import * as THREE from 'three';
 import { makeCharacter } from '../../scene.js';
-import { BIG_CM, FISH, GRADE, PADDLE_DUP_PIECES, STAGES, STAGE_FISH, TUNE, biteSeq, fishSize, pickCatch, stageOf } from './data.js';
+import { FISH, GRADE, STAGES, STAGE_FISH, TUNE, biteSeq, pickCatch, stageOf } from './data.js';
 import { addPaddle, dexOpen, fishCount, modelImage, openDex, ownedPaddles, recordCatch } from './dex.js';
-import { CATCH, LEGEND_PADDLES, clampStand, cmOfScore, luckDice, modelScale, sizeK, sizeTier, walkStand } from './rules.js';
+import { BIG_CM, CATCH, LEGEND_PADDLES, PADDLE_DUP_PIECES, STAND, activeBubbles, bubbleNear, clampStand, cmOfScore, fishSize, isNight, landingPoint, luckDice, modelScale, sizeTier, walkStand } from './rules.js';
+import { PIER, SEA_Y } from '../../campusLayout.js';
 import { fishCast, fishFinish } from '../../account.js';
 import { ACH } from '../../achievements.js';
 import { makeModel } from './models.js';
 import { ITEM, makePaddle, paddleImage } from '../../items.js';
 import { breakAt } from '../../breaks.js';
-import { activeBubbles, bubbleNear } from './bubbles.js';
 import { audioCtx, audioLag, initSound, quietSound, snd, tickSound } from './sound.js';
 import { makePhrase, makeSong, playBeat, playFinish, playMelody } from './rhythm.js';
-import { PIER, SEA_Y, STAND, landingPoint, makeBobber, makeBubbleFx, makeFishModel, makeLine, makeRod, makeSplashes, seaHeight } from './world.js';
+import { makeBobber, makeBubbleFx, makeFishModel, makeLine, makeRod, makeSplashes, seaHeight } from './world.js';
 import { drawHud, zoomRect } from './hud.js';
 import { BEAT } from './beat.js';
 import { makeBeatFx } from './beatFx.js';
@@ -59,12 +59,26 @@ export function createFishing(opt) {
     rodPitch: -0.95, rodPitchV: 0, bend: 0, camK: 0, rodKick: 0, hitstop: 0, slow: 0, shake: 0, zshake: 0, flash: 0, cutin: null, stamp: null,
     texts: [], judge: null, bubbles: [], bubbleNote: null, seenBubbles: new Set(),
   };
+  // 디버그: 리듬 없이 바로 잡기 연출 (점검·스크린샷용). 이름은 점검 스크립트가 씀
+  const fakeRhythm = () => ({ perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 });
+  const fakeCast = () => { // 준비 → 가운데로 바로 던진 것처럼 + 물고기·크기 정하기
+    const p = landingPoint(S.standX, 0, 0.5, S.standZ);
+    S.bob.set(p.x, 0, p.z); S.bobLanded = true;
+    S.fish = pickCatch(0, catchCtx()); S.size = rollSize(); S.grade = 'Perfect';
+    return p;
+  };
   const dbg = {
     S, TUNE, openDex,
-    // 디버그: 리듬 없이 바로 잡기 연출 (점검·스크린샷용). landNow = 던진 뒤(입질 기다리는 중) 바로 잡기 — 서버 연결 점검용
-    landNow: () => { if (S.mode !== 'wait' || !S.fish) return false; S.size = S.srvSize || rollSize(); S.grade = 'Perfect'; S.R = { perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 }; startLand(); return true; },
+    // landNow = 던진 뒤(입질 기다리는 중) 바로 잡기 — 서버 연결 점검용
+    landNow: () => { if (S.mode !== 'wait' || !S.fish) return false; S.size = S.srvSize || rollSize(); S.grade = 'Perfect'; S.R = fakeRhythm(); startLand(); return true; },
     online: () => isOn(),
-    catchNow: () => { if (S.mode !== 'ready') return; const p = landingPoint(S.standX, 0, 0.5, S.standZ); S.bob.set(p.x, 0, p.z); S.bobLanded = true; S.fish = pickCatch(0, catchCtx()); S.size = rollSize(); S.grade = 'Perfect'; S.R = { perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 }; startLand(); }, fightNow: () => { if (S.mode !== 'ready') return; const p = landingPoint(S.standX, 0, 0.5, S.standZ); S.bob.set(p.x, 0, p.z); S.bobLanded = true; S.cast = { to: new THREE.Vector3(p.x, 0, p.z) }; S.fish = pickCatch(0, catchCtx()); S.size = rollSize(); S.grade = 'Perfect'; startRhythm(); }, hit: () => pressNote(), stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(), cast: (aim = 0, power = 0.5) => { initSound(); castTo(aim, power); }, rt: () => (S.R ? nowS() - S.R.base : 0) };
+    catchNow: () => { if (S.mode !== 'ready') return; fakeCast(); S.R = fakeRhythm(); startLand(); },
+    fightNow: () => { if (S.mode !== 'ready') return; const p = fakeCast(); S.cast = { to: new THREE.Vector3(p.x, 0, p.z) }; startRhythm(); },
+    hit: () => pressNote(),
+    stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(),
+    cast: (aim = 0, power = 0.5) => { initSound(); castTo(aim, power); },
+    rt: () => (S.R ? nowS() - S.R.base : 0),
+  };
   const rnd = (a, b) => a + Math.random() * (b - a);
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   const DECK = PIER.y + 0.04;
@@ -80,18 +94,18 @@ export function createFishing(opt) {
     S.castId = c.id; S.near = c.near;
     S.fish = c.kind === 'paddle' ? { kind: 'paddle', id: c.item, name: LEGEND_PADDLES.find(([x]) => x === c.item)?.[1] || c.item, grade: 'rare', emoji: '🏓', dup: !!c.dup } : CATCH[c.item];
     const s = c.s != null ? +c.s : +c.cm; // s = 크기 점수(배율 × 50). 옛 서버(34 전)는 cm = 점수
-    S.srvSize = c.kind === 'fish' ? { cm: +c.cm, s, k: sizeK(s) } : { cm: 0, s: 0, k: 0.3 };
+    S.srvSize = c.kind === 'fish' ? { cm: +c.cm, s } : { cm: 0, s: 0 };
     return true;
   }
   // ⚙️ 크기 시험 (로그인 안 했을 때만): 'random' | 고정 점수(보통 50 = 1배). 서버 없을 때도 초보자 행운 주사위(이 브라우저 도감 기준)
   const rollSize = () => {
     const id = S.fish?.kind === 'fish' ? S.fish.id : null;
-    if (TUNE.size !== 'random') { const s = +TUNE.size; return { cm: cmOfScore(id, s), s, k: sizeK(s) }; }
+    if (TUNE.size !== 'random') { const s = +TUNE.size; return { cm: cmOfScore(id, s), s }; }
     return fishSize(id, luckDice({ caught: fishCount(), dayN: Infinity }));
   };
   function catchCtx() {
-    const h = new Date(Date.now() + 9 * 3600e3).getUTCHours(), c = TUNE.cond;
-    return { owned: ownedPaddles(), cond: c === 'auto' ? { break: !!breakAt(), night: h >= 19 || h < 6, rain: false } : { [c]: true } };
+    const c = TUNE.cond;
+    return { owned: ownedPaddles(), cond: c === 'auto' ? { break: !!breakAt(), night: isNight(Date.now()), rain: false } : { [c]: true } };
   }
 
   // ── 글자·판정
@@ -621,7 +635,6 @@ export function createFishing(opt) {
     update(dt, rdt);
     placeCamera();
   }
-  const zoomOnNow = () => zoomOn();
   // 3D를 그린 뒤: 오른쪽 아래 동그란 찌 확대 창 (동그란 테두리는 hud.js가 그림)
   function renderZoom(renderer, W, H) {
     if (!zoomOn()) return;
@@ -651,5 +664,5 @@ export function createFishing(opt) {
     }
     me.group.visible = on;
   }
-  return { S, me, dbg, frame, renderZoom, hud, press, release, moveDrag, keyDown, keyUp, resumeAfter, standAt, setActive, busy: () => S.mode !== 'ready' && S.mode !== 'result', zoomOn: zoomOnNow, camera };
+  return { S, me, dbg, frame, renderZoom, hud, press, release, moveDrag, keyDown, keyUp, resumeAfter, standAt, setActive, busy: () => S.mode !== 'ready' && S.mode !== 'result', zoomOn, camera };
 }

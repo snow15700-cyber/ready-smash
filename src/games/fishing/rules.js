@@ -36,7 +36,6 @@ export function walkStand(x, z, dx) {
   const R = STANDS.find((q) => x >= q.x0 - 1e-6 && x <= q.x1 + 1e-6 && z >= q.z0 - 1e-6 && z <= q.z1 + 1e-6) || STANDS[0];
   return clamp(x + dx, R.x0, R.x1);
 }
-export const standZ = (z) => clamp(z ?? STAND.z, STAND.zBack, STANDS[1].z1);
 // 찌가 떨어지는 곳: 판 위면 같은 방향으로 판 밖(+0.6m)까지 (최대 4번 — 앞 판 → 팔 → 물)
 export function landingPoint(standX, aim, power, z = STAND.z) {
   const [sx, sz] = clampStand(standX, z ?? STAND.z);
@@ -57,11 +56,9 @@ export function landingPoint(standX, aim, power, z = STAND.z) {
 // 11/25 사용자: 1.8~2분마다 1~2곳, 기포는 30초 → 칸 시작 + 0~6초에 나타남(칸끼리 108~120초 간격)
 export const BUBBLE_LIFE = 30, BUBBLE_JITTER = 6;
 export const BUBBLE_SLOT = { normal: 114, often: 50 }; // often = 시안 시험용(서버는 normal만)
-// 서버의 LCG와 같은 난수 (s·1664525 + 1013904223) mod 2³² — 곱이 2⁵³보다 작아서 JS 숫자로도 정확
-export function seeded(seed) {
-  let s = seed >>> 0;
-  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
-}
+// 서버의 LCG와 같은 난수 (s·1664525 + 1013904223) mod 2³² — 곱이 2⁵³보다 작아서 JS 숫자로도 정확. 식은 util.js에 하나만
+import { seeded } from '../../util.js';
+export { seeded };
 export function slotBubbles(n, len) {
   const r = seeded(91731 + n * 7919);
   const count = r() < 0.5 ? 1 : 2;
@@ -168,10 +165,10 @@ export function luckyU(dice, rnd = Math.random) {
   for (let i = 0; i < Math.max(1, dice); i++) u = Math.max(u, rnd());
   return u;
 }
-// 크기 뽑기: { cm, s(점수), k(0~1 예전 쓰임새) }. id 없으면(시안) 보통 크기 50
+// 크기 뽑기: { cm, s(점수) }. id 없으면(시안) 보통 크기 50
 export function fishSize(id, dice = 1, rnd = Math.random) {
   const s = round1(cmOf(luckyU(dice, rnd)));
-  return { cm: cmOfScore(id, s), s, k: sizeK(s) };
+  return { cm: cmOfScore(id, s), s };
 }
 // 크기 등급 (도장·컷인·결과 카드) — 점수 s로: 🏆 월척 88(1.76배) · 🐋 대물 110(2.2배) · 👑 괴물 150(3배)
 export const SIZE_TIERS = [
@@ -182,7 +179,6 @@ export const SIZE_TIERS = [
 export const sizeTier = (s) => SIZE_TIERS.find((t) => s >= t.min) || null;
 // 모형 크기(배, 점수 s로): 20 0.55 · 46 약 0.95 · 88 약 1.6 · 150 2.5 · 200 3.25 · 최대 5
 export const modelScale = (s) => Math.min(5, 0.55 + (s - SIZE_MIN) * 0.015);
-export const sizeK = (s) => Math.min(1, Math.max(0, (s - SIZE_MIN) / 80)); // 0~1 (예전 쓰임새)
 
 // ── 코인 (사용자 확정 11/25): 일반 3 · 희귀 8 · 전설 20 · 잡동사니·탁구채 0. 쉬는 시간 +50%(세트 '휴가 중'이면 더)
 export const FISH_COINS = { common: 3, rare: 8, legend: 20 };

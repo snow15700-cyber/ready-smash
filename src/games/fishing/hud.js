@@ -2,8 +2,9 @@
 //  준비: 떨어질 자리 표시(끄는 동안 따라옴) · 세기 막대 · 기포 표시 / 입질: 찌 확대 창 테두리 · '!' / 줄다리기: 가운데 기본 원 + 줄어드는 원 · 거리 게이지
 //  공통: 의성어 · 판정 · 집중선 컷인 · 도장 '쾅' · 결과 카드 (소리 없이도 손맛)
 import * as THREE from 'three';
-import { GRADE, PADDLE_DUP_PIECES } from './data.js';
-import { castDist, landingPoint, seaHeight } from './world.js';
+import { GRADE } from './data.js';
+import { PADDLE_DUP_PIECES, castDist, landingPoint } from './rules.js';
+import { seaHeight } from './world.js';
 
 const JUA = (px) => `${Math.round(px)}px Jua, 'Pretendard Variable', sans-serif`;
 const UI = (w, px) => `${w} ${Math.round(px)}px 'Pretendard Variable', system-ui, sans-serif`;

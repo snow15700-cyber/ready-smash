@@ -65,21 +65,23 @@ document.head.appendChild(css);
 
 $('fish-start').addEventListener('click', (e) => { e.stopPropagation(); start(); });
 $('fish-stop').addEventListener('click', (e) => { e.stopPropagation(); stop(); });
-$('fish-dex').addEventListener('click', (e) => { e.stopPropagation(); if (F && (F.S.mode === 'ready' || F.S.mode === 'result')) mod.openDex(); });
+$('fish-dex').addEventListener('click', (e) => { e.stopPropagation(); if (F && !F.busy()) mod.openDex(); });
 // 🍣 횟집 (fishing.md 14-6, 1a: 낚시 화면 버튼 — 선착장 건물은 1b). 35 전 서버·손님이면 가방을 몰라서 숨김
 let shopMod = null;
 $('fish-shop').addEventListener('click', async (e) => {
   e.stopPropagation();
-  if (F && !(F.S.mode === 'ready' || F.S.mode === 'result')) { toastHud.toast('물고기를 다 낚은 뒤에 가요', 1800); return; }
-  shopMod ||= await import('../games/fishing/shop.js');
-  shopMod.openShop({ onSold: () => { renderMe(); bagBtn(); } });
+  if (F?.busy()) { toastHud.toast('물고기를 다 낚은 뒤에 가요', 1800); return; }
+  openShopWin();
 });
-// 선착장 🍣 횟집 건물·📈 칠판을 누르면 (14장 1b, ui/plaza.js onSpot → 문 앞까지 걸어간 뒤) 낚시 안 해도 횟집 창
-fishHooks.openMarket = async () => {
-  if (on && F && !(F.S.mode === 'ready' || F.S.mode === 'result')) return;
-  if (!account.loggedIn) { toastHud.toast('🍣 로그인하면 잡은 물고기를 가방에 모아 여기서 팔 수 있어요', 2600); return; }
+async function openShopWin() {
   try { shopMod ||= await import('../games/fishing/shop.js'); } catch { toastHud.toast('횟집을 불러오지 못했어요. 다시 눌러 주세요', 2200); return; }
   shopMod.openShop({ onSold: () => { renderMe(); bagBtn(); } });
+}
+// 선착장 🍣 횟집 건물·📈 칠판을 누르면 (14장 1b, ui/plaza.js onSpot → 문 앞까지 걸어간 뒤) 낚시 안 해도 횟집 창
+fishHooks.openMarket = async () => {
+  if (on && F?.busy()) return;
+  if (!account.loggedIn) { toastHud.toast('🍣 로그인하면 잡은 물고기를 가방에 모아 여기서 팔 수 있어요', 2600); return; }
+  openShopWin();
 };
 function bagBtn() {
   const b = account.fishBag, el = $('fish-shop');
@@ -89,7 +91,7 @@ function bagBtn() {
 }
 $('fish-cats').addEventListener('click', async (e) => {
   e.stopPropagation();
-  if (F && !(F.S.mode === 'ready' || F.S.mode === 'result')) { toastHud.toast('물고기를 다 낚은 뒤에 봐요', 1800); return; }
+  if (F?.busy()) { toastHud.toast('물고기를 다 낚은 뒤에 봐요', 1800); return; }
   (await import('../games/cats/myCats.js')).openMyCats();
 });
 for (const id of ['fish-start', 'fish-stop', 'fish-dex', 'fish-shop', 'fish-cats']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -127,7 +129,6 @@ async function start() {
   F.me.group.rotation.y = camFrom.yaw;
   document.body.classList.add('fish-fade');
   plazaApi.view.setCamOff(true);
-  F.camFov0 = world.camera.fov;
   if (account.loggedIn) { syncServerClock(); fishDex().then((d) => { if (d) dexMod.setServerDex(d); }); fishBagLoad().then(bagBtn); }
   bagBtn();
   plazaApi.sendInfo();
@@ -294,7 +295,7 @@ fishHooks.onMsg = (m, p) => {
   lastCatch.set(m.id, now);
   const n = catchName(m); if (!n) return;
   plazaApi.view.say(m.id, `🎣 ${n.txt}!`);
-  if (n.big) toastHud.toast(`🎣 ${p.nick}님이 ${n.name || n.txt}${n.name ? '을(를)' : '을(를)'} 낚았어요!${n.legend ? ' 🌟' : ''}`, 3200);
+  if (n.big) toastHud.toast(`🎣 ${p.nick}님이 ${n.name || n.txt}을(를) 낚았어요!${n.legend ? ' 🌟' : ''}`, 3200);
 };
 fishHooks.onSay = (p, text) => { if (p) addChat(p.nick, text); };
 

@@ -1,7 +1,8 @@
 // 🐟 도감 (fishing.md 9장): 잡은 종·잡은 수·가장 큰 cm. 못 잡은 칸 = 검은 그림자 + 조건 아이콘. 물고기·잡동사니 탭.
 // 2단계 시안: 이 브라우저(localStorage)에만 기록. 서버·명예의 전당으로 옮기기는 3~4단계.
 import * as THREE from 'three';
-import { COND, GRADE, JUNK, SPECIES } from './data.js';
+import { GRADE } from './data.js';
+import { COND, JUNK, SPECIES } from './rules.js';
 import { scoreOfCm, sizeTier } from './rules.js';
 import { makeModel } from './models.js';
 
