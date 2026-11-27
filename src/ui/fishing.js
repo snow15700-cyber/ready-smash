@@ -174,19 +174,19 @@ function onEvent(ev) {
   } else if (ev.k === 'miss' || ev.k === 'ready') { if (me.b) { me.b = null; plazaApi.sendInfo(); } }
 }
 
-// ── 입력 (낚시 중에만): 누르기·끌어올리기는 광장 화면 위 어디서나
+// ── 입력 (낚시 중에만): 꾹 누르기(기 모으기)·좌우로 밀기는 광장 화면 위 어디서나
 const cv = world.renderer.domElement;
 cv.addEventListener('pointerdown', (e) => { if (!on || shopMod?.shopOpen()) return; e.preventDefault(); if (camFrom.t < 0.7) return; F.press({ x: e.clientX, y: e.clientY }); });
 addEventListener('pointermove', (e) => { if (on) F.moveDrag(e.clientX, e.clientY); });
 addEventListener('pointerup', (e) => { if (on) F.release(e.clientX, e.clientY); });
-addEventListener('pointercancel', () => { if (on) { F.S.drag = null; F.release(); } });
-addEventListener('blur', () => { if (on) { F.S.drag = null; F.release(); } });
+addEventListener('pointercancel', () => { if (on) { F.cancel(); } });
+addEventListener('blur', () => { if (on) { F.cancel(); } });
 addEventListener('keydown', (e) => {
   if (!on && e.code === 'Escape' && shopMod?.shopOpen()) { shopMod.closeShop(); return; } // 광장에서 연 횟집 창
   if (!on || e.target?.tagName === 'INPUT') return;
   if (shopMod?.shopOpen()) { if (e.code === 'Escape') shopMod.closeShop(); return; } // 횟집 창이 떠 있으면 낚시 키 안 먹음
   if (e.code === 'Escape') { if (!mod.dexOpen()) stop(); return; }
-  if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'KeyA' || e.code === 'KeyD') return; // 광장에서는 선 자리 그대로
+  if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'KeyA' || e.code === 'KeyD') { if (!F.S.charge?.key) return; } // 광장에서는 선 자리 그대로 (스페이스로 기 모으는 동안만 ←→ = 방향)
   if (camFrom.t < 0.7) return; // 카메라가 날아가는 동안은 던지지 않음
   F.keyDown(e);
 });

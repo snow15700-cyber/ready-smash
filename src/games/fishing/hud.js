@@ -1,5 +1,5 @@
 // 낚시 화면 (2D 캔버스, 3D 위에 겹침) — 리듬 방식 (fishing.md 8장)
-//  준비: 떨어질 자리 표시(끄는 동안 따라옴) · 세기 막대 · 기포 표시 / 입질: 찌 확대 창 테두리 · '!' / 줄다리기: 가운데 기본 원 + 줄어드는 원 · 거리 게이지
+//  준비: 꾹 누르는 동안 예상 범위 부채꼴(누를수록 길어짐) · 떨어질 자리 · 세기 막대(박 눈금) · 붉어짐(17장) · 기포 표시 / 입질: 찌 확대 창 테두리 · '!' / 줄다리기: 가운데 기본 원 + 줄어드는 원 · 거리 게이지
 //  공통: 의성어 · 판정 · 집중선 컷인 · 도장 '쾅' · 결과 카드 (소리 없이도 손맛)
 import * as THREE from 'three';
 import { GRADE } from './data.js';
@@ -46,9 +46,28 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
     g.globalAlpha = 1;
   }
 
-  // 준비: 떨어질 자리 표시 (자유 던지기 — 끄는 동안 방향·세기를 따라 움직임, 안 끌 때는 가운데 중간에 흐리게)
+  // 기 모으기(17장): 화면 전체가 조금씩 붉어짐(가장자리부터) + 박마다 숨 쉬듯
+  if (S.chargeV > 0.01) {
+    const pulse = S.B ? S.B.pulse * S.B.pulse : 0, a = S.chargeV * (0.32 + pulse * 0.18);
+    const grd = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.25, W / 2, H / 2, Math.hypot(W, H) * 0.6);
+    grd.addColorStop(0, `rgba(255,60,30,${a * 0.12})`); grd.addColorStop(1, `rgba(230,20,20,${a})`);
+    g.fillStyle = grd; g.fillRect(0, 0, W, H);
+  }
+  // 예상 범위 부채꼴 (17장, 사용자 요청): 가장 가까이(6m) ~ 지금 세기까지, 누를수록 앞으로 길어짐. 점선 = 끝까지 모으면 닿는 곳
+  if (S.mode === 'ready' && S.charge) {
+    const arc = (pw) => { const pts = []; for (let i = 0; i <= 16; i++) { const L = landingPoint(S.standX, -1 + i / 8, pw, S.standZ); pts.push(proj(new THREE.Vector3(L.x, seaHeight(L.x, L.z, S.now), L.z))); } return pts; };
+    const inner = arc(0), outer = arc(S.power), max = arc(1);
+    if (inner.every((p) => p.ok) && outer.every((p) => p.ok)) {
+      g.beginPath(); outer.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); for (let i = inner.length - 1; i >= 0; i--) g.lineTo(inner[i].x, inner[i].y); g.closePath();
+      g.fillStyle = `rgba(255,138,31,${0.14 + S.power * 0.12})`; g.fill();
+      g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,.35)'; g.stroke();
+      g.lineWidth = 3; g.strokeStyle = S.power >= 1 ? '#ff5a3a' : '#FF8A1F'; g.beginPath(); outer.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.stroke();
+      if (S.power < 1 && max.every((p) => p.ok)) { g.setLineDash([6, 8]); g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,.4)'; g.beginPath(); max.forEach((p, i) => (i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y))); g.stroke(); g.setLineDash([]); }
+    }
+  }
+  // 준비: 떨어질 자리 표시 (누르는 동안 방향·세기를 따라 움직임, 안 누를 때는 가운데 중간에 흐리게)
   if (S.mode === 'ready') {
-    const on = !!S.drag;
+    const on = !!S.charge;
     const L = landingPoint(S.standX, on ? S.aim : 0, on ? S.power : 0.5, S.standZ);
     const p = proj(new THREE.Vector3(L.x, seaHeight(L.x, L.z, S.now), L.z));
     if (p.ok) {
@@ -59,8 +78,8 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
       g.fillStyle = on ? '#FF8A1F' : 'rgba(255,255,255,.6)'; g.beginPath(); g.ellipse(0, 0, 3, 1.6, 0, 0, 7); g.fill();
       g.restore();
     }
-    // 세기 막대 (끄는 동안): 가까이 ~ 멀리
-    if (S.drag || S.power > 0.01) {
+    // 세기 막대 (누르는 동안): 가까이 ~ 멀리, 박 눈금(4박이면 3줄)
+    if (S.charge || S.power > 0.01) {
       const tw = 180 * u, ch = 12 * u, x0 = W / 2 - tw / 2, y0 = H - 128;
       glass(g, x0 - 12, y0 - 26, tw + 24, ch + 36, 12);
       g.font = UI(700, 12); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -70,6 +89,8 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
       g.fillStyle = 'rgba(255,255,255,.18)'; rr(g, x0, y0, tw, ch, 6); g.fill();
       const grd = g.createLinearGradient(x0, 0, x0 + tw, 0); grd.addColorStop(0, '#7fe3a0'); grd.addColorStop(0.5, '#ffd23a'); grd.addColorStop(1, '#FF8A1F');
       g.fillStyle = grd; rr(g, x0, y0, tw * clamp(S.power, 0, 1), ch, 6); g.fill();
+      const nb = TUNE.chargeBeats || 4; g.fillStyle = 'rgba(10,25,45,.45)';
+      for (let i = 1; i < nb; i++) g.fillRect(x0 + tw * i / nb - 1, y0, 2, ch);
     }
   }
 
@@ -227,7 +248,8 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
   // 안내 문구 (아래)
   const E = S.ev;
   const hints = {
-    ready: S.drag ? '위로 쭉! 빠를수록 멀리' : S.hint?.txt || '누른 채 위로 끌어올려 던지기 · 기울인 쪽으로 · 빠를수록 멀리',
+    ready: S.charge ? (S.power >= 1 ? '최대! 놓으면 던져요' : S.charge.key ? '꾹… 오래 누를수록 멀리 · ←→ 방향' : '꾹… 오래 누를수록 멀리 · 좌우로 밀어 방향')
+      : S.hint?.txt || '꾹 눌러 기 모으기 → 떼면 던지기 · 누른 채 좌우로 방향',
     cast: '',
     wait: S.alertT >= 0 ? '지금!' : E || S.evI >= 0 ? "참기… '!'가 뜨면 누르기" : "기다려요… '!'가 뜨면 누르기",
     fight: S.R && (S.R.rt ?? 0) > S.R.t0 - 2 * S.R.spb ? '원이 닿을 때 누르기 · 박자에 맞춰' : '',

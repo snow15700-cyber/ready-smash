@@ -51,6 +51,8 @@ export function autoLag() { if (!ac) return 0; return Math.min(0.4, Math.max(0, 
 export function audioLag() { return Math.min(0.5, Math.max(0, autoLag() + (TUNE.lag || 0))); }
 export const snd = {
   tap: () => { noise(0.025, { f: 1800, q: 4, gain: 0.07 }); }, // 노트가 없을 때 눌러도 '톡' (누른 게 느껴지게, 아주 작게)
+  charge: (k) => { const f = 330 * 2 ** (k * 1.25); tone(f, f * 1.02, 0.1, { type: 'triangle', gain: 0.07 }); }, // 기 모으기: 박마다 한 음씩 올라감 (17장)
+  chargeFull: () => { tone(880, 1320, 0.16, { type: 'triangle', gain: 0.12 }); noise(0.2, { type: 'highpass', f: 4000, gain: 0.08 }); }, // 끝까지 모음 '최대!'
   swing: () => noise(0.3, { f: 500, f2: 2800, q: 2, gain: 0.22 }),
   land: () => { tone(800, 220, 0.12, { gain: 0.14 }); noise(0.15, { type: 'lowpass', f: 1800, gain: 0.08 }); },
   tok: () => { tone(1300, 900, 0.05, { gain: 0.16 }); tone(700, 500, 0.04, { gain: 0.08, at: 0.01 }); },

@@ -54,8 +54,8 @@ export function makePhrase(song, rnd = Math.random) {
 }
 
 // 박 하나의 음악 (when = 오디오 시각). beat = 첫 노트 구절 시작부터 센 박 번호(음수 = 들어가는 마디)
-// heat = 달아오름 겹 수(0~3, session.js가 정함)
-export function playBeat(song, beat, when, spb, heat = 0) {
+// heat = 달아오름 겹 수(0~3, session.js가 정함) · light = 던지기·입질 기다리는 동안(17장): 드럼·베이스만 가볍게
+export function playBeat(song, beat, when, spb, heat = 0, light = false) {
   const ac = audioCtx(); if (!ac) return;
   const at = Math.max(0, when - ac.currentTime);
   const bar = Math.floor(beat / 4), inBar = ((beat % 4) + 4) % 4, phrase = Math.floor(bar / 4), inPhrase = ((bar % 4) + 4) % 4;
@@ -68,13 +68,14 @@ export function playBeat(song, beat, when, spb, heat = 0) {
   const kick = (a) => tone(150, 45, 0.18, { gain: 0.42, at: a });
   const snare = (a, g = 0.22) => { noise(0.12, { type: 'highpass', f: 1500, gain: g, at: a }); tone(210, 180, 0.05, { type: 'triangle', gain: 0.08, at: a }); };
   const hat = (a, g = 0.06) => noise(0.03, { type: 'highpass', f: 7000, gain: g, at: a });
-  if (fill) { for (let i = 0; i < 4; i++) snare(at + i * spb / 4, 0.1 + i * 0.05); }
-  else if (drum === 0) { if (inBar % 2 === 0) kick(at); else snare(at); hat(at); hat(at + spb / 2, 0.04); }
+  if (fill && !light) { for (let i = 0; i < 4; i++) snare(at + i * spb / 4, 0.1 + i * 0.05); }
+  else if (drum === 0 || light) { if (inBar % 2 === 0) kick(at); else snare(at); hat(at); hat(at + spb / 2, 0.04); }
   else if (drum === 1) { if (inBar === 0 || inBar === 2) kick(at); if (inBar === 2) kick(at + spb / 2); if (inBar % 2 === 1) snare(at); hat(at + spb / 2); }
   else { kick(at); hat(at + spb / 2, 0.08); if (inBar % 2 === 1) snare(at, 0.16); if (song.grade === 'legend') { hat(at + spb / 4, 0.03); hat(at + spb * 3 / 4, 0.03); } }
   // 베이스 (근음, 마디 둘째 박은 5도)
   const bn = base - 24 + (inBar === 2 ? 7 : 0);
-  tone(midi(bn), midi(bn), spb * 0.85, { type: 'triangle', gain: 0.16, at });
+  tone(midi(bn), midi(bn), spb * 0.85, { type: 'triangle', gain: light ? 0.12 : 0.16, at });
+  if (light) return;
   // 화음 (마디 첫 박에 부드럽게)
   if (inBar === 0) for (const iv of [0, q ? 3 : 4, 7]) tone(midi(base + iv), midi(base + iv), spb * 3.6, { type: 'sine', gain: 0.025, at });
   // 달아오름(16장 C): 겹이 늘면 그 박에 심벌 '챙' (줄면 조용히 빠짐)

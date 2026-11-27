@@ -55,12 +55,12 @@ autoLogin().then(async (r) => {
   const d = await fishDex(); if (d) setServerDex(d);
 });
 
-// ── 조작: 누르기/떼기 + 끌어올리기(던지기)
+// ── 조작: 꾹 누르기(기 모으기) → 떼면 던지기 (17장)
 canvas.addEventListener('pointerdown', (e) => { e.preventDefault(); F.press({ x: e.clientX, y: e.clientY }); });
 addEventListener('pointermove', (e) => F.moveDrag(e.clientX, e.clientY));
 addEventListener('pointerup', (e) => F.release(e.clientX, e.clientY));
-addEventListener('pointercancel', () => { S.drag = null; F.release(); });
-addEventListener('blur', () => { S.drag = null; F.release(); });
+addEventListener('pointercancel', () => { F.cancel(); });
+addEventListener('blur', () => { F.cancel(); });
 addEventListener('keydown', F.keyDown);
 addEventListener('keyup', F.keyUp);
 for (const b of document.querySelectorAll('#move button')) {
