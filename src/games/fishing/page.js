@@ -46,7 +46,10 @@ scene.add(root);
 let online = false;
 const F = createFishing({ scene, camera, canWalk: true, isOnline: () => online, clock: srvNow });
 const S = F.S;
-window.__fish = Object.assign(F.dbg, { S, TUNE, openDex, BEAT, scene }); // 같은 물건 (점검이 __fish.hold를 바꾸면 낚시가 바로 봄)
+const STAND_AT = { jazz: [11, 45.6], ballad: [-4, 51], rock: [26, 51] }; // ?stand=ballad 처럼 (13-3: 팔 자리 시험) 또는 ?stand=x,z
+const st = params.get('stand');
+if (st) { const p = STAND_AT[st] || st.split(',').map(Number); F.standAt(p[0], p[1]); if (STAND_AT[st] && !params.get('genre')) TUNE.genre = st; }
+window.__fish = Object.assign(F.dbg, { S, TUNE, openDex, BEAT, scene, standAt: F.standAt }); // 같은 물건 (점검이 __fish.hold를 바꾸면 낚시가 바로 봄)
 autoLogin().then(async (r) => {
   if (r !== 'ok' || !account.loggedIn) return;
   online = true;

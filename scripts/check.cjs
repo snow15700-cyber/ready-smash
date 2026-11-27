@@ -277,6 +277,11 @@ async function sqlCheck() {
         must(srvL[i] === p.x.toFixed(4) + ':' + p.z.toFixed(4), `36: 찌 자리가 서버와 화면이 달라요: ${q} 서버 ${srvL[i]} 화면 ${p.x.toFixed(4)}:${p.z.toFixed(4)}`);
         must(!R.WOOD.some((w) => p.x > w.x0 && p.x < w.x1 && p.z > w.z0 && p.z < w.z1), `36: 찌가 나무 판 위에 떨어져요: ${q} → ${p.x}, ${p.z}`);
       });
+      // 45: 팔에서는 바깥 바다 쪽으로 (서쪽 팔 → 서쪽, 동쪽 팔 → 동쪽), 절벽(z 43 밑)에는 안 떨어짐
+      for (const aim of [-1, 0, 1]) for (const pw of [0, 0.5, 1]) {
+        const w = R.landingPoint(-4, aim, pw, 52), e = R.landingPoint(26, aim, pw, 52), f = R.landingPoint(11, aim, pw, 44);
+        must(w.x < -6.5 && e.x > 28.5 && f.z > 46 && w.z >= 43 && e.z >= 43, `45: 던지는 방향이 이상해요: 서 ${w.x},${w.z} 동 ${e.x},${e.z} 앞 ${f.x},${f.z}`);
+      }
     }
     // 30: 서버 시각 (브라우저 기포 시계 맞추기) — anon으로 부를 수 있고 지금 시각
     const srvMs = JSON.parse(psql(DB, `set role anon; select public.pingpong_now()::text;`)).ms;

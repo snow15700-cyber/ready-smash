@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { account, fishBagLoad, fishDex, myEquip, srvNow, syncServerClock } from '../account.js';
 import { PLAZA } from '../arena-plaza.js';
 import { applyLook } from '../items.js';
-import { activeBubbles, CATCH, GENRE_LABEL, LEGEND_PADDLES, standGenre } from '../games/fishing/rules.js';
+import { activeBubbles, CATCH, GENRE_LABEL, LEGEND_PADDLES, standGenre, castHeading } from '../games/fishing/rules.js';
 import { makeBobber, makeBubbleFx, makeLine, makeRod, makeSplashes, seaHeight } from '../games/fishing/world.js';
 import { PIER, STAIRS, stairAt } from '../campusLayout.js';
 import { addon, plazaApi, registerAddon } from './plazaAddons.js';
@@ -152,8 +152,9 @@ function stop() {
   hg.clearRect(0, 0, hudCv.width, hudCv.height);
   // 낚시 카메라 자리에서 낚시 전 광장 카메라 자리로 부드럽게 돌아옴 (광장 카메라는 그대로 두었음 — 바다 쪽으로 돌리면 데크 난간 뒤에 숨음)
   const mf = plazaApi.view.figs.get(plazaApi.myId());
-  if (mf) mf.yaw = Math.PI; // 광장 캐릭터도 낚시 캐릭터처럼 바다를 보고 서 있게 (툭 돌지 않게)
-  F.me.group.rotation.y = Math.PI;
+  const sea = Math.PI + castHeading(F.S.standX, F.S.standZ); // 던지는 쪽 (팔에서는 서·동쪽 바다)
+  if (mf) mf.yaw = sea; // 광장 캐릭터도 낚시 캐릭터처럼 바다를 보고 서 있게 (툭 돌지 않게)
+  F.me.group.rotation.y = sea;
   plazaApi.view.blendFrom(world.camera.position, F.S.camLook, world.camera.fov, camFrom.t < 1 ? BLEND_OUT * Math.max(0.4, camFrom.t) : BLEND_OUT);
   camFrom.t = 1;
   clearTimeout(fadeT); fadeT = setTimeout(() => document.body.classList.remove('fish-fade'), 900);
@@ -348,7 +349,7 @@ function frame(now, p, walking) {
     const e = easeInOut(camFrom.t), c = world.camera;
     orbitBlend(c, camFrom.pos, camFrom.look, camTo.copy(c.position), F.S.camLook, e);
     c.fov = camFrom.fov + (c.fov - camFrom.fov) * e; c.updateProjectionMatrix();
-    const dy = Math.atan2(Math.sin(Math.PI - camFrom.yaw), Math.cos(Math.PI - camFrom.yaw));
+    const sea = Math.PI + castHeading(F.S.standX, F.S.standZ), dy = Math.atan2(Math.sin(sea - camFrom.yaw), Math.cos(sea - camFrom.yaw));
     F.me.group.rotation.y = camFrom.yaw + dy * Math.min(1, camFrom.t * 1.6); // 캐릭터가 바다 쪽으로 돎 (카메라보다 조금 먼저)
   }
   // 다른 사람 반투명 (새로 들어온 사람도)
@@ -370,7 +371,7 @@ registerAddon({
     market: (sp) => plazaApi.walkNear(sp.door, openMarket), // 🍣 횟집·📈 칠판 (14장 1b): 문 앞으로 걸어가서 횟집 창
   },
   takesOver: () => on,
-  face: (p) => (p.fi ? Math.PI : null), // 낚시 중이면 바다(+z) 쪽을 봄
+  face: (p) => (p.fi ? Math.PI + (p.w?.to ? castHeading(p.w.to[0], p.w.to[1]) : 0) : null), // 낚시 중이면 던지는 쪽 바다를 봄 (팔에서는 서·동쪽)
   spot: () => (on && F ? { x: F.S.standX, z: F.S.standZ, mode: F.S.mode } : null), // 고양이가 옆에 앉을 자리
   frame,
   hidden: () => { if (on) stop(); shopMod?.closeShop(); $('fish-start').classList.add('hidden'); pierBubbles(0, null); },

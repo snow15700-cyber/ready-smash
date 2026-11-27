@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { makeCharacter } from '../../scene.js';
 import { FISH, GRADE, STAGES, TUNE, biteSeq, pickCatch, stageOf, stageRhythm } from './data.js';
 import { addPaddle, dexOpen, fishCount, modelImage, openDex, ownedPaddles, recordCatch } from './dex.js';
-import { BIG_CM, CATCH, LEGEND_PADDLES, PADDLE_DUP_PIECES, SPECIES, STAND, activeBubbles, bubbleNear, clampStand, cmOfScore, fishSize, isNight, landingPoint, luckDice, modelScale, sizeTier, walkStand } from './rules.js';
+import { BIG_CM, CATCH, LEGEND_PADDLES, PADDLE_DUP_PIECES, SPECIES, STAND, activeBubbles, bubbleNear, castHeading, clampStand, standGenre, cmOfScore, fishSize, isNight, landingPoint, luckDice, modelScale, sizeTier, walkStand } from './rules.js';
 import { PIER, SEA_Y } from '../../campusLayout.js';
 import { fishCast, fishFinish } from '../../account.js';
 import { QUAL_X, qualityOf } from './market.js';
@@ -62,6 +62,11 @@ export function createFishing(opt) {
     rodPitch: -0.95, rodPitchV: 0, bend: 0, camK: 0, rodKick: 0, hitstop: 0, slow: 0, shake: 0, zshake: 0, flash: 0, cutin: null, stamp: null,
     texts: [], judge: null, bubbles: [], bubbleNote: null, seenBubbles: new Set(),
   };
+  // 던지는 쪽 (13-3 🐞 고침): 앞 판 = 남쪽 · 서쪽 팔 = 서쪽 · 동쪽 팔 = 동쪽 바다. at(r, f) = 내 자리에서 오른쪽 r · 앞으로 f 만큼 간 곳
+  const head = () => castHeading(S.standX, S.standZ);
+  const at = (r, f, h = head()) => { const fx = Math.sin(h), fz = Math.cos(h); return [S.standX - fz * r + fx * f, S.standZ + fx * r + fz * f]; };
+  const yawQ = new THREE.Quaternion(), UP = new THREE.Vector3(0, 1, 0);
+  const turnToSea = (o) => { const h = head(); if (h) o.quaternion.premultiply(yawQ.setFromAxisAngle(UP, h)); }; // 남쪽 기준으로 돌린 것을 던지는 쪽으로
   // 디버그: 리듬 없이 바로 잡기 연출 (점검·스크린샷용). 이름은 점검 스크립트가 씀
   const fakeRhythm = () => ({ perfects: 6, hits: 6, misses: 0, slack: 0, dist: 0, tilt: 0, bump: 0, reel: 0, notes: [], base: nowS(), t0: 0, spb: 0.6, side: 1 });
   const fakeCast = () => { // 준비 → 가운데로 바로 던진 것처럼 + 물고기·크기 정하기
@@ -445,7 +450,7 @@ export function createFishing(opt) {
       return;
     }
     const p = res === 'Perfect';
-    R.hits++; if (p) R.perfects++; heatAdd(R, p);
+    R.hits++; if (p) R.perfects++; heatAdd(R, p); BEAT.hit = 1; // 박자 친구들(13-3): 재즈 물개가 몸을 흔듦
     R.pcombo = p ? R.pcombo + 1 : 0; if (p && R.pcombo >= 2) n.combo = R.pcombo; // Perfect 연속: '×3' 글자
     if (n.tailOf) playRelease(R.song, n.beat, p); // 긴 노트 끝
     else playMelody(R.song, n.beat, p, Math.random, n.len ? n.tEnd - n.t : 0); // 내가 누른 소리가 멜로디가 됨 (긴 노트는 음이 이어짐)
@@ -497,10 +502,12 @@ export function createFishing(opt) {
   function tickLand() {
     const L = S.land, M = S.model;
     const k = clamp(S.t / L.T.stamp, 0, 1), e = 1 - (1 - k) ** 3;
-    const to = new THREE.Vector3(S.standX - 0.3, DECK + 1.9 + Math.max(0, L.sc - 1) * 0.25, S.standZ + 1.6 + Math.max(0, L.sc - 1) * 0.6); // 큰 놈은 조금 멀리(화면에 다 들어오게)
+    const [tx, tz] = at(0.3, 1.6 + Math.max(0, L.sc - 1) * 0.6); // 큰 놈은 조금 멀리(화면에 다 들어오게)
+    const to = new THREE.Vector3(tx, DECK + 1.9 + Math.max(0, L.sc - 1) * 0.25, tz);
     M.position.lerpVectors(L.from, to, e); M.position.y += Math.sin(k * Math.PI) * (2.2 + L.sc * 0.6);
     if (k >= 1 && L.tier) M.position.y += Math.sin(S.t * 9) * 0.04 * L.sc; // 큰 놈은 들고 있어도 퍼덕
     M.rotation.set(Math.sin(S.t * 25) * 0.25 * (1 - k), M.userData.faceZ || S.fish.kind !== 'fish' ? Math.PI + 0.3 : Math.PI / 2 + 0.5, Math.sin(S.t * 18) * 0.4 * (1 - k));
+    turnToSea(M);
     M.userData.anim?.(S.now);
     if (!L.stamped && S.t > L.T.stamp) {
       L.stamped = true;
@@ -574,6 +581,7 @@ export function createFishing(opt) {
     S.chargeV += ((S.charge ? S.power : 0) - S.chargeV) * Math.min(1, rdt * (S.charge ? 10 : 6)); // 기 모으기 연출(확대·붉어짐) — 떼면 빨리 풀림
     if (S.B) tickBeatClock(rdt);
     me.group.position.set(S.standX, DECK, S.standZ);
+    me.group.rotation.y = Math.PI + head(); // 던지는 쪽을 봄 (광장에서 처음 돌아서는 동안은 ui/fishing.js가 덮어씀)
     me.setOpacity(S.mode === 'ready' ? 1 : 0.4, 1); // 낚시하는 동안 내 캐릭터 반투명 (내 화면에서만, 사용자 요청)
     if (S.R) S.R.rt = rtNow();
     if (S.mode === 'ready' && !S.charge) S.power = Math.max(0, S.power - rdt * 0.8);
@@ -598,7 +606,8 @@ export function createFishing(opt) {
     if (S.mode === 'fight' && S.R) {
       const R = S.R, k = clamp(R.dist / 60, 0.06, 1.5);
       const L0 = S.cast.to;
-      const tx = S.standX + (L0.x - S.standX) * k + R.side * 0.6 * k, tz = S.standZ + 1.4 + (L0.z - S.standZ - 1.4) * k;
+      const [sx, sz] = at(0, 1.4), [ox, oz] = at(-R.side * 0.6 * k, 0); // 좌우로 휙 = 내 왼쪽·오른쪽
+      const tx = sx + (L0.x - sx) * k + ox - S.standX, tz = sz + (L0.z - sz) * k + oz - S.standZ;
       S.bob.x += (tx - S.bob.x) * Math.min(1, rdt * 6); S.bob.z += (tz - S.bob.z) * Math.min(1, rdt * 6);
     }
     // 찌: 물결 + 떨림(스프링) + 진짜는 쏙 잠김
@@ -629,11 +638,14 @@ export function createFishing(opt) {
       if (k < 1) {
         S.model.position.set(S.bob.x, seaHeight(S.bob.x, S.bob.z, S.now) - 0.2 + Math.sin(k * Math.PI) * S.hop.h, S.bob.z);
         S.model.rotation.set(0, Math.PI / 2 + (S.R ? S.R.side : 1) * 0.6, (0.5 - k) * 1.4);
+        turnToSea(S.model);
       } else S.hop = null;
     }
     // 주변 박자 (시안 ⚙️ — 켠 것만)
     if (S.mode !== 'fight' && !S.B) BEAT.on = false;
     BEAT.pulse = Math.max(0, BEAT.pulse - rdt / (BEAT.spb * 0.5));
+    BEAT.hit = Math.max(0, BEAT.hit - rdt / (BEAT.spb * 4)); // 맞추고 4박쯤 지나면 멈춤
+    BEAT.genre = standGenre(S.standX, S.standZ); // 박자 친구들은 내 자리 장르 것만 춤 (13-3)
     Object.assign(BEAT.fx, { sea: !!TUNE.bSea, pier: !!TUNE.bPier, body: !!TUNE.bBody });
     beatFx.update(rdt, { bob: S.bob, now: S.now, me, mode: S.mode });
     me.group.updateMatrixWorld(true);
@@ -666,12 +678,12 @@ export function createFishing(opt) {
   // ── 카메라: 어깨 높이 (사용자 확정 11/25)
   function placeCamera() {
     const pull = S.mode === 'land' && S.land ? S.land.pull * clamp(S.t / 0.8, 0, 1) : 0; // 큰 놈을 낚으면 카메라가 물러남
-    const back = S.standZ - 3.0 - pull, cz = Math.max(PIER.z0 + 0.4, back); // 판 뒤쪽에 서면 카메라가 절벽 안으로 안 가게 (대신 조금 높이)
-    camera.position.set(S.standX + 0.95 + pull * 0.3, DECK + 2.15 + pull * 0.55 + (cz - back) * 0.7, cz);
+    const h = head(), [bx, back] = at(-(0.95 + pull * 0.3), -3.0 - pull, h), cz = Math.max(PIER.z0 + 0.4, back); // 판 뒤쪽에 서면 카메라가 절벽 안으로 안 가게 (대신 조금 높이)
+    camera.position.set(bx, DECK + 2.15 + pull * 0.55 + (cz - back) * 0.7, cz);
     if (S.shake > 0) { camera.position.x += (Math.random() - 0.5) * S.shake * 0.012; camera.position.y += (Math.random() - 0.5) * S.shake * 0.012; }
     // 단계 카메라 (11/26 사용자 확정): 희귀 단계 = 확대 + 오른쪽으로 약간 기울기, 전설 단계 = 더 확대 + 반대로 더 기울기. 확대할 때 찌 쪽을 봄
     const cs = [0, 0.6, 1, 1.5][TUNE.cam ?? 2], k = S.camK * cs;
-    const lx = S.standX - 0.4, lz = S.mode === 'land' ? S.standZ + 7 + pull : S.standZ + 11, toBob = Math.min(1, k) * 0.35;
+    const [lx, lz] = at(0.4, S.mode === 'land' ? 7 + pull : 11, h), toBob = Math.min(1, k) * 0.35;
     S.camLook.set(lx + (S.bob.x - lx) * toBob, SEA_Y + 0.4 + pull * 1.3, lz + (S.bob.z - lz) * toBob); // 광장 카메라와 이어 붙일 때도 씀
     camera.lookAt(S.camLook);
     const roll = S.camK <= 1 ? 0.052 * S.camK : 0.052 - 0.157 * (S.camK - 1); // 0° → 3° → −6°

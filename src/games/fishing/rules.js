@@ -2,7 +2,7 @@
 //   던진 자리 · 기포 시간표 · 잡히는 것(종류·확률) · 크기 · 코인 · 최소 시간. fishing.md 8·9장
 // ⚠️ 여기를 바꾸면 28_fishing.sql(또는 새 SQL)과 localServer.js의 로컬 가짜 서버도 같이.
 
-// ── 선착장에서 던지기 (자유 던지기: 부채꼴 ±40°, 6~18m, 늘 남쪽 바다 쪽으로)
+// ── 선착장에서 던지기 (자유 던지기: 부채꼴 ±40°, 6~18m — 앞 판은 남쪽, 서쪽 팔은 서쪽, 동쪽 팔은 동쪽 바다로 · 13-3 🐞 고침)
 // 14장 1b(11/26 사용자 확정): 'ㄷ자' 선착장 — 앞 판 + 양 끝 팔 2개. 나무 판 어디서든 던짐(36_fish_pier_u.sql과 같게).
 //   찌가 나무 판(앞 판·팔·등대 받침) 위에 떨어지면 던진 방향 그대로 판을 넘어 물(판 끝 + 0.6m)까지 날아감.
 export const WOOD = [ // campusLayout.js PIER·ARMS·LH_BASES와 같은 숫자 (서버 SQL에 그대로 적혀 있음)
@@ -44,20 +44,31 @@ export function walkStand(x, z, dx) {
   const R = STANDS.find((q) => x >= q.x0 - 1e-6 && x <= q.x1 + 1e-6 && z >= q.z0 - 1e-6 && z <= q.z1 + 1e-6) || STANDS[0];
   return clamp(x + dx, R.x0, R.x1);
 }
+// 던지는 방향 (13-3 🐞 고침, 11/27 사용자 확정 · 45_fish_cast_dir.sql과 같게): 앞 판 = 남쪽(+z) · 서쪽 팔 = 서쪽 바다(−x) · 동쪽 팔 = 동쪽 바다(+x)
+//   h = 방향 각도 (방향 = (sin h, cos h)). 자리 나누기는 standGenre와 같음
+export function castHeading(x, z) {
+  const [cx, cz] = clampStand(x, z);
+  if (cz <= STANDS[0].z1 + 1e-6) return 0;
+  return cx < (STANDS[0].x0 + STANDS[0].x1) / 2 ? -Math.PI / 2 : Math.PI / 2;
+}
+export const LAND_ZMIN = 43; // 팔에서 비스듬히 북쪽으로 던져도 절벽·땅(z 39 밑)에 안 떨어지게
 // 찌가 떨어지는 곳: 판 위면 같은 방향으로 판 밖(+0.6m)까지 (최대 4번 — 앞 판 → 팔 → 물)
 export function landingPoint(standX, aim, power, z = STAND.z) {
   const [sx, sz] = clampStand(standX, z ?? STAND.z);
-  const d = castDist(power), a = -clamp(aim, -1, 1) * CAST_ANG, ux = Math.sin(a), uz = Math.cos(a);
+  const h = castHeading(sx, sz);
+  const d = castDist(power), a = h - clamp(aim, -1, 1) * CAST_ANG, ux = Math.sin(a), uz = Math.cos(a);
   let x = sx + ux * d, lz = sz + uz * d;
   for (let i = 0; i < 4; i++) {
     const R = WOOD.find((q) => x > q.x0 - WOOD_PAD && x < q.x1 + WOOD_PAD && lz > q.z0 - WOOD_PAD && lz < q.z1 + WOOD_PAD);
     if (!R) break;
-    let t = (R.z1 + WOOD_PAD - lz) / uz;
+    let t = Infinity;
+    if (uz > 1e-9) t = (R.z1 + WOOD_PAD - lz) / uz;
+    else if (uz < -1e-9) t = (R.z0 - WOOD_PAD - lz) / uz;
     if (ux > 1e-9) t = Math.min(t, (R.x1 + WOOD_PAD - x) / ux);
     else if (ux < -1e-9) t = Math.min(t, (R.x0 - WOOD_PAD - x) / ux);
     x += ux * (t + 0.001); lz += uz * (t + 0.001);
   }
-  return { x, z: lz };
+  return { x, z: Math.max(lz, LAND_ZMIN) };
 }
 
 // ── 기포 시간표: 시간을 칸(114초)으로 나누고 칸 번호를 씨앗으로 1~2개 (모든 PC·서버가 같은 결과)

@@ -9,5 +9,7 @@ export const BEAT = {
   phase: 0, // 박 안에서 지난 정도 0~1
   side: 1, // 박마다 −1·1로 바뀜 (좌우로 까딱)
   spb: 0.6, // 한 박 시간(초)
+  hit: 0, // 노트를 맞추면 1 → 4박 동안 0으로 (박자 친구들: 재즈 물개가 몸을 흔듦, fishing.md 13-3)
+  genre: 'jazz', // 내가 선 자리 장르 (그 자리 박자 친구들만 춤)
   fx: { sea: false, pier: false, body: false },
 };

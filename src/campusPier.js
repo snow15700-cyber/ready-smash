@@ -13,6 +13,7 @@ import { CATCH } from './games/fishing/rules.js';
 import { nowMs } from './breaks.js';
 import { makeCharacter } from './scene.js';
 import { BEAT } from './games/fishing/beat.js';
+import { addPierFriends } from './games/fishing/friendsPier.js';
 
 // ⑤ 선착장이 박자를 탐 (낚시 줄다리기 중, 내 화면에서만 — fishing.md 8장 'B' 시안): 등·등대·횟집 등 위의 빛 무리가 박마다 번쩍
 let haloTex = null;
@@ -90,7 +91,7 @@ export function buildPierArea(anim = null) {
   const halos = [], beatSigns = []; // ⑤ 박자 빛 무리 · 들썩이는 간판
   const lamp = (x, z) => { cyl(0.06, 0.08, 3.2, metal, x, top + 1.6, z, 8); const h = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), lampMat); h.position.set(x, top + 3.3, z); g.add(h); halos.push(beatHalo(g, x, top + 3.3, z, 0xffe2a0, 1.6)); };
   lamp(STAIRS[0].x1 + 0.6, P.z0 + 0.6);
-  lamp(AW.x0 + 0.35, (AW.z0 + AW.z1) / 2); lamp(AE.x1 - 0.35, (AE.z0 + AE.z1) / 2);
+  // 팔 가운데 가로등은 뺌 (13-3: 팔에서 서·동쪽 바다로 던지면 카메라 앞을 가림) — 팔은 등대가 밝힘
   // 절벽에 건 구명 튜브
   const buoyAt = (bx) => {
     const buoy = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.11, 8, 20), red); buoy.position.set(bx, top + 1.6, C.face + 0.12); g.add(buoy);
@@ -139,6 +140,8 @@ export function buildPierArea(anim = null) {
   boat.position.set(BX, SEA_Y, BZ); boat.rotation.y = 0.08;
   boat.traverse((o) => { o.userData.noBake = true; if (o.isMesh) o.castShadow = true; });
   g.add(boat);
+  // ── 🎶 박자 친구들 (fishing.md 13-3): 장르 자리마다 바라보는 바다에 (재즈 갈매기는 이 배 위)
+  addPierFriends(g, anim, { seaH, seaY: SEA_Y, pierY: top, rockMat: rock, boat });
   let lastBeat = null, hop = 0, flagK = 0, lastT = 0;
   anim?.push((t) => {
     const dt = Math.min(0.1, Math.max(0, t - lastT)); lastT = t;

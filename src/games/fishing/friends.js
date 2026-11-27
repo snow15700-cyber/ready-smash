@@ -23,7 +23,9 @@ function eyes(parent, s, x, y, z, ry = 0.25) {
   return list;
 }
 function blush(parent, s, x, y, z) { for (const sx of [1, -1]) { const b = makeBlush(s); b.position.set(sx * x, y, z); b.rotation.y = sx * 0.5; parent.add(b); } }
+let WORLD = false; // 광장에 놓을 때: 물 원판은 안 만듦(진짜 바다가 있음)
 function water(r = 0.6) {
+  if (WORLD) return new THREE.Group();
   const m = noOl(mesh(new THREE.CircleGeometry(r, 32), basic(0x7cc7ef, { transparent: true, opacity: 0.55, depthWrite: false })));
   m.rotation.x = -Math.PI / 2; m.position.y = 0.002; return m;
 }
@@ -368,7 +370,8 @@ export const FRIENDS = {
   jazz: [['seal', '🦭 색소폰 물개', '박마다 고개 까딱 · 내가 맞추면 몸을 흔듦 · 음표 퐁', seal], ['gulls', '🐦 난간 갈매기 셋', '번갈아 고개 까딱 (왼 → 가운데 → 오른)', gulls]],
   rock: [['crabs', '🦀 꽃게 밴드', '박마다 집게 딱딱 · 헤드뱅잉 · 마디 첫 박에 폴짝', crabBand], ['speakers', '🔊 스피커 탑', '박마다 쿵쿵 부풂 · 크래시(마디 첫 박) 때 번쩍', speakers], ['penguin', '🐧 헤드뱅잉 펭귄', '부표 위에서 헤드뱅잉 · 날개 퍼덕', penguin]],
 };
-export function makeFriend(id) {
-  for (const list of Object.values(FRIENDS)) for (const [fid, , , make] of list) if (fid === id) return make();
+export function makeFriend(id, { world = false } = {}) {
+  WORLD = world;
+  try { for (const list of Object.values(FRIENDS)) for (const [fid, , , make] of list) if (fid === id) return make(); } finally { WORLD = false; }
   return null;
 }
