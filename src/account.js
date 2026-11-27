@@ -5,7 +5,7 @@ import { ONLINE, getClient } from './net.js';
 import { koreaDay } from './missions.js';
 import { nowMs } from './breaks.js';
 import { localServer } from './localServer.js'; // 서버 설정이 없을 때 쓰는 가짜 서버
-import { period, periodKey, setNewsWx } from './games/fishing/market.js';
+import { period, periodKey, setNewsWx, setSold } from './games/fishing/market.js';
 
 // ?acct=2 처럼 주소에 붙이면 열쇠를 따로 보관한다 (한 브라우저에서 탭마다 다른 계정으로 테스트할 때)
 const ACCT = new URLSearchParams(location.search).get('acct');
@@ -332,6 +332,7 @@ export async function fishNews(wx = null, force = false) {
   const r = await call('pingpong_fish_news', { p_wx: wx });
   if (r?.status !== 'ok' || !Array.isArray(r.news)) return false;
   setNewsWx(r.news);
+  setSold(r.sold); // 44 🛒 지난 회차 팔린 수 (44 전 서버면 없음 → 시세 그대로)
   if (r.news.some((n) => +n.p === +r.period)) account.newsP = +r.period;
   return true;
 }

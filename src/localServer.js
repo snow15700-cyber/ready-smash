@@ -39,6 +39,21 @@ const bagN = (p) => MK.bagCount(bagList(p));
 const fishUsed = (p) => (p.fishDay === koreaDay(nowMs()) ? p.fishDayCoins || 0 : 0);
 const addFishDay = (p, c) => { const u = fishUsed(p); p.fishDay = koreaDay(nowMs()); p.fishDayCoins = u + c; };
 const FISH_ACH = ['fish10', 'fish_all', 'junk_all', 'fish_bread', 'fish_big', 'fish_legend', 'fish_perf10'];
+// 44 🛒: 회차마다 팔린 수 기록 db.fishSold[회차][물고기][사람] = 마리 (팔기 + 꽉 찬 가방)
+function addSold(db, p, id, n) {
+  const per = MK.periodKey(MK.period(nowMs()));
+  const t = ((db.fishSold ||= {})[per] ||= {});
+  (t[id] ||= {})[p.id] = (t[id][p.id] || 0) + n;
+}
+// 지난 회차들(지금 회차 빼고, 최근 9회차)의 [{ p, f, n, k }] — 서버 pingpong_fish_news의 sold
+function soldRows(db) {
+  const cur = MK.periodKey(MK.period(nowMs()));
+  const keys = Object.keys(db.fishSold || {}).map(Number).filter((k) => k < cur).sort((x, y) => y - x);
+  for (const k of keys.slice(20)) delete db.fishSold[k];
+  const out = [];
+  for (const k of keys.slice(0, 9)) for (const [f, by] of Object.entries(db.fishSold[k])) out.push({ p: k, f, n: Object.values(by).reduce((x, y) => x + y, 0), k: Object.keys(by).length });
+  return out;
+}
 function localFish(fn, a, p, db, now) {
   if (fn === 'pingpong_fish_cast') {
     const pt = FR.landingPoint(a.p_x == null ? 13 : +a.p_x, +a.p_aim || 0, a.p_power ?? 0.5, a.p_z == null ? undefined : +a.p_z); // 36: 서는 곳·판 넘기기는 landingPoint 안에서
@@ -74,7 +89,7 @@ function localFish(fn, a, p, db, now) {
       if (bagN(p) < MK.BAG_MAX) { const k = bagKey(c.item, q); p.fishBag[k] = (p.fishBag[k] || 0) + 1; bagged = true; }
       else { // 꽉 참 → 바로 지금 시세(× 별 배율)로 (쉬는 시간 보너스 없음), 오늘 한도(40)를 넘으면 못 팔고 놓아줌
         base = Math.floor(MK.priceOf(c.item, nowMs(), q) / 10);
-        if (fishUsed(p) + base > MK.DAY_CAP) { base = 0; capped = true; } else { sold = true; addFishDay(p, base); }
+        if (fishUsed(p) + base > MK.DAY_CAP) { base = 0; capped = true; } else { sold = true; addFishDay(p, base); addSold(db, p, c.item, 1); }
       }
     }
     const total = base + brk;
@@ -113,7 +128,7 @@ function localFish(fn, a, p, db, now) {
     // 40: 오늘 한도 안에서 비싼 것부터 (쉬는 시간 보너스 없음)
     const r = MK.sellPlan(items, nowMs(), MK.DAY_CAP - fishUsed(p));
     if (!r.sold.length) return { status: 'capped', kept: r.kept, bag: bagList(p), ...day };
-    for (const [id, k, , q] of r.sold) bagTake(p, id, q, k);
+    for (const [id, k, , q] of r.sold) { bagTake(p, id, q, k); addSold(db, p, id, k); }
     p.coins = (p.coins || 0) + r.coins;
     addFishDay(p, r.coins);
     return { status: 'ok', coins: r.coins, bonus: 0, bonus_pct: 0, sold: r.sold.map(([id, n, price, q]) => ({ id, q, n, price })), kept: r.kept, bag: bagList(p), day_coins: fishUsed(p), day_cap: MK.DAY_CAP };
@@ -288,10 +303,11 @@ export function localServer(fn, a) {
     const keys = Object.keys(db.fishNews).map(Number).sort((x, y) => y - x);
     for (const k of keys.slice(12)) delete db.fishNews[k];
     save();
-    return { status: 'ok', period: per, news: keys.slice(0, 12).map((k) => ({ p: k, wx: db.fishNews[k] })) };
+    return { status: 'ok', period: per, news: keys.slice(0, 12).map((k) => ({ p: k, wx: db.fishNews[k] })), sold: soldRows(db) };
   }
   if (fn.startsWith('pingpong_fish_')) {
     MK.setNewsWx(Object.entries(db.fishNews || {}).map(([p, wx]) => ({ p, wx }))); // 팔 때 값 = 저장된 회차 날씨로
+    MK.setSold(soldRows(db)); // 44: 지난 회차 팔린 수로
     const p = me();
     if (!p && fn !== 'pingpong_fish_rank' && fn !== 'pingpong_fish_dex') return { status: 'no_session' };
     const r = localFish(fn, a, p, db, now);

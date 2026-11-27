@@ -12,6 +12,9 @@
 //  · 값은 0.1코인 단위(시세표에 2.4처럼). 한 번 팔 때 합을 내림 → 하나씩 팔아도 이득 없음
 //  · ⭐ 품질 별(13-1 ①, 11/27 사용자 확정): 줄다리기 정확도(Perfect 1 · Good 0.5 · 놓침 0 ÷ 노트 수) 90%↑ ★★★ · 75%↑ ★★ · 50%↑ ★ · 그 아래 별 없음
 //    → 값 × 1.3 · 1.1 · 1.0 · 0.8 (QUAL_X, 10배 정수). 가방은 종류 × 별(q 0~3)로 칸이 따로. 크기는 값과 상관없음. 서버 41_fish_quality.sql
+//  · 🛒 사람들이 판 만큼(13-1 ③, 11/27 사용자 확정 '중간' · 실시간 표시 안 함): 지난 회차에 횟집에서 팔린 마리 수(팔기 + 꽉 찬 가방, 고양이 밥은 빼고)로
+//    이번 회차 값이 움직임. 전체 DEMAND_MIN(10)마리 이상 팔렸을 때만: 2명 이상이 판 물고기 중 가장 많이 팔린 1등 ×0.8 · 2등 ×0.9 · 일반 물고기 중 하나도 안 팔린 것 ×1.1
+//    (같은 수면 id 순서). 서버 44_fish_demand.sql이 회차별 팔린 수를 알려 줌(pingpong_fish_news의 sold — 지난 회차만, 지금 회차는 안 보여 줌) → setSold
 //  · 하루 한도 DAY_CAP(한국 날짜, 11/27 사용자 확정): 팔아서 받는 코인은 하루 1000까지. 비싼 것부터 한도 안에서만 팔리고 나머지는 가방에 (sellPlan)
 import { SPECIES, FISH_COINS, seeded } from './rules.js';
 import { BREAKS } from '../../breaks.js';
@@ -58,6 +61,30 @@ const newsWx = new Map();
 export const periodKey = (p) => p.day * 10 + p.idx;
 export function setNewsWx(list) { for (const r of list || []) if (WXS.includes(r.wx)) newsWx.set(+r.p, r.wx); }
 export const wxFor = (p) => newsWx.get(periodKey(p)) || null;
+// 🛒 회차마다 팔린 수 { 회차 번호: { 물고기 id: [마리, 판 사람 수] } } (서버 pingpong_fish_news의 sold)
+export const DEMAND_MIN = 10, DEMAND_SELLERS = 2, DEMAND_DOWN = [8, 9], DEMAND_UP = 11; // ×10
+const soldBy = new Map();
+export function setSold(rows) {
+  for (const r of rows || []) {
+    const k = +r.p;
+    if (!soldBy.has(k)) soldBy.set(k, {});
+    soldBy.get(k)[r.f] = [+r.n || 0, +r.k || 0];
+  }
+}
+export const clearSold = () => soldBy.clear(); // 자동 점검용
+// 그 회차 값에 곱하는 수 × 10 { 물고기 id: 8 | 9 | 11 } — 지난 회차(prevPeriod) 팔린 수로. 서버 44 pingpong__fish_demand_x와 같게
+export function demandOf(p, sold = soldBy.get(periodKey(prevPeriod(p)))) {
+  const out = {}, all = [...MARKET_FISH, ...BIG_FISH];
+  if (!sold) return out;
+  let total = 0;
+  for (const id of all) total += sold[id]?.[0] || 0;
+  if (total < DEMAND_MIN) return out;
+  const top = all.filter((id) => (sold[id]?.[1] || 0) >= DEMAND_SELLERS && sold[id][0] > 0)
+    .sort((a, b) => sold[b][0] - sold[a][0] || (a < b ? -1 : 1));
+  top.slice(0, DEMAND_DOWN.length).forEach((id, i) => { out[id] = DEMAND_DOWN[i]; });
+  for (const id of MARKET_FISH) if (!(sold[id]?.[0] > 0)) out[id] = DEMAND_UP;
+  return out;
+}
 const xs32 = (x) => { x >>>= 0; x = (x ^ (x << 13)) >>> 0; x = (x ^ (x >>> 17)) >>> 0; return (x ^ (x << 5)) >>> 0; };
 export const QUAL_X = [8, 10, 11, 13]; // 별 0~3개의 값 배율 × 10 (서버 41과 같게)
 export const QUAL_DEF = 1; // 별 모르는 것(41 전에 잡은 것)은 ★ ×1.0
@@ -108,7 +135,9 @@ export function prices(p, wx = wxFor(p)) {
   }
   const news = newsOf(p, wx, MARKET_FISH[j]);
   if (news) out[news.id] = Math.floor((out[news.id] * NEWS_X[news.dir] + 5) / 10);
-  return { list: out, jackpot: MARKET_FISH[j], news, wx };
+  const demand = demandOf(p);
+  for (const [id, x] of Object.entries(demand)) out[id] = Math.floor((out[id] * x + 5) / 10);
+  return { list: out, jackpot: MARKET_FISH[j], news, wx, demand };
 }
 // 물고기 하나의 지금 값(0.1코인 단위) — 별 q면 × 배율 후 반올림 (서버 pingpong__fish_qprice)
 export function priceOf(id, ms, q = QUAL_DEF) {

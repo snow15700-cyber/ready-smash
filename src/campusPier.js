@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { addBox, canvasTex, seeded, std } from './arena-kit.js';
 import { ARMS, BOARD, CAT_NOOK, CLIFF, HARBOR, LH_BASES, LIGHTHOUSES, MARKET, PIER, SEA_Y, STAIRS } from './campusLayout.js';
-import { BIG_FISH, MARKET_FISH, history, nextLabel, period, wxFor } from './games/fishing/market.js';
+import { BIG_FISH, MARKET_FISH, history, nextLabel, demandOf, period, wxFor } from './games/fishing/market.js';
 import { fishNews, newsKnown } from './account.js';
 import { liveWx } from './plazaSky.js';
 import { CATCH } from './games/fishing/rules.js';
@@ -199,7 +199,7 @@ export function buildPierArea(anim = null) {
     face.position.set(B.x, top + 1.25, B.z + 0.015); face.userData.noBake = true; face.name = 'priceBoard'; g.add(face);
     let shown = '';
     const draw = () => {
-      const ms = nowMs(), p = period(ms), key = p.day + ':' + p.idx + ':' + wxFor(p); // 📰 회차 날씨를 알게 되면 소식이 바뀌어 다시 그림
+      const ms = nowMs(), p = period(ms), key = p.day + ':' + p.idx + ':' + wxFor(p) + ':' + JSON.stringify(demandOf(p)); // 📰 회차 날씨·🛒 지난 회차 판매를 알게 되면 값이 바뀌어 다시 그림
       if (key === shown) return;
       shown = key;
       const h = history(ms, 2), cur = h[1], prev = h[0];
@@ -216,7 +216,7 @@ export function buildPierArea(anim = null) {
         if (hot || leg) { c.fillStyle = hot ? 'rgba(255,140,60,.35)' : 'rgba(255,210,60,.2)'; c.fillRect(x, y - 24, 484, 48); }
         c.textAlign = 'left'; c.font = FONT(38); c.fillStyle = '#fffbe8';
         const nm = CATCH[id].name;
-        c.fillText(`${hot ? '🔥' : cur.news?.id === id ? '📰' : CATCH[id].emoji} ${nm.length > 6 ? nm.slice(0, 6) + '…' : nm}`, x + 8, y);
+        c.fillText(`${hot ? '🔥' : cur.news?.id === id ? '📰' : cur.demand?.[id] ? '🛒' : CATCH[id].emoji} ${nm.length > 6 ? nm.slice(0, 6) + '…' : nm}`, x + 8, y);
         c.textAlign = 'right'; c.fillText((v / 10).toFixed(1), x + 372, y);
         c.font = FONT(30); c.fillStyle = d > 0 ? '#ff7a7a' : d < 0 ? '#7ac0ff' : 'rgba(255,251,232,.55)';
         c.fillText(d > 0 ? `▲${(d / 10).toFixed(1)}` : d < 0 ? `▼${(-d / 10).toFixed(1)}` : '–', x + 478, y);
