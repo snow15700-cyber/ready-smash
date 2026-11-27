@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { GRADE } from './data.js';
 import { PADDLE_DUP_PIECES, castDist, landingPoint } from './rules.js';
 import { seaHeight } from './world.js';
+import { SEA_Y } from '../../campusLayout.js';
 
 const JUA = (px) => `${Math.round(px)}px Jua, 'Pretendard Variable', sans-serif`;
 const UI = (w, px) => `${w} ${Math.round(px)}px 'Pretendard Variable', system-ui, sans-serif`;
@@ -54,10 +55,10 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
     g.fillStyle = grd; g.fillRect(0, 0, W, H);
   }
   // 예상 범위 (17장, 11/27 사용자 요청 '세련되게'): 끝까지 모으면 닿는 부채꼴 전체 = 옅은 흰 면(약 10%) + 가는 테두리,
-  //   지금 세기 = 은은하게 빛나는 흰 호(누를수록 앞으로), 모은 만큼은 아주 살짝 더 밝게. 방향 = 떨어질 자리까지 가는 흰 선 + 거리 글자
+  //   (물결을 안 따라 평평하게) 지금 세기 = 은은하게 빛나는 흰 호(누를수록 앞으로), 모은 만큼은 아주 살짝 더 밝게. 방향 = 떨어질 자리까지 가는 흰 선 + 거리 글자
   if (S.mode === 'ready' && S.charge) {
     const fade = clamp((S.now - S.charge.t0) / 0.18, 0, 1), beat = S.B ? S.B.pulse * S.B.pulse : 0, full = S.power >= 1;
-    const at = (aim, pw) => { const L = landingPoint(S.standX, aim, pw, S.standZ); return proj(new THREE.Vector3(L.x, seaHeight(L.x, L.z, S.now), L.z)); };
+    const at = (aim, pw) => { const L = landingPoint(S.standX, aim, pw, S.standZ); return proj(new THREE.Vector3(L.x, SEA_Y, L.z)); }; // 평평한 바다 높이 (물결 따라 출렁이지 않게, 11/27 사용자 요청)
     const arc = (pw) => { const pts = []; for (let i = 0; i <= 24; i++) pts.push(at(-1 + i / 12, pw)); return pts; };
     const inner = arc(0), outer = arc(S.power), max = arc(1);
     const path = (pts, move = true) => pts.forEach((q, i) => (i || !move ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y)));

@@ -192,29 +192,38 @@ export function createFishing(opt) {
 
   function startWait() {
     setMode('wait');
+    S.w0 = nowS(); // 입질 시계 = 진짜 시계 (17장: 박자와 맞아야 해서 — 느린 PC에서 프레임 dt가 잘려도 안 어긋나게)
     S.bobLanded = true; S.dip = 0; S.dipV = 0;
     S.fish = isOn() ? null : pickCatch(S.near, catchCtx()); // 로그인: 서버 답이 오면 정해짐 (tickWait)
     S.seq = biteSeq(S.fish); S.evI = -1; S.ev = null; S.calm = 0; S.alertT = -1;
-    S.nextEv = rnd(1.4, 2.4);
+    S.nextEv = onBeat(rnd(1.4, 2.4));
     const y = seaHeight(S.bob.x, S.bob.z, S.now);
     fx.burst(S.bob.x, y, S.bob.z, 8, 0.45); snd.land();
     say('퐁', { at: bobAbove(0.9), size: 26, life: 0.6 });
     if (S.near) say(S.near === 2 ? '🫧 기포 바로 위!' : '🫧 기포 근처', { sx: 0.5, sy: 0.3, size: 30, color: '#bff3ff', life: 1.4 });
   }
 
-  // 입질: 톡(약한 떨림 1번) · 가짜 풍덩(약한 떨림 2~3번) · 진짜(쏙 잠기고 '!' + 강한 떨림)
+  // 17장(11/27 사용자 확정): 입질도 박자 위에 — 원하는 기다림(초) 뒤의 다음 박 시각을 S.t 기준으로 돌려줌
+  //   입질 시각은 모두 wt() = 기다리기 시작부터 잰 진짜 시계. 박자 시계가 없으면 그냥 d초 뒤
+  const wt = () => nowS() - S.w0;
+  function onBeat(d) {
+    const B = S.B; if (!B) return wt() + d;
+    const k = Math.ceil((S.w0 + wt() + d - B.base) / B.spb - 1e-6);
+    return B.base + k * B.spb - S.w0;
+  }
+  // 입질: 톡(약한 떨림 1번) · 가짜 풍덩(약한 떨림 2~3번, 반 박 간격) · 진짜(쏙 잠기고 '!' + 강한 떨림) — 모두 박 위에서 시작
   function nextEvent() {
     S.evI++;
-    const kind = S.seq[S.evI], st = S.t;
+    const kind = S.seq[S.evI], st = wt(), half = S.B ? S.B.spb / 2 : 0.17;
     if (kind === 'tok') S.ev = { kind, st, hits: [st], end: st + 0.45 };
-    else if (kind === 'fake') { const n = Math.random() < 0.5 ? 2 : 3; S.ev = { kind, st, hits: Array.from({ length: n }, (_, i) => st + i * 0.17), end: st + n * 0.17 + 0.4 }; }
+    else if (kind === 'fake') { const n = Math.random() < 0.5 ? 2 : 3; S.ev = { kind, st, hits: Array.from({ length: n }, (_, i) => st + i * half), end: st + n * half + 0.4 }; }
     else S.ev = { kind, st, end: st + TUNE.good };
     S.ev.done = 0;
   }
   function tickWait() {
     if (dbg.hold) return; // 점검용: 입질 멈춤
-    if (!S.fish && !adoptServer()) { S.nextEv = Math.max(S.nextEv, S.t + 0.3); return; } // 서버 답 기다리는 동안 입질 안 함
-    const t = S.t, E = S.ev;
+    if (!S.fish && !adoptServer()) { S.nextEv = Math.max(S.nextEv, onBeat(0.3)); return; } // 서버 답 기다리는 동안 입질 안 함
+    const t = wt(), E = S.ev;
     if (!E && t >= S.nextEv) return nextEvent();
     if (!E) return;
     if (E.kind === 'real') {
@@ -235,12 +244,12 @@ export function createFishing(opt) {
       if (E.kind === 'tok') { snd.tok(); buzz(15); say('톡', { zoom: true, size: 26, color: '#e8f6ff', life: 0.5 }); }
       else { snd.wiggle(); buzz(18); if (E.done === 1) say('꿈틀꿈틀', { zoom: true, size: 24, color: '#ffe9a8', life: 0.7 }); }
     }
-    if (t >= E.end) { S.calm++; say('참기 ✨', { zoom: true, size: 20, color: '#ffe14a', life: 0.7, rise: 25 }); S.ev = null; S.nextEv = t + rnd(0.9, 1.8); }
+    if (t >= E.end) { S.calm++; say('참기 ✨', { zoom: true, size: 20, color: '#ffe14a', life: 0.7, rise: 25 }); S.ev = null; S.nextEv = onBeat(rnd(0.9, 1.8)); }
   }
   function pressWait() {
     const E = S.ev;
     if (E && E.kind === 'real' && E.fired) {
-      const rt = S.t - E.st;
+      const rt = wt() - E.st;
       return hook(rt <= TUNE.perfect ? 'Perfect' : 'Good', rt);
     }
     if (E || S.evI >= 0) return fail('fooled');
@@ -271,11 +280,11 @@ export function createFishing(opt) {
   // 두 번째 단계부터는 거리 50에서 (처음 60보다 덜 가혹하게 — 사용자 확정 11/25)
   function startRhythm(stage = 0) {
     setMode('fight');
-    S.B = null; // 기다리는 동안의 가벼운 박자 → 줄다리기 음악이 이어받음 (3단계에서 같은 박자로 이을 예정)
+    const B = stage === 0 ? S.B : null; S.B = null; // 기다리는 동안의 가벼운 박자 → 줄다리기가 같은 곡·같은 박자로 이어받음 (17장)
     const prev = S.R;
     S.stage = stage;
-    const f = STAGE_FISH[STAGES[stage]], song = makeSong(f, Math.random, prev?.song.key);
-    const spb = 60 / song.bpm;
+    const f = STAGE_FISH[STAGES[stage]], song = B ? B.song : makeSong(f, Math.random, prev?.song.key);
+    const spb = B ? B.spb : 60 / song.bpm;
     // 단계가 오를 때: 0.3초 + 새 단계 음악만 먼저 들려줌(17장, 11/27 사용자 확정: 일반→희귀 4박 · 희귀→전설 8박 — 예전 2박), "무겁다!"는 짧게 겹침
     const lead = stage === 0 ? 0.5 : 0.3, intro = stage === 2 ? 8 : 4;
     const dist = stage === 0 ? 60 : 50, secs = S.fish?.kind === 'junk' ? 3 : f.secs; // 잡동사니는 짧게 (3초쯤)
@@ -287,6 +296,10 @@ export function createFishing(opt) {
       fin: null, aOff: 0, bump: 0, tilt: 0, reel: 0, slack: 0, burst: null, shown: prev ? prev.shown : undefined,
     };
     const ac = audioCtx(); if (ac) S.R.aOff = ac.currentTime - nowS();
+    if (B) { // 같은 박자 그대로: 첫 노트 = 지금부터 2박 넘게 뒤의 반 마디(짝수 박) — 박이 끊기지 않고, 다음 박부터 음악이 꽉 참(화음·멜로디)
+      const c = (nowS() - B.base) / spb, F = Math.ceil((c + 2) / 2) * 2;
+      Object.assign(S.R, { base: B.base, aOff: B.aOff, t0: F * spb, intro: F, sched: B.sched - F, lastBeat: B.lastBeat - F });
+    }
     // g: 이번 패턴에서 secs초 안에 나오는 노트 수(N)를 세어, N번 맞추면 거리가 g만큼 남게 → 다음이 마지막 큰 노트
     const R = S.R;
     while (!R.queue.length || R.queue[R.queue.length - 1].beat * spb < secs) { for (const x of makePhrase(R.song)) R.queue.push({ beat: R.phrases * 16 + x }); R.phrases++; }
@@ -676,7 +689,10 @@ export function createFishing(opt) {
   }
   const hud = (g, W, H) => drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom: zoomOn(), caught: fishCount() });
   // 탭이 숨겨졌다 돌아오면 리듬 시계를 밀어 줌 (진짜 시계라서)
-  function resumeAfter(d) { if (S.R && d > 0) { S.R.base += d; S.R.sched = Math.max(S.R.sched, Math.floor((rtNow() - S.R.t0) / S.R.spb) + 1); } }
+  function resumeAfter(d) {
+    if (S.mode === 'wait' && d > 0) S.w0 += d;
+    if (S.B && d > 0) { S.B.base += d; S.B.sched = Math.max(S.B.sched, Math.floor((nowS() - S.B.base) / S.B.spb) + 1); if (S.charge) S.charge.t0 += d; }
+    if (S.R && d > 0) { S.R.base += d; S.R.sched = Math.max(S.R.sched, Math.floor((rtNow() - S.R.t0) / S.R.spb) + 1); } }
   // 그 자리에 서서 시작 / 그만
   function standAt(x, z) { [S.standX, S.standZ] = clampStand(x, z); } // ㄷ자 선착장: 가장 가까운 서는 곳 (rules.js)
   // 광장: 낚시를 그만두면 숨겨 두고 다음에 다시 씀 (만들기 한 번)
