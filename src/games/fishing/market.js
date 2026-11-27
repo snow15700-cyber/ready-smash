@@ -3,7 +3,9 @@
 // ⚠️ 여기를 바꾸면 35·40(또는 새 SQL)도 같이.
 //  · 잡은 물고기는 가방(30칸)에. 코인은 횟집에서 팔 때. 잡동사니·전설 탁구채는 가방에 안 들어감(지금처럼)
 //  · 시세는 쉬는 시간이 시작될 때마다 바뀜(BREAKS 시작 시각). 주말·수업 전은 지난 마지막 시세 그대로
-//  · 일반 물고기 7종만 시세가 움직임: 하나는 🔥 오늘의 대박(2배), 나머지는 0.6~0.85배 → 평균 약 0.9배. 희귀 20 · 전설 40 그대로(11/27, 전 8 · 20)
+//  · 일반 물고기 7종: 하나는 🔥 오늘의 대박(2배), 나머지는 0.6~0.85배 → 평균 약 0.9배
+//  · 희귀·전설도 오르내림(13-1 ②, 11/27 사용자 확정 '중간'): 희귀 20 × 0.8~1.2(16~24) · 전설 40 × 0.5~1.5(20~60), 종류마다 따로, 평균은 그대로.
+//    🔥 대박은 일반 7종에서만. 씨앗은 따로(88001 + 회차 × 7919를 xorshift 두 번 — 일반 시세는 그대로 두고, 회차끼리 무늬가 안 생기게). 서버 42_fish_price_all.sql
 //  · 값은 0.1코인 단위(시세표에 2.4처럼). 한 번 팔 때 합을 내림 → 하나씩 팔아도 이득 없음
 //  · ⭐ 품질 별(13-1 ①, 11/27 사용자 확정): 줄다리기 정확도(Perfect 1 · Good 0.5 · 놓침 0 ÷ 노트 수) 90%↑ ★★★ · 75%↑ ★★ · 50%↑ ★ · 그 아래 별 없음
 //    → 값 × 1.3 · 1.1 · 1.0 · 0.8 (QUAL_X, 10배 정수). 가방은 종류 × 별(q 0~3)로 칸이 따로. 크기는 값과 상관없음. 서버 41_fish_quality.sql
@@ -15,6 +17,9 @@ export const BAG_MAX = 30;
 export const DAY_CAP = 1000;
 export const MARKET_FISH = SPECIES.filter((s) => s.grade === 'common').map((s) => s.id); // 7종 (rules.js 순서 = 서버 순서)
 export const JACKPOT_X = 2, LOW_X = 0.6, SPAN_X = 0.25;
+export const BIG_FISH = SPECIES.filter((s) => s.grade !== 'common').map((s) => s.id); // 희귀 8 + 전설 2 (rules.js 순서 = 서버 42 순서)
+export const BIG_SWING = { rare: [0.8, 0.4], legend: [0.5, 1.0] }; // [가장 낮은 배율, 폭] — 희귀 0.8~1.2 · 전설 0.5~1.5
+const xs32 = (x) => { x >>>= 0; x = (x ^ (x << 13)) >>> 0; x = (x ^ (x >>> 17)) >>> 0; return (x ^ (x << 5)) >>> 0; };
 export const QUAL_X = [8, 10, 11, 13]; // 별 0~3개의 값 배율 × 10 (서버 41과 같게)
 export const QUAL_DEF = 1; // 별 모르는 것(41 전에 잡은 것)은 ★ ×1.0
 const qq = (q) => (q === 0 || q === 1 || q === 2 || q === 3 ? q : QUAL_DEF);
@@ -41,7 +46,7 @@ export function period(ms) {
 export const prevPeriod = (p) => (p.idx > 1 ? { day: p.day, idx: p.idx - 1 } : { day: prevWeekday(p.day), idx: STARTS.length });
 export const periodLabel = (p) => { const m = STARTS[p.idx - 1]; return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
 
-// 그 회차의 시세 { 물고기 id: 값(0.1코인 단위 정수, 예 24 = 2.4코인) } + jackpot(id)
+// 그 회차의 시세 { 물고기 id(17종 모두): 값(0.1코인 단위 정수, 예 24 = 2.4코인) } + jackpot(id, 일반 7종 중)
 export function prices(p) {
   const r = seeded(77003 + (p.day * 10 + p.idx) * 7919);
   const j = Math.floor(r() * MARKET_FISH.length);
@@ -50,13 +55,18 @@ export function prices(p) {
     const m = LOW_X + r() * SPAN_X; // (대박이어도 하나 뽑음 — 서버와 순서를 같게)
     out[id] = Math.floor(FISH_COINS.common * 10 * (i === j ? JACKPOT_X : m) + 0.5);
   });
+  const r2 = seeded(xs32(xs32(88001 + (p.day * 10 + p.idx) * 7919)));
+  for (const id of BIG_FISH) {
+    const g = SPECIES.find((s) => s.id === id).grade, [lo, span] = BIG_SWING[g];
+    out[id] = Math.floor(FISH_COINS[g] * 10 * (lo + r2() * span) + 0.5);
+  }
   return { list: out, jackpot: MARKET_FISH[j] };
 }
 // 물고기 하나의 지금 값(0.1코인 단위) — 별 q면 × 배율 후 반올림 (서버 pingpong__fish_qprice)
 export function priceOf(id, ms, q = QUAL_DEF) {
   const sp = SPECIES.find((s) => s.id === id);
   if (!sp) return 0;
-  const p = sp.grade !== 'common' ? FISH_COINS[sp.grade] * 10 : prices(period(ms)).list[id];
+  const p = prices(period(ms)).list[id];
   return Math.floor((p * QUAL_X[qq(q)] + 5) / 10);
 }
 // 시세표 꺾은선: 지난 n회차(오래된 것부터) [{ p, list, jackpot }]

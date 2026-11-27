@@ -300,7 +300,7 @@ async function sqlCheck() {
     const MK = await import(path.join(ROOT, 'src', 'games', 'fishing', 'market.js'));
     const mts = Array.from({ length: 120 }, (_, i) => Date.UTC(2026, 10, 20) + i * 4321e3 + (i % 7) * 333e3); // 금~일·밤낮·쉬는 시간 넘나들기
     const srvP = psql(DB, `select string_agg(public.pingpong__fish_prices(to_timestamp(t / 1000.0)), ';' order by n) from unnest(array[${mts.join(',')}]::float8[]) with ordinality as x(t, n);`).split(';');
-    const badP = mts.map((t, i) => { const p = MK.period(t), pr = MK.prices(p); return [`${p.day * 10 + p.idx}:${MK.MARKET_FISH.map((id) => pr.list[id]).join(',')}`, srvP[i], new Date(t).toISOString()]; }).filter(([a, b]) => a !== b);
+    const badP = mts.map((t, i) => { const p = MK.period(t), pr = MK.prices(p); return [`${p.day * 10 + p.idx}:${[...MK.MARKET_FISH, ...MK.BIG_FISH].map((id) => pr.list[id]).join(',')}`, srvP[i], new Date(t).toISOString()]; }).filter(([a, b]) => a !== b);
     must(!badP.length, `시세가 서버와 달라요(${badP.length}곳): ` + JSON.stringify(badP.slice(0, 3)));
     const brkPct = 0; // 팔 때 쉬는 시간 보너스 없음(사용자 11/26)
     const want = MK.sellCoins([['dragon', 1], ['mackerel', 1]], Date.now(), brkPct);
@@ -310,7 +310,7 @@ async function sqlCheck() {
     psql(DB, `insert into public.pingpong_fish_bag(player_id, fish_id, n) select id, 'horse', 30 from public.pingpong_players where nick = '점검봇';`);
     setCast('fish', 'seabream', 'rare', 50);
     const f3 = json(`public.pingpong_fish_finish(${tk}, 'chk', true, true)`);
-    must(f3.sold && !f3.bagged && f3.coins === MK.priceOf('seabream', Date.now()) / 10, '가방이 꽉 찼을 때 바로 팔리지 않아요: ' + JSON.stringify(f3).slice(0, 200));
+    must(f3.sold && !f3.bagged && f3.coins === Math.floor(MK.priceOf('seabream', Date.now()) / 10), '가방이 꽉 찼을 때 바로 팔리지 않아요: ' + JSON.stringify(f3).slice(0, 200));
     const s1 = json(`public.pingpong_fish_sell(${tk}, 'horse')`);
     must(s1.coins === MK.sellCoins([['horse', 30]], Date.now(), brkPct).total, '종류별 팔기 코인이 달라요: ' + JSON.stringify(s1).slice(0, 200));
     // 40 하루 한도 1000 (fishing.md 19장): 비싼 것부터 한도 안에서만 · 나머지는 가방에 · 다 차면 capped · 꽉 찬 가방 바로 팔기도 막힘
@@ -334,7 +334,13 @@ async function sqlCheck() {
     {
       const qs = [[10, 0, 0], [7, 3, 0], [5, 5, 0], [6, 2, 2], [0, 10, 0], [2, 3, 5], [0, 7, 3], [1, 2, 7], [0, 0, 1], [0, 0, 0]].map(([p, g, m]) => MK.qualityOf(p, g, m));
       must(qs.join('') === '3221100001', '품질 별 기준(90·75·50%)이 이상해요: ' + qs.join(''));
-      must(MK.priceOf('seabream', Date.now(), 3) === 260 && MK.priceOf('seabream', Date.now(), 0) === 160 && MK.priceOf('seabream', Date.now()) === 200, '별 배율 값이 이상해요');
+      const sb = MK.priceOf('seabream', Date.now());
+      must(MK.priceOf('seabream', Date.now(), 3) === Math.floor((sb * 13 + 5) / 10) && MK.priceOf('seabream', Date.now(), 0) === Math.floor((sb * 8 + 5) / 10), '별 배율 값이 이상해요');
+      // 42 모든 물고기에 시세 (13-1 ②): 희귀 16~24 · 전설 20~60, 평균은 그대로, 대박은 일반만
+      const big = Array.from({ length: 400 }, (_, i) => MK.prices({ day: 20000 + (i >> 3), idx: (i & 7) + 1 }));
+      const rs = big.map((p) => p.list.seabream), ls = big.map((p) => p.list.goldball), avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+      must(Math.min(...rs) >= 160 && Math.max(...rs) <= 240 && Math.min(...ls) >= 200 && Math.max(...ls) <= 600 && Math.abs(avg(rs) - 200) < 8 && Math.abs(avg(ls) - 400) < 25
+        && big.every((p) => MK.MARKET_FISH.includes(p.jackpot)) && new Set(ls).size > 50, '희귀·전설 시세 폭이 이상해요: ' + JSON.stringify([Math.min(...rs), Math.max(...rs), avg(rs), Math.min(...ls), Math.max(...ls), avg(ls)]));
     }
     psql(DB, `update public.pingpong_players set fish_day_coins = 0 where nick = '점검봇';
       delete from public.pingpong_fish_bag where player_id = (select id from public.pingpong_players where nick = '점검봇');`);
@@ -1107,7 +1113,7 @@ async function browserChecks() {
             for (let i = 0; i < 50 && !/🪙/.test(document.querySelector('#fshop .say').textContent); i++) await new Promise((r) => setTimeout(r, 100));
             return { cards, rows, got: A.account.player.coins - c0, want, bag: A.account.fishBag.length, say: document.querySelector('#fshop .say').textContent };
           });
-          must(shop.cards === 2 && shop.rows === 7 && shop.got === shop.want && shop.bag === 0, '횟집 창·팔기가 이상해요: ' + JSON.stringify(shop));
+          must(shop.cards === 2 && shop.rows === 17 && shop.got === shop.want && shop.bag === 0, '횟집 창·팔기가 이상해요: ' + JSON.stringify(shop));
           note = `잡동사니·전설 탁구채·물고기 잡기 · 도감 17칸 · 로그인 낚시(${res.kind}${bagged ? ' → 가방' : ''}) · 횟집 모두 팔기 +${shop.got}`;
         }
         await p.close();

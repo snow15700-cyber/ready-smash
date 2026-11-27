@@ -1,9 +1,9 @@
-// 🍣 횟집 창: 📈 시세표(일반 7종 · ▲빨강/▼파랑 · 지난 8회 꺾은선 · 🔥 오늘의 대박) + 🎒 가방(종류 × ⭐ 별마다 팔기 · 모두 팔기)
+// 🍣 횟집 창: 📈 시세표(일반 7종 + 희귀 8 · 전설 2(13-1 ②) · ▲빨강/▼파랑 · 지난 8회 꺾은선 · 🔥 오늘의 대박) + 🎒 가방(종류 × ⭐ 별마다 팔기 · 모두 팔기)
 // docs/dev/fishing.md 14-6. 규칙은 market.js, 코인은 서버(account.js fishSell)가 그 순간 시세로.
 // 낚시 화면 오른쪽 위 '🍣 횟집' 버튼(1a) · 선착장 횟집 건물·📈 칠판을 눌러도(1b, ui/fishing.js openMarket) 엶
 import { account, fishBagLoad, fishSell, marketNow } from '../../account.js';
 import { CATCH, SPECIES } from './rules.js';
-import { BAG_MAX, MARKET_FISH, QUAL_X, bagCount, history, nextLabel, periodLabel, priceOf, sellPlan, stars } from './market.js';
+import { BAG_MAX, BIG_FISH, BIG_SWING, MARKET_FISH, QUAL_X, bagCount, history, nextLabel, periodLabel, priceOf, sellPlan, stars } from './market.js';
 import { FISH_COINS } from './rules.js';
 import { modelImage } from './dex.js';
 
@@ -17,7 +17,7 @@ const css = `
 #fshop button { font: 700 14px 'Pretendard Variable', sans-serif; border: 0; border-radius: 99px; cursor: pointer; color: #fff; }
 #fshop .x { background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); padding: 7px 12px; }
 #fshop .body { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 4px 16px 16px; overflow-y: auto; }
-#fshop .panel { border-radius: 16px; padding: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); min-width: 0; }
+#fshop .panel { border-radius: 16px; padding: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); min-width: 0; overflow: visible; } /* 공용 .panel의 overflow:auto면 휴대폰에서 칸이 눌려 잘림 */
 #fshop .panel h4 { margin: 0 0 8px; font: 400 17px Jua, sans-serif; display: flex; justify-content: space-between; align-items: baseline; }
 #fshop .panel h4 small { font: 600 12px 'Pretendard Variable', sans-serif; color: rgba(255,255,255,.6); }
 #fshop .board { background: #1f3b2f; border: 4px solid #8a5a32; border-radius: 12px; padding: 8px 10px; font-family: Jua, sans-serif; } /* 칠판 */
@@ -26,6 +26,9 @@ const css = `
 #fshop .row:last-child { border-bottom: 0; }
 #fshop .row.hot { background: linear-gradient(90deg, rgba(255,120,40,.35), transparent); border-radius: 8px; padding-left: 4px; }
 #fshop .row .p { text-align: right; font-size: 17px; }
+#fshop .sec { font-size: 13px; color: #ffe9a8; padding: 8px 0 2px; border-bottom: 1px solid rgba(255,255,255,.22); display: flex; justify-content: space-between; }
+#fshop .sec small { font: 600 11px 'Pretendard Variable', sans-serif; color: rgba(255,255,255,.6); }
+#fshop .row.leg { background: linear-gradient(90deg, rgba(255,210,60,.18), transparent); border-radius: 8px; padding-left: 4px; }
 #fshop .up { color: #ff6b6b; } #fshop .dn { color: #6bb7ff; } #fshop .eq { color: rgba(255,255,255,.55); }
 #fshop .row svg { width: 56px; height: 20px; }
 #fshop .note { font-size: 12px; color: rgba(255,255,255,.65); margin-top: 8px; line-height: 1.5; }
@@ -82,12 +85,18 @@ function render() {
   const ms = marketNow(), hist = history(ms, 8), cur = hist.at(-1), prev = hist.at(-2);
   el.querySelector('.when').textContent = `${periodLabel(cur.p)} 쉬는 시간부터`;
   const order = [cur.jackpot, ...MARKET_FISH.filter((id) => id !== cur.jackpot)];
-  el.querySelector('.board').innerHTML = order.map((id) => {
+  const row = (id, cls = '') => {
     const v = cur.list[id], d = v - prev.list[id];
     const ch = d > 0 ? `<span class="up">▲${coin(d)}</span>` : d < 0 ? `<span class="dn">▼${coin(-d)}</span>` : '<span class="eq">–</span>';
-    return `<div class="row${id === cur.jackpot ? ' hot' : ''}"><span>${emoji(id)}</span><span>${id === cur.jackpot ? '🔥 ' : ''}${name(id)}</span><span class="p">${coin(v)}</span>${ch}${spark(hist.map((h) => h.list[id]))}</div>`;
-  }).join('');
-  el.querySelector('.note').innerHTML = `🔥 = 오늘의 대박(2배) · 크기와 상관없이 종류로만 · 희귀 ${FISH_COINS.rare} · 전설 ${FISH_COINS.legend}은 늘 같아요<br>⭐ 리듬을 잘 맞춘 물고기는 더 비싸요: ★★★ ×${QUAL_X[3] / 10} · ★★ ×${QUAL_X[2] / 10} · ★ ×${QUAL_X[1] / 10} · 별 없음 ×${QUAL_X[0] / 10}<br>다음 시세: <b>${nextLabel(ms)}</b> 쉬는 시간`;
+    return `<div class="row${id === cur.jackpot ? ' hot' : ''}${cls}"><span>${emoji(id)}</span><span>${id === cur.jackpot ? '🔥 ' : ''}${name(id)}</span><span class="p">${coin(v)}</span>${ch}${spark(hist.map((h) => h.list[id]))}</div>`;
+  };
+  // 희귀·전설도 오르내림 (13-1 ②): 칸을 나눠서 아래에
+  const grp = (g) => BIG_FISH.filter((id) => CATCH[id]?.grade === g);
+  const pct = (g) => Math.round(BIG_SWING[g][1] / 2 * 100);
+  el.querySelector('.board').innerHTML = order.map((id) => row(id)).join('')
+    + `<div class="sec">💎 희귀 <small>보통 ${FISH_COINS.rare} · ±${pct('rare')}%</small></div>` + grp('rare').map((id) => row(id)).join('')
+    + `<div class="sec">👑 전설 <small>보통 ${FISH_COINS.legend} · ±${pct('legend')}% · 언제 팔까?</small></div>` + grp('legend').map((id) => row(id, ' leg')).join('');
+  el.querySelector('.note').innerHTML = `🔥 = 오늘의 대박(2배, 일반만) · 크기와 상관없이 종류로만 · 희귀는 조금, 전설은 크게 오르내려요<br>⭐ 리듬을 잘 맞춘 물고기는 더 비싸요: ★★★ ×${QUAL_X[3] / 10} · ★★ ×${QUAL_X[2] / 10} · ★ ×${QUAL_X[1] / 10} · 별 없음 ×${QUAL_X[0] / 10}<br>다음 시세: <b>${nextLabel(ms)}</b> 쉬는 시간`;
 
   const bag = account.fishBag || [], n = bagCount(bag);
   el.querySelector('h3 small').textContent = account.loggedIn ? `🪙 ${account.player?.coins ?? 0}` : '';
