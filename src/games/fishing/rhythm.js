@@ -29,7 +29,7 @@ const GENRE_BARS = {
   rock: { // 반박 연타가 많음
     common: [[0, 1, 2, 3], [0, 1, 2, 2.5], [0, 0.5, 1, 2], [0, 2, 3, 3.5], [0, 1, 1.5, 2, 3]],
     rare: [[0, 0.5, 1, 1.5, 2, 3], [0, 1, 1.5, 2, 2.5, 3], [0, 0.5, 2, 2.5, 3], [0, 0.5, 1, 2, 3, 3.5], [0, 1, 2, 2.5, 3, 3.5]],
-    legend: [[0, 0.5, 1, 1.5, 2, 2.5, 3], [0, 0.5, 1, 1.5, 2, 3, 3.5], [0, 1, 1.5, 2, 2.5, 3, 3.5], [0, 0.5, 2, 2.5, 3, 3.5], [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]],
+    legend: [[0, 0.5, 1, 1.5, 2, 3], [0, 0.5, 1, 1.5, 2, 3, 3.5], [0, 1, 1.5, 2, 2.5, 3], [0, 0.5, 2, 2.5, 3, 3.5], [0, 0.5, 1, 2, 2.5, 3]], // 7·8연타 마디는 뺌(11/27 사용자 요청)
   },
   ballad: { // 긴 노트 + 가끔 톡
     common: [[[0, 2], 3], [[0, 3]], [0, [1, 2]], [0, 2], [[0, 1], 2, 3], [0, 1, 2]],
@@ -75,6 +75,19 @@ export function makeSong(fish, rnd = Math.random, avoidKey = null) {
 }
 
 // 구절(4마디) 하나의 노트 박 위치들 (구절 첫 박 기준)
+// 반박 간격으로 이어지는 연타는 최대 MAX_RUN개 (마디·구절을 넘어가도 셈 — 11/27 사용자 요청: 록 전설의 7~8연타 없애기)
+const MAX_RUN = 6;
+// carry = 앞 마디 끝 { last: 이 마디 시작 기준 마지막 노트 박(음수), run: 그 노트까지 이어진 연타 수 } → 이 마디를 붙인 뒤의 { max, last, run }
+function runOf(bar, carry) {
+  let last = carry.last, run = carry.run, max = 0;
+  for (const x of bar) {
+    const b = Array.isArray(x) ? x[0] : x;
+    run = Math.abs(b - last - 0.5) < 1e-6 ? run + 1 : 1;
+    max = Math.max(max, run);
+    last = Array.isArray(x) ? b + x[1] + 99 : b; // 긴 노트 뒤는 끊김
+  }
+  return { max, last: last - 4, run };
+}
 // 돌려주는 것: [{ b: 박, len: 긴 노트 길이(박, 없으면 0) }]
 export function makePhrase(song, rnd = Math.random) {
   const lib = song.genre ? GENRE_BARS[song.genre][song.grade] : BARS[song.grade];
@@ -82,8 +95,16 @@ export function makePhrase(song, rnd = Math.random) {
   const out = [];
   for (let b = 0; b < 4; b++) {
     let bar;
+    const carry = song.carry || { last: -99, run: 0 };
     if (b === 3 && rest && rnd() < rest) bar = REST_BAR;
-    else { let i; do i = Math.floor(rnd() * lib.length); while (i === song.lastBar && lib.length > 1); song.lastBar = i; bar = lib[i]; }
+    else {
+      const ok = (i) => runOf(lib[i], carry).max <= MAX_RUN;
+      let i, n = 0;
+      do i = Math.floor(rnd() * lib.length); while ((i === song.lastBar && lib.length > 1) || (!ok(i) && ++n < 30));
+      if (!ok(i)) i = lib.findIndex((_, k) => ok(k)); // 그래도 안 되면 되는 것 중 첫째 (늘 하나는 있음: 0박으로 시작해 연타가 끊기는 마디)
+      song.lastBar = i; bar = lib[i];
+    }
+    const c = runOf(bar, carry); song.carry = { last: c.last, run: c.run };
     for (const x of bar) out.push(Array.isArray(x) ? { b: b * 4 + x[0], len: x[1] } : { b: b * 4 + x, len: 0 });
   }
   return out;
