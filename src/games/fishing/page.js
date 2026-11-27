@@ -119,6 +119,7 @@ const sync = () => panel.querySelectorAll('button').forEach((b) => b.classList.t
 panel.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.id === 'syncBtn') { if (!F.busy()) openSyncCal(); return; }
+  if (b.dataset.act) { if (F.dbg.fightAt(+b.dataset.act)) panel.classList.remove('open'); return; } // 단계 바로 시험
   const k = b.dataset.k, v = b.dataset.v;
   TUNE[k] = k === 'fish' || k === 'bubbles' || k === 'cond' || k === 'size' || k === 'genre' ? v : k === 'sound' ? v === 'true' : +v;
   if (k === 'sound') { initSound(); setSoundOn(TUNE.sound); }

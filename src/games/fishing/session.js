@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { makeCharacter } from '../../scene.js';
 import { FISH, GRADE, STAGES, TUNE, biteSeq, pickCatch, stageOf, stageRhythm } from './data.js';
 import { addPaddle, dexOpen, fishCount, modelImage, openDex, ownedPaddles, recordCatch } from './dex.js';
-import { BIG_CM, CATCH, LEGEND_PADDLES, PADDLE_DUP_PIECES, STAND, activeBubbles, bubbleNear, clampStand, cmOfScore, fishSize, isNight, landingPoint, luckDice, modelScale, sizeTier, walkStand } from './rules.js';
+import { BIG_CM, CATCH, LEGEND_PADDLES, PADDLE_DUP_PIECES, SPECIES, STAND, activeBubbles, bubbleNear, clampStand, cmOfScore, fishSize, isNight, landingPoint, luckDice, modelScale, sizeTier, walkStand } from './rules.js';
 import { PIER, SEA_Y } from '../../campusLayout.js';
 import { fishCast, fishFinish } from '../../account.js';
 import { QUAL_X, qualityOf } from './market.js';
@@ -77,6 +77,16 @@ export function createFishing(opt) {
     online: () => isOn(),
     catchNow: () => { if (S.mode !== 'ready') return; fakeCast(); S.R = fakeRhythm(); startLand(); },
     fightNow: () => { if (S.mode !== 'ready') return; const p = fakeCast(); S.cast = { to: new THREE.Vector3(p.x, 0, p.z) }; startRhythm(); },
+    // 시안 ⚙️ '단계 바로 시험': 그 등급 물고기로 그 단계 줄다리기를 바로 시작 (희귀·전설 리듬을 처음부터 해 보기)
+    fightAt: (stage) => {
+      if (S.mode !== 'ready') return false;
+      initSound();
+      const p = fakeCast(), list = SPECIES.filter((f) => f.grade === STAGES[stage]);
+      if (list.length) S.fish = list[Math.floor(Math.random() * list.length)];
+      S.cast = { to: new THREE.Vector3(p.x, 0, p.z) };
+      startRhythm(stage);
+      return true;
+    },
     hit: () => pressNote(),
     stageUp: () => S.mode === 'fight' && S.stage < 2 && stageUp(),
     cast: (aim = 0, power = 0.5) => { initSound(); castTo(aim, power); },
