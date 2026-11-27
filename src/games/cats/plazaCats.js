@@ -6,8 +6,7 @@
 import * as THREE from 'three';
 import { account, catFeed, catList, marketNow, syncServerClock } from '../../account.js';
 import { heightAt, onPier } from '../../campusLayout.js';
-import { catHooks } from '../../ui/plaza.js';
-import { addon, plazaApi } from '../../ui/plazaAddons.js';
+import { addon, plazaApi, registerAddon } from '../../ui/plazaAddons.js';
 const fishSpot = () => addon('fishing')?.spot?.() || null; // 낚시 중인 내 자리
 import { hud } from '../../ui/hud.js';
 import { esc, world } from '../../ui/state.js';
@@ -173,7 +172,7 @@ const textTex = (txt, color) => {
   return new THREE.CanvasTexture(cv);
 };
 let nyaTex = null, loveTex = null;
-catHooks.fishEvent = (ev) => {
+function fishEvent(ev) { // 낚시 한 판의 일 (ui/fishing.js onEvent)
   if (!cats) return;
   const t = performance.now() / 1000;
   for (const c of [...cats, ...(myFollow ? [myFollow] : [])]) {
@@ -183,10 +182,10 @@ catHooks.fishEvent = (ev) => {
     } else if ((ev.k === 'note' && ev.res === 'Miss') || ev.k === 'miss') c.earT = t + (ev.k === 'miss' ? 1.2 : 0);
     else if (ev.k === 'catch') c.tapT = t;
   }
-};
+}
 
 // ── 매 프레임 (ui/plaza.js plazaFrame) ──
-catHooks.frame = (now, p) => {
+function frame(now, p) {
   if (!cats) { build(); syncServerClock(); }
   // 로그인이 바뀌면 내 하트 다시 받기
   const who = account.loggedIn ? account.player?.id : null;
@@ -280,8 +279,7 @@ catHooks.frame = (now, p) => {
     if (!pop.busy && (performance.now() - pop.t0 > 15000 || Math.hypot(p[0] - q.x, p[1] - q.z) > 14)) closePop(); // 오래되거나 멀어지면 닫음
     else if (performance.now() - (pop.rt || 0) > 20000) { pop.rt = performance.now(); renderPop(); } // 'n분 뒤' 고치기
   }
-};
-catHooks.hidden = () => closePop();
+}
 // 점검·디버그: window.__smash.cats
 export const catsDebug = { get cats() { return cats; }, get follow() { return myFollow; }, get others() { return others; }, call: () => callCats(fishSpot() ? [fishSpot().x, fishSpot().z] : plazaApi.pos(), true), openPop: (id) => openPop(cats.find((c) => c.id === id)), feed: (id) => feed(cats.find((c) => c.id === id)), catAt };
 
@@ -305,11 +303,22 @@ export function setFollowChoice(id) {
   plazaApi.sendInfo();
 }
 const wearOf = (o) => Object.fromEntries(OUTFITS.filter((x) => o?.[x.slot]).map((x) => [x.slot, true]));
-catHooks.state = () => {
+function myCatState() {
   const id = account.loggedIn && account.cats ? followChoice() : null;
   return id ? { c: id, h: heartOf(account.cats[id].pts), o: wearOf(account.cats[id].outfit) } : null;
-};
-catHooks.clean = (v) => (v && typeof v === 'object' && CAT_IDS.includes(v.c) && Number.isInteger(v.h) && v.h >= 3 && v.h <= MAX_HEART ? { c: v.c, h: v.h, o: wearOf(v.o) } : null);
+}
+
+// ── 광장에 꽂기 (ui/plazaAddons.js, cleanup.md 12번). order -1 = 낚시보다 먼저 (낚시가 이번 프레임에 멈춰도 고양이는 앉은 자리 그대로 한 번 더)
+registerAddon({
+  id: 'cats',
+  order: -1,
+  key: 'ct', // 광장 상태 메시지의 칸 이름 (바꾸지 않기): 데리고 다니는 고양이 { c: 종류, h: 하트, o: 옷 }
+  state: myCatState,
+  clean: (v) => (v && typeof v === 'object' && CAT_IDS.includes(v.c) && Number.isInteger(v.h) && v.h >= 3 && v.h <= MAX_HEART ? { c: v.c, h: v.h, o: wearOf(v.o) } : null),
+  frame,
+  hidden: () => closePop(),
+  fishEvent,
+});
 
 let myFollow = null, sentKey = '', greetFor = null;
 const others = new Map(); // 사람 id → 따라다니는 고양이
@@ -385,7 +394,7 @@ function syncWear(f, o) { const k = Object.keys(o || {}).sort().join(); if (f.we
 function followFrame(t, dt, p, sp) {
   const figs = plazaApi.view.figs, myId = plazaApi.myId();
   // 나
-  const st = catHooks.state(), key = st ? JSON.stringify(st) : '';
+  const st = myCatState(), key = st ? JSON.stringify(st) : '';
   if (key !== sentKey) { sentKey = key; plazaApi.sendInfo(); } // 바뀔 때만 (하트·옷·고른 고양이)
   if (!st || myFollow?.id !== st.c) {
     dropFollower(myFollow); myFollow = st ? makeFollower(st.c) : null;

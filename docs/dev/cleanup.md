@@ -24,7 +24,7 @@
 | 9 | 옛 로비 카메라 정리 (`main.js`) | 중간 | 중간 | 중간 | |
 | 10 | 광장 화면 파일(`ui/plaza.js`) 나누기 | 큼 | 중간 | 큼 | |
 | 11 | (나중에) `game.js` 공 소식 처리 나누기 | 중간 | 중간~높음 | 큼 | |
-| **12** | **광장 '콘텐츠 콘센트' 만들기**(낚시·고양이 연결 고리 하나로) — **10번보다 먼저 하기 추천** | 큼 | 중간 | 중간 | 12-1 ✓ test (11/27) · 12-2 아직 |
+| **12** | **광장 '콘텐츠 콘센트' 만들기**(낚시·고양이 연결 고리 하나로) — **10번보다 먼저 하기 추천** | 큼 | 중간 | 중간 | 12-1·12-2 ✓ test (11/27) |
 
 ---
 
@@ -174,6 +174,7 @@
   - `ui/plaza.js`: 위 표의 곳을 "`addons()` 돌면서 부르기"로 바꿈. `cleanFi`는 낚시로.
   - `ui/fishing.js`: `fishHooks.xxx = ` → `registerAddon({ id: 'fishing', key: 'fi', msgKind: 'fish', spots: {...}, ... })`.
 - **12-2 고양이 옮기기 + 안내 쓰기**
+  - **한 일(11/27 ✓ test)**: `games/cats/plazaCats.js` 맨 아래 쪽 `registerAddon({ id: 'cats', order: -1, key: 'ct', ... })`. `catHooks` 없앰 → 광장(`ui/plaza.js`)에 낚시·고양이 이름이 하나도 없음. 낚시가 고양이에게 알리는 것은 `addon('cats')?.fishEvent?.(ev)`. 콘센트에 `order`(작을수록 먼저)를 더해서 고양이 → 낚시 프레임 순서를 파일 불러오는 순서와 상관없이 지킴. 메시지 칸 `ct` 그대로.
   - `games/cats/plazaCats.js`: `catHooks` → `registerAddon({ id: 'cats', key: 'ct', ... })`. 낚시 자리는 `addon('fishing')?.spot?.()`.
   - `fishHooks`·`catHooks` 이름을 없앰(검색해서 0개 확인).
   - 이 문서 끝에 **"새 콘텐츠 붙이는 법" 체크리스트**(폴더 만들기 · `registerAddon` · `main.js`에서 불러오기 · 광장 3D 건물은 `campusLayout.js` · 서버 SQL 번호 · 문서 `docs/dev/<게임>.md`)를 쓰고, `CLAUDE.md` 지도에 한 줄.
@@ -190,6 +191,20 @@
 - 낚시 중 걷기 막힘·끝나면 다시 걷기. 고양이 따라오기·낚시할 때 옆에 앉기·밥 주기.
 - 랭킹·꾸미기 창 열 때(광장 안 보일 때) 낚시가 멈추는지.
 - 광장 탁구대 1대1이 그대로 되는지(광장 코드를 건드리므로).
+
+### 🧩 새 콘텐츠 붙이는 법 (체크리스트, 12번으로 생김)
+낚시(`ui/fishing.js`)·고양이(`games/cats/plazaCats.js`)가 본보기예요.
+1. **문서** `docs/dev/<게임>.md` 하나 — 기획·정한 것·진행. `CLAUDE.md` 지도 표에 한 줄.
+2. **폴더** `src/games/<게임>/` — 규칙·모형·화면. 서버와 같아야 하는 규칙은 `rules.js`처럼 three 없이 한 파일에(자동 점검이 Node에서 불러 서버와 비교).
+3. **광장에 꽂기**: 그 게임의 광장 연결 파일(작으면 `games/<게임>/plaza<게임>.js`, 크면 `ui/<게임>.js`) 맨 아래 `registerAddon({...})` 한 번 (`src/ui/plazaAddons.js` 맨 위 설명).
+   - 광장 기능은 `plazaApi`로(걷기 `walkTo`·`walkNear`, 3D `view`, 메시지 `send`·`sendInfo`, 사람들 `people()`). **`ui/plaza.js`를 직접 불러오지 않기.**
+   - 다른 사람에게 보일 내 상태는 `key`+`state()`+`clean()` — 칸 이름은 짧게(2글자), 다른 콘텐츠와 겹치지 않게, 한 번 정하면 안 바꿈. 자주 바뀌는 것은 `state`에 넣지 말고 바뀔 때만 `plazaApi.sendInfo()`.
+   - 한 번씩 알릴 일은 `msgKind` 메시지(`plazaApi.send({ k: msgKind, ... })`). 받는 쪽은 `onMsg`에서 너무 잦은 것은 무시.
+   - 콘텐츠끼리는 `addon('<id>')?.함수?.()` (없어도 안 깨지게 `?.`).
+4. **`main.js` 맨 위에서 불러오기**(불러올 때 등록됨). 디버그 훅은 `window.__smash.<게임>`.
+5. **광장 3D 건물·자리**: 자리 숫자는 `src/campusLayout.js`, 그리기는 `src/arena-plaza.js`. 누를 수 있는 곳은 `arena-plaza.js`의 `spots`에 `{ id, ... }`를 넣고 `registerAddon`의 `spots: { <id>: (sp, at) => ... }`로 받기.
+6. **서버**: 새 SQL `supabase/NN_...sql`(`pingpong_` 접두어, RLS, security definer) + `docs/dev/sql-to-run.md` + **로컬 가짜 서버** `src/localServer.js`도 같은 규칙. 코인·기록은 서버가 계산.
+7. **점검**: `scripts/check.cjs`에 서버 규칙·화면 점검 추가, test에 올릴 때 `docs/dev/test-checklist.md`에 추가.
 
 ### 10번(광장 파일 나누기)과의 관계
 12번을 먼저 하면 광장 파일에서 낚시·고양이 이야기가 빠져서 10번이 더 쉬워져요. 10번은 그 뒤에 원래 계획대로.

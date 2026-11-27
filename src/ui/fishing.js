@@ -10,8 +10,7 @@ import { applyLook } from '../items.js';
 import { activeBubbles, CATCH, LEGEND_PADDLES } from '../games/fishing/rules.js';
 import { makeBobber, makeBubbleFx, makeLine, makeRod, makeSplashes, seaHeight } from '../games/fishing/world.js';
 import { PIER, STAIRS, stairAt } from '../campusLayout.js';
-import { catHooks } from './plaza.js';
-import { plazaApi, registerAddon } from './plazaAddons.js';
+import { addon, plazaApi, registerAddon } from './plazaAddons.js';
 import { easeInOut, orbitBlend } from '../plaza.js';
 import { hud as toastHud } from './hud.js';
 import { curScreen } from './screen.js';
@@ -166,7 +165,7 @@ function hidePaddle(c) {
 
 // 낚시 한 판의 일 → 광장 사람들에게
 function onEvent(ev) {
-  catHooks.fishEvent?.(ev);
+  addon('cats')?.fishEvent?.(ev); // 🐱 옆에 앉은 고양이가 반응
   if (ev.k === 'cast') { me.b = ev.to.map((v) => Math.round(v * 100) / 100); plazaApi.sendInfo(); }
   else if (ev.k === 'catch') {
     me.b = null; plazaApi.sendInfo();

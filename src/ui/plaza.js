@@ -84,13 +84,12 @@ const myPid = () => (account.loggedIn ? account.player?.id ?? null : null);
 const inAI = () => game?.mode === 'ai';
 const myInfo = () => ({ id: myId, nick: myNick(), title: myTitle(), titleX: myNemesis(), look: myEquip(), at: pz.at, mob: IS_MOBILE, kim: inAI() });
 // 자주 바뀌는 것은 메시지로: 걷기·탁구대 자리·준비·경기 채널 코드·연승·선수 번호
-const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid(), kc: pz.kim, ...addonStates(), ct: catHooks.state?.() ?? null });
+const myState = () => ({ k: 'st', id: myId, w: pz.myW, seat: pz.seat, rdy: pz.rdy, code: pz.code, st: myStreak(), pid: myPid(), kc: pz.kim, ...addonStates() });
 // 광장에 붙는 콘텐츠(낚시 등)는 ui/plazaAddons.js의 콘센트로 (cleanup.md 12번). 광장은 이름을 모르고 돌면서 부름
 function addonStates() { const o = {}; for (const a of addons()) if (a.key) o[a.key] = a.state?.() ?? null; return o; }
 function addonCleans(m) { const o = {}; for (const a of addons()) if (a.key) o[a.key] = a.clean?.(m[a.key]) ?? null; return o; }
 const addonBusy = () => addons().some((a) => a.takesOver?.());
 function addonFace(p) { for (const a of addons()) { const f = a.face?.(p); if (f != null) return f; } return null; }
-export const catHooks = {}; // 🐱 선착장 고양이 (src/games/cats/plazaCats.js) — 12-2에서 콘센트로 옮길 예정
 const tagOf = (nick, rdy) => (rdy ? `${nick} ✅` : nick);
 // 꾸미기 창에서 입어 보는 중이면 그 모습 (내 화면에서만, 다른 사람에겐 장착한 것)
 const myLook = () => (curScreen === 'dress' && preview ? preview.look : myEquip());
@@ -186,7 +185,7 @@ function rebuild() {
       w: m.id === myId ? null : cleanWalk(m.w, now),
       seat: mob ? null : cleanSeat(m.seat), rdy: !!m.rdy, code: typeof m.code === 'string' && /^[A-Z0-9]{4}$/.test(m.code) ? m.code : null,
       pid: (typeof m.pid === 'string' && m.pid.length <= 64) || Number.isInteger(m.pid) ? m.pid : null,
-      kim: m0.kim === true, called: cleanKim(m.kc), ...addonCleans(m), ct: catHooks.clean?.(m.ct) ?? null,
+      kim: m0.kim === true, called: cleanKim(m.kc), ...addonCleans(m),
     });
   }
   // 40명까지: 먼저 들어온 순서 (들어온 시각 → id 순, 모든 PC가 같은 규칙)
@@ -828,7 +827,7 @@ export function plazaFrame(now) {
       closePhrases(); // 로비 캐릭터는 로비·경기 화면이 다시 켠다
     }
   }
-  if (!shown) { for (const a of addons()) a.hidden?.(); catHooks.hidden?.(); bubbleStop(); if (!arenaPreview()) view.setInput(true); return false; }
+  if (!shown) { for (const a of addons()) a.hidden?.(); bubbleStop(); if (!arenaPreview()) view.setInput(true); return false; }
   if (!bubbleArena()) for (const side of world.team) for (const c of side) c.group.visible = false; // 랠리하는 로비 캐릭터는 숨김
   // 걷는 중: 한 구간이 끝나면 다음 구간, 다 왔으면 도착해서 할 일 (가게 열기·혼자 하기)
   const nowMs = Date.now();
@@ -840,7 +839,6 @@ export function plazaFrame(now) {
   renderTables();
   windowFrame(p);
   view.update(now, myId);
-  catHooks.frame?.(now, p);
   const walking = pz.route.length > 0 || Math.hypot(p[0] - pz.myW.to[0], p[1] - pz.myW.to[1]) > 0.05;
   for (const a of addons()) a.frame?.(now, p, walking);
   sky ||= createPlazaSky(world);
