@@ -45,10 +45,36 @@ export function tone(f1, f2, dur, { type = 'sine', gain = 0.2, at = 0 } = {}) {
   o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.02);
 }
 
-// 소리가 귀에 닿기까지 늦는 시간(초): 브라우저가 알려 주는 값(블루투스 이어폰이면 0.1~0.3초) + ⚙️에서 더한 값.
-// 리듬 음악을 이만큼 먼저 틀어서, 들리는 박자 = 원이 닿는 순간 = 판정 순간이 되게 (fishing.md 8장 'A 판정 느낌')
+// 소리가 귀에 닿기까지 늦는 시간(초): 브라우저가 알려 주는 값(블루투스 이어폰이면 0.1~0.3초) + 본인이 🎵 박자 맞추기에서 더한 값.
+// 리듬 음악을 이만큼 먼저 틀어서, 들리는 박자 = 원이 닿는 순간 = 판정 순간이 되게 (fishing.md 8장 'A 판정 느낌' · 18장 박자 맞추기)
 export function autoLag() { if (!ac) return 0; return Math.min(0.4, Math.max(0, (ac.outputLatency || 0) + (ac.baseLatency || 0))); }
-export function audioLag() { return Math.min(0.5, Math.max(0, autoLag() + (TUNE.lag || 0))); }
+export function audioLag() { return Math.min(0.5, Math.max(-0.15, autoLag() + (TUNE.lag || 0))); }
+// 본인 보정값(TUNE.lag)은 이 기기에 저장 (이어폰을 바꾸면 다시 맞추면 됨)
+export const LAG_MIN = -0.15, LAG_MAX = 0.35;
+const LAG_KEY = 'pp-fish-lag';
+try { const v = parseFloat(localStorage.getItem(LAG_KEY)); if (Number.isFinite(v)) TUNE.lag = Math.min(LAG_MAX, Math.max(LAG_MIN, v)); } catch { /* 저장 안 됨 */ }
+export function setLag(v) {
+  TUNE.lag = Math.round(Math.min(LAG_MAX, Math.max(LAG_MIN, v)) * 1000) / 1000;
+  try { localStorage.setItem(LAG_KEY, String(TUNE.lag)); } catch { /* 저장 안 됨 */ }
+  return TUNE.lag;
+}
+// 오디오 시각 − 진짜 시각(performance.now): 오디오 시각은 뚝뚝 끊어서 가서 한 번 재면 10~40ms 틀릴 수 있음 → 매 프레임 재서 최근 평균을 씀
+const offs = [];
+function sampleOff() { if (!ac) return; offs.push(ac.currentTime - performance.now() / 1000); if (offs.length > 90) offs.shift(); }
+export function clockOff() {
+  if (!ac) return 0;
+  sampleOff();
+  const m = offs.reduce((a, b) => a + b, 0) / offs.length, now = ac.currentTime - performance.now() / 1000;
+  return Math.abs(now - m) > 0.1 ? (offs.length = 0, sampleOff(), now) : m; // 탭을 숨겼다 오는 등 크게 바뀌면 처음부터
+}
+// 진짜 시각 t(초)에 '귀에' 들리게 짧은 '톡' (박자 맞추기 창)
+export function clickAt(t, hi = false) {
+  if (!ac) return;
+  const at = clockOff() + t - audioLag() - ac.currentTime;
+  if (at < 0) return;
+  tone(hi ? 1760 : 1320, hi ? 1700 : 1260, 0.05, { type: 'triangle', gain: hi ? 0.32 : 0.24, at });
+  noise(0.02, { f: 3200, q: 3, gain: 0.08, at });
+}
 export const snd = {
   tap: () => { noise(0.025, { f: 1800, q: 4, gain: 0.07 }); }, // 노트가 없을 때 눌러도 '톡' (누른 게 느껴지게, 아주 작게)
   charge: (k) => { const f = 330 * 2 ** (k * 1.25); tone(f, f * 1.02, 0.1, { type: 'triangle', gain: 0.07 }); }, // 기 모으기: 박마다 한 음씩 올라감 (17장)
@@ -70,5 +96,6 @@ export const snd = {
 // 매 프레임: 파도 숨쉬기
 export function tickSound(t) {
   if (!ac) return;
+  sampleOff();
   sea.g.gain.setTargetAtTime(0.035 + 0.03 * (0.5 + 0.5 * Math.sin(t * 0.55)) * (0.6 + 0.4 * Math.sin(t * 0.21)), ac.currentTime, 0.3);
 }

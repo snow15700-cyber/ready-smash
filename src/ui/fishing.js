@@ -34,6 +34,7 @@ root.innerHTML = `
   <div id="fish-bar" class="fish-bar hidden">
     <button id="fish-shop" class="hidden" type="button">🍣 횟집</button>
     <button id="fish-cats" class="hidden" type="button">🐱</button>
+    <button id="fish-sync" type="button" title="박자 맞추기">🎵</button>
     <button id="fish-dex" type="button">📖 도감</button>
     <button id="fish-stop" type="button">그만하기</button>
   </div>
@@ -66,6 +67,7 @@ document.head.appendChild(css);
 $('fish-start').addEventListener('click', (e) => { e.stopPropagation(); start(); });
 $('fish-stop').addEventListener('click', (e) => { e.stopPropagation(); stop(); });
 $('fish-dex').addEventListener('click', (e) => { e.stopPropagation(); if (F && !F.busy()) mod.openDex(); });
+$('fish-sync').addEventListener('click', (e) => { e.stopPropagation(); if (F && !F.busy()) mod.openSyncCal(); }); // 🎵 박자 맞추기 (fishing.md 18장) — 던지기 전·잡은 뒤에 언제든
 // 🍣 횟집 (fishing.md 14-6, 1a: 낚시 화면 버튼 — 선착장 건물은 1b). 35 전 서버·손님이면 가방을 몰라서 숨김
 let shopMod = null;
 $('fish-shop').addEventListener('click', async (e) => {
@@ -94,7 +96,7 @@ $('fish-cats').addEventListener('click', async (e) => {
   if (F?.busy()) { toastHud.toast('물고기를 다 낚은 뒤에 봐요', 1800); return; }
   (await import('../games/cats/myCats.js')).openMyCats();
 });
-for (const id of ['fish-start', 'fish-stop', 'fish-dex', 'fish-shop', 'fish-cats']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
+for (const id of ['fish-start', 'fish-stop', 'fish-sync', 'fish-dex', 'fish-shop', 'fish-cats']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
 
 // ── 시작 · 그만
 async function start() {

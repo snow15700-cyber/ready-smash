@@ -5,7 +5,8 @@ import * as THREE from 'three';
 import { buildCampus } from '../../campusMock.js';
 import { account, autoLogin, fishDex, syncServerClock, srvNow } from '../../account.js';
 import { setServerDex } from './dex.js';
-import { autoLag, setSoundOn } from './sound.js';
+import { setSoundOn } from './sound.js';
+import { openSyncCal } from './syncCal.js';
 import { PIER } from '../../campusLayout.js';
 import { STAND } from './rules.js';
 import { TUNE, createFishing, dexOpen, initSound, openDex } from './session.js';
@@ -111,11 +112,12 @@ document.addEventListener('visibilitychange', () => {
 
 // ── ⚙️ 시험 설정
 const panel = document.getElementById('panel');
-document.getElementById('gear').addEventListener('click', () => { panel.classList.toggle('open'); const el = document.getElementById('lagAuto'); if (el) el.textContent = Math.round(autoLag() * 1000); });
+document.getElementById('gear').addEventListener('click', () => panel.classList.toggle('open'));
 for (const el of [panel, document.getElementById('gear')]) el.addEventListener('pointerdown', (e) => e.stopPropagation());
 const sync = () => panel.querySelectorAll('button').forEach((b) => b.classList.toggle('on', String(TUNE[b.dataset.k]) === b.dataset.v));
 panel.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'syncBtn') { if (!F.busy()) openSyncCal(); return; }
   const k = b.dataset.k, v = b.dataset.v;
   TUNE[k] = k === 'fish' || k === 'bubbles' || k === 'cond' || k === 'size' ? v : k === 'sound' ? v === 'true' : +v;
   if (k === 'sound') { initSound(); setSoundOn(TUNE.sound); }

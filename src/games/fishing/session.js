@@ -18,7 +18,7 @@ import { ACH } from '../../achievements.js';
 import { makeModel } from './models.js';
 import { ITEM, makePaddle, paddleImage } from '../../items.js';
 import { breakAt } from '../../breaks.js';
-import { audioCtx, audioLag, initSound, quietSound, snd, tickSound } from './sound.js';
+import { audioCtx, audioLag, clockOff, initSound, quietSound, snd, tickSound } from './sound.js';
 import { makePhrase, makeSong, playBeat, playFinish, playMelody } from './rhythm.js';
 import { makeBobber, makeBubbleFx, makeFishModel, makeLine, makeRod, makeSplashes, seaHeight } from './world.js';
 import { drawHud, zoomRect } from './hud.js';
@@ -26,6 +26,7 @@ import { BEAT } from './beat.js';
 import { makeBeatFx } from './beatFx.js';
 
 export { TUNE, openDex, dexOpen, initSound };
+export { openSyncCal } from './syncCal.js';
 
 export function createFishing(opt) {
   const { scene, camera } = opt;
@@ -153,7 +154,7 @@ export function createFishing(opt) {
   //   곡은 일반 리듬(고등어 BPM) — 등급은 숨기니까 누구나 같게. 줄다리기가 시작되면 그쪽 음악이 이어받음(S.B = null)
   function startBeatClock() {
     const song = makeSong(STAGE_FISH.common), ac = audioCtx();
-    S.B = { song, spb: 60 / song.bpm, base: nowS(), sched: 0, lastBeat: -1, pulse: 0, aOff: ac ? ac.currentTime - nowS() : 0 };
+    S.B = { song, spb: 60 / song.bpm, base: nowS(), sched: 0, lastBeat: -1, pulse: 0, aOff: ac ? clockOff() : 0 };
   }
   function tickBeatClock(rdt) {
     const B = S.B, rt = nowS() - B.base, lag = audioLag();
@@ -295,7 +296,7 @@ export function createFishing(opt) {
       hits: prev ? prev.hits : 0, perfects: prev ? prev.perfects : 0, misses: prev ? prev.misses : 0,
       fin: null, aOff: 0, bump: 0, tilt: 0, reel: 0, slack: 0, burst: null, shown: prev ? prev.shown : undefined,
     };
-    const ac = audioCtx(); if (ac) S.R.aOff = ac.currentTime - nowS();
+    const ac = audioCtx(); if (ac) S.R.aOff = clockOff();
     if (B) { // 같은 박자 그대로: 첫 노트 = 지금부터 2박 넘게 뒤의 반 마디(짝수 박) — 박이 끊기지 않고, 다음 박부터 음악이 꽉 참(화음·멜로디)
       const c = (nowS() - B.base) / spb, F = Math.ceil((c + 2) / 2) * 2;
       Object.assign(S.R, { base: B.base, aOff: B.aOff, t0: F * spb, intro: F, sched: B.sched - F, lastBeat: B.lastBeat - F });
