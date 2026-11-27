@@ -17,6 +17,7 @@ const params = new URLSearchParams(location.search);
 if (params.get('fish')) TUNE.fish = params.get('fish');
 if (params.get('cond')) TUNE.cond = params.get('cond');
 if (params.get('bubbles')) TUNE.bubbles = params.get('bubbles');
+if (params.get('genre')) TUNE.genre = params.get('genre'); // 13-3 ⑤ 장르 시안 (?genre=jazz·rock·ballad)
 // 주변 박자 연출 시안(B): 이 시안 페이지에서는 처음에 다 켜 둠 — ⚙️에서 하나씩 끄며 비교 (?beat=0 이면 다 끔)
 for (const k of ['bSea', 'bPier', 'bBody']) TUNE[k] = params.get('beat') === '0' ? 0 : 1;
 // 음악·색 달아오름(16장 C): 기본 켬(광장도) — 시안에서는 ?heat=0 이면 끔
@@ -119,7 +120,7 @@ panel.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.id === 'syncBtn') { if (!F.busy()) openSyncCal(); return; }
   const k = b.dataset.k, v = b.dataset.v;
-  TUNE[k] = k === 'fish' || k === 'bubbles' || k === 'cond' || k === 'size' ? v : k === 'sound' ? v === 'true' : +v;
+  TUNE[k] = k === 'fish' || k === 'bubbles' || k === 'cond' || k === 'size' || k === 'genre' ? v : k === 'sound' ? v === 'true' : +v;
   if (k === 'sound') { initSound(); setSoundOn(TUNE.sound); }
   sync();
 });

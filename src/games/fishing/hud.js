@@ -170,6 +170,23 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
       // 줄어드는 원 (다가오는 노트들) — 시간은 리듬 시계(R.rt). 마지막 큰 노트는 굵은 금색, 3박 동안 천천히
       const rt = R.rt ?? 0;
       for (const n of R.notes) {
+        if (n.len && n.tail === null) { // 발라드 긴 노트(13-3): 시작 원 ~ 끝 원(점선) 사이 띠. 시작을 맞추면 기본 원부터 띠가 밝게 (꾹 누르는 중)
+          const kH = (n.t - rt) / n.appr, kT = (n.tEnd - rt) / n.appr;
+          if (kH > 1) continue;
+          const held = R.hold === n, rad = (k) => br * (1 + clamp(k, 0, 1.15) * 2.4);
+          const rIn = held || n.res ? br : rad(kH), rOut = rad(kT);
+          g.globalAlpha = clamp((1 - kH) * 3, 0, 1);
+          g.fillStyle = held ? 'rgba(217,194,255,.42)' : 'rgba(217,194,255,.2)';
+          g.beginPath(); g.arc(b.x, b.y, rOut, 0, 7); g.arc(b.x, b.y, rIn, 0, 7, true); g.fill();
+          if (kT <= 1.15) {
+            g.setLineDash([10 * u, 7 * u]);
+            g.lineWidth = 7 * u; g.strokeStyle = 'rgba(10,25,45,.45)'; g.beginPath(); g.arc(b.x, b.y, rOut, 0, 7); g.stroke();
+            g.lineWidth = 4 * u; g.strokeStyle = '#d9c2ff'; g.beginPath(); g.arc(b.x, b.y, rOut, 0, 7); g.stroke();
+            g.setLineDash([]);
+          }
+          if (held) out('꾹~', b.x, b.y, 22 * u, '#fff', 4);
+          g.globalAlpha = 1;
+        }
         if (n.res) continue;
         const k = (n.t - rt) / n.appr; // 1 → 0
         if (k > 1 || k < -0.3) continue;

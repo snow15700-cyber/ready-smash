@@ -36,12 +36,12 @@ export function noise(dur, { type = 'bandpass', f = 2000, f2 = null, q = 1, gain
   s.connect(fl); fl.connect(g); g.connect(out);
   s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.02);
 }
-export function tone(f1, f2, dur, { type = 'sine', gain = 0.2, at = 0 } = {}) {
+export function tone(f1, f2, dur, { type = 'sine', gain = 0.2, at = 0, attack = 0.008 } = {}) { // attack: 천천히 커지는 소리(발라드 패드)
   if (!ac) return;
   const t = ac.currentTime + at;
   const o = ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(f1, t);
   if (f2 !== f1) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
-  const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + Math.min(attack, dur * 0.6)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.02);
 }
 

@@ -16,6 +16,14 @@ export const TUNE = {
   heatC: 1, // 16장 C 2단계: 같은 겹 수로 기본 원 둘레·화면 가장자리 빛이 주황 → 분홍 → 금색. 1 = 켬 — 11/26 사용자 확정: 광장에도
   chargeBeats: 4, // 17장: 끝까지 기 모으는 데 걸리는 박 수 (11/27 사용자 확정: 기본 4박, 시안 ⚙️에서 8박도)
   cam: 2, // 카메라 연출 세기 (박자 두근·단계 확대·기울기): 0 끔 · 1 약 · 2 보통 · 3 강
+  genre: 'off', // 13-3 ⑤ 장르(시안 1단계): 'off' = 지금 음악 · 'jazz' · 'rock' · 'ballad' (광장은 아직 'off' — 2단계에서 선 자리로 정함)
+};
+
+// 13-3 ⑤ 장르 (11/27 사용자 확정): 장르 = 곡 분위기·노트 모양, 단계 = 그 안에서 점점 빠르게. bpm = 일반·희귀·전설 단계
+export const GENRES = {
+  jazz: { label: '🎷 재즈', bpm: [96, 110, 124] },
+  rock: { label: '🎸 록', bpm: [108, 124, 140] },
+  ballad: { label: '🎻 발라드', bpm: [84, 96, 108] },
 };
 
 // 단계마다 쓰는 리듬·그림자 물고기 모양 (진짜 물고기 목록은 rules.js SPECIES). 리듬: bpm(한 마리마다 ±4 흔들림), secs = 그 단계를 다 맞출 때 걸리는 시간(초, 11/26 사용자 확정: 일반 6 · 희귀 +30% · 전설 +60% → 11/27 전설도 +30%),
@@ -55,6 +63,11 @@ export function pickCatch(near = 0, ctx = {}, rnd = Math.random) {
 export const STAGES = ['common', 'rare', 'legend'];
 export const STAGE_FISH = { common: FISH.mackerel, rare: FISH.seabream, legend: FISH.goldball }; // 단계마다 박자(bpm)·시간 기준
 export const stageOf = (f) => STAGES.indexOf(f.grade);
+// 단계의 리듬 설정 + 장르 (장르가 있으면 그 장르 빠르기). 음악·노트 모양은 rhythm.js가 song.genre로 고름
+export function stageRhythm(i, genre = TUNE.genre) {
+  const f = STAGE_FISH[STAGES[i]], G = GENRES[genre];
+  return G ? { ...f, bpm: G.bpm[i], genre } : f;
+}
 
 // 입질 순서: tok(톡 = 약한 떨림) · fake(가짜 풍덩 = 약한 떨림 2~3번) · real(진짜, 항상 마지막)
 // 등급을 숨기므로 입질 순서는 등급과 상관없이 고름 (순서로 등급을 알아채지 못하게)
