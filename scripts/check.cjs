@@ -277,6 +277,11 @@ async function sqlCheck() {
         must(srvL[i] === p.x.toFixed(4) + ':' + p.z.toFixed(4), `36: 찌 자리가 서버와 화면이 달라요: ${q} 서버 ${srvL[i]} 화면 ${p.x.toFixed(4)}:${p.z.toFixed(4)}`);
         must(!R.WOOD.some((w) => p.x > w.x0 && p.x < w.x1 && p.z > w.z0 && p.z < w.z1), `36: 찌가 나무 판 위에 떨어져요: ${q} → ${p.x}, ${p.z}`);
       });
+      // 46: 팔에서 가장 멀리 던진 부채꼴 끝이 둥근 원 (어느 방향이든 18m, 꺾이지 않음)
+      for (const [sx, sz] of [[-4, 45.7], [-4, 51], [26, 46], [26, 56]]) for (let k = -1; k <= 1; k += 0.25) {
+        const L = R.landingPoint(sx, k, 1, sz), d = Math.hypot(L.x - sx, L.z - sz);
+        must(Math.abs(d - 18) < 0.01 && L.z >= 43, `46: 팔 부채꼴 끝이 18m 원이 아니에요: ${sx},${sz} aim ${k} → ${d.toFixed(2)}m z ${L.z.toFixed(2)}`);
+      }
       // 45: 팔에서는 바깥 바다 쪽으로 (서쪽 팔 → 서쪽, 동쪽 팔 → 동쪽), 절벽(z 43 밑)에는 안 떨어짐
       for (const aim of [-1, 0, 1]) for (const pw of [0, 0.5, 1]) {
         const w = R.landingPoint(-4, aim, pw, 52), e = R.landingPoint(26, aim, pw, 52), f = R.landingPoint(11, aim, pw, 44);

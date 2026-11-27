@@ -50,8 +50,8 @@ export const ARMS = [
   { side: 'east', x0: 24, x1: 28, z0: PIER.z1, z1: PIER.z1 + 11 },
 ];
 export const WOODS = [PIER, ...ARMS]; // 나무 판 전부 (걷기·찌가 떨어지는 곳 계산)
-// 등대: 팔 끝 바깥쪽에 붙은 돌 받침 위 (팔 끝에서 낚시할 때 화면을 가리지 않게). 받침도 찌가 못 떨어지는 곳(rules.js WOOD)
-export const LH_BASES = ARMS.map((A) => (A.side === 'west' ? { x0: A.x0 - 2.4, x1: A.x0, z0: A.z1 - 2.9, z1: A.z1 } : { x0: A.x1, x1: A.x1 + 2.4, z0: A.z1 - 2.9, z1: A.z1 }));
+// 등대: 팔 끝(갑판이 끝나는 곳) 바로 앞(남쪽)에 붙은 돌 받침 위 (11/27 사용자 요청 — 전에는 팔 끝 바깥 옆). 받침도 찌가 못 떨어지는 곳(rules.js WOOD)
+export const LH_BASES = ARMS.map((A) => { const cx = (A.x0 + A.x1) / 2; return { x0: cx - 1.45, x1: cx + 1.45, z0: A.z1, z1: A.z1 + 2.4 }; });
 export const LIGHTHOUSES = LH_BASES.map((B, i) => ({ side: ARMS[i].side, x: (B.x0 + B.x1) / 2, z: (B.z0 + B.z1) / 2, r: 0.8 }));
 export const HARBOR = { x0: ARMS[0].x1, x1: ARMS[1].x0, z0: PIER.z1, z1: ARMS[0].z1 }; // 팔 사이 작은 항구
 // 돌계단 2개: 데크 서쪽 옆 · 동쪽 옆(x0~x1), 광장 끝(z0, 높이 0)에서 남쪽으로 곧게 → 선착장 판(z1, 높이 PIER.y)

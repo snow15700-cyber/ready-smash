@@ -118,9 +118,8 @@ export function buildPierArea(anim = null) {
     halos.push(beatHalo(g, L.x, yTop + 0.47, L.z, L.side === 'west' ? 0x6dffb5 : 0xffb04a, 4.5));
     const cap = new THREE.Mesh(new THREE.ConeGeometry(0.62, 0.7, 10), band); cap.position.set(L.x, yTop + 1.17, L.z); cap.castShadow = true; g.add(cap);
     cyl(0.04, 0.04, 0.4, metal, L.x, yTop + 1.65, L.z, 6);
-    const door = addBox(g, 0.5, 0.95, 0.06, woodDark, 0, 0, 0); // 문: 항구 쪽(안쪽)을 봄
-    const dx = L.side === 'west' ? 1 : -1;
-    door.position.set(L.x + dx * (L.r - 0.02), top + 0.88, L.z); door.rotation.y = Math.PI / 2;
+    const door = addBox(g, 0.5, 0.95, 0.06, woodDark, 0, 0, 0); // 문: 팔(북쪽)을 봄 — 팔 끝에서 걸어 들어가는 모양
+    door.position.set(L.x, top + 0.88, L.z - (L.r - 0.02));
   }
 
   // ── 항구의 작은 배 (물결 따라 오르내림 — 합치지 않음)

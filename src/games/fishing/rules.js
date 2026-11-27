@@ -9,8 +9,8 @@ export const WOOD = [ // campusLayout.js PIER·ARMS·LH_BASES와 같은 숫자 (
   { x0: -6, x1: 28, z0: 39, z1: 46.5 }, // 앞 판
   { x0: -6, x1: -2, z0: 46.5, z1: 57.5 }, // 서쪽 팔
   { x0: 24, x1: 28, z0: 46.5, z1: 57.5 }, // 동쪽 팔
-  { x0: -8.4, x1: -6, z0: 54.6, z1: 57.5 }, // 서쪽 등대 돌 받침
-  { x0: 28, x1: 30.4, z0: 54.6, z1: 57.5 }, // 동쪽 등대 돌 받침
+  { x0: -5.45, x1: -2.55, z0: 57.5, z1: 59.9 }, // 서쪽 등대 돌 받침 (팔 끝 바로 앞, 46번부터)
+  { x0: 24.55, x1: 27.45, z0: 57.5, z1: 59.9 }, // 동쪽 등대 돌 받침
 ];
 export const STANDS = [ // 서는 곳 (판 가장자리에서 조금 안쪽)
   { x0: -5.3, x1: 27.3, z0: 39.6, z1: 45.6 },
@@ -52,11 +52,20 @@ export function castHeading(x, z) {
   return cx < (STANDS[0].x0 + STANDS[0].x1) / 2 ? -Math.PI / 2 : Math.PI / 2;
 }
 export const LAND_ZMIN = 43; // 팔에서 비스듬히 북쪽으로 던져도 절벽·땅(z 39 밑)에 안 떨어지게
+// 팔에서 부채꼴의 북쪽(절벽 쪽) 반만 좁힘 (46: 전에는 z 43에서 잘라 부채꼴 끝이 한쪽만 꺾여 보였음) — 가장 멀리(18m) 던져도 z 43까지만
+//   → 부채꼴 끝은 늘 둥근 원. 앞 판은 그대로 ±0.7
+export function aimAngle(sx, sz, aim) {
+  const h = castHeading(sx, sz), a = clamp(aim, -1, 1);
+  if (!h) return -a * CAST_ANG;
+  const north = Math.min(CAST_ANG, Math.asin(clamp((sz - LAND_ZMIN) / CAST_MAX, 0, 1)));
+  const toNorth = h < 0 ? a > 0 : a < 0; // 서쪽을 보면 오른쪽(aim +)이 북쪽, 동쪽을 보면 왼쪽(aim −)
+  return -a * (toNorth ? north : CAST_ANG);
+}
 // 찌가 떨어지는 곳: 판 위면 같은 방향으로 판 밖(+0.6m)까지 (최대 4번 — 앞 판 → 팔 → 물)
 export function landingPoint(standX, aim, power, z = STAND.z) {
   const [sx, sz] = clampStand(standX, z ?? STAND.z);
   const h = castHeading(sx, sz);
-  const d = castDist(power), a = h - clamp(aim, -1, 1) * CAST_ANG, ux = Math.sin(a), uz = Math.cos(a);
+  const d = castDist(power), a = h + aimAngle(sx, sz, aim), ux = Math.sin(a), uz = Math.cos(a);
   let x = sx + ux * d, lz = sz + uz * d;
   for (let i = 0; i < 4; i++) {
     const R = WOOD.find((q) => x > q.x0 - WOOD_PAD && x < q.x1 + WOOD_PAD && lz > q.z0 - WOOD_PAD && lz < q.z1 + WOOD_PAD);
