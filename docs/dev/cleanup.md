@@ -24,7 +24,7 @@
 | 9 | 옛 로비 카메라 정리 (`main.js`) | 중간 | 중간 | 중간 | |
 | 10 | 광장 화면 파일(`ui/plaza.js`) 나누기 | 큼 | 중간 | 큼 | |
 | 11 | (나중에) `game.js` 공 소식 처리 나누기 | 중간 | 중간~높음 | 큼 | |
-| **12** | **광장 '콘텐츠 콘센트' 만들기**(낚시·고양이 연결 고리 하나로) — **10번보다 먼저 하기 추천** | 큼 | 중간 | 중간 | 계획(11/27) |
+| **12** | **광장 '콘텐츠 콘센트' 만들기**(낚시·고양이 연결 고리 하나로) — **10번보다 먼저 하기 추천** | 큼 | 중간 | 중간 | 12-1 ✓ test (11/27) · 12-2 아직 |
 
 ---
 
@@ -168,6 +168,8 @@
 
 ### 할 일 (대화 2번)
 - **12-1 콘센트 + 낚시 옮기기**
+  - **한 일(11/27 ✓ test)**: `src/ui/plazaAddons.js` 만듦(`registerAddon`·`addons`·`addon`·`plazaApi`, 넣을 수 있는 것 설명은 파일 맨 위). 광장은 등록된 콘텐츠를 돌면서 부름(`addonStates`·`addonCleans`·`addonBusy`·`addonFace`, 눌린 곳은 `spots`가 먼저). 게시판 앞으로 걸어가기는 `walkNear`·`boardNote`로 묶어서 광장 게시판·낚시 게시판·횟집이 같이 씀. 낚시는 `ui/fishing.js` 맨 아래 `registerAddon({ id: 'fishing', key: 'fi', msgKind: 'fish', ... })` 하나. `fishHooks`는 없앰. 고양이는 `addon('fishing')?.spot?.()`으로 낚시 자리를 찾음(고양이 자신은 아직 `catHooks`, 12-2에서). 메시지 모양(`fi`·`k:'fish'`)·부르는 순서(고양이 → 낚시) 그대로.
+  - 확인: 빌드 · `check.cjs --no-browser` · 전체 점검의 '광장(탭 두 개)' 단계(낚시 시작·상대 화면에 찌·잡기·그만하기·게시판 포함) 통과 · 따로 게시판 종이 누르기 → 걸어가서 열림, 횟집 누르기 → 안내, 다른 사람 낚시 중 바다 쪽 보기, 오류 0.
   - 새 파일 `src/ui/plazaAddons.js`: `registerAddon(def)`·`addons()`(등록 순서 목록)·`addon(id)`. 광장 정보 `plazaApi`도 여기로 옮겨서 콘텐츠가 `ui/plaza.js`를 직접 불러오지 않게(서로 불러오기 꼬임 방지). `plaza.js`가 시작할 때 `plazaApi`를 채움.
   - `ui/plaza.js`: 위 표의 곳을 "`addons()` 돌면서 부르기"로 바꿈. `cleanFi`는 낚시로.
   - `ui/fishing.js`: `fishHooks.xxx = ` → `registerAddon({ id: 'fishing', key: 'fi', msgKind: 'fish', spots: {...}, ... })`.

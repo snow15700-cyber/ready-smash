@@ -6,7 +6,9 @@
 import * as THREE from 'three';
 import { account, catFeed, catList, marketNow, syncServerClock } from '../../account.js';
 import { heightAt, onPier } from '../../campusLayout.js';
-import { catHooks, fishHooks, plazaApi } from '../../ui/plaza.js';
+import { catHooks } from '../../ui/plaza.js';
+import { addon, plazaApi } from '../../ui/plazaAddons.js';
+const fishSpot = () => addon('fishing')?.spot?.() || null; // 낚시 중인 내 자리
 import { hud } from '../../ui/hud.js';
 import { esc, world } from '../../ui/state.js';
 import { SPECIES } from '../fishing/rules.js';
@@ -192,7 +194,7 @@ catHooks.frame = (now, p) => {
   const ms = marketNow(), t = performance.now() / 1000, dt = Math.min(0.1, lastT ? t - lastT : 0); lastT = t;
   const camP = world.camera.position;
   // 선착장에 내려오면 / 낚시를 시작하면 ♥1 이상 고양이를 부름
-  const sp = fishHooks.spot?.() || null, me = sp ? [sp.x, sp.z] : [p[0], p[1]];
+  const sp = fishSpot() || null, me = sp ? [sp.x, sp.z] : [p[0], p[1]];
   const onP = onPier(p[0], p[1]) || !!sp;
   if (account.cats && ((onP && !wasOnPier) || (sp && !wasFishing))) callCats(me, !!sp && !wasFishing);
   wasOnPier = onP; wasFishing = !!sp;
@@ -224,11 +226,11 @@ catHooks.frame = (now, p) => {
         c.wantYaw = ov.a + Math.PI / 2; pose = 'walk'; tailUp = true;
         if (gone) c.ov = { mode: 'return' };
         else if (t - ov.t0 > 4.5) {
-          const fishing = fishHooks.spot?.();
+          const fishing = fishSpot();
           c.ov = myHeart(c) >= 2 && fishing ? { mode: 'sit', slot: ov.slot, path: null } : { mode: 'return' };
         }
       } else if (ov.mode === 'sit') { // ♥2: 낚시하는 내 옆에 앉아 구경
-        const f = fishHooks.spot?.();
+        const f = fishSpot();
         if (!f || gone) c.ov = { mode: 'return' };
         else {
           const to = besideSpot(f, ov.slot);
@@ -281,7 +283,7 @@ catHooks.frame = (now, p) => {
 };
 catHooks.hidden = () => closePop();
 // 점검·디버그: window.__smash.cats
-export const catsDebug = { get cats() { return cats; }, get follow() { return myFollow; }, get others() { return others; }, call: () => callCats(fishHooks.spot?.() ? [fishHooks.spot().x, fishHooks.spot().z] : plazaApi.pos(), true), openPop: (id) => openPop(cats.find((c) => c.id === id)), feed: (id) => feed(cats.find((c) => c.id === id)), catAt };
+export const catsDebug = { get cats() { return cats; }, get follow() { return myFollow; }, get others() { return others; }, call: () => callCats(fishSpot() ? [fishSpot().x, fishSpot().z] : plazaApi.pos(), true), openPop: (id) => openPop(cats.find((c) => c.id === id)), feed: (id) => feed(cats.find((c) => c.id === id)), catAt };
 
 // ── 4단계: 데리고 다니는 고양이 (♥3 따라옴 · ♥4 로그인하면 선착장 쪽에서 마중 · ♥5 가만히 있으면 어깨 위) ──
 // 배회하는 고양이와 따로 생기는 '내 고양이'(같은 종류가 광장에 여러 마리일 수 있음). 한 번에 한 마리.
