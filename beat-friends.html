@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>박자 친구들 시안</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Jua, sans-serif; background: #e6f4fb; color: #23304a; }
+    h1 { margin: 14px 16px 2px; font-size: 24px; }
+    p.hint { margin: 0 16px 8px; font-size: 14px; color: #5a6d85; }
+    .bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px; background: rgba(230,244,251,.92); backdrop-filter: blur(6px); }
+    .bar button { font: inherit; font-size: 15px; border: 0; border-radius: 999px; padding: 7px 13px; background: #fff; color: #23304a; box-shadow: 0 1px 3px rgba(0,0,0,.12); cursor: pointer; }
+    .bar button.on { background: #3f7fe0; color: #fff; }
+    .bar button.hit { background: #ff8fa8; color: #fff; }
+    .wrap { position: relative; margin: 0 16px 16px; }
+    #c { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+    h2.sec { grid-column: 1 / -1; margin: 10px 0 0; font-size: 20px; display: flex; align-items: center; gap: 8px; }
+    h2.sec small { font-size: 13px; color: #5a6d85; }
+    .dot { width: 14px; height: 14px; border-radius: 50%; background: #c9d6e4; transition: transform .05s; }
+    .cell { height: 230px; border-radius: 16px; position: relative; cursor: grab; }
+    .ballad .cell, .cell.ballad { background: linear-gradient(180deg, #e9e3ff, #b9c6f2); }
+    .cell.jazz { background: linear-gradient(180deg, #ffeccc, #f2c38f); }
+    .cell.rock { background: linear-gradient(180deg, #ffd9d6, #e98f8f); }
+    .cell span { position: absolute; left: 10px; top: 8px; font-size: 16px; color: #23304a; }
+    .cell small { position: absolute; left: 10px; right: 10px; bottom: 8px; font-size: 12px; color: #3b4a60; font-family: sans-serif; }
+    .cell em { position: absolute; right: 10px; top: 12px; font-style: normal; font-size: 11px; color: rgba(35,48,74,.6); font-family: sans-serif; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr 1fr; } .cell { height: 170px; } .cell small { display: none; } .cell span { font-size: 14px; } .cell em { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>🎶 자리마다 박자 타는 친구들</h1>
+  <p class="hint">fishing.md 13-3 시안. 장르마다 그 빠르기로 움직여요. 칸을 끌면 돌려 볼 수 있어요. 스페이스(또는 👏)를 누르면 '내가 맞춤'.</p>
+  <div class="bar" id="bar"></div>
+  <div class="wrap"><div class="grid" id="grid"></div><canvas id="c"></canvas></div>
+  <script type="module" src="/src/games/fishing/friends-page.js"></script>
+</body>
+</html>

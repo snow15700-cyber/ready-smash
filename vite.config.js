@@ -16,6 +16,7 @@ export default defineConfig({
         campus: fileURLToPath(new URL('./campus.html', import.meta.url)), // 광장 새 디자인 시안 (경주캠퍼스 느낌, plaza.md 20장)
         fishing: fileURLToPath(new URL('./fishing.html', import.meta.url)), // 낚시 손맛 시안 (fishing.md 6장 1단계)
         fishModels: fileURLToPath(new URL('./fish-models.html', import.meta.url)), // 물고기 모형 스타일 시안 (fishing.md 9장)
+        beatFriends: fileURLToPath(new URL('./beat-friends.html', import.meta.url)), // 자리마다 박자 친구들 시안 (fishing.md 13-3)
         cats: fileURLToPath(new URL('./cats.html', import.meta.url)), // 고양이 모형 시안 (docs/dev/cats.md 2단계)
         rtcTest: fileURLToPath(new URL('./rtc-test.html', import.meta.url)), // 와이파이 연결 속도 측정 (WebRTC 시험)
       },
