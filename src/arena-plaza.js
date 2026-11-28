@@ -87,7 +87,7 @@ export const PLAZA = {
     box(SPOTS.bakery, -2.85, 2.85, -2.35, 2.4, { y1: 6 }),
     box(SPOTS.fishBoard, -1.8, 1.8, -0.35, 0.35, { y1: 3.3 }), // 낚시 게시판 (계단 가는 길 옆)
     flat(-7.5, -0.5, -28.5, -19.5), flat(10, 16, -24, -16), flat(-34, -30, -27, -21), // 본관 검은 돌 기둥
-    { ...flat(MARKET.x - MARKET.w / 2, MARKET.x + MARKET.w / 2, PIER.z0, MARKET.z + MARKET.d / 2), y0: PIER.y, y1: PIER.y + 3.4 }, // 횟집 (낚시 14장 1b)
+    { ...flat(MARKET.x - MARKET.w / 2, MARKET.x + MARKET.w / 2, PIER.z0, MARKET.z + MARKET.d / 2), y0: PIER.y, y1: PIER.y + 4.3 }, // 횟집 (낚시 14장 1b, 지붕 위 초밥까지)
     { ...flat(-36.3, 8.3, -30.3, -16.7), y0: 12.6, y1: 26.5 }, { ...flat(-0.3, 40.3, -25.3, -14.2), y0: 8.1, y1: 19.5 }, // 유리 막대 ①·②
   ],
   // 눌러서 뭔가 되는 곳 (광장 20장 ② 기능): 안쪽 좌표 클릭 상자 [x0, x1, z0, z1, 높이] — plaza.js pick → ui/plaza.js onSpot
@@ -96,7 +96,7 @@ export const PLAZA = {
     { id: 'board', ...SPOTS.board, box: [-1.85, 1.85, -0.5, 0.6, 3.3], front: (lx) => toWorld(SPOTS.board, lx, 1.4) }, // 업데이트·미션·치는 방법
     { id: 'fishBoard', ...SPOTS.fishBoard, box: [-1.85, 1.85, -0.5, 0.6, 3.3], front: (lx) => toWorld(SPOTS.fishBoard, lx, 1.9) }, // 낚시 방법·팁·고양이 (src/games/fishing/board.js)
     { id: 'clock', ...SPOTS.clock, box: [-1.4, 1.4, -1.4, 1.4, 11.5] }, // 쉬는 시간 안내
-    { id: 'market', x: MARKET.x, z: MARKET.z, y: PIER.y, yaw: 0, box: [-MARKET.w / 2, MARKET.w / 2, -MARKET.d / 2, MARKET.d / 2 + 0.6, 3.6], door: MARKET.door }, // 🍣 횟집 (낚시 14장 1b) — 문 앞으로 걸어가 횟집 창
+    { id: 'market', x: MARKET.x, z: MARKET.z, y: PIER.y, yaw: 0, box: [-MARKET.w / 2, MARKET.w / 2, -MARKET.d / 2, MARKET.d / 2 + 0.6, 4.3], door: MARKET.door }, // 🍣 횟집 (지붕 초밥을 눌러도) (낚시 14장 1b) — 문 앞으로 걸어가 횟집 창
     { id: 'market', x: BOARD.x, z: BOARD.z, y: PIER.y, yaw: 0, box: [-BOARD.w / 2, BOARD.w / 2, -0.3, 0.3, 2.1], door: MARKET.door }, // 📈 시세 칠판도 같은 창
   ],
   // 김제빵이 뛰어나오는 곳 (빵집 문 앞) — plazaKim.js

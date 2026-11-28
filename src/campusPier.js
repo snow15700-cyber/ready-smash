@@ -4,6 +4,7 @@
 //   앞 판 서쪽 계단 아래 🍣 횟집 + 📈 시세 칠판(진짜 시세, market.js), 동쪽 계단 아래 🐾 고양이 쉼터(상자·방석·생선 바구니).
 // 시안(campus.html)·실제 광장(arena-plaza.js)·낚시 시안(fishing.html)이 모두 buildCampus로 같이 씀. 자리는 campusLayout.js.
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { addBox, canvasTex, seeded, std } from './arena-kit.js';
 import { ARMS, BOARD, CAT_NOOK, CLIFF, HARBOR, LH_BASES, LIGHTHOUSES, MARKET, PIER, SEA_Y, STAIRS } from './campusLayout.js';
 import { BIG_FISH, MARKET_FISH, history, nextLabel, demandOf, period, wxFor } from './games/fishing/market.js';
@@ -159,34 +160,109 @@ export function buildPierArea(anim = null) {
     boat.rotation.x = (seaH(BX, BZ + 1, t) - seaH(BX, BZ - 1, t)) * 0.15;
   });
 
-  // ── 🍣 횟집 (서쪽 계단 아래, 정면이 남쪽)
+  // ── 🍣 횟집 (서쪽 계단 아래, 정면이 남쪽) — 11/28 새 모습: 나무 기둥·베이지 벽 일본식 가게 + 지붕 위 큰 연어·참치 초밥
+  //   빨간 초롱 4개 · 앞 양 모서리 수조(물고기 그림자가 헤엄) · 열린 미닫이문 안쪽 사장님 · 문 위 노렌 '바다 횟집'
   {
-    const M = MARKET, x0 = M.x - M.w / 2, x1 = M.x + M.w / 2, z0 = M.z - M.d / 2, z1 = M.z + M.d / 2, H = 2.7;
-    const wall = std(0xf4ecdc, { roughness: 0.85 }), navy = std(0x24406b, { roughness: 0.7 });
-    addBox(g, M.w, H, M.d - 0.9, wall, M.x, top + H / 2, z0 + (M.d - 0.9) / 2); // 뒤쪽 방
-    addBox(g, 0.18, H, M.d, wall, x0 + 0.09, top + H / 2, M.z); addBox(g, 0.18, H, M.d, wall, x1 - 0.09, top + H / 2, M.z); // 옆 벽
-    addBox(g, M.w, 0.95, 0.5, navy, M.x, top + 0.48, z1 - 0.25); // 판매대
-    addBox(g, M.w + 0.1, 0.06, 0.62, std(0xdcd6c8), M.x, top + 0.98, z1 - 0.25);
-    const tankM = new THREE.MeshStandardMaterial({ color: 0x7fd0ff, emissive: 0x2a8fd0, emissiveIntensity: 0.3, transparent: true, opacity: 0.75, roughness: 0.1 });
+    const M = MARKET, x0 = M.x - M.w / 2, x1 = M.x + M.w / 2, z0 = M.z - M.d / 2, z1 = M.z + M.d / 2, H = 2.7, T = 0.16, DW = 1.5, DH = 2.1;
+    const wall = std(0xeadcc0, { roughness: 0.9 }), beam = std(0x8a5532, { roughness: 0.85 }), base = std(0x3e3a37, { roughness: 0.9 });
+    const roofM = std(0x4d4642, { roughness: 0.8 }), rim = std(0xb9b3a9, { roughness: 0.85 }), roofTop = std(0x2e3034, { roughness: 0.9 });
+    const inside = glowMat(0xc9a77c, 0x5a3a1c, 0.15, 0.7); // 문 안쪽 (밤엔 따뜻하게 빛남)
+    const dl = M.x - DW / 2, dr = M.x + DW / 2; // 문 양 끝
+    addBox(g, M.w + 0.1, 0.16, M.d + 0.1, base, M.x, top + 0.08, M.z); // 바닥 받침
+    // 벽: 뒤·양옆 + 앞(문 자리만 비움) + 문 위 인방
+    addBox(g, M.w, H, T, wall, M.x, top + H / 2, z0 + T / 2);
+    for (const sx of [x0 + T / 2, x1 - T / 2]) addBox(g, T, H, M.d, wall, sx, top + H / 2, M.z);
+    addBox(g, dl - x0, H, T, wall, (x0 + dl) / 2, top + H / 2, z1 - T / 2);
+    addBox(g, x1 - dr, H, T, wall, (dr + x1) / 2, top + H / 2, z1 - T / 2);
+    addBox(g, DW, H - DH, T, wall, M.x, top + DH + (H - DH) / 2, z1 - T / 2);
+    addBox(g, M.w - 0.4, H - 0.2, 0.05, inside, M.x, top + H / 2, z0 + T + 0.03); // 안쪽 벽
+    addBox(g, DW + 0.2, 0.03, M.d - 0.4, inside, M.x, top + 0.18, M.z); // 안쪽 바닥
+    // 안쪽 작은 진열대 (사장님 앞)
+    addBox(g, 1.3, 0.55, 0.4, beam, M.x - 0.2, top + 0.45, z1 - 0.95);
+    addBox(g, 1.36, 0.05, 0.46, std(0xf3efe6), M.x - 0.2, top + 0.75, z1 - 0.95);
+    // 나무 기둥·보 (앞 네 기둥 + 옆 가운데, 문 높이 띠, 그 위 작은 칸 창살)
+    const pz = z1 + 0.02;
+    for (const px of [x0 + 0.07, dl - 0.06, dr + 0.06, x1 - 0.07]) addBox(g, 0.14, H, 0.14, beam, px, top + H / 2, pz);
+    for (const sx of [x0 - 0.02, x1 + 0.02]) { addBox(g, 0.14, H, 0.14, beam, sx, top + H / 2, M.z); addBox(g, 0.14, H, 0.14, beam, sx, top + H / 2, z0 + 0.07); }
+    addBox(g, M.w + 0.04, 0.12, 0.16, beam, M.x, top + DH + 0.06, pz); // 문 높이 띠 (앞)
+    for (const sx of [x0 - 0.02, x1 + 0.02]) addBox(g, 0.16, 0.12, M.d, beam, sx, top + DH + 0.06, M.z); // (옆)
+    addBox(g, M.w + 0.04, 0.1, 0.16, beam, M.x, top + H - 0.05, pz);
+    for (let x = x0 + 0.45; x < x1 - 0.2; x += 0.42) addBox(g, 0.06, H - DH - 0.2, 0.06, beam, x, top + (DH + H) / 2, pz + 0.04); // 위 작은 칸
+    for (const sx of [x0 - 0.04, x1 + 0.04]) for (let z = z0 + 0.45; z < z1 - 0.2; z += 0.42) addBox(g, 0.06, H - DH - 0.2, 0.06, beam, sx, top + (DH + H) / 2, z);
+    // 창: 앞 왼쪽 유리창 · 앞 오른쪽·동쪽 옆 격자창(창호지, 밤에 은은히 빛남)
+    const latticeTex = canvasTex(128, 128, (c) => { c.fillStyle = '#fbf3dc'; c.fillRect(0, 0, 128, 128); c.strokeStyle = '#7a4a2a'; c.lineWidth = 6; for (let i = 0; i <= 4; i++) { c.beginPath(); c.moveTo(i * 32, 0); c.lineTo(i * 32, 128); c.stroke(); c.beginPath(); c.moveTo(0, i * 32); c.lineTo(128, i * 32); c.stroke(); } });
+    const paper = new THREE.MeshStandardMaterial({ map: latticeTex, emissive: 0xffd9a0, emissiveIntensity: 0.05, roughness: 0.9 }); paper.userData.glow = [0.05, 0.6];
+    const glass = new THREE.MeshStandardMaterial({ color: 0x9fc9dc, emissive: 0x6a8fa0, emissiveIntensity: 0.1, roughness: 0.15, metalness: 0.1 }); glass.userData.glow = [0.1, 0.5];
+    const win = (m, w, h, x, y, z, ry = 0) => { const fr = addBox(g, w + 0.12, h + 0.12, 0.06, beam, x, y, z); fr.rotation.y = ry; const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m); p.position.set(x + Math.sin(ry) * 0.035, y, z + Math.cos(ry) * 0.035); p.rotation.y = ry; g.add(p); };
+    win(glass, 1.0, 0.85, (x0 + dl) / 2, top + 1.5, z1 + 0.01);
+    win(paper, 0.9, 1.1, (dr + x1) / 2, top + 1.4, z1 + 0.01);
+    win(paper, 1.1, 1.0, x1 + 0.01, top + 1.45, M.z - 0.2, Math.PI / 2);
+    win(paper, 1.1, 1.0, x0 - 0.01, top + 1.45, M.z - 0.2, -Math.PI / 2);
+    // 열린 미닫이문 두 짝 (바깥으로 비스듬히)
+    for (const s of [-1, 1]) {
+      const hinge = new THREE.Group(); hinge.position.set(M.x + s * DW / 2, top + 0.16, z1); hinge.rotation.y = s * 1.95; g.add(hinge);
+      const w = DW / 2 - 0.04;
+      addBox(hinge, w, DH - 0.2, 0.06, beam, -s * w / 2, (DH - 0.2) / 2, 0.03);
+      addBox(hinge, w - 0.18, DH - 0.75, 0.02, std(0xd9c7a3, { roughness: 0.9 }), -s * w / 2, (DH - 0.2) / 2 + 0.15, 0.065);
+    }
+    // 지붕: 처마 판 + 회색 테두리 + 어두운 윗면
+    addBox(g, M.w + 0.6, 0.14, M.d + 0.5, roofM, M.x, top + H + 0.07, M.z + 0.1);
+    addBox(g, M.w - 0.1, 0.36, M.d - 0.15, rim, M.x, top + H + 0.32, M.z);
+    addBox(g, M.w - 0.45, 0.37, M.d - 0.5, roofTop, M.x, top + H + 0.325, M.z);
+    const roofY = top + H + 0.51;
+    // 🍣 지붕 위 큰 초밥 두 개 (연어 · 참치) — 박자에 맞춰 통통 (beatSigns)
+    const rice = std(0xf7f5ef, { roughness: 0.75 });
+    const salmonTex = canvasTex(256, 128, (c) => { c.fillStyle = '#f2803f'; c.fillRect(0, 0, 256, 128); c.strokeStyle = '#ffe3cc'; c.lineWidth = 9; for (let x = -100; x < 300; x += 38) { c.beginPath(); c.moveTo(x, 128); c.quadraticCurveTo(x + 30, 64, x + 70, 0); c.stroke(); } });
+    const salmon = new THREE.MeshStandardMaterial({ map: salmonTex, roughness: 0.4 });
+    const tuna = std(0xd8343f, { roughness: 0.45 }), nori = std(0x1f3a2a, { roughness: 0.8 });
+    const sushi = (topM, x, ry, withNori) => {
+      const s = new THREE.Group(); s.position.set(x, roofY, M.z + 0.05); s.rotation.y = ry; g.add(s);
+      const r = new THREE.Mesh(new RoundedBoxGeometry(1.75, 0.62, 0.95, 3, 0.26), rice); r.position.y = 0.31; s.add(r);
+      const f = new THREE.Mesh(new RoundedBoxGeometry(2.05, 0.26, 1.08, 3, 0.12), topM); f.position.y = 0.7; f.rotation.z = 0.04; s.add(f);
+      if (withNori) { const n = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.86, 1.14), nori); n.position.y = 0.43; s.add(n); n.scale.y = 1.02; addBox(s, 0.36, 0.03, 1.14, nori, 0, 0.85, 0); }
+      s.traverse((o) => { o.userData.noBake = true; if (o.isMesh) o.castShadow = true; });
+      beatSigns.push(s);
+    };
+    sushi(salmon, M.x - 1.1, 0.12, false);
+    sushi(tuna, M.x + 1.05, -0.1, true);
+    // 노렌 (문 위에 거는 천, 세 갈래) '바다 횟집' — 박자에 들썩
+    const norenTex = canvasTex(384, 120, (c) => { c.fillStyle = '#25385f'; c.fillRect(0, 0, 384, 160); c.fillStyle = '#fff8ea'; c.font = FONT(54); c.textAlign = 'center'; c.textBaseline = 'middle'; ['바다', '🍣', '횟집'].forEach((t, i) => c.fillText(t, 64 + i * 128, 64)); });
+    const noren = new THREE.Group(); noren.position.set(M.x, top + DH + 0.02, z1 + 0.09); g.add(noren);
+    for (let i = 0; i < 3; i++) {
+      const tx = norenTex.clone(); tx.repeat.set(1 / 3, 1); tx.offset.set(i / 3, 0); tx.needsUpdate = true;
+      const strip = new THREE.Mesh(new THREE.PlaneGeometry(DW / 3 - 0.04, 0.42), new THREE.MeshStandardMaterial({ map: tx, roughness: 0.9, side: THREE.DoubleSide }));
+      strip.position.set((i - 1) * DW / 3, -0.21, 0); noren.add(strip);
+    }
+    addBox(noren, DW + 0.2, 0.05, 0.05, beam, 0, 0.01, 0);
+    noren.traverse((o) => { o.userData.noBake = true; });
+    beatSigns.push(noren);
+    // 빨간 초롱 4개: 처마 앞 두 모서리 + 양옆 처마 가운데 (박마다 빛 무리)
+    const lanternM = glowMat(0xd9302b, 0xff3a22, 0.35, 2.2), capM = std(0x1d1d1f, { roughness: 0.6 });
+    for (const [lx, lz, ly] of [[x0 - 0.15, z1 + 0.25, H - 0.55], [x1 + 0.15, z1 + 0.25, H - 0.55], [x0 - 0.2, M.z - 0.2, H - 0.55], [x1 + 0.2, M.z - 0.2, H - 0.55]]) {
+      const y = top + ly;
+      cyl(0.17, 0.17, 0.44, lanternM, lx, y, lz, 12);
+      cyl(0.12, 0.12, 0.06, capM, lx, y + 0.25, lz, 10); cyl(0.12, 0.12, 0.06, capM, lx, y - 0.25, lz, 10);
+      cyl(0.015, 0.015, top + H - y - 0.28, capM, lx, (y + 0.28 + top + H) / 2, lz, 4);
+      halos.push(beatHalo(g, lx, y, lz, 0xff5a3a, 1.4));
+    }
+    // 앞 양 모서리 수조 (어두운 받침 위, 물고기 그림자가 천천히 헤엄)
+    const tankM = new THREE.MeshStandardMaterial({ color: 0x5ab8f0, emissive: 0x1f7fd0, emissiveIntensity: 0.3, transparent: true, opacity: 0.72, roughness: 0.1 });
     tankM.userData.glow = [0.3, 1.2];
-    const tank = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.7, 0.45), tankM); tank.position.set(M.x - 1.1, top + 1.36, z1 - 0.3); g.add(tank); // 수조
-    for (let i = 0; i < 3; i++) { const f = addBox(g, 0.22, 0.08, 0.04, [std(0xff8a5c), std(0x8fb0c8), std(0xffd36b)][i], M.x - 1.5 + i * 0.4, top + 1.3 + (i % 2) * 0.15, z1 - 0.3); f.userData.noBake = true; }
-    addBox(g, M.w + 0.3, 0.14, M.d + 0.2, navy, M.x, top + H + 0.07, M.z); // 지붕
-    // 줄무늬 차양 (앞으로 기울게)
-    const awn = new THREE.Group(); awn.position.set(M.x, top + H - 0.05, z1); awn.rotation.x = 0.42; g.add(awn);
-    for (let i = 0; i < 8; i++) addBox(awn, M.w / 8 + 0.01, 0.05, 1.0, i % 2 ? white : red, x0 - M.x + M.w / 16 + i * M.w / 8, 0, 0.5);
-    for (const px of [x0 + 0.12, x1 - 0.12]) cyl(0.045, 0.045, H - 0.4, woodDark, px, top + (H - 0.4) / 2, z1 + 0.86, 6); // 차양 기둥
-    // 간판 (지붕 위, 남쪽을 봄) + 붉은 등 2개
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.78), new THREE.MeshBasicMaterial({ map: signTex('🍣 바다 횟집', '#fff8ea', '#c4382f', 360) }));
-    sign.position.set(M.x, top + H + 0.6, z1 - 0.05); g.add(sign);
-    sign.userData.noBake = true; beatSigns.push(sign); // ⑤ 박자에 들썩
-    addBox(g, 2.7, 0.86, 0.06, navy, M.x, top + H + 0.6, z1 - 0.1);
-    const lanternM = glowMat(0xff6a4a, 0xff4a2a, 0.35, 2.2);
-    for (const px of [x0 + 0.45, x1 - 0.45]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), lanternM); l.scale.y = 1.3; l.position.set(px, top + H - 0.85, z1 + 0.62); g.add(l); halos.push(beatHalo(g, px, top + H - 0.85, z1 + 0.62, 0xff6a4a, 1.4)); }
-    // 사장님 = 기본 흰색 캐릭터 (사용자 11/26 — 문어·곰 등은 나중에). 탁구채 없이, 판매대 뒤에서 손님(남쪽)을 봄
+    const fishShape = new THREE.Shape(); fishShape.ellipse(0, 0, 0.13, 0.055, 0, Math.PI * 2); fishShape.moveTo(-0.1, 0); fishShape.lineTo(-0.22, 0.07); fishShape.lineTo(-0.22, -0.07);
+    const fishGeo = new THREE.ShapeGeometry(fishShape), fishM = new THREE.MeshBasicMaterial({ color: 0x1b4f8a, side: THREE.DoubleSide });
+    const swimmers = [];
+    for (const [tx, tw] of [[x0 + 0.5, 1.0], [x1 - 0.5, 1.0]]) {
+      const tz = z1 + 0.42;
+      addBox(g, tw, 0.5, 0.56, base, tx, top + 0.25, tz);
+      const tank = new THREE.Mesh(new THREE.BoxGeometry(tw, 0.55, 0.52), tankM); tank.position.set(tx, top + 0.78, tz); tank.userData.noBake = true; g.add(tank);
+      addBox(g, tw + 0.04, 0.04, 0.56, base, tx, top + 1.06, tz);
+      for (let i = 0; i < 2; i++) { const f = new THREE.Mesh(fishGeo, fishM); f.position.set(tx, top + 0.7 + i * 0.16, tz + 0.27); f.userData = { noBake: true, cx: tx, w: tw / 2 - 0.25, ph: i * 2.1 + tx }; g.add(f); swimmers.push(f); }
+    }
+    anim?.push((t) => { for (const f of swimmers) { const u = t * 0.5 + f.userData.ph; f.position.x = f.userData.cx + Math.sin(u) * f.userData.w; f.scale.x = Math.cos(u) >= 0 ? 1 : -1; } });
+    // 사장님 = 기본 캐릭터 (사용자 11/26 — 문어·곰 등은 나중에). 탁구채 없이, 문 안쪽 진열대 뒤에서 손님(남쪽)을 봄
     const boss = makeCharacter('#e0333c');
     boss.body.remove(boss.arm);
-    boss.group.position.set(M.x + 0.7, top + 0.5, z1 - 0.75); boss.group.rotation.y = Math.PI; boss.group.scale.setScalar(1.3); // 판매대 뒤 발판 위
+    boss.group.position.set(M.x - 0.15, top + 0.18, z1 - 1.4); boss.group.rotation.y = Math.PI; boss.group.scale.setScalar(1.1);
     g.add(boss.group);
   }
 
