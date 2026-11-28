@@ -25,6 +25,9 @@ export const SPOTS = {
 export const TABLE_SPOTS = [[-14, 13], [14, 13], [0, 25]];
 export const KIM_SPOT = [-14, 27];
 export const SPAWN = [0, 10.5];
+// 네모 잔디밭 [x0, z0, x1, z1] · 분수에서 뻗는 길(색 다른 돌, 보기만 — 걷기는 그대로) [x0, z0, x1, z1]
+export const LAWNS = [[-21, -9, -17, 4], [17, -9, 21, 4], [-21, 15, -17, 23], [17, 26, 21, 30]];
+export const PATHS = [];
 
 // 그룹 안(로컬) 점 → 광장 점. three.js rotation.y = yaw 와 같은 돌림
 export function toWorld(o, lx, lz) {

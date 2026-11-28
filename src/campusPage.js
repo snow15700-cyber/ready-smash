@@ -7,6 +7,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { fileFor, fitOf, loadModel, MODELS } from './campusModels.js';
+import './campusDraft.js'; // ?lay=A|B 배치 시안 (buildCampus보다 먼저)
 import { buildCampus } from './campusMock.js';
 import { breadLine, BREADS, KIM_FUNNY } from './breads.js';
 

@@ -5,7 +5,7 @@ import { addBox, canvasTex, seeded, std } from './arena-kit.js';
 import { buildMainHall } from './campusBuilding.js';
 import { closetShop, fameShop, gachaShop } from './campusShops.js';
 import { addLampGlow, makeDolphins, makeSea } from './campusFx.js';
-import { DECK, FOUNTAIN, KIM_SPOT, SEA_Y, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS } from './campusLayout.js';
+import { DECK, FOUNTAIN, KIM_SPOT, LAWNS, PATHS, SEA_Y, SHOP_SPOTS, SPAWN, SPOTS, TABLE_SPOTS } from './campusLayout.js';
 import { buildPierArea } from './campusPier.js';
 import { bakery, board, clockTower, FISH_NOTES, deck, foodTruck, fountain, photoZone, vending } from './campusProps.js';
 
@@ -120,10 +120,15 @@ export function buildCampus({ game = false } = {}) {
   const snowLayer = new THREE.Mesh(new THREE.PlaneGeometry(45, 44), new THREE.MeshLambertMaterial({ color: 0xf4f8fb, transparent: true, opacity: 0, depthWrite: false }));
   snowLayer.rotation.x = -Math.PI / 2; snowLayer.position.set(0, 0.015, 11.5); snowLayer.visible = false; snowLayer.receiveShadow = true; root.add(snowLayer);
   // 네모 잔디밭 (사진 1) + 둘레 돌 턱
-  for (const [x0, z0, x1, z1] of [[-21, -9, -17, 4], [17, -9, 21, 4], [-21, 15, -17, 23], [17, 26, 21, 30]]) {
+  for (const [x0, z0, x1, z1] of LAWNS) {
     const lawn = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), new THREE.MeshLambertMaterial({ color: 0x5faa48 }));
     lawn.rotation.x = -Math.PI / 2; lawn.position.set((x0 + x1) / 2, 0.03, (z0 + z1) / 2); lawn.receiveShadow = true; root.add(lawn);
     for (const z of [z0 + 1, (z0 + z1) / 2, z1 - 1]) cyl(root, 0.05, 0.05, 0.45, M.alu, x0 - 0.2, 0.22, z, 8); // 작은 기둥 조명
+  }
+  // 분수에서 구역으로 뻗는 길 (따뜻한 색 돌, 가장자리 줄)
+  for (const [x0, z0, x1, z1] of PATHS) {
+    const pm = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), new THREE.MeshLambertMaterial({ color: 0xd9c3a0 }));
+    pm.rotation.x = -Math.PI / 2; pm.position.set((x0 + x1) / 2, 0.012, (z0 + z1) / 2); pm.receiveShadow = true; root.add(pm);
   }
   // 서쪽 밖 축구장 (사진 2, 줄무늬)
   const pitchT = canvasTex(256, 512, (g) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#4caf50' : '#5cbf5f'; g.fillRect(0, i * 64, 256, 64); } g.strokeStyle = '#fff'; g.lineWidth = 6; g.strokeRect(8, 8, 240, 496); g.beginPath(); g.moveTo(8, 256); g.lineTo(248, 256); g.stroke(); g.beginPath(); g.arc(128, 256, 40, 0, 7); g.stroke(); });
@@ -171,7 +176,7 @@ export function buildCampus({ game = false } = {}) {
 
   // 무료 모델로 바꿨을 때만 생기는 소품 (지금 모양에는 없는 것): 잔디밭 모서리 덤불·잔디밭 꽃·벤치 옆 쓰레기통
   const extra = (kind, x, z, ry = 0) => { const e = new THREE.Group(); e.userData.prop = kind; e.userData.extra = true; e.userData.seed = rnd(); e.position.set(x, 0, z); e.rotation.y = ry; root.add(e); };
-  for (const [x0, z0, x1, z1] of [[-21, -9, -17, 4], [17, -9, 21, 4], [-21, 15, -17, 23], [17, 26, 21, 30]]) {
+  for (const [x0, z0, x1, z1] of LAWNS) {
     for (const [x, z] of [[x0 + 0.7, z0 + 0.7], [x1 - 0.7, z0 + 0.7], [x0 + 0.7, z1 - 0.7], [x1 - 0.7, z1 - 0.7]]) extra('bush', x, z, rnd() * 6);
     for (let i = 0; i < 7; i++) extra('flower', x0 + 1 + rnd() * (x1 - x0 - 2), z0 + 1.5 + rnd() * (z1 - z0 - 3), rnd() * 6);
   }
