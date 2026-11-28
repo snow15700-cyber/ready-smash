@@ -211,6 +211,7 @@ export function buildPierArea(anim = null) {
       c.fillStyle = '#fffbe8'; c.font = FONT(70); c.textAlign = 'left'; c.textBaseline = 'middle';
       c.fillText('📈 오늘의 시세', 30, 56);
       c.font = FONT(40); c.fillStyle = 'rgba(255,251,232,.75)'; c.textAlign = 'right'; c.fillText(`다음 ${nextLabel(ms)}`, 994, 62);
+      c.font = FONT(26); c.fillStyle = 'rgba(255,251,232,.6)'; c.fillText('🎸 록 크게 출렁 · 🎷 재즈 보통 · 🎻 발라드 잔잔', 994, 104); // 13-3 ⑤
       c.fillStyle = 'rgba(255,251,232,.25)'; c.fillRect(511, 112, 3, 590); // 가운데 줄
       const head = (x, y, t) => { c.textAlign = 'left'; c.font = FONT(34); c.fillStyle = '#ffe9a8'; c.fillText(t, x + 6, y); };
       const line = (x, y, id) => {
@@ -218,7 +219,12 @@ export function buildPierArea(anim = null) {
         if (hot || leg) { c.fillStyle = hot ? 'rgba(255,140,60,.35)' : 'rgba(255,210,60,.2)'; c.fillRect(x, y - 24, 484, 48); }
         c.textAlign = 'left'; c.font = FONT(38); c.fillStyle = '#fffbe8';
         const nm = CATCH[id].name;
-        c.fillText(`${hot ? '🔥' : cur.news?.id === id ? '📰' : cur.demand?.[id] ? '🛒' : CATCH[id].emoji} ${nm.length > 6 ? nm.slice(0, 6) + '…' : nm}`, x + 8, y);
+        const gi = { jazz: '🎷', rock: '🎸', ballad: '🎻' }[CATCH[id].genre]; // 13-3 ⑤ 그 자리에서 잘 나오는 물고기
+        let x0 = x + 8;
+        if (gi) { c.font = FONT(26); c.fillText(gi, x0, y); x0 += 34; c.font = FONT(38); }
+        let t = `${hot ? '🔥' : cur.news?.id === id ? '📰' : cur.demand?.[id] ? '🛒' : CATCH[id].emoji} ${nm}`;
+        if (c.measureText(t).width > x + 290 - x0) { while (t.length > 2 && c.measureText(t + '…').width > x + 290 - x0) t = t.slice(0, -1); t += '…'; }
+        c.fillText(t, x0, y);
         c.textAlign = 'right'; c.fillText((v / 10).toFixed(1), x + 372, y);
         c.font = FONT(30); c.fillStyle = d > 0 ? '#ff7a7a' : d < 0 ? '#7ac0ff' : 'rgba(255,251,232,.55)';
         c.fillText(d > 0 ? `▲${(d / 10).toFixed(1)}` : d < 0 ? `▼${(-d / 10).toFixed(1)}` : '–', x + 478, y);

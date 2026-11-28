@@ -59,7 +59,7 @@ function localFish(fn, a, p, db, now) {
     const pt = FR.landingPoint(a.p_x == null ? 13 : +a.p_x, +a.p_aim || 0, a.p_power ?? 0.5, a.p_z == null ? undefined : +a.p_z); // 36: 서는 곳·판 넘기기는 landingPoint 안에서
     const near = FR.bubbleNear(pt.x, pt.z, FR.activeBubbles(nowMs() / 1000, 'normal'));
     const owned = (p.owned || []).filter((id) => FR.LEGEND_PADDLES.some(([x]) => x === id));
-    const c = FR.rollCatch(near, { owned, cond: { break: !!breakAt(nowMs()), night: FR.isNight(nowMs()), rain: !!a.p_rain } });
+    const c = FR.rollCatch(near, { owned, genre: FR.standGenre(a.p_x == null ? 13 : +a.p_x, a.p_z == null ? undefined : +a.p_z), cond: { break: !!breakAt(nowMs()), night: FR.isNight(nowMs()), rain: !!a.p_rain } });
     let size = { cm: 0, s: 0 };
     if (c.kind === 'fish') { // 34: 보통 크기 × 배율 + 행운 주사위 (초보자 10마리 3번 · 오늘 첫 3마리 2번 · 이번 주 1등이 안 깨진 날 수만큼 +1, 최대 +4)
       const day = new Date(nowMs() + 9 * 3600e3).toISOString().slice(0, 10);

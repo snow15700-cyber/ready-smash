@@ -3,8 +3,8 @@
 // 낚시 화면 오른쪽 위 '🍣 횟집' 버튼(1a) · 선착장 횟집 건물·📈 칠판을 눌러도(1b, ui/fishing.js openMarket) 엶
 import { account, fishBagLoad, fishNews, fishSell, marketNow } from '../../account.js';
 import { liveWx } from '../../plazaSky.js';
-import { CATCH, SPECIES } from './rules.js';
-import { BAG_MAX, BIG_FISH, BIG_SWING, DEMAND_UP, MARKET_FISH, QUAL_X, bagCount, history, nextLabel, periodLabel, priceOf, sellPlan, stars } from './market.js';
+import { CATCH, GENRE_LABEL, SPECIES } from './rules.js';
+import { BAG_MAX, BIG_FISH, BIG_SWING, DEMAND_UP, GENRE_SWING, MARKET_FISH, QUAL_X, bagCount, history, nextLabel, periodLabel, priceOf, sellPlan, stars } from './market.js';
 import { FISH_COINS } from './rules.js';
 import { modelImage } from './dex.js';
 
@@ -30,6 +30,8 @@ const css = `
 #fshop .news { margin: 0 0 8px; padding: 7px 10px; border-radius: 10px; background: rgba(255,230,120,.14); border: 1px solid rgba(255,220,110,.35); font-size: 13.5px; line-height: 1.4; }
 #fshop .news b { color: #ffe08a; margin-right: 4px; }
 #fshop .row .nw { font-size: 11px; margin-left: 3px; }
+#fshop .row .gn { font-size: 12px; margin-right: 3px; }
+#fshop .genres { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; color: rgba(255,255,255,.8); }
 #fshop .dem { margin: -2px 0 8px; padding: 6px 10px; border-radius: 10px; background: rgba(140,200,255,.12); border: 1px solid rgba(140,200,255,.3); font-size: 13px; line-height: 1.45; }
 #fshop .dem:empty { display: none; }
 #fshop .dem b { color: #bfe3ff; margin-right: 4px; }
@@ -64,13 +66,14 @@ const css = `
 let el = null, busy = false, bossLine = '어서 와요! 오늘 시세 한번 보고 가요.';
 const name = (id) => CATCH[id]?.name || id;
 const emoji = (id) => CATCH[id]?.emoji || '🐟';
+const gIcon = (id) => (CATCH[id]?.genre ? `<span class="gn" title="${GENRE_LABEL[CATCH[id].genre]} 자리에서 잘 나와요">${GENRE_LABEL[CATCH[id].genre].split(' ')[0]}</span>` : ''); // 13-3 ⑤ 장르
 const coin = (p10) => (p10 / 10).toFixed(1).replace(/\.0$/, '');
 
 function build() {
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   el = document.createElement('div'); el.id = 'fshop';
   el.innerHTML = `<div class="box"><div class="top"><h3>🍣 횟집<small></small></h3><button class="x" type="button">✕</button></div>
-    <div class="body"><div class="panel"><h4>📈 오늘의 시세 <small class="when"></small></h4><div class="news"></div><div class="dem"></div><div class="board"></div><div class="note"></div></div>
+    <div class="body"><div class="panel"><h4>📈 오늘의 시세 <small class="when"></small></h4><div class="news"></div><div class="dem"></div><div class="genres"></div><div class="board"></div><div class="note"></div></div>
     <div class="panel"><h4>🎒 내 가방 <small class="cnt"></small></h4><div class="bag"></div><button class="all" type="button"></button><div class="day"></div>
     <div class="boss"><span>🧑‍🍳</span><span class="say"></span></div></div></div></div>`;
   document.body.appendChild(el);
@@ -102,15 +105,18 @@ function render() {
   const row = (id, cls = '') => {
     const v = cur.list[id], d = v - prev.list[id];
     const ch = d > 0 ? `<span class="up">▲${coin(d)}</span>` : d < 0 ? `<span class="dn">▼${coin(-d)}</span>` : '<span class="eq">–</span>';
-    return `<div class="row${id === cur.jackpot ? ' hot' : ''}${cls}"><span>${emoji(id)}</span><span>${id === cur.jackpot ? '🔥 ' : ''}${name(id)}${cur.news?.id === id ? `<span class="nw" title="오늘의 소식">📰${cur.news.dir > 0 ? '▲' : '▼'}</span>` : ''}${dem[id] ? `<span class="nw" title="지난 쉬는 시간에 ${dem[id] < 10 ? '많이' : '안'} 팔려서">🛒${dem[id] < 10 ? '▼' : '▲'}</span>` : ''}</span><span class="p">${coin(v)}</span>${ch}${spark(hist.map((h) => h.list[id]))}</div>`;
+    return `<div class="row${id === cur.jackpot ? ' hot' : ''}${cls}"><span>${emoji(id)}</span><span>${id === cur.jackpot ? '🔥 ' : ''}${gIcon(id)}${name(id)}${cur.news?.id === id ? `<span class="nw" title="오늘의 소식">📰${cur.news.dir > 0 ? '▲' : '▼'}</span>` : ''}${dem[id] ? `<span class="nw" title="지난 쉬는 시간에 ${dem[id] < 10 ? '많이' : '안'} 팔려서">🛒${dem[id] < 10 ? '▼' : '▲'}</span>` : ''}</span><span class="p">${coin(v)}</span>${ch}${spark(hist.map((h) => h.list[id]))}</div>`;
   };
   // 희귀·전설도 오르내림 (13-1 ②): 칸을 나눠서 아래에
   const grp = (g) => BIG_FISH.filter((id) => CATCH[id]?.grade === g);
   const pct = (g) => Math.round(BIG_SWING[g][1] / 2 * 100);
+  const gp = (g) => Math.round(GENRE_SWING[g].rare[1] / 2 * 100);
+  // 13-3 ⑤ 자리마다 잘 나오는 물고기 · 값 출렁임 (내 장르 = 낚시 중인 자리)
+  el.querySelector('.genres').innerHTML = `🎸 록 자리 = 값이 크게 출렁 · 🎷 재즈 = 보통 · 🎻 발라드 = 잔잔${curGenre ? ` · <b>지금 ${GENRE_LABEL[curGenre]} 자리</b>` : ''}`;
   el.querySelector('.board').innerHTML = order.map((id) => row(id)).join('')
-    + `<div class="sec">💎 희귀 <small>보통 ${FISH_COINS.rare} · ±${pct('rare')}%</small></div>` + grp('rare').map((id) => row(id)).join('')
+    + `<div class="sec">💎 희귀 <small>보통 ${FISH_COINS.rare} · 🎸±${gp('rock')} 🎷±${gp('jazz')} 🎻±${gp('ballad')}%</small></div>` + grp('rare').map((id) => row(id)).join('')
     + `<div class="sec">👑 전설 <small>보통 ${FISH_COINS.legend} · ±${pct('legend')}% · 언제 팔까?</small></div>` + grp('legend').map((id) => row(id, ' leg')).join('');
-  el.querySelector('.note').innerHTML = `🔥 = 오늘의 대박(2배, 일반만) · 크기와 상관없이 종류로만 · 희귀는 조금, 전설은 크게 오르내려요<br>🛒 많이 팔린 물고기는 다음 쉬는 시간에 값이 내려가고, 안 팔린 일반 물고기는 올라가요<br>⭐ 리듬을 잘 맞춘 물고기는 더 비싸요: ★★★ ×${QUAL_X[3] / 10} · ★★ ×${QUAL_X[2] / 10} · ★ ×${QUAL_X[1] / 10} · 별 없음 ×${QUAL_X[0] / 10}<br>다음 시세: <b>${nextLabel(ms)}</b> 쉬는 시간`;
+  el.querySelector('.note').innerHTML = `🔥 = 오늘의 대박(2배, 일반만) · 크기와 상관없이 종류로만 · 🎸🎷🎻 = 그 자리에서 잘 나오는 물고기(70%) · 록 물고기는 크게, 발라드는 잔잔하게, 전설은 아주 크게 오르내려요<br>🛒 많이 팔린 물고기는 다음 쉬는 시간에 값이 내려가고, 안 팔린 일반 물고기는 올라가요<br>⭐ 리듬을 잘 맞춘 물고기는 더 비싸요: ★★★ ×${QUAL_X[3] / 10} · ★★ ×${QUAL_X[2] / 10} · ★ ×${QUAL_X[1] / 10} · 별 없음 ×${QUAL_X[0] / 10}<br>다음 시세: <b>${nextLabel(ms)}</b> 쉬는 시간`;
 
   const bag = account.fishBag || [], n = bagCount(bag);
   el.querySelector('h3 small').textContent = account.loggedIn ? `🪙 ${account.player?.coins ?? 0}` : '';
@@ -149,9 +155,9 @@ async function sell(id, q = null) {
   } else bossLine = r.status === 'capped' ? '오늘은 더 못 사요 😅 내일 다시 와 주세요! (하루 1000코인까지)' : r.status === 'empty' ? '가방이 비었는데요? 😅' : '앗, 계산이 안 됐어요. 다시 눌러 주세요';
   render();
 }
-let onSold = null;
+let onSold = null, curGenre = null;
 export function openShop(opt = {}) {
-  onSold = opt.onSold || null;
+  onSold = opt.onSold || null; curGenre = opt.genre || null;
   if (!el) build();
   el.classList.add('open'); render();
   fishNews(liveWx()).then((ok) => ok && el.classList.contains('open') && render());

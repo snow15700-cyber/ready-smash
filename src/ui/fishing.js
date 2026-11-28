@@ -80,7 +80,8 @@ $('fish-shop').addEventListener('click', async (e) => {
 });
 async function openShopWin() {
   try { shopMod ||= await import('../games/fishing/shop.js'); } catch { toastHud.toast('횟집을 불러오지 못했어요. 다시 눌러 주세요', 2200); return; }
-  shopMod.openShop({ onSold: () => { renderMe(); bagBtn(); } });
+  const g = F && mod?.TUNE.genre; // 13-3 ⑤ 낚시 중이면 지금 자리 장르를 시세표에
+  shopMod.openShop({ genre: GENRE_LABEL[g] ? g : null, onSold: () => { renderMe(); bagBtn(); } });
 }
 // 선착장 🍣 횟집 건물·📈 칠판을 누르면 (14장 1b, ui/plaza.js onSpot → 문 앞까지 걸어간 뒤) 낚시 안 해도 횟집 창
 async function openMarket() {

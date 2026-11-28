@@ -24,7 +24,16 @@ export const DAY_CAP = 1000;
 export const MARKET_FISH = SPECIES.filter((s) => s.grade === 'common').map((s) => s.id); // 7종 (rules.js 순서 = 서버 순서)
 export const JACKPOT_X = 2, LOW_X = 0.6, SPAN_X = 0.25;
 export const BIG_FISH = SPECIES.filter((s) => s.grade !== 'common').map((s) => s.id); // 희귀 8 + 전설 2 (rules.js 순서 = 서버 42 순서)
-export const BIG_SWING = { rare: [0.8, 0.4], legend: [0.5, 1.0] }; // [가장 낮은 배율, 폭] — 희귀 0.8~1.2 · 전설 0.5~1.5
+export const BIG_SWING = { rare: [0.8, 0.4], legend: [0.5, 1.0] }; // [가장 낮은 배율, 폭] — 희귀 0.8~1.2 · 전설 0.5~1.5 (희귀는 아래 장르별이 먼저)
+// 13-3 ⑤ 장르별 시세 성격 (11/27 사용자 확정, 서버 48): 물고기의 장르(rules.js ZONE)로 [가장 낮은 배율, 폭]. 평균은 장르끼리 같음
+//   🎸 록 크게 출렁(일반 0.4~1.05 · 희귀 ±30%) · 🎷 재즈 지금 그대로(0.6~0.85 · ±20%) · 🎻 발라드 잔잔(0.675~0.775 · ±10%). 전설은 장르 없음(±50%)
+//   난수를 뽑는 순서는 그대로 — 재즈 물고기 값은 전과 똑같고, 나머지는 같은 난수를 넓히거나 좁힘
+export const GENRE_SWING = {
+  rock: { common: [0.4, 0.65], rare: [0.7, 0.6] },
+  jazz: { common: [LOW_X, SPAN_X], rare: [0.8, 0.4] },
+  ballad: { common: [0.675, 0.1], rare: [0.9, 0.2] },
+};
+export const swingOf = (id) => { const sp = SPECIES.find((s) => s.id === id); return GENRE_SWING[sp?.genre]?.[sp.grade] || (sp?.grade === 'common' ? [LOW_X, SPAN_X] : BIG_SWING[sp?.grade]); };
 // 📰 소식 목록 — [날씨(null = 보통), 물고기, 1 오름 / -1 내림, 글] (순서 = 서버 43). 날씨마다 오름 2 · 내림 2, 보통은 5 · 5
 export const NEWS_X = { 1: 13, '-1': 7 }; // ×10
 export const WXS = ['clear', 'cloudy', 'rain', 'snow'];
@@ -125,12 +134,12 @@ export function prices(p, wx = wxFor(p)) {
   const j = Math.floor(r() * MARKET_FISH.length);
   const out = {};
   MARKET_FISH.forEach((id, i) => {
-    const m = LOW_X + r() * SPAN_X; // (대박이어도 하나 뽑음 — 서버와 순서를 같게)
+    const [lo, span] = swingOf(id), m = lo + r() * span; // (대박이어도 하나 뽑음 — 서버와 순서를 같게)
     out[id] = Math.floor(FISH_COINS.common * 10 * (i === j ? JACKPOT_X : m) + 0.5);
   });
   const r2 = seeded(xs32(xs32(88001 + (p.day * 10 + p.idx) * 7919)));
   for (const id of BIG_FISH) {
-    const g = SPECIES.find((s) => s.id === id).grade, [lo, span] = BIG_SWING[g];
+    const g = SPECIES.find((s) => s.id === id).grade, [lo, span] = swingOf(id);
     out[id] = Math.floor(FISH_COINS[g] * 10 * (lo + r2() * span) + 0.5);
   }
   const news = newsOf(p, wx, MARKET_FISH[j]);

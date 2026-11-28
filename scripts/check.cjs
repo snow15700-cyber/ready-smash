@@ -498,6 +498,25 @@ async function sqlCheck() {
       '던지기 결과가 목록 밖이에요: ' + JSON.stringify(many.filter((c) => !R.CATCH[c.item] || (c.kind === 'fish' && +c.cm !== R.cmOfScore(c.item, +c.s))).slice(0, 3)));
     const today = +psql(DB, `select fish_day_n from public.pingpong_players where nick = '점검봇';`);
     must(today === many.filter((c) => c.kind === 'fish').length + (c1.cast.kind === 'fish') + (c2.cast.kind === 'fish'), '오늘 뽑은 물고기 수(fish_day_n)가 안 맞아요: ' + today);
+    // 48 🎷🎸🎻 장르별 물고기 (fishing.md 13-3 ⑤): 물고기 장르 서버 == rules.js ZONE · 선 자리 장르 서버 == standGenre · 그 자리 장르 물고기가 약 70%
+    {
+      const srvG = psql(DB, `select string_agg(id || ':' || coalesce(genre, '-'), ',' order by id) from public.pingpong_fish where kind = 'fish';`);
+      const jsG = R.SPECIES.map((sp) => `${sp.id}:${sp.genre || '-'}`).sort().join(',');
+      must(srvG === jsG, '물고기 장르가 서버와 달라요: ' + srvG);
+      const pts = Array.from({ length: 80 }, (_, i) => [-7 + (i * 37) % 37, 38 + ((i * 13) % 21)]);
+      const srvS = psql(DB, `select string_agg(public.pingpong__fish_genre(x.a, x.b), ',' order by x.n) from unnest(array[${pts.map((q) => q[0]).join(',')}]::float8[], array[${pts.map((q) => q[1]).join(',')}]::float8[]) with ordinality as x(a, b, n);`);
+      must(srvS === pts.map(([x, z]) => R.standGenre(x, z)).join(','), '선 자리 장르가 서버와 달라요');
+      for (const [x, z, g] of [[-4, 52, 'ballad'], [26, 52, 'rock'], [13, 44.6, 'jazz']]) {
+        const cs = JSON.parse(psql(DB, `set role anon; select json_agg(public.pingpong_fish_cast(${tk}, ${x}, ${z}, 0, 0.5, false)->'cast')::text from generate_series(1, 300);`))
+          .filter((c) => c.kind === 'fish' && R.CATCH[c.item]?.grade === 'common');
+        const share = cs.filter((c) => R.CATCH[c.item].genre === g).length / cs.length;
+        must(cs.length > 100 && share > 0.58 && share < 0.82, `${g} 자리 일반 물고기 중 그 장르가 ${Math.round(share * 100)}%예요(약 70%여야)`);
+      }
+      // 로컬 규칙(rollCatch)도 같은 비율
+      let mine = 0, all = 0;
+      for (let i = 0; i < 4000; i++) { const c = R.rollCatch(0, { genre: 'rock', cond: {} }); if (c.kind === 'fish' && c.grade === 'common') { all++; mine += c.genre === 'rock'; } }
+      must(Math.abs(mine / all - 0.7) < 0.04, 'rollCatch 장르 비율이 이상해요: ' + mine / all);
+    }
   }
   // 표는 브라우저가 직접 못 읽어야 한다 (RLS·권한)
   for (const t of ['pingpong_players', 'pingpong_sessions', 'pingpong_inventory', 'pingpong_matches', 'pingpong_fish_dex', 'pingpong_fish_log', 'pingpong_fish_bag', 'pingpong_fish_news', 'pingpong_fish_sold']) {

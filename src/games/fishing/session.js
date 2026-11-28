@@ -123,7 +123,7 @@ export function createFishing(opt) {
   };
   function catchCtx() {
     const c = TUNE.cond;
-    return { owned: ownedPaddles(), cond: c === 'auto' ? { break: !!breakAt(), night: isNight(Date.now()), rain: false } : { [c]: true } };
+    return { owned: ownedPaddles(), genre: TUNE.genre, cond: c === 'auto' ? { break: !!breakAt(), night: isNight(Date.now()), rain: false } : { [c]: true } };
   }
 
   // ── 글자·판정

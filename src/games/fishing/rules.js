@@ -133,6 +133,15 @@ export const SPECIES = [
   ['lattegoby', '라테 망둥어', 'rare', '☕', 15, 'break'], ['moonhair', '달빛 갈치', 'rare', '🌙', 90, 'night'], ['raindrop', '빗방울 숭어', 'rare', '🌧️', 50, 'rain'],
   ['goldball', '황금 탁구공 물고기', 'legend', '🏓', 40], ['dragon', '경주 용왕 물고기', 'legend', '🌊', 150],
 ].map(([id, name, grade, emoji, base, cond]) => ({ kind: 'fish', id, name, grade, emoji, base, cond }));
+// 13-3 ⑤ 3단계 (11/27 사용자 확정): 장르 구역 물고기 — 그 자리에서 '잘 나오는 물고기'. 전설 2종은 구역 없음(어디서나 같게)
+//   = SQL 48 pingpong_fish.genre. 시세 성격(록 크게 출렁 · 재즈 보통 · 발라드 잔잔)도 이 장르로(market.js GENRE_SWING)
+export const ZONE = {
+  jazz: ['rockfish', 'greenling', 'blackporgy', 'octopus', 'moonhair', 'lattegoby'],
+  rock: ['mackerel', 'squid', 'puffer', 'yellowtail', 'rockcod'],
+  ballad: ['horse', 'flounder', 'seabream', 'raindrop'],
+};
+for (const [g, ids] of Object.entries(ZONE)) for (const id of ids) SPECIES.find((s) => s.id === id).genre = g;
+export const ZONE_RATE = 0.7; // 등급을 먼저 뽑고, 그 안에서 내 자리 장르 물고기가 70%
 export const JUNK = [
   ['stick', '나뭇가지', '🪵'], ['can', '빈 캔', '🥫'], ['boot', '장화', '👢'], ['bottle', '페트병', '🧴'], ['kelp', '해초', '🌿'],
   ['shell', '조개껍데기', '🐚'], ['oldball', '낡은 탁구공', '🏓'], ['brokenpaddle', '부러진 탁구채', '🏓'], ['baguette', '김제빵의 바게트', '🥖'],
@@ -148,16 +157,22 @@ export const ODDS = [[72, 25, 3], [45, 43, 12], [25, 55, 20]];
 export const isNight = (ms) => { const h = new Date(ms + 9 * 3600e3).getUTCHours(); return h >= 19 || h < 6; }; // 한국 시각 19~6시
 
 const pick = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
-// ctx: { cond: { break, night, rain }, owned: [가진 탁구채 id] }
+// 13-3 ⑤: 고를 물고기 중 내 장르 것이 있고 다른 것도 있으면 70%로 내 장르 쪽, 아니면 그냥 아무거나 (SQL 48과 같은 규칙)
+function pickZone(arr, genre, rnd) {
+  const mine = arr.filter((s) => s.genre === genre), other = arr.filter((s) => s.genre !== genre);
+  if (!mine.length || !other.length) return pick(arr, rnd);
+  return rnd() < ZONE_RATE ? pick(mine, rnd) : pick(other, rnd);
+}
+// ctx: { cond: { break, night, rain }, owned: [가진 탁구채 id], genre: 선 자리 장르(standGenre, 없으면 구역 없음) }
 export function rollCatch(near, ctx, rnd = Math.random) {
   if (rnd() < PADDLE_RATE) return paddleCatch(ctx.owned || [], rnd);
   const [c, r] = ODDS[near] || ODDS[0];
-  const x = rnd() * 100;
-  if (x < c) return rnd() < JUNK_RATE ? pick(JUNK, rnd) : pick(SPECIES.filter((s) => s.grade === 'common'), rnd);
+  const x = rnd() * 100, g = ctx.genre;
+  if (x < c) return rnd() < JUNK_RATE ? pick(JUNK, rnd) : pickZone(SPECIES.filter((s) => s.grade === 'common'), g, rnd);
   if (x < c + r) {
     const conds = SPECIES.filter((s) => s.cond && ctx.cond?.[s.cond]);
-    if (conds.length && rnd() < COND_RATE) return pick(conds, rnd);
-    return pick(SPECIES.filter((s) => s.grade === 'rare' && !s.cond), rnd);
+    if (conds.length && rnd() < COND_RATE) return pickZone(conds, g, rnd);
+    return pickZone(SPECIES.filter((s) => s.grade === 'rare' && !s.cond), g, rnd);
   }
   return pick(SPECIES.filter((s) => s.grade === 'legend'), rnd);
 }
