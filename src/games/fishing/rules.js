@@ -39,10 +39,18 @@ export function clampStand(x, z) {
   }
   return best;
 }
-// 낚시 중 좌우 걷기: 지금 서는 곳 네모 안에서만
+// 'ㄷ자' 꼭짓점 (11/28 사용자 요청, 화면 전용 — 서버와 상관없음): 앞 판의 양 끝(팔과 만나는 곳)은 남쪽 앞이 팔(나무 판)이라 물이 없음
+//   → 여기서는 '🎣 낚시하기' 버튼이 꺼지고, 앞 판에서 낚시 중 좌우로 걸어도 여기까지는 안 감
+export const DRY_PAD = 0.3;
+const FRONT_X = [WOOD[1].x1 + DRY_PAD, WOOD[2].x0 - DRY_PAD]; // 앞 판에서 낚시할 수 있는 x
+export function dryCorner(x, z) {
+  const [cx, cz] = clampStand(x, z);
+  return cz <= STANDS[0].z1 + 1e-6 && (cx < FRONT_X[0] || cx > FRONT_X[1]);
+}
+// 낚시 중 좌우 걷기: 지금 서는 곳 네모 안에서만 (앞 판은 꼭짓점 빼고)
 export function walkStand(x, z, dx) {
   const R = STANDS.find((q) => x >= q.x0 - 1e-6 && x <= q.x1 + 1e-6 && z >= q.z0 - 1e-6 && z <= q.z1 + 1e-6) || STANDS[0];
-  return clamp(x + dx, R.x0, R.x1);
+  return R === STANDS[0] ? clamp(x + dx, FRONT_X[0], FRONT_X[1]) : clamp(x + dx, R.x0, R.x1);
 }
 // 던지는 방향 (13-3 🐞 고침, 11/27 사용자 확정 · 45_fish_cast_dir.sql과 같게): 앞 판 = 남쪽(+z) · 서쪽 팔 = 서쪽 바다(−x) · 동쪽 팔 = 동쪽 바다(+x)
 //   h = 방향 각도 (방향 = (sin h, cos h)). 자리 나누기는 standGenre와 같음

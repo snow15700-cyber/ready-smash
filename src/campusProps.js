@@ -73,8 +73,9 @@ export function fountain(anim) {
     for (let r = 0; r < 4; r++) { c.beginPath(); c.arc(256, 256, 160 + r * 24, 0, 7); c.stroke(); }
     for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2; c.beginPath(); c.moveTo(256 + Math.cos(a) * 160, 256 + Math.sin(a) * 160); c.lineTo(256 + Math.cos(a) * 256, 256 + Math.sin(a) * 256); c.stroke(); }
   });
-  const pave = new THREE.Mesh(new THREE.CircleGeometry(5.2, 64), new THREE.MeshLambertMaterial({ map: ringTex }));
-  pave.rotation.x = -Math.PI / 2; pave.position.y = 0.012; pave.receiveShadow = true; g.add(pave);
+  // 11/28: 분수에서 뻗는 길(campusMock.js PATHS, 높이 0.012)과 같은 높이라 겹쳐서 깜빡였음 → 조금 위 + 앞에 그리기(polygonOffset)
+  const pave = new THREE.Mesh(new THREE.CircleGeometry(5.2, 64), new THREE.MeshLambertMaterial({ map: ringTex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
+  pave.rotation.x = -Math.PI / 2; pave.position.y = 0.022; pave.receiveShadow = true; g.add(pave);
   // 둥글게 놓는 돌 블록 (바깥 = +z 쪽이 바깥)
   const ringBox = (w, h, d, m, r, y, a) => { const b = box(g, w, h, d, m, Math.cos(a) * r, y, Math.sin(a) * r); b.rotation.y = Math.PI / 2 - a; return b; };
   // ① 바깥 낮은 계단 + 튀어나온 돌 블록

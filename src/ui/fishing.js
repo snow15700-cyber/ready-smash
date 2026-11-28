@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { account, fishBagLoad, fishDex, myEquip, srvNow, syncServerClock } from '../account.js';
 import { PLAZA } from '../arena-plaza.js';
 import { applyLook } from '../items.js';
-import { activeBubbles, CATCH, GENRE_LABEL, LEGEND_PADDLES, standGenre, castHeading } from '../games/fishing/rules.js';
+import { activeBubbles, CATCH, dryCorner, GENRE_LABEL, LEGEND_PADDLES, standGenre, castHeading } from '../games/fishing/rules.js';
 import { makeBobber, makeBubbleFx, makeLine, makeRod, makeSplashes, seaHeight } from '../games/fishing/world.js';
 import { PIER, STAIRS, stairAt } from '../campusLayout.js';
 import { addon, plazaApi, registerAddon } from './plazaAddons.js';
@@ -48,6 +48,7 @@ css.textContent = `
 #fish-ui .fish-hud, #fish-ui .fish-chat, #fish-ui .fish-chat div { pointer-events: none !important; }
 .fish-ui button { pointer-events: auto; font-family: var(--font-ui, 'Pretendard Variable', system-ui, sans-serif); cursor: pointer; border: 0; }
 .fish-start { position: absolute; left: 50%; bottom: 122px; transform: translateX(-50%); height: 54px; padding: 0 28px; border-radius: 999px; font-weight: 800; font-size: 19px; color: #fff; background: linear-gradient(180deg, #2ea3e6, #1b6fb8); box-shadow: 0 8px 22px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.3); animation: fishPop .9s ease-in-out infinite alternate; }
+.fish-start:disabled { background: linear-gradient(180deg, #8a93a3, #5d6574); animation: none; cursor: default; font-size: 16px; }
 @keyframes fishPop { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.05); } }
 @keyframes fishFade { from { opacity: 0; } to { opacity: 1; } }
 .fish-hud, .fish-bar, .fish-chat { animation: fishFade .8s ease .7s both; } /* 카메라가 내려앉는 동안 낚시 글자가 천천히 나타남 */
@@ -104,9 +105,18 @@ for (const id of ['fish-start', 'fish-stop', 'fish-sync', 'fish-dex', 'fish-shop
 
 // ── 시작 · 그만
 // 팔 안쪽 울타리(src/campusPier.js): 내가 낚시하는 동안은 숨김 (카메라·찌를 가리지 않게, 11/28 사용자 요청)
-const setArmFence = (v) => { const f = world.plaza?.root?.getObjectByName('armFence'); if (f) f.visible = v; };
+// 🎷 가운데 앞 판에서 낚시하면 뒤(북쪽) 돌계단·손잡이가 카메라를 가려서 반투명 (11/28 사용자 요청)
+const setArmFence = (v) => {
+  const root = world.plaza?.root, f = root?.getObjectByName('armFence');
+  if (f) f.visible = v;
+  root?.getObjectByName('pierStairs')?.traverse((o) => {
+    if (!o.isMesh) return;
+    o.material.transparent = !v; o.material.opacity = v ? 1 : 0.18; o.material.depthWrite = v; o.castShadow = v;
+    o.material.needsUpdate = true;
+  });
+};
 async function start() {
-  if (on || loading) return;
+  if (on || loading || startBtn.disabled) return;
   loading = true;
   try {
     mod ||= await import('../games/fishing/session.js');
@@ -339,7 +349,12 @@ function frame(now, p, walking) {
   // 버튼: 낚시 판 위에 서 있으면 (걷는 중·탁구대 자리·창이 떠 있으면 안 보임)
   const can = !on && curScreen === 'lobby' && !plazaApi.seat() && !walking && PLAZA.onPier(p[0], p[1]);
   $('fish-start').classList.toggle('hidden', !can);
-  if (can) { const t = `🎣 낚시하기 · ${GENRE_LABEL[standGenre(p[0], p[1])]}`; if (startBtn.textContent !== t) startBtn.textContent = t; } // 13-3 ⑤ 이 자리 장르
+  if (can) {
+    const dry = dryCorner(p[0], p[1]); // 'ㄷ자' 꼭짓점: 앞이 팔(나무 판)이라 물이 없음 → 버튼 꺼짐 (11/28)
+    const t = dry ? '🚫 앞에 물이 없어요 · 조금 옆으로' : `🎣 낚시하기 · ${GENRE_LABEL[standGenre(p[0], p[1])]}`; // 13-3 ⑤ 이 자리 장르
+    if (startBtn.textContent !== t) startBtn.textContent = t;
+    startBtn.disabled = dry;
+  }
   if (can && !mod && !preload) preload = Promise.all([import('../games/fishing/session.js'), import('../games/fishing/dex.js')]).catch(() => {}); // 판에 들어서면 미리 불러 둠 (누를 때 멈칫하지 않게)
   othersFrame(now, lastFrameT ? Math.min(0.1, now - lastFrameT) : 0.016); lastFrameT = now; // 계단·선착장에서는 낚싯대 (나·다른 사람)
   pierBubbles(now, p);

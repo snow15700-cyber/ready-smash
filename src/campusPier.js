@@ -5,6 +5,7 @@
 // 시안(campus.html)·실제 광장(arena-plaza.js)·낚시 시안(fishing.html)이 모두 buildCampus로 같이 씀. 자리는 campusLayout.js.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { addBox, canvasTex, seeded, std } from './arena-kit.js';
 import { ARMS, BOARD, CAT_NOOK, CLIFF, HARBOR, LH_BASES, LIGHTHOUSES, MARKET, PIER, SEA_Y, STAIRS } from './campusLayout.js';
 import { BIG_FISH, MARKET_FISH, history, nextLabel, demandOf, period, wxFor } from './games/fishing/market.js';
@@ -37,6 +38,21 @@ const WAVES = [[0.3, 1.0, 26, 0.55, 1.1], [-0.6, 0.8, 15, 0.32, 1.5], [0.9, 0.4,
 });
 const seaH = (x, z, t) => WAVES.reduce((h, w) => h + w.A * Math.sin(w.k * (w.dx * x - w.dy * z) + t * w.s), SEA_Y);
 
+// 묶음 안 메시를 재질마다 하나로 합침 (재질은 복사 — 반투명으로 바꿔도 다른 물건은 그대로). 합치기(bakeArena)에서는 빠짐(noBake)
+function mergeByMat(grp, name) {
+  grp.updateMatrixWorld(true);
+  const by = new Map();
+  grp.traverse((o) => { if (o.isMesh) { if (!by.has(o.material)) by.set(o.material, []); by.get(o.material).push(o.geometry.clone().applyMatrix4(o.matrixWorld)); } });
+  const out = new THREE.Group(); out.name = name; out.userData.noBake = true;
+  for (const [m, geos] of by) {
+    const mesh = new THREE.Mesh(mergeGeometries(geos, false), m.clone());
+    mesh.castShadow = true; mesh.receiveShadow = true; mesh.userData.noBake = true;
+    out.add(mesh);
+    for (const ge of geos) ge.dispose();
+  }
+  grp.traverse((o) => o.geometry?.dispose());
+  return out;
+}
 export function buildPierArea(anim = null) {
   const g = new THREE.Group();
   g.name = 'pierArea';
@@ -369,18 +385,20 @@ export function buildPierArea(anim = null) {
     c.font = FONT(26); c.fillStyle = '#7a5a1a'; c.fillText('시스템 도입', 128, 176); c.fillText('고민중', 128, 210);
   });
   const arrowTex = signTex('🎣 낚시터 ↓', '#e8f6fb', '#1f5f8a', 300), pole = std(0xc9ced4, { metalness: 0.5, roughness: 0.35 });
+  // 계단 디딤판·바위·손잡이는 따로 모아 재질별로 합침(그리기 몇 번) — 내가 🎷 가운데에서 낚시할 때 뒤에서 카메라를 가려서 반투명 (ui/fishing.js, 11/28 사용자 요청)
+  const sg = new THREE.Group();
   for (const S of STAIRS) {
     const n = Math.round(-top / 0.29), run = (S.z1 - S.z0) / n, w = S.x1 - S.x0, cx = (S.x0 + S.x1) / 2;
     for (let i = 0; i < n; i++) {
       const z = S.z0 + run * (i + 0.5), step = top * (i + 1) / n; // 디딤판 윗면: 0(광장) 아래 한 칸 → top(판)
-      if (i < n - 1) addBox(g, w, step - top + 0.02, run + 0.02, rock, cx, (step + top) / 2, z); // 아래까지 꽉 찬 바위
-      addBox(g, w + 0.06, 0.06, run + 0.06, stoneTop, cx, step + 0.01, z).castShadow = true;
+      if (i < n - 1) addBox(sg, w, step - top + 0.02, run + 0.02, rock, cx, (step + top) / 2, z); // 아래까지 꽉 찬 바위
+      addBox(sg, w + 0.06, 0.06, run + 0.06, stoneTop, cx, step + 0.01, z).castShadow = true;
     }
     // 양옆 손잡이 (기둥 + 비스듬한 손잡이)
     const len = Math.hypot(S.z1 - S.z0, top);
     for (const x of [S.x0 + 0.08, S.x1 - 0.08]) {
-      for (let k = 0; k <= 4; k++) { const z = S.z0 + (S.z1 - S.z0) * (k / 4), y = top * (k / 4); cyl(0.045, 0.045, 0.95, woodDark, x, y + 0.48, z, 6); }
-      const r = addBox(g, 0.06, 0.06, len, wood, x, top / 2 + 0.95, (S.z0 + S.z1) / 2);
+      for (let k = 0; k <= 4; k++) { const z = S.z0 + (S.z1 - S.z0) * (k / 4), y = top * (k / 4); cyl(0.045, 0.045, 0.95, woodDark, x, y + 0.48, z, 6, sg); }
+      const r = addBox(sg, 0.06, 0.06, len, wood, x, top / 2 + 0.95, (S.z0 + S.z1) / 2);
       r.rotation.x = Math.atan2(-top, S.z1 - S.z0);
     }
     // 계단 입구 안내 (광장에서 보이게, 북쪽을 봄) — 데크 반대쪽(바깥) 옆
@@ -392,5 +410,6 @@ export function buildPierArea(anim = null) {
     const note = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4), new THREE.MeshBasicMaterial({ map: noteTex }));
     note.position.set(ax - 0.5, 0.92, S.z0 - 0.52); note.rotation.set(0, Math.PI, -0.12); g.add(note); // 보는 사람 기준 오른쪽 아래 (글자 안 가리게)
   }
+  g.add(mergeByMat(sg, 'pierStairs'));
   return g;
 }
