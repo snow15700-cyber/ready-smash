@@ -64,7 +64,8 @@ export const PLAZA = {
     box(SPOTS.board, -1.8, 1.8, -0.35, 0.35),
     box(SPOTS.fishBoard, -1.8, 1.8, -0.35, 0.35), // 낚시 게시판 (서쪽 계단 위 풀밭)
     { x: SPOTS.photo.x, z: SPOTS.photo.z, r: 2.1 },
-    box(SPOTS.truck, -2.55, 2.95, -1.2, 3.1), // 푸드트럭 + 판매창 앞 탁자·의자 (11/28 새 모습)
+    box(SPOTS.truck, -2.55, 2.95, -1.2, 1.55), // 푸드트럭 (11/28 새 모습, 앞으로 나온 계산대까지)
+    box(SPOTS.truck, -1.6, 0.6, 2.15, 3.05), // 판매창 앞 탁자·의자 (10장 ②: 트럭과 탁자 사이를 나눠서 판매창 앞(운전석 쪽 끝)에 설 수 있게)
     box(SPOTS.vending, -0.65, 1.8, -0.5, 0.7), // 자판기 1대 + 분리수거함 2개 (11/28)
     box(SPOTS.bakery, -2.95, 2.95, -2.35, 2.5), // 빵집 2층 (11/28, 받침·문 앞 계단까지)
     // 바다 전망대: 데크 위는 걸어 다님. 데크 양옆(광장 바닥 끝 너머)·망원경·벤치·안내 판은 막음
@@ -99,6 +100,8 @@ export const PLAZA = {
     { id: 'board', ...SPOTS.board, box: [-1.85, 1.85, -0.5, 0.6, 3.3], front: (lx) => toWorld(SPOTS.board, lx, 1.4) }, // 업데이트·미션·치는 방법
     { id: 'fishBoard', ...SPOTS.fishBoard, box: [-1.85, 1.85, -0.5, 0.6, 3.3], front: (lx) => toWorld(SPOTS.fishBoard, lx, 1.9) }, // 낚시 방법·팁·고양이 (src/games/fishing/board.js)
     { id: 'clock', ...SPOTS.clock, box: [-1.4, 1.4, -1.4, 1.4, 11.5] }, // 쉬는 시간 안내
+    { id: 'truck', ...SPOTS.truck, box: [-2.6, 3.0, -1.15, 1.6, 3.2] }, // 🚚 간식 트럭 메뉴 (10장 ②, src/games/props/plazaProps.js) — 탁자·의자는 따로(앉기)
+    { id: 'vending', ...SPOTS.vending, box: [-0.62, 0.62, -0.45, 0.5, 2.05] }, // 🥤 자판기 (분리수거함은 빼고)
     { id: 'market', x: MARKET.x, z: MARKET.z, y: PIER.y, yaw: 0, box: [-MARKET.w / 2, MARKET.w / 2, -MARKET.d / 2, MARKET.d / 2 + 0.6, 4.3], door: MARKET.door }, // 🍣 횟집 (지붕 초밥을 눌러도) (낚시 14장 1b) — 문 앞으로 걸어가 횟집 창
     { id: 'market', x: BOARD.x, z: BOARD.z, y: PIER.y, yaw: 0, box: [-BOARD.w / 2, BOARD.w / 2, -0.3, 0.3, 2.1], door: MARKET.door }, // 📈 시세 칠판도 같은 창
   ],

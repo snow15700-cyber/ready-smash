@@ -708,6 +708,14 @@ export function playUI(kind = 'click') {
     // '스매시!': 빠르게 올라가는 밝은 음 + 쾅
     [784, 1175, 1568, 2349].forEach((f, i) => mode(out, t + i * 0.035, f, 0.07, 0.22));
     burst(out, t, { type: 'lowpass', f: 900, q: 0.7, amp: 0.35, a: 0.002, d: 0.12 });
+  } else if (kind === 'clunk') {
+    // 🥤 자판기 캔이 떨어짐: 낮은 '덜컹' + 깡통 울림
+    mode(out, t, 140, 0.35, 0.06, 0.3);
+    tick(out, t, 420, 1.2, 0.5, 0.03, 'lowpass');
+    mode(out, t + 0.012, 1870, 0.05, 0.09);
+    mode(out, t + 0.012, 2630, 0.03, 0.07);
+    mode(out, t + 0.11, 120, 0.15, 0.05);
+    tick(out, t + 0.11, 380, 1.2, 0.22, 0.02, 'lowpass');
   } else if (kind === 'win') {
     [660, 830, 990, 1320].forEach((f, i) => mode(out, t + i * 0.1, f, 0.06, 0.18));
   }
