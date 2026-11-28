@@ -687,12 +687,12 @@ export function createFishing(opt) {
     S.camLook.set(lx + (S.bob.x - lx) * toBob, SEA_Y + 0.4 + pull * 1.3, lz + (S.bob.z - lz) * toBob); // 광장 카메라와 이어 붙일 때도 씀
     camera.lookAt(S.camLook);
     const roll = S.camK <= 1 ? 0.052 * S.camK : 0.052 - 0.157 * (S.camK - 1); // 0° → 3° → −6°
-    // 맞추면 순간 확대(bump) · 놓치면 살짝 기울기(tilt) · 박자마다 살짝 다가가는 '두근'(마디 첫 박은 더 세게, 단계가 오를수록 조금 더)
+    // 맞추면 순간 확대(bump) · 놓치면 살짝 기울기(tilt) · 박자마다 살짝 다가가는 '두근'(11/28 멀미 때문에 약 40% 줄임)(마디 첫 박은 더 세게, 단계가 오를수록 조금 더)
     const R = S.mode === 'fight' ? S.R : null;
     camera.rotateZ((R ? R.tilt * 0.035 : 0) + roll * cs);
-    const beat = R ? R.pulse * R.pulse * R.pulseAmp * (0.012 + S.stage * 0.004) * cs : 0;
+    const beat = R ? R.pulse * R.pulse * R.pulseAmp * (0.007 + S.stage * 0.0025) * cs : 0;
     // 기 모으기(17장): 누를수록 확대(최대 약 8%) + 박마다 두근(모을수록 세게) · 기다리는 동안은 아주 살짝
-    const pre = S.B ? S.B.pulse * S.B.pulse * (S.charge ? 0.008 + S.chargeV * 0.012 : 0.005) * cs : 0;
+    const pre = S.B ? S.B.pulse * S.B.pulse * (S.charge ? 0.005 + S.chargeV * 0.007 : 0.003) * cs : 0;
     const fov = (innerWidth < (opt.viewH?.() || innerHeight) ? 72 : 55) * (1 - (R ? R.bump : 0) * 0.025) * (1 - k * 0.045) * (1 - beat) * (1 - S.chargeV * 0.08) * (1 - pre);
     if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   }

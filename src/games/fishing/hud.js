@@ -177,7 +177,7 @@ export function drawHud(g, W, H, { S, TUNE, camera, zoomCam, zoom, caught }) {
           const rIn = held || n.res ? br : rad(kH), rOut = rad(kT);
           g.globalAlpha = clamp((1 - kH) * 3, 0, 1);
           g.fillStyle = held ? 'rgba(217,194,255,.42)' : 'rgba(217,194,255,.2)';
-          g.beginPath(); g.arc(b.x, b.y, rOut, 0, 7); g.arc(b.x, b.y, rIn, 0, 7, true); g.fill();
+          g.beginPath(); g.arc(b.x, b.y, rOut, 0, Math.PI * 2); g.moveTo(b.x + rIn, b.y); g.arc(b.x, b.y, rIn, Math.PI * 2, 0, true); g.fill(); // 2π로 딱 한 바퀴 (7을 쓰면 안쪽 구멍이 오른쪽 아래에서 덜 뚫림)
           if (kT <= 1.15) {
             g.setLineDash([10 * u, 7 * u]);
             g.lineWidth = 7 * u; g.strokeStyle = 'rgba(10,25,45,.45)'; g.beginPath(); g.arc(b.x, b.y, rOut, 0, 7); g.stroke();
