@@ -3,7 +3,7 @@
 name: 자동 점검
 on:
   push:
-    branches: [test, main]
+    branches: [test, test-fps, main]
   pull_request:
   workflow_dispatch:
 

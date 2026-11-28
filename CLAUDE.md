@@ -23,6 +23,7 @@
 | 광장 로비(탁구대·김제빵·거품 관전·화면 전환·캠퍼스 디자인) | `docs/dev/plaza.md` |
 | 낚시(리듬·물고기·도감·가방·횟집·선착장) | `docs/dev/fishing.md` |
 | 고양이 친구 | `docs/dev/cats.md` |
+| FPS(멀티 전용·방장 없는 판·네온 맵) — 다음: 손맛 시안 `fps.html` | `docs/dev/fps.md` |
 | 화면 디자인('탁구 색 + 유리')·업데이트 내역(`src/updates.js`) | `docs/dev/design.md` |
 | 코드 정리 / 최적화 순서표 | `cleanup.md`(다음 10번) / `optimization.md`(다음 3번, 사용자 확인 먼저) |
 | **실행할 서버 SQL 목록** | `docs/dev/sql-to-run.md` |
