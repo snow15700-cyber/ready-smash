@@ -18,6 +18,7 @@ export default defineConfig({
         fishModels: fileURLToPath(new URL('./fish-models.html', import.meta.url)), // 물고기 모형 스타일 시안 (fishing.md 9장)
         beatFriends: fileURLToPath(new URL('./beat-friends.html', import.meta.url)), // 자리마다 박자 친구들 시안 (fishing.md 13-3)
         props: fileURLToPath(new URL('./props.html', import.meta.url)), // 광장 물건 상호작용 시안 (plaza.md 10장 ①)
+        look: fileURLToPath(new URL('./look.html', import.meta.url)), // 물건 4개 새 모습 비교 (plaza.md 8장 🎨)
         cats: fileURLToPath(new URL('./cats.html', import.meta.url)), // 고양이 모형 시안 (docs/dev/cats.md 2단계)
         rtcTest: fileURLToPath(new URL('./rtc-test.html', import.meta.url)), // 와이파이 연결 속도 측정 (WebRTC 시험)
       },

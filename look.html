@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>물건 새 모습 비교</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Jua, sans-serif; background: #f4f1ea; color: #2b2a33; }
+    h1 { margin: 14px 16px 2px; font-size: 24px; }
+    p.hint { margin: 0 16px 10px; font-size: 14px; color: #6a6470; }
+    .bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 16px 10px; }
+    .bar button { font: inherit; font-size: 14px; border: 0; border-radius: 999px; padding: 6px 12px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.12); cursor: pointer; }
+    .bar button.on { background: #e23a35; color: #fff; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 16px 16px; }
+    .row h2 { grid-column: 1 / -1; margin: 6px 0 0; font-size: 20px; }
+    .box { position: relative; aspect-ratio: 1; border-radius: 14px; overflow: hidden; background: #fff; }
+    .box img, .box canvas { width: 100%; height: 100%; display: block; object-fit: contain; }
+    .box canvas { cursor: grab; touch-action: none; }
+    .box span { position: absolute; left: 10px; top: 8px; font-size: 14px; color: #6a6470; }
+    @media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <h1>🎨 물건 4개 새 모습 — 참고 그림과 비교</h1>
+  <p class="hint">왼쪽 = 참고 그림 · 오른쪽 = 게임 모형(끌어서 돌려 보기). 실제 광장 모습은 campus.html?cam=truck 등에서.</p>
+  <div class="bar" id="bar"><button data-sky="day" class="on">☀️ 낮</button><button data-sky="night">🌙 밤</button></div>
+  <div id="rows"></div>
+  <script type="module" src="/src/lookPage.js"></script>
+</body>
+</html>

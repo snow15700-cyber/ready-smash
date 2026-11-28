@@ -119,16 +119,16 @@ function trophy(p, x, y, z, s = 1) {
 
 
 // ── 2층 가게 뼈대
-const Y1 = 0.3, F1 = 2.65, BAND = 0.36, F2 = 1.8, PAR = 0.3; // 받침 위 1층 · 띠 · 2층 · 지붕 난간
-const YB = Y1 + F1, Y2 = YB + BAND, YT = Y2 + F2; // 띠 아래 · 2층 바닥 · 2층 위
-const ROOF_Y = YT + 0.18; // 지붕 바닥 (상징을 놓는 높이)
-const HW = SHOP_W / 2, POST = 0.22, IN = 0.75; // 1층 유리 진열장 깊이
-const flat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, flatShading: true, ...o });
-const litM = (c, day = 0.35, night = 1.1) => glow(new THREE.MeshStandardMaterial({ color: c, emissive: c, roughness: 0.8 }), day, night);
-const winGlass = () => glow(new THREE.MeshStandardMaterial({ color: 0x8db6e6, emissive: 0xffdc9a, roughness: 0.15, metalness: 0.15 }), 0, 0.85);
+export const Y1 = 0.3, F1 = 2.65, BAND = 0.36, F2 = 1.8, PAR = 0.3; // 받침 위 1층 · 띠 · 2층 · 지붕 난간
+export const YB = Y1 + F1, Y2 = YB + BAND, YT = Y2 + F2; // 띠 아래 · 2층 바닥 · 2층 위
+export const ROOF_Y = YT + 0.18; // 지붕 바닥 (상징을 놓는 높이)
+export const HW = SHOP_W / 2, POST = 0.22, IN = 0.75; // 1층 유리 진열장 깊이
+export const flat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, flatShading: true, ...o });
+export const litM = (c, day = 0.35, night = 1.1) => glow(new THREE.MeshStandardMaterial({ color: c, emissive: c, roughness: 0.8 }), day, night);
+export const winGlass = () => glow(new THREE.MeshStandardMaterial({ color: 0x8db6e6, emissive: 0xffdc9a, roughness: 0.15, metalness: 0.15 }), 0, 0.85);
 
 // 한 면에 붙이는 그룹: 안쪽 x = 그 면을 바라볼 때 오른쪽, +z = 바깥 (y는 그대로)
-function face(g, side) {
+export function face(g, side) {
   const f = new THREE.Group();
   if (side === 'front') f.position.z = FZ;
   else if (side === 'right') { f.position.x = HW; f.rotation.y = Math.PI / 2; } else if (side === 'left') { f.position.x = -HW; f.rotation.y = -Math.PI / 2; }
@@ -136,7 +136,7 @@ function face(g, side) {
   return f;
 }
 // 2층 창: 유리(밤에 불) + 틀 + 살 + 창턱
-function win(f, x, y, w, h, frame, glass, { cols = 2, rows = 2, sill = null } = {}) {
+export function win(f, x, y, w, h, frame, glass, { cols = 2, rows = 2, sill = null } = {}) {
   box(f, w, h, 0.04, glass, x, y, 0);
   const t = 0.09;
   for (const sy of [-1, 1]) box(f, w + t, t, 0.1, frame, x, y + (sy * h) / 2, 0.03);
@@ -146,7 +146,7 @@ function win(f, x, y, w, h, frame, glass, { cols = 2, rows = 2, sill = null } = 
   if (sill) box(f, w + 0.3, 0.08, 0.2, sill, x, y - h / 2 - 0.07, 0.08);
 }
 // 글자 간판 그림: 글자마다 색 + 진한 테두리 + 아래로 두께(입체 글자 느낌). vertical = 한 줄에 한 글자. icon(c, w, ih) = 위쪽 그림
-function signTex(text, cols, { w = 512, h = 128, bg = null, outline = '#2b2a33', vertical = false, icon = null, iconH = 0 } = {}) {
+export function signTex(text, cols, { w = 512, h = 128, bg = null, outline = '#2b2a33', vertical = false, icon = null, iconH = 0 } = {}) {
   return canvasTex(w, h, (c) => {
     if (bg) { c.fillStyle = bg; c.fillRect(0, 0, w, h); }
     const top = icon ? h * iconH : 0, H = h - top, chars = [...text];
@@ -167,7 +167,7 @@ function signTex(text, cols, { w = 512, h = 128, bg = null, outline = '#2b2a33',
     });
   });
 }
-function signPlate(p, tex, w, h, x, y, z, ry = 0) {
+export function signPlate(p, tex, w, h, x, y, z, ry = 0) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.35 }));
   m.position.set(x, y, z); m.rotation.y = ry; p.add(m);
   return m;
@@ -189,7 +189,7 @@ const crownIcon = (col, stars = true) => (c, w, ih) => {
 
 // 받침 + 1층(통유리 진열장·문) + 띠 + 2층 + 지붕. o: 재질들 · doorX/doorW · portal(문짝 없이 금 문틀) · mull/mullR(유리 살 자리)
 // 반환: 진열장 안쪽 앞 벽 z(zf)·오른쪽 벽 x(xr) — 진열품을 놓는 곳
-function shell(g, o) {
+export function shell(g, o) {
   plinth(g);
   const xr = HW - IN, zf = FZ - IN, yM = Y1 + F1 / 2;
   box(g, xr + HW, F1, zf + FZ, o.wall1, (xr - HW) / 2, yM, (zf - FZ) / 2); // 진열장 뒤 덩어리
@@ -244,7 +244,7 @@ function shell(g, o) {
   return { xr, zf };
 }
 // 옆으로 튀어나온 세로 간판 (앞 왼쪽 모서리, 앞뒤 두 면에 글자)
-function bladeSign(g, tex, w, h, y, frame) {
+export function bladeSign(g, tex, w, h, y, frame) {
   const x = -HW - 0.2 - w / 2, z = FZ - 0.35;
   for (const yy of [y + h / 2 - 0.15, y - h / 2 + 0.15]) box(g, 0.34, 0.05, 0.05, frame, -HW - 0.12, yy, z);
   box(g, w + 0.1, h + 0.1, 0.08, frame, x, y, z);
