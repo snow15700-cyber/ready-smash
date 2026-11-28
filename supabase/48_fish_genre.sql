@@ -16,11 +16,30 @@ update public.pingpong_fish set genre = case
   when id in ('horse', 'flounder', 'seabream', 'raindrop') then 'ballad'
   else null end;
 
+-- 서는 곳 안으로 (36과 똑같음 — 혹시 없더라도 이 파일 하나로 되게 다시 만듦)
+create or replace function public.pingpong__fish_stand(p_x float8, p_z float8, out x float8, out z float8)
+language plpgsql immutable set search_path = public as $$
+declare
+  R float8[] := array[[-5.3, 27.3, 39.6, 45.6], [-5.3, -2.7, 45.6, 56.8], [24.7, 27.3, 45.6, 56.8]];
+  px float8 := coalesce(p_x, 13); pz float8 := coalesce(p_z, 45.6);
+  i int; cx float8; cz float8; dd float8; bd float8 := 'infinity';
+begin
+  for i in 1 .. 3 loop
+    cx := least(R[i][2], greatest(R[i][1], px)); cz := least(R[i][4], greatest(R[i][3], pz));
+    dd := (cx - px) ^ 2 + (cz - pz) ^ 2;
+    if dd < bd then bd := dd; x := cx; z := cz; end if;
+  end loop;
+end $$;
+revoke all on function public.pingpong__fish_stand(float8, float8) from public, anon, authenticated;
+
 -- 선 자리 장르 (rules.js standGenre): 서는 곳에 붙인 뒤 앞 판(모서리 줄 포함) = 재즈 · 팔은 판 가운데(x 11)보다 서쪽 = 발라드 · 동쪽 = 록
 create or replace function public.pingpong__fish_genre(p_x float8, p_z float8) returns text
-language sql immutable set search_path = public as $$
-  select case when s.z <= 45.6 + 1e-6 then 'jazz' when s.x < 11 then 'ballad' else 'rock' end from pingpong__fish_stand(p_x, p_z) s
-$$;
+language plpgsql immutable set search_path = public as $$
+declare sx float8; sz float8;
+begin
+  select s.x, s.z into sx, sz from public.pingpong__fish_stand(p_x, p_z) s; -- 36 (plpgsql + public. — SQL Editor의 search_path와 상관없이)
+  return case when sz <= 45.6 + 1e-6 then 'jazz' when sx < 11 then 'ballad' else 'rock' end;
+end $$;
 revoke all on function public.pingpong__fish_genre(float8, float8) from public, anon, authenticated;
 
 -- 물고기 목록에서 하나: 내 장르 것과 다른 것이 둘 다 있으면 70%로 내 장르 쪽 (rules.js pickZone)
