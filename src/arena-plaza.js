@@ -72,6 +72,7 @@ export const PLAZA = {
     flat(-22, STAIRS[0].x0, 32.2, PIER.z0), flat(STAIRS[0].x1, STAIRS[1].x0, DECK.z1 - 0.2, DECK.z1 + 0.2),
     // 'ㄷ자' 선착장 (14장 1b): 광장 동쪽 끝 너머 풀밭 · 판 서쪽·동쪽 바다 · 팔 사이 항구 · 두 계단의 바깥 옆구리 · 등대 · 횟집 · 칠판 · 고양이 쉼터 상자
     flat(21.5, 40, -12, PIER.z0), flat(-22, PIER.x0, PIER.z0, 70), flat(PIER.x1, 40, PIER.z0, 70), flat(ARMS[0].x1, ARMS[1].x0, PIER.z1, 70),
+    flat(ARMS[0].x1 - 0.3, ARMS[0].x1, ARMS[0].z0 + 0.05, 70), flat(ARMS[1].x0, ARMS[1].x0 + 0.3, ARMS[1].z0 + 0.05, 70), // 팔 안쪽 울타리 (11/28)
     flat(STAIRS[0].x0 - 0.2, STAIRS[0].x0, PIER.z0, STAIRS[0].z1 - 0.3), flat(STAIRS[1].x1, STAIRS[1].x1 + 0.2, PIER.z0, STAIRS[1].z1 - 0.3),
     ...LIGHTHOUSES.map((L) => ({ x: L.x, z: L.z, r: L.r })),
     flat(MARKET.x - MARKET.w / 2, MARKET.x + MARKET.w / 2, PIER.z0, MARKET.z + MARKET.d / 2 + 0.55), // 횟집 + 앞 차양 기둥

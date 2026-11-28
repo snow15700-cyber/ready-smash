@@ -119,6 +119,51 @@ function fireFront(R, now, on) {
   sparks.material.opacity = Math.max(0, 1 - R / 50);
 }
 
+// 관전 범위 테두리 (11/28 사용자 요청): 원 안에서도 어디까지 걸어 다니며 볼 수 있는지 — 들어올 때 본 불꽃 고리와 같은 무늬.
+// 범위 = 벽 네모(walls) ∩ 나가기 원 8m (그 밖을 누르면 광장으로 나감). 세상 원점 = 그 탁구대
+const edge = fireBand(0.96, 1.04, 24);
+edge.rotation.x = 0; edge.visible = false; edge.material.opacity = 0;
+world.scene.add(edge);
+bub.edge = edge; // 점검용
+let edgeOf = null;
+function edgeShape(w) {
+  if (edgeOf === w) return;
+  edgeOf = w;
+  const N = 256, pos = [], uv = [], idx = [];
+  let s = 0, prev = null;
+  for (let i = 0; i <= N; i++) {
+    const a = (i / N) * Math.PI * 2, dx = Math.cos(a), dz = Math.sin(a);
+    let r = BUBBLE_OUT;
+    if (w) {
+      if (dx > 1e-6) r = Math.min(r, w.x1 / dx); else if (dx < -1e-6) r = Math.min(r, w.x0 / dx);
+      if (dz > 1e-6) r = Math.min(r, w.z1 / dz); else if (dz < -1e-6) r = Math.min(r, w.z0 / dz);
+    }
+    const p = [dx * r, dz * r];
+    if (prev) s += Math.hypot(p[0] - prev[0], p[1] - prev[1]);
+    prev = p;
+    const u = (s / (Math.PI * 2 * BUBBLE_IN)) * 4; // 들어갈 때 고리와 같은 무늬 간격
+    pos.push(dx * (r - 0.45), 0, dz * (r - 0.45), dx * (r + 0.05), 0, dz * (r + 0.05));
+    uv.push(u, 0, u, 1);
+    if (i < N) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+  }
+  edge.geometry.dispose();
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  edge.geometry = g;
+}
+let edgeT = 0;
+function edgeFrame(now, on) {
+  const dt = Math.min(0.1, Math.max(0, now - edgeT)); edgeT = now;
+  const k = on ? Math.min(1, edge.material.opacity + dt / 0.6) : 0; // 0.6초 동안 나타남
+  edge.material.opacity = k;
+  edge.visible = k > 0;
+  if (!edge.visible) return;
+  edgeShape(walls());
+  edge.material.map.offset.x = now * 0.06; // 천천히 돎
+}
+
 // 관전 경기 화면 글자는 광장 막대로 (경기 화면 #hud는 안 씀)
 const quietHud = {
   score(s) { bub.score = [...s]; renderBar(); }, stats() {}, hint() {}, turn() {}, judge() {}, toast() {},
@@ -191,6 +236,7 @@ export function stop() {
   if (aw) setCut(aw, false);
   resetWave();
   fireFront(-1, 0, false);
+  edgeFrame(0, false);
   renderBar();
 }
 
@@ -417,6 +463,7 @@ export function bubbleFrame(v, now, dt, me, busy, ok, plazaEnv) {
   const T = PLAZA.tables[bub.t];
   view.setFilter((f, p) => Math.hypot(p[0] - T.x, p[1] - T.z) < BUBBLE_OUT + 0.5);
   if (bub.phase === 'in' && bub.q >= 1) { bub.phase = 'inside'; renderBar(); }
+  edgeFrame(now, bub.phase === 'inside' && !bub.seated);
   if (bub.phase === 'out' && bub.q >= 1) { stop(); return; }
   // 벽 투명 구멍: 카메라와 내 캐릭터 사이를 가리는 경기장 벽·물건은 그 자리만 뚫어서 (관중석에 앉았을 땐 끔)
   if (aw) {

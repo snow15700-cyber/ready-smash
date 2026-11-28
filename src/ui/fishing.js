@@ -103,6 +103,8 @@ $('fish-cats').addEventListener('click', async (e) => {
 for (const id of ['fish-start', 'fish-stop', 'fish-sync', 'fish-dex', 'fish-shop', 'fish-cats']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
 
 // ── 시작 · 그만
+// 팔 안쪽 울타리(src/campusPier.js): 내가 낚시하는 동안은 숨김 (카메라·찌를 가리지 않게, 11/28 사용자 요청)
+const setArmFence = (v) => { const f = world.plaza?.root?.getObjectByName('armFence'); if (f) f.visible = v; };
 async function start() {
   if (on || loading) return;
   loading = true;
@@ -129,6 +131,7 @@ async function start() {
   hidePaddle(F.me);
   F.setActive(true);
   on = true; me.b = null; lastT = 0;
+  setArmFence(false);
   document.body.classList.add('fishing-on');
   for (const id of ['fish-hud', 'fish-bar', 'fish-chat', 'fish-genre']) $(id).classList.remove('hidden');
   $('fish-start').classList.add('hidden');
@@ -147,6 +150,7 @@ function stop() {
   if (!on) return;
   on = false; me.b = null;
   shopMod?.closeShop();
+  setArmFence(true);
   F.setActive(false);
   document.body.classList.remove('fishing-on');
   for (const id of ['fish-hud', 'fish-bar', 'fish-chat', 'fish-genre']) $(id).classList.add('hidden');

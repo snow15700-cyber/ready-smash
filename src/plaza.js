@@ -3,6 +3,7 @@
 // 보기만 하는 장면이라 경기 판정과 상관없음. 네트워크·화면 흐름은 src/ui/plaza.js.
 import * as THREE from 'three';
 import { BUBBLE_IN, PLAZA } from './arena-plaza.js';
+import { SHOP_D } from './campusShops.js';
 import { bubble } from './crowd.js';
 import { applyLook } from './items.js';
 import { holdPose } from './ui/stage.js';
@@ -378,11 +379,15 @@ export function createPlazaView(world, handlers) {
       if (tt >= t1) return false;
     }
   }
-  // 가게 클릭 상자: 가게 안쪽 좌표 (돌린 가게라서 광선을 가게 안쪽 좌표로 돌려서 잰다). 앞 1.2m(문 앞 바닥·간판)도 가게로
-  const boxes = PLAZA.shops.map((s) => {
-    const r = s.rect;
-    const m = new THREE.Matrix4().makeRotationY(r.yaw).setPosition(r.x, 0, r.z);
-    return { s, box: new THREE.Box3(new THREE.Vector3(r.x0, 0, r.z0), new THREE.Vector3(r.x1, s.h + 2.6, r.z1 + 1.2)), inv: m.invert() };
+  // 가게 클릭 상자: 가게 안쪽 좌표 (돌린 가게라서 광선을 가게 안쪽 좌표로 돌려서 잰다).
+  // 건물 몸통(앞면 + 0.3m, 지붕 장식까지) + 문 앞 낮은 상자(1.1m 높이, 문 앞 계단·작은 뽑기 기계).
+  // 11/28: 전에는 문 앞 2m를 지붕 높이까지 통째로 잡아서, 뽑기방 ↔ 옷장 사이 골목 길을 눌러도 가게가 눌렸음
+  const boxes = PLAZA.shops.flatMap((s) => {
+    const r = s.rect, inv = new THREE.Matrix4().makeRotationY(r.yaw).setPosition(r.x, 0, r.z).invert();
+    return [
+      { s, box: new THREE.Box3(new THREE.Vector3(r.x0, 0, r.z0), new THREE.Vector3(r.x1, s.h + 2.6, SHOP_D / 2 + 0.3)), inv },
+      { s, box: new THREE.Box3(new THREE.Vector3(r.x0, 0, r.z0), new THREE.Vector3(r.x1, 1.1, r.z1 + 0.6)), inv },
+    ];
   });
   const lray = new THREE.Ray();
   // 눌러서 뭔가 되는 곳 (빵집·게시판·시계탑, 광장 20장 ②): 가게처럼 안쪽 좌표로 잼, 맞은 점(안쪽 좌표)도 같이 넘김
@@ -404,18 +409,21 @@ export function createPlazaView(world, handlers) {
     ray.setFromCamera(ndc, world.camera);
     if (frame.on) ray.ray.applyMatrix4(frame.inv); // 경기장 거품 안: 세상 좌표 → 광장 좌표
     let best = null, bd = Infinity;
-    for (const b of boxes) {
+    // 경기장 거품 안(관전 중): 광장 물건(가게·탁구대·김제빵·고양이 등)은 안 보이므로 누르지 않음 — 바닥(걷기)과 거품 안 사람만.
+    // 11/28: 관전 중 바닥을 누른 곳이 마침 김제빵 탁구대 자리면 김제빵과 1대1이 시작되던 것
+    const bubbleIn = frame.on;
+    if (!bubbleIn) for (const b of boxes) {
       lray.copy(ray.ray).applyMatrix4(b.inv);
       // 카메라가 건물 상자 안(건물 앞 바로 앞)에 있으면 그 건물은 건너뜀 — 안 그러면 어디를 눌러도 건물이 눌림
       if (b.box.containsPoint(lray.origin)) continue;
       if (lray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(lray.origin); if (d < bd) { bd = d; best = { shop: b.s }; } } // 돌림만 해서 거리는 그대로
     }
-    for (const b of spotBoxes) {
+    if (!bubbleIn) for (const b of spotBoxes) {
       lray.copy(ray.ray).applyMatrix4(b.inv);
       if (b.box.containsPoint(lray.origin)) continue;
       if (lray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(lray.origin); if (d < bd) { bd = d; best = { spot: b.sp, at: [hitP.x, hitP.y, hitP.z] }; } }
     }
-    for (const b of tableBoxes) {
+    if (!bubbleIn) for (const b of tableBoxes) {
       if (ray.ray.intersectBox(b.box, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = b.t === 'kim' ? { kim: true } : { table: b.t }; } }
     }
     // 다른 사람 캐릭터 (콕 집어 초대)
@@ -425,9 +433,10 @@ export function createPlazaView(world, handlers) {
       pBox.min.set(gp.x - 0.35, 0, gp.z - 0.35); pBox.max.set(gp.x + 0.35, 1.9, gp.z + 0.35);
       if (ray.ray.intersectBox(pBox, hitP)) { const d = hitP.distanceTo(ray.ray.origin); if (d < bd) { bd = d; best = { person: id }; } }
     }
-    for (const pk of pickers) { const r = pk(ray.ray); if (r && r.d < bd) { bd = r.d; best = { extra: r }; } }
+    if (!bubbleIn) for (const pk of pickers) { const r = pk(ray.ray); if (r && r.d < bd) { bd = r.d; best = { extra: r }; } }
     if (best) return best;
     if (!groundHit(ray.ray, hitP)) return null;
+    if (bubbleIn) return { ground: [hitP.x, hitP.z] };
     // 바닥의 자리 칸 근처를 눌렀으면 그 칸
     for (let t = 0; t < PLAZA.tables.length; t++) {
       const s = PLAZA.tables[t].seats.findIndex((pt) => Math.hypot(pt[0] - hitP.x, pt[1] - hitP.z) < 0.55);

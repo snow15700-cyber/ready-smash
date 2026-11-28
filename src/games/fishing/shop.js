@@ -4,20 +4,19 @@
 import { account, fishBagLoad, fishNews, fishSell, marketNow } from '../../account.js';
 import { liveWx } from '../../plazaSky.js';
 import { CATCH, GENRE_LABEL, SPECIES } from './rules.js';
-import { BAG_MAX, BIG_FISH, BIG_SWING, DEMAND_UP, GENRE_SWING, MARKET_FISH, QUAL_X, bagCount, history, nextLabel, periodLabel, priceOf, sellPlan, stars } from './market.js';
-import { FISH_COINS } from './rules.js';
+import { BAG_MAX, BIG_FISH, MARKET_FISH, QUAL_X, bagCount, history, nextLabel, periodLabel, priceOf, sellPlan, stars } from './market.js';
 import { modelImage } from './dex.js';
 
 const css = `
-#fshop { position: fixed; inset: 0; z-index: 80; display: none; align-items: center; justify-content: center; background: rgba(8,16,34,.45); backdrop-filter: blur(4px); font-family: 'Pretendard Variable', system-ui, sans-serif; color: #fff; }
+#fshop { position: fixed; inset: 0; z-index: 80; display: none; align-items: center; justify-content: center; background: rgba(8,16,34,.55); font-family: 'Pretendard Variable', system-ui, sans-serif; color: #fff; }
 #fshop.open { display: flex; }
-#fshop .box { width: min(820px, calc(100vw - 36px)); max-height: calc(100vh - 64px); max-height: calc(100dvh - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); display: flex; flex-direction: column; border-radius: 22px; background: rgba(15,25,50,.86); border: 1px solid rgba(255,255,255,.18); overflow: hidden; }
+#fshop .box { width: min(820px, calc(100vw - 36px)); max-height: calc(100vh - 64px); max-height: calc(100dvh - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); display: flex; flex-direction: column; border-radius: 22px; background: rgb(17,28,54); border: 1px solid rgba(255,255,255,.18); overflow: hidden; }
 #fshop .top { display: flex; align-items: center; gap: 10px; padding: 14px 16px 8px; }
 #fshop h3 { margin: 0; font: 400 22px Jua, sans-serif; flex: 1; }
 #fshop h3 small { font: 600 14px 'Pretendard Variable', sans-serif; color: rgba(255,255,255,.7); margin-left: 8px; }
 #fshop button { font: 700 14px 'Pretendard Variable', sans-serif; border: 0; border-radius: 99px; cursor: pointer; color: #fff; }
 #fshop .x { background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); padding: 7px 12px; }
-#fshop .body { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 4px 16px 16px; overflow-y: auto; }
+#fshop .body { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 4px 16px 16px; overflow-y: auto; overscroll-behavior: contain; will-change: transform; contain: content; }
 #fshop .panel { border-radius: 16px; padding: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); min-width: 0; overflow: visible; } /* 공용 .panel의 overflow:auto면 휴대폰에서 칸이 눌려 잘림 */
 #fshop .panel h4 { margin: 0 0 8px; font: 400 17px Jua, sans-serif; display: flex; justify-content: space-between; align-items: baseline; }
 #fshop .panel h4 small { font: 600 12px 'Pretendard Variable', sans-serif; color: rgba(255,255,255,.6); }
@@ -31,10 +30,6 @@ const css = `
 #fshop .news b { color: #ffe08a; margin-right: 4px; }
 #fshop .row .nw { font-size: 11px; margin-left: 3px; }
 #fshop .row .gn { font-size: 12px; margin-right: 3px; }
-#fshop .genres { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; color: rgba(255,255,255,.8); }
-#fshop .dem { margin: -2px 0 8px; padding: 6px 10px; border-radius: 10px; background: rgba(140,200,255,.12); border: 1px solid rgba(140,200,255,.3); font-size: 13px; line-height: 1.45; }
-#fshop .dem:empty { display: none; }
-#fshop .dem b { color: #bfe3ff; margin-right: 4px; }
 #fshop .sec { font-size: 13px; color: #ffe9a8; padding: 8px 0 2px; border-bottom: 1px solid rgba(255,255,255,.22); display: flex; justify-content: space-between; }
 #fshop .sec small { font: 600 11px 'Pretendard Variable', sans-serif; color: rgba(255,255,255,.6); }
 #fshop .row.leg { background: linear-gradient(90deg, rgba(255,210,60,.18), transparent); border-radius: 8px; padding-left: 4px; }
@@ -73,7 +68,7 @@ function build() {
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   el = document.createElement('div'); el.id = 'fshop';
   el.innerHTML = `<div class="box"><div class="top"><h3>🍣 횟집<small></small></h3><button class="x" type="button">✕</button></div>
-    <div class="body"><div class="panel"><h4>📈 오늘의 시세 <small class="when"></small></h4><div class="news"></div><div class="dem"></div><div class="genres"></div><div class="board"></div><div class="note"></div></div>
+    <div class="body"><div class="panel"><h4>📈 오늘의 시세 <small class="when"></small></h4><div class="news"></div><div class="board"></div><div class="note"></div></div>
     <div class="panel"><h4>🎒 내 가방 <small class="cnt"></small></h4><div class="bag"></div><button class="all" type="button"></button><div class="day"></div>
     <div class="boss"><span>🧑‍🍳</span><span class="say"></span></div></div></div></div>`;
   document.body.appendChild(el);
@@ -95,12 +90,8 @@ function render() {
   const ms = marketNow(), hist = history(ms, 8), cur = hist.at(-1), prev = hist.at(-2);
   el.querySelector('.when').textContent = `${periodLabel(cur.p)} 쉬는 시간부터`;
   // 📰 소식 (13-1 ④): 그 물고기 값 ×1.3 / ×0.7 — 대구 날씨와 엮임
-  el.querySelector('.news').innerHTML = cur.news ? `<b>📰 소식</b>${cur.news.text} <small>(${cur.news.dir > 0 ? '×1.3' : '×0.7'})</small>` : '';
-  // 🛒 사람들이 판 만큼 (13-1 ③): 지난 쉬는 시간에 많이 팔린 1·2등 ▼ · 안 팔린 일반 물고기 ▲ (지금 쉬는 시간 판매는 안 보여 줌)
-  const dem = cur.demand || {}, dIds = (f) => Object.keys(dem).filter((id) => f(dem[id]));
-  const down = dIds((x) => x < 10).sort((a, b) => dem[a] - dem[b]), up = dIds((x) => x > 10);
-  el.querySelector('.dem').innerHTML = down.length || up.length
-    ? `<b>🛒 지난 쉬는 시간</b>${down.map((id) => `${name(id)} ×${dem[id] / 10}`).join(' · ')}${down.length ? ' (많이 팔려서 ▼)' : ''}${down.length && up.length ? '<br>' : ''}${up.length ? `${up.map(name).join(' · ')} ×${DEMAND_UP / 10} (안 팔려서 ▲)` : ''}` : '';
+  el.querySelector('.news').innerHTML = cur.news ? `<b>📰</b>${cur.news.text}` : '';
+  const dem = cur.demand || {};
   const order = [cur.jackpot, ...MARKET_FISH.filter((id) => id !== cur.jackpot)];
   const row = (id, cls = '') => {
     const v = cur.list[id], d = v - prev.list[id];
@@ -109,14 +100,10 @@ function render() {
   };
   // 희귀·전설도 오르내림 (13-1 ②): 칸을 나눠서 아래에
   const grp = (g) => BIG_FISH.filter((id) => CATCH[id]?.grade === g);
-  const pct = (g) => Math.round(BIG_SWING[g][1] / 2 * 100);
-  const gp = (g) => Math.round(GENRE_SWING[g].rare[1] / 2 * 100);
-  // 13-3 ⑤ 자리마다 잘 나오는 물고기 · 값 출렁임 (내 장르 = 낚시 중인 자리)
-  el.querySelector('.genres').innerHTML = `🎸 록 자리 = 값이 크게 출렁 · 🎷 재즈 = 보통 · 🎻 발라드 = 잔잔${curGenre ? ` · <b>지금 ${GENRE_LABEL[curGenre]} 자리</b>` : ''}`;
   el.querySelector('.board').innerHTML = order.map((id) => row(id)).join('')
-    + `<div class="sec">💎 희귀 <small>보통 ${FISH_COINS.rare} · 🎸±${gp('rock')} 🎷±${gp('jazz')} 🎻±${gp('ballad')}%</small></div>` + grp('rare').map((id) => row(id)).join('')
-    + `<div class="sec">👑 전설 <small>보통 ${FISH_COINS.legend} · ±${pct('legend')}% · 언제 팔까?</small></div>` + grp('legend').map((id) => row(id, ' leg')).join('');
-  el.querySelector('.note').innerHTML = `🔥 = 오늘의 대박(2배, 일반만) · 크기와 상관없이 종류로만 · 🎸🎷🎻 = 그 자리에서 잘 나오는 물고기(70%) · 록 물고기는 크게, 발라드는 잔잔하게, 전설은 아주 크게 오르내려요<br>🛒 많이 팔린 물고기는 다음 쉬는 시간에 값이 내려가고, 안 팔린 일반 물고기는 올라가요<br>⭐ 리듬을 잘 맞춘 물고기는 더 비싸요: ★★★ ×${QUAL_X[3] / 10} · ★★ ×${QUAL_X[2] / 10} · ★ ×${QUAL_X[1] / 10} · 별 없음 ×${QUAL_X[0] / 10}<br>다음 시세: <b>${nextLabel(ms)}</b> 쉬는 시간`;
+    + '<div class="sec">💎 희귀</div>' + grp('rare').map((id) => row(id)).join('')
+    + '<div class="sec">👑 전설</div>' + grp('legend').map((id) => row(id, ' leg')).join('');
+  el.querySelector('.note').innerHTML = `🔥 대박 ×2 · ⭐ 별이 많을수록 비싸요 · 다음 시세 <b>${nextLabel(ms)}</b>`;
 
   const bag = account.fishBag || [], n = bagCount(bag);
   el.querySelector('h3 small').textContent = account.loggedIn ? `🪙 ${account.player?.coins ?? 0}` : '';
@@ -139,7 +126,7 @@ function render() {
   const plan = sellPlan(bag.map((b) => [b.id, b.n, b.q]), ms, left);
   all.dataset.sell = ''; all.disabled = busy || !n || left <= 0;
   all.textContent = !n ? '🍣 모두 팔기' : left <= 0 ? '🍣 오늘은 다 팔았어요' : `🍣 모두 팔기 · 🪙 약 ${plan.coins}${plan.kept ? ` (${plan.kept}마리는 내일)` : ''}`;
-  el.querySelector('.day').innerHTML = fd ? `오늘 판 코인 <b>${fd.coins}</b> / ${fd.cap} · 한도가 차면 남은 물고기는 내일 팔아요` : '';
+  el.querySelector('.day').innerHTML = fd ? `오늘 판 코인 <b>${fd.coins}</b> / ${fd.cap}` : '';
   el.querySelector('.say').textContent = bossLine;
 }
 async function sell(id, q = null) {
@@ -155,9 +142,9 @@ async function sell(id, q = null) {
   } else bossLine = r.status === 'capped' ? '오늘은 더 못 사요 😅 내일 다시 와 주세요! (하루 1000코인까지)' : r.status === 'empty' ? '가방이 비었는데요? 😅' : '앗, 계산이 안 됐어요. 다시 눌러 주세요';
   render();
 }
-let onSold = null, curGenre = null;
+let onSold = null;
 export function openShop(opt = {}) {
-  onSold = opt.onSold || null; curGenre = opt.genre || null;
+  onSold = opt.onSold || null;
   if (!el) build();
   el.classList.add('open'); render();
   fishNews(liveWx()).then((ok) => ok && el.classList.contains('open') && render());

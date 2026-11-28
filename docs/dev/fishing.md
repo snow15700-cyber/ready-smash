@@ -122,6 +122,8 @@
 - 함수: `pingpong_fish_cast(token, x, z, aim, power, rain)` → 걸릴 것·cm·s를 **미리 알려 줌**(연출용 — 코인·기록은 잡을 때 서버가 이 값으로) · `pingpong_fish_finish(token, cast, ok, perfect, q=1)` 한 번만(q = 품질 별, 41), 최소 시간(잡동사니 4 · 일반 6 · 희귀·탁구채 11 · 전설 16초) 안 되면 `too_fast` · `pingpong_fish_sell(token, 종류|null, 별|null)` · `pingpong_fish_bag` · `pingpong_fish_dex` · `pingpong_fish_rank('week'|'all')` · `pingpong_now()` · 내부 `__fish_land·stand·near·bubbles·cm·dice·week_start·period·price(s)·qprice`.
 - `account.js`: `fishCast`·`fishFinish`·`fishSell`·`fishBagLoad`·`fishDex`·`getFishRank`·`syncServerClock`·`srvNow`·`marketNow` · 상태 `account.fishBag`·`account.fishDay`.
 
+- **11/28 사용자 테스트 뒤 고침**: 🍣 횟집 창 — 스크롤 렉(창 뒤 흐림 효과가 움직이는 3D 화면을 매 프레임 다시 흐리게 함) → 흐림 없애고 창 배경을 진하게. 글 줄임: 장르 설명 줄·'🛒 지난 쉬는 시간' 줄·희귀/전설 칸 머리 숫자·긴 맨 아래 설명 → '🔥 대박 ×2 · ⭐ 별이 많을수록 비싸요 · 다음 시세' 한 줄(물고기 줄의 🎸·📰·🛒 아이콘은 그대로, 마우스를 올리면 설명). · 'ㄷ자' 선착장 두 팔의 **안쪽(항구 쪽) 울타리**(팔에서는 바깥 바다로만 던지니까) — 걸어서 못 넘고, **내가 낚시하는 동안은 숨김**(`campusPier.js armFence`, `ui/fishing.js setArmFence`).
+
 ## 10. 코드 지도 (`src/games/fishing/`)
 `session.js createFishing(opt)` 한 판의 규칙·연출(광장·시안 공용) · `rules.js` 서버와 같은 규칙 · `market.js` 시세·팔기 · `data.js` 물고기·단계(`STAGES`·`secs`·`missOut`)·시험 설정 `TUNE` · `rhythm.js` 박자 패턴·음악 · `beat.js`·`beatFx.js` 주변 박자 · `world.js` 낚싯대·줄·찌·물보라(`seaHeight` = 바다 셰이더와 같은 식) · `hud.js` 2D 글자·원·부채꼴 · `sound.js` 합성음·소리 늦음 · `models.js` 물고기 모형 · `dex.js` 도감 · `shop.js` 횟집 창 · `board.js` 게시판 · `syncCal.js` 박자 맞추기 · `page.js` 시안(`fishing.html`).
 광장 쪽 `src/ui/fishing.js`(버튼·낚시 화면·다른 사람 모습·기포 보기). 선착장 `campusLayout.js`·`campusPier.js`.

@@ -83,6 +83,19 @@ export function buildPierArea(anim = null) {
   curb(HARBOR.x0, P.z1 - 0.14, HARBOR.x1, P.z1); // 항구 쪽
   curb(AW.x1 - 0.14, AW.z0, AW.x1, AW.z1); curb(AE.x0, AE.z0, AE.x0 + 0.14, AE.z1); // 팔 안쪽
   curb(AW.x0, AW.z1 - 0.14, AW.x1, AW.z1); curb(AE.x0, AE.z1 - 0.14, AE.x1, AE.z1); // 팔 끝
+  // 팔 안쪽(항구 쪽) 울타리 (11/28 사용자 요청: 팔에서는 바깥 바다로만 낚시 → 안쪽은 막아 둠).
+  // 내가 낚시하는 동안은 숨김 (ui/fishing.js setArmFence) — 합치지 않음(noBake)
+  {
+    const fence = new THREE.Group(); fence.name = 'armFence';
+    const fm = std(0x6b4a2e, { roughness: 0.85 });
+    for (const x of [AW.x1 - 0.1, AE.x0 + 0.1]) {
+      const z0 = AW.z0 + 0.15, z1 = AW.z1 - 0.15, n = Math.round((z1 - z0) / 1.4);
+      for (let i = 0; i <= n; i++) addBox(fence, 0.1, 1.0, 0.1, fm, x, top + 0.5, z0 + (z1 - z0) * i / n);
+      for (const y of [0.45, 0.92]) addBox(fence, 0.07, 0.08, z1 - z0, fm, x, top + y, (z0 + z1) / 2);
+    }
+    fence.traverse((o) => { o.userData.noBake = true; if (o.isMesh) o.castShadow = true; });
+    g.add(fence);
+  }
   // 계류 말뚝: 항구 둘레
   const bollard = (x, z) => { cyl(0.18, 0.22, 0.45, metal, x, top + 0.22, z, 12); cyl(0.26, 0.26, 0.08, metal, x, top + 0.48, z, 12); };
   for (const [x, z] of [[HARBOR.x0 + 0.5, P.z1 - 0.45], [HARBOR.x1 - 0.5, P.z1 - 0.45], [AW.x1 - 0.45, AW.z0 + 5.5], [AE.x0 + 0.45, AE.z0 + 5.5], [8, P.z1 - 0.45]]) bollard(x, z);
