@@ -293,7 +293,8 @@ export function photoZone() {
 }
 
 // ── 푸드트럭: 둥근 모서리 차체(노랑·흰 줄) + 운전석 앞유리 + 들어 올린 판매창 덮개 + 계산대·메뉴판 + 바퀴(휠) + 전조등 + 꼬마전구 줄 + 지붕 간판 + 둥근 탁자·의자
-export function foodTruck(anim) {
+// opts.menu = false: 옛 메뉴 입간판 빼기 · opts.sign = false: 지붕 간판 빼기 (물건 상호작용 시안 props.html에서 메뉴판을 바꿔 끼움)
+export function foodTruck(anim, { menu = true, sign = true } = {}) {
   const g = new THREE.Group();
   const yellow = std(0xffc21a, { roughness: 0.45 }), white = std(0xfaf8f2, { roughness: 0.5 });
   box(g, 3.6, 2.1, 2.0, yellow, -0.4, 1.55, 0, 0.18);
@@ -317,11 +318,15 @@ export function foodTruck(anim) {
   for (let i = 0; i < 3; i++) cyl(g, 0.08, 0.07, 0.22, std([0xe0333c, 0x2f6fe0, 0x7ad35a][i]), -1.2 + i * 0.25, 1.47, 1.2, 10); // 컵
   // 메뉴판 (옆면) + 지붕 간판
   // 메뉴 입간판 (트럭 뒤쪽 앞에 세움)
-  for (const s of [-1, 1]) { const b = box(g, 0.75, 1.0, 0.04, std(0x2f3a33), -2.75, 0.62, 1.55 + s * 0.13); b.rotation.x = s * 0.22; }
-  plate(g, ['메뉴', '🌭 핫도그', '🍢 어묵', '🥤 음료'], 0.68, 0.92, -2.75, 0.64, 1.71, { bg: '#2f3a33', color: '#fffbe8', font: FONT(40), px: 300 }).rotation.x = 0.22;
-  box(g, 1.9, 0.6, 0.15, std(0xd7262e), -0.4, 2.95, 0, 0.05);
-  plate(g, ['🌭 간식'], 1.7, 0.48, -0.4, 2.95, 0.08, { bg: '#d7262e', color: '#ffffff', font: FONT(80), px: 420 });
-  plate(g, ['🌭 간식'], 1.7, 0.48, -0.4, 2.95, -0.08, { bg: '#d7262e', color: '#ffffff', font: FONT(80), px: 420 }).rotation.y = Math.PI;
+  if (menu) {
+    for (const s of [-1, 1]) { const b = box(g, 0.75, 1.0, 0.04, std(0x2f3a33), -2.75, 0.62, 1.55 + s * 0.13); b.rotation.x = s * 0.22; }
+    plate(g, ['메뉴', '🌭 핫도그', '🍢 어묵', '🥤 음료'], 0.68, 0.92, -2.75, 0.64, 1.71, { bg: '#2f3a33', color: '#fffbe8', font: FONT(40), px: 300 }).rotation.x = 0.22;
+  }
+  if (sign) {
+    box(g, 1.9, 0.6, 0.15, std(0xd7262e), -0.4, 2.95, 0, 0.05);
+    plate(g, ['🌭 간식'], 1.7, 0.48, -0.4, 2.95, 0.08, { bg: '#d7262e', color: '#ffffff', font: FONT(80), px: 420 });
+    plate(g, ['🌭 간식'], 1.7, 0.48, -0.4, 2.95, -0.08, { bg: '#d7262e', color: '#ffffff', font: FONT(80), px: 420 }).rotation.y = Math.PI;
+  }
   // 꼬마전구 줄 (덮개 끝을 따라)
   const bulb = glow(new THREE.MeshStandardMaterial({ color: 0xfff3c4, emissive: 0xffd86a }), 0.5, 2.2);
   for (let i = 0; i < 10; i++) sphere(g, 0.045, bulb, -1.75 + i * 0.28, 2.27 - Math.sin((i / 9) * Math.PI) * 0.08, 1.82, 8);
