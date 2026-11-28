@@ -56,7 +56,7 @@ export const PLAZA = {
   kim: KIM,
   // 가게 말고 걸어서 못 지나가는 곳
   blocks: [
-    { x: FOUNTAIN[0], z: FOUNTAIN[1], r: 3.65 }, // 분수 물받이
+    { x: FOUNTAIN[0], z: FOUNTAIN[1], r: 4.05 }, // 분수 (11/28 새 모습: 바깥 낮은 계단·돌멩이까지)
     ...TABLES.map((t) => flat(t.rect.x0, t.rect.x1, t.rect.z0, t.rect.z1)),
     flat(KIM.rect.x0, KIM.rect.x1, KIM.rect.z0, KIM.rect.z1),
     flat(KIM.chef[0] - 0.3, KIM.chef[0] + 0.3, KIM.z - 0.3, KIM.z + 0.3),
@@ -64,9 +64,9 @@ export const PLAZA = {
     box(SPOTS.board, -1.8, 1.8, -0.35, 0.35),
     box(SPOTS.fishBoard, -1.8, 1.8, -0.35, 0.35), // 낚시 게시판 (서쪽 계단 위 풀밭)
     { x: SPOTS.photo.x, z: SPOTS.photo.z, r: 2.1 },
-    box(SPOTS.truck, -2.4, 2.9, -1.15, 3.0),
-    box(SPOTS.vending, -0.6, 3.0, -0.45, 0.45),
-    box(SPOTS.bakery, -2.85, 2.85, -2.35, 3.4),
+    box(SPOTS.truck, -2.55, 2.95, -1.2, 3.1), // 푸드트럭 + 판매창 앞 탁자·의자 (11/28 새 모습)
+    box(SPOTS.vending, -0.65, 1.8, -0.5, 0.7), // 자판기 1대 + 분리수거함 2개 (11/28)
+    box(SPOTS.bakery, -2.95, 2.95, -2.35, 2.5), // 빵집 2층 (11/28, 받침·문 앞 계단까지)
     // 바다 전망대: 데크 위는 걸어 다님. 데크 양옆(광장 바닥 끝 너머)·망원경·벤치·안내 판은 막음
     // 낚시터(12장): 서쪽 계단 너머(광장 끝 너머 + 판 서쪽 바다) · 데크 바다 쪽 난간(판으로 떨어지지 않게) · 두 계단의 데크 쪽 옆(판에서 계단 옆구리로 못 오르게). 데크 양옆 풀밭 → 계단 → 판은 걸어감
     flat(-22, STAIRS[0].x0, 32.2, PIER.z0), flat(STAIRS[0].x1, STAIRS[1].x0, DECK.z1 - 0.2, DECK.z1 + 0.2),
@@ -85,7 +85,8 @@ export const PLAZA = {
   // 카메라가 못 들어가는 곳 (가게·건물·본관 기둥·유리 막대). 가게는 따로 더함
   camBlocks: [
     box(SPOTS.clock, -1.3, 1.3, -1.3, 1.3, { y1: 11 }),
-    box(SPOTS.bakery, -2.85, 2.85, -2.35, 2.4, { y1: 6 }),
+    box(SPOTS.bakery, -2.95, 2.95, -2.35, 2.35, { y1: 7 }), // 지붕 위 거대 바게트까지
+    box(SPOTS.truck, -2.5, 2.9, -1.05, 1.05, { y1: 3.1 }),
     box(SPOTS.fishBoard, -1.8, 1.8, -0.35, 0.35, { y1: 3.3 }), // 낚시 게시판 (계단 가는 길 옆)
     flat(-7.5, -0.5, -28.5, -19.5), flat(10, 16, -24, -16), flat(-34, -30, -27, -21), // 본관 검은 돌 기둥
     { ...flat(MARKET.x - MARKET.w / 2, MARKET.x + MARKET.w / 2, PIER.z0, MARKET.z + MARKET.d / 2), y0: PIER.y, y1: PIER.y + 4.3 }, // 횟집 (낚시 14장 1b, 지붕 위 초밥까지)
@@ -93,7 +94,7 @@ export const PLAZA = {
   ],
   // 눌러서 뭔가 되는 곳 (광장 20장 ② 기능): 안쪽 좌표 클릭 상자 [x0, x1, z0, z1, 높이] — plaza.js pick → ui/plaza.js onSpot
   spots: [
-    { id: 'bakery', ...SPOTS.bakery, box: [-2.9, 2.9, -2.4, 3.5, 6.2] }, // 김제빵 대사
+    { id: 'bakery', ...SPOTS.bakery, box: [-3.7, 3.0, -2.4, 2.9, 6.9] }, // 김제빵 대사 (옆 빵 간판·지붕 바게트까지)
     { id: 'board', ...SPOTS.board, box: [-1.85, 1.85, -0.5, 0.6, 3.3], front: (lx) => toWorld(SPOTS.board, lx, 1.4) }, // 업데이트·미션·치는 방법
     { id: 'fishBoard', ...SPOTS.fishBoard, box: [-1.85, 1.85, -0.5, 0.6, 3.3], front: (lx) => toWorld(SPOTS.fishBoard, lx, 1.9) }, // 낚시 방법·팁·고양이 (src/games/fishing/board.js)
     { id: 'clock', ...SPOTS.clock, box: [-1.4, 1.4, -1.4, 1.4, 11.5] }, // 쉬는 시간 안내
@@ -101,7 +102,7 @@ export const PLAZA = {
     { id: 'market', x: BOARD.x, z: BOARD.z, y: PIER.y, yaw: 0, box: [-BOARD.w / 2, BOARD.w / 2, -0.3, 0.3, 2.1], door: MARKET.door }, // 📈 시세 칠판도 같은 창
   ],
   // 김제빵이 뛰어나오는 곳 (빵집 문 앞) — plazaKim.js
-  kimHome: toWorld(SPOTS.bakery, -1.45, FZ + 1.3),
+  kimHome: toWorld(SPOTS.bakery, -1.55, FZ + 1.2), // 문(doorX −1.55) 앞
   // 뽑기 연출(ui/plaza.js): 캡슐 나오는 곳(뽑기방 안쪽 좌표)과 그 가게
   gacha: { shop: GACHA, out: GACHA_OUT },
 };

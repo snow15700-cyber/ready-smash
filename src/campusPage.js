@@ -116,7 +116,7 @@ const CAMS = {
   fame: { pos: [3.5, 2.4, 4], look: [0, 3.0, -7.5] },
   fountain: { pos: [0, 3.6, 10.5], look: [0, 1.4, 2] }, // 나머지 건물 가까이
   clock: { pos: [8, 3, 2], look: [13.5, 5, -6.5] },
-  bakery: { pos: [-12, 3, 3.5], look: [-18.5, 2.6, 0.6] },
+  bakery: { pos: [-8.5, 4.2, 7], look: [-18.5, 3.4, 0.6] }, // 2층 + 지붕 바게트까지
   truck: { pos: [12, 2.6, 6], look: [18.6, 1.4, 4.2] },
   photo: { pos: [1, 2.4, 29], look: [5, 2.4, 24] },
   board: { pos: [3.3, 2.0, 14.3], look: [5, 1.7, 9.6] },
@@ -202,7 +202,7 @@ function bubbleFrame() {
   if (bubbleT < 0) return;
   const age = performance.now() - bubbleT;
   if (age > 3800) { bubble.classList.remove('pop'); bubbleT = -1; return; }
-  bakery.getWorldPosition(bubbleAt); bubbleAt.y += 6.6;
+  bakery.getWorldPosition(bubbleAt); bubbleAt.y += 7.9;
   bubbleAt.project(camera);
   const r = canvas.getBoundingClientRect();
   bubble.style.left = `${r.left + ((bubbleAt.x + 1) / 2) * r.width}px`;
