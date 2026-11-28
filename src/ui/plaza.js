@@ -735,7 +735,7 @@ export const WIN_CAM = {
   // 랭킹: 명예의 전당(지붕 트로피까지)이 화면 왼쪽
   rank: { pos: shopPt(RANK_SHOP, 1.6, 3.4, 11.5), look: shopPt(RANK_SHOP, 3.9, 3.9, 0) },
   // 뽑기 탭: 뽑기방 + 지붕 위 캡슐 돔이 화면 왼쪽
-  gacha: { pos: shopPt(GACHA_SHOP, 1.6, 3.4, 11.0), look: shopPt(GACHA_SHOP, 3.9, 3.9, 0) },
+  gacha: { pos: shopPt(GACHA_SHOP, 1.6, 3.7, 12.5), look: shopPt(GACHA_SHOP, 3.9, 4.3, 0) }, // 11/28 2층 가게: 지붕 위 뽑기 기계까지
   // 꾸미기: 내 캐릭터가 지금 카메라 쪽으로 돌아서고, 카메라는 비스듬히 앞에서 (얼굴을 고르면 정면 가까이 — 사용자 확정)
   // 로그인 화면: 광장 남쪽 높은 곳에서 가게·탁구대를 내려다보며 천천히 좌우로 (창은 왼쪽 → 광장은 화면 오른쪽).
   // 로그인하면 여기서 내 캐릭터 등 뒤로 날아 내려간다

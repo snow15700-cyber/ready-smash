@@ -34,10 +34,10 @@ const box = (o, x0, x1, z0, z1, more = {}) => ({ x: o.x, z: o.z, yaw: o.yaw || 0
 const flat = (x0, x1, z0, z1) => ({ x: 0, z: 0, yaw: 0, x0, x1, z0, z1 });
 const FZ = SHOP_D / 2;
 // 가게 바닥 자리(안쪽 좌표)·문 앞(도착하면 화면이 열리는 곳)
-const SHOP_BOX = { shop: [-2.95, 2.95, -2.35, FZ + 0.95], closet: [-2.95, 2.95, -2.35, FZ + 0.85], rank: [-3.3, 3.3, -2.6, 3.45] };
+const SHOP_BOX = { shop: [-2.95, 2.95, -2.35, FZ + 0.95], closet: [-2.95, 2.95, -2.35, FZ + 0.85], rank: [-2.95, 2.95, -2.35, FZ + 0.85] }; // 11/28 2층 가게: 명예의 전당도 같은 크기
 const SHOPS = SHOP_SPOTS.map((sp) => {
   const [x0, x1, z0, z1] = SHOP_BOX[sp.id];
-  return { ...sp, h: 4.6, rect: box(sp, x0, x1, z0, z1), door: toWorld(sp, 0, z1 + 1.0) };
+  return { ...sp, h: 5.4, rect: box(sp, x0, x1, z0, z1), door: toWorld(sp, 0, z1 + 1.0) };
 });
 const GACHA = SHOPS.find((s) => s.id === 'shop');
 
