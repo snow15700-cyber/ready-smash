@@ -321,10 +321,12 @@ export function photoZone() {
   const ball = sphere(g, 0.5, std(0xffffff, { roughness: 0.3 }), 1.15, 4.25, 0.25, 24);
   const seam = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.02, 6, 32), std(0xff8a3d)); seam.position.copy(ball.position); seam.rotation.set(0.6, 0.4, 0); g.add(seam);
   // 앞 글자 판 + 바닥 조명 2개 (탁구채를 비춤)
-  box(g, 2.8, 0.55, 0.12, std(0xfffaf0), 0, 0.55, 1.65, 0.04);
-  plate(g, ['📸 준비하시고, 스매시!'], 2.6, 0.45, 0, 0.55, 1.72, { bg: '#fffaf0', color: '#d7262e', font: FONT(60), px: 640 });
+  // 글자 판: 무대 앞 가장자리에 낮게 비스듬히 (사진 찍을 때 사람을 가리지 않게 — plaza.md 10장 ③)
+  const sign = new THREE.Group(); sign.position.set(0, 0.22, 2.02); sign.rotation.x = -0.35; g.add(sign);
+  box(sign, 2.8, 0.42, 0.1, std(0xfffaf0), 0, 0, 0, 0.04);
+  plate(sign, ['📸 준비하시고, 스매시!'], 2.62, 0.36, 0, 0, 0.055, { bg: '#fffaf0', color: '#d7262e', font: FONT(60), px: 640 });
   const bulb = glow(new THREE.MeshStandardMaterial({ color: 0xfff4d8, emissive: 0xffe2a0 }), 0.3, 2.4);
-  for (const sx of [-1, 1]) { cyl(g, 0.14, 0.18, 0.22, MAT.dark, sx * 1.2, 0.36, 1.2, 12); const h = cyl(g, 0.12, 0.12, 0.06, bulb, sx * 1.2, 0.5, 1.15, 12); h.rotation.x = -0.6; }
+  for (const sx of [-1, 1]) { cyl(g, 0.14, 0.18, 0.22, MAT.dark, sx * 1.55, 0.36, 0.95, 12); const h = cyl(g, 0.12, 0.12, 0.06, bulb, sx * 1.55, 0.5, 0.9, 12); h.rotation.x = -0.6; }
   return g;
 }
 

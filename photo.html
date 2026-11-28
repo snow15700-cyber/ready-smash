@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>포토존 시안</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Jua, sans-serif; background: #eef6ff; color: #23304a; }
+    h1 { margin: 14px 16px 2px; font-size: 24px; }
+    p.hint { margin: 0 16px 8px; font-size: 14px; color: #5a6a80; }
+    .bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 16px 10px; position: sticky; top: 0; z-index: 5; padding: 6px 0; background: #eef6ffee; }
+    .bar button { font: inherit; font-size: 14px; border: 0; border-radius: 999px; padding: 6px 12px; background: #fff; color: #23304a; box-shadow: 0 1px 3px rgba(0,0,0,.12); cursor: pointer; }
+    .bar button.on { background: #2f6fe0; color: #fff; }
+    .bar b { align-self: center; font-weight: normal; font-size: 13px; color: #5a6a80; margin-left: 6px; }
+    .wrap { position: relative; margin: 0 16px 16px; }
+    #c { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    h2.sec { grid-column: 1 / -1; margin: 14px 0 0; font-size: 21px; }
+    h2.sec small { font-size: 13px; color: #5a6a80; }
+    .cell { height: 300px; border-radius: 16px; background: linear-gradient(180deg, #a9d4f7, #e6f2fb 70%, #efe4cf); position: relative; cursor: grab; overflow: hidden; }
+    .cell.big { grid-column: 1 / -1; height: 72vh; }
+    .cell span, .cell small { z-index: 2; }
+    .cell span, .frame .tag { position: absolute; left: 10px; bottom: 8px; font-size: 17px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.45); }
+    .cell span i, .frame .tag i { display: inline-block; min-width: 26px; height: 26px; margin-right: 4px; border-radius: 50%; background: #e0333c; color: #fff; font-style: normal; text-align: center; line-height: 26px; text-shadow: none; }
+    .cell small { position: absolute; left: 10px; top: 8px; right: 10px; font-family: 'Pretendard Variable', system-ui, sans-serif; font-size: 12px; color: #3d4a60; }
+    .flash { position: absolute; inset: 0; background: #fff; opacity: 0; z-index: 3; pointer-events: none; }
+    .frame { position: relative; border-radius: 16px; background: linear-gradient(160deg, #cfe0f0, #e8eef5); padding: 14px 14px 76px; min-height: 420px; display: flex; flex-direction: column; }
+    .frame .pic { flex: 1; display: flex; align-items: center; justify-content: center; }
+    .frame img { max-width: 100%; max-height: 520px; border-radius: 6px; box-shadow: 0 8px 24px rgba(30,40,80,.25); }
+    .frame .tag { bottom: 40px; color: #23304a; text-shadow: none; }
+    .frame small { position: absolute; left: 12px; bottom: 14px; font-family: 'Pretendard Variable', system-ui, sans-serif; font-size: 12px; color: #3d4a60; }
+    .frame .save { position: absolute; right: 12px; bottom: 12px; font-size: 15px; text-decoration: none; color: #fff; background: #2f6fe0; border-radius: 999px; padding: 6px 14px; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .cell { height: 280px; } }
+  </style>
+</head>
+<body>
+  <h1>📸 포토존 시안 — 포즈 · 사진 틀</h1>
+  <p class="hint">포즈는 <b>3개</b>, 사진 틀은 <b>1개</b> 번호를 골라 주세요(섞어도 돼요). 칸을 끌면 돌려 보고, <b>두 번 누르면 크게</b> 볼 수 있어요. (plaza.md 10장 ③)</p>
+  <div class="bar" id="bar"></div>
+  <div class="wrap"><div class="grid" id="grid"></div><canvas id="c"></canvas></div>
+  <script type="module" src="/src/games/props/photo-page.js"></script>
+</body>
+</html>
