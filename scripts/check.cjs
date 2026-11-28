@@ -1050,7 +1050,7 @@ async function browserChecks() {
       await viewer.click('#btn-guest');
       await waitFor(viewer, () => window.__smash.plaza.state(1).busy, null, 15000, '광장에서 2번 탁구대가 경기 중으로 보임');
       must(await viewer.evaluate(() => { window.__smash.plaza.sit(1, 1); return !window.__smash.plaza.pz.seat; }), '경기 중인 탁구대 자리에 서져요');
-      // 경기장 거품 (plaza.md 16장): 경기 중인 2번 탁구대 둘레 불꽃 고리, 원(7m) 안으로 들어가면 그 경기장으로 바뀌며 관전(듣기만)
+      // 경기장 거품 (plaza.md 16장): 경기 중인 2번 탁구대 둘레 불꽃 고리, 원(6m) 안으로 들어가면 그 경기장으로 바뀌며 관전(듣기만)
       must(await viewer.evaluate(() => window.__smash.plaza.view.frameT === null), '거품 밖인데 좌표가 바뀌어 있어요');
       await viewer.evaluate(() => window.__smash.plaza.table(1)); // 탁구대를 누르면 원 안으로 걸어 들어감
       await waitFor(viewer, () => window.__smash.plaza.bubble.phase !== 'off', null, 30000, '원 안으로 걸어 들어감 → 관전 시작');
@@ -1138,9 +1138,9 @@ async function browserChecks() {
         } finally { w.setArena = orig; }
         return { out };
       });
-      // 경기장 거품 안 걸을 수 있는 범위 (src/arenaWalls.js): 교실은 벽이 가깝고, 해변은 벽이 없음(9m)
+      // 경기장 거품 안 걸을 수 있는 범위 (src/arenaWalls.js): 교실은 벽이 가깝고, 해변은 벽이 없음(8m = 거품 나가기)
       const wl = await page.evaluate(async () => { const m = await import('/src/arenas.js'); const c = m.buildArena('classroom').walls, b = m.buildArena('beach').walls; return [c.x1, c.z1, b.x1]; });
-      must(wl[0] > 4 && wl[0] < 7 && wl[1] < 9 && wl[2] === 9, '배경 벽 재기가 이상해요: ' + wl.join(', '));
+      must(wl[0] > 4 && wl[0] < 7 && wl[1] <= 8 && wl[2] === 8, '배경 벽 재기가 이상해요: ' + wl.join(', '));
       must(!r.fail, `배경 ${r.fail}이(가) 안 바뀌어요` + (errs.length ? '\n' + [...new Set(errs.splice(0))].slice(0, 4).join('\n') : ''));
       flush();
       return '합친 물건 ' + r.out.join(', ');

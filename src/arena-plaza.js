@@ -20,8 +20,9 @@ const tableAt = (n, x, z) => ({
   seats: [[x - SEAT_X, z - SEAT_Z], [x - SEAT_X, z + SEAT_Z], [x + SEAT_X, z + SEAT_Z], [x + SEAT_X, z - SEAT_Z]],
   rect: { x0: x - T_HALF[0] - 0.08, x1: x + T_HALF[0] + 0.08, z0: z - T_HALF[1] - 0.08, z1: z + T_HALF[1] + 0.08 },
 });
-// 경기장 거품(plaza.md 16장): 경기 중인 탁구대 둘레 원(들어가기 7m·나가기 9m)이 겹치지 않게 탁구대끼리 18m 넘게 떨어뜨림
-export const BUBBLE_IN = 7, BUBBLE_OUT = 9;
+// 경기장 거품(plaza.md 6장): 경기 중인 탁구대 둘레 원(들어가기 6m·나가기 8m, 11/28 사용자 확정 — 전에는 7·9m)이 겹치지 않게 탁구대끼리 떨어뜨림
+// (바꾸면 arenaWalls.js WALK_MAX = BUBBLE_OUT도 같이)
+export const BUBBLE_IN = 6, BUBBLE_OUT = 8;
 const TABLES = TABLE_SPOTS.map(([x, z], i) => tableAt(i + 1, x, z));
 // 김제빵 탁구대 (③ 혼자 하기): 서쪽 끝 spot에 서면 혼자 하기, 동쪽 끝 chef에 김제빵이 늘 서 있다
 const KIM = { ...tableAt(0, KIM_SPOT[0], KIM_SPOT[1]), spot: [KIM_SPOT[0] - SEAT_X, KIM_SPOT[1]], chef: [KIM_SPOT[0] + SEAT_X, KIM_SPOT[1]] };

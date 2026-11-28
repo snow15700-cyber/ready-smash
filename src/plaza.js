@@ -235,7 +235,7 @@ function drawSign(sg, lines, color) {
   sg.tex.needsUpdate = true;
 }
 
-// 경기장 거품 원(plaza.md 16장): 경기 중인 탁구대 둘레 바닥에 천천히 도는 주황 불꽃 고리 마법진 (반지름 = 들어가기 7m)
+// 경기장 거품 원(plaza.md 16장): 경기 중인 탁구대 둘레 바닥에 천천히 도는 주황 불꽃 고리 마법진 (반지름 = 들어가기 BUBBLE_IN 6m)
 function ringTex(dashes) {
   const c = document.createElement('canvas'); c.width = 1024; c.height = 64;
   const g = c.getContext('2d');

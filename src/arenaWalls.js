@@ -1,10 +1,10 @@
 // 경기장 거품 안에서 걸을 수 있는 범위 (docs/dev/plaza.md 18장): 배경의 벽이 탁구대(원점)에서 얼마나 떨어져 있는지 잰다.
 // 탁구대 높이쯤(1.1m)에서 앞뒤·양옆으로 광선을 여러 줄 쏘아, '벽 같은 것'(높이 1.8m 넘고 가로 3m 넘는 판)에 처음 닿는 거리.
-// 나무·의자 같은 작은 물건은 벽으로 안 친다(지나가도 어색하지 않게). 벽이 없으면 거품 크기(9m)까지.
+// 나무·의자 같은 작은 물건은 벽으로 안 친다(지나가도 어색하지 않게). 벽이 없으면 거품 크기(8m)까지.
 // 배경을 합치기(bakeArena) 전에 재야 한다(합치면 멀리 떨어진 물건끼리 한 덩어리가 돼서 크기를 알 수 없음) — arenas.js buildArena.
 import * as THREE from 'three';
 
-export const WALK_MAX = 9; // 벽이 없을 때 (= 거품 나가기 반지름)
+export const WALK_MAX = 8; // 벽이 없을 때 (= 거품 나가기 반지름 arena-plaza.js BUBBLE_OUT)
 const PAD = 0.5; // 벽에서 이만큼 떨어져서 멈춤
 
 export function measureWalls(root) {

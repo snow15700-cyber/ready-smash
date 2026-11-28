@@ -847,7 +847,7 @@ export function plazaFrame(now) {
   gachaFrame(now);
   boardsFrame(now); // 시계탑·쉬는 시간 판·전광판 글자 (광장 20장 ②)
   if (now - skyLabelT > 1) { skyLabelT = now; $('pz-wx').textContent = sky.label(); }
-  // 경기장 거품 (plaza.md 16장): 경기 중인 탁구대 원(7m) 안으로 들어가면 그 경기장으로, 9m 밖이면 광장으로
+  // 경기장 거품 (plaza.md 16장): 경기 중인 탁구대 원(6m) 안으로 들어가면 그 경기장으로, 8m 밖이면 광장으로
   const busy = PLAZA.tables.map((_, t) => lobbyRooms.find((r) => r.pt === t && r.play && r.pl) || null);
   const dt = Math.min(0.1, now - (pz.lastNow || now));
   pz.lastNow = now;

@@ -1,5 +1,5 @@
-// 경기장 거품 (docs/dev/plaza.md 16장): 경기 중인 탁구대 둘레 원(7m) 안으로 걸어 들어가면 자동으로 관전 +
-// 광장이 그 경기의 방장 배경으로 바뀐다(불꽃 고리 물결, src/bubbleFx.js). 원(9m) 밖으로 나가면 다시 광장.
+// 경기장 거품 (docs/dev/plaza.md 16장): 경기 중인 탁구대 둘레 원(6m) 안으로 걸어 들어가면 자동으로 관전 +
+// 광장이 그 경기의 방장 배경으로 바뀐다(불꽃 고리 물결, src/bubbleFx.js). 원(8m) 밖으로 나가면 다시 광장.
 // - 선수 부담 0: 그 경기 채널은 듣기만(명단에도 안 들어가고 아무것도 안 보냄). 관전자 수는 관중석 채널 명단으로(선수는 듣기만).
 // - 원 안에서는 광장처럼 걸어 다니며 보고(3인칭 카메라), '🪑 관중석에 앉기'를 누르면 관중석 내 자리 1인칭.
 // - 같은 원 안 관전자끼리는 걷는 모습이 보인다(광장 채널). 응원(박수 등)은 그 사람 머리 위 말풍선.
@@ -87,7 +87,7 @@ function camClamp(me, cam) {
   }
   return Math.max(0.3, k);
 }
-// 벽에 닿아 나감: 다시 9m 밖으로 나갈 때까지 이 경기 거품에 안 들어감
+// 벽에 닿아 나감: 다시 8m 밖으로 나갈 때까지 이 경기 거품에 안 들어감
 export function bubbleLeave() {
   if (bub.phase === 'off') return;
   bub.block = bub.code;
@@ -153,7 +153,7 @@ function beginIn() {
   world.crowd.setFirstPerson(true); // 관중석의 내 캐릭터는 숨김 (걸어 다니는 내가 나)
   view.setFrame(bub.t);
   view.setCamClamp(camClamp);
-  // 원(7m) 안이지만 방(실내 배경) 밖이면 방 안으로 몇 걸음
+  // 원(6m) 안이지만 방(실내 배경) 밖이면 방 안으로 몇 걸음
   const w = walls(), me = bub.mePos && toA(bub.t, bub.mePos);
   if (w && me && !inRect(me, w, 0.2)) bubbleHooks.walk?.(toP(bub.t, [Math.max(w.x0 + 0.6, Math.min(w.x1 - 0.6, me[0])), Math.max(w.z0 + 0.6, Math.min(w.z1 - 0.6, me[1]))]));
   prep();
@@ -388,7 +388,7 @@ export function bubbleFrame(v, now, dt, me, busy, ok, plazaEnv) {
   // 들어가기
   bub.mePos = me;
   if (bub.phase === 'off') {
-    // 벽에 닿아 나온 경기는 9m 밖으로 한 번 나간 뒤에야 다시 들어감
+    // 벽에 닿아 나온 경기는 8m 밖으로 한 번 나간 뒤에야 다시 들어감
     if (bub.block && !busy.some((r, t) => r?.code === bub.block && dist(t) < BUBBLE_OUT)) bub.block = '';
     if (!ok) return;
     busy.forEach((r, t) => { if (bub.phase === 'off' && r && r.code !== bub.block && dist(t) < BUBBLE_IN && !(performance.now() - (failed.get(r.code) || -1e9) < 10000)) start(t, r); });
