@@ -20,6 +20,7 @@ export default defineConfig({
         props: fileURLToPath(new URL('./props.html', import.meta.url)), // 광장 물건 상호작용 시안 (plaza.md 10장 ①)
         look: fileURLToPath(new URL('./look.html', import.meta.url)), // 물건 4개 새 모습 비교 (plaza.md 8장 🎨)
         cats: fileURLToPath(new URL('./cats.html', import.meta.url)), // 고양이 모형 시안 (docs/dev/cats.md 2단계)
+        fps: fileURLToPath(new URL('./fps.html', import.meta.url)), // FPS 손맛 시안 (docs/dev/fps.md 7장 1단계)
         rtcTest: fileURLToPath(new URL('./rtc-test.html', import.meta.url)), // 와이파이 연결 속도 측정 (WebRTC 시험)
       },
       // three.js는 자주 안 바뀌므로 따로 묶어 두면 게임만 고쳐 올렸을 때 브라우저가 three를 다시 안 받는다
