@@ -169,7 +169,7 @@ export function buildCampus({ game = false } = {}) {
   // 가장자리 가로등·벤치·소나무
   for (const sx of [-1, 1]) {
     for (const z of [-6, 6, 18, 30]) { const l = lamp(); l.position.set(sx * 22.3, 0, z); l.rotation.y = sx > 0 ? Math.PI : 0; root.add(l); }
-    for (const z of [9, 20]) { const b = bench(); b.position.set(sx * 21.6, 0, z); b.rotation.y = Math.PI / 2; root.add(b); }
+    for (const z of [9, 20]) { const b = bench(); b.position.set(sx * 21.6, 0, z); b.rotation.y = sx * Math.PI / 2; root.add(b); } // 양쪽 다 광장 쪽을 봄 (11/28 사용자 — 전엔 서쪽 줄이 바깥을 봄)
     for (let i = 0; i < 8; i++) { const t = tree(0.9 + rnd() * 0.5); t.position.set(sx * (24.5 + rnd() * 2), 0, -8 + i * 5.2 + rnd()); root.add(t); }
   }
   for (let i = 0; i < 4; i++) { const t = tree(0.9 + rnd() * 0.5); t.position.set(-16.5 + i * 3.6 + rnd(), 0, 36 + rnd() * 2); root.add(t); } // 서쪽 계단 입구(x 0.5~3.7)를 안 가리게

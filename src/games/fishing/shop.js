@@ -1,6 +1,7 @@
 // 🍣 횟집 창: 📈 시세표(일반 7종 + 희귀 8 · 전설 2(13-1 ②) · ▲빨강/▼파랑 · 지난 8회 꺾은선 · 🔥 오늘의 대박) + 🎒 가방(종류 × ⭐ 별마다 팔기 · 모두 팔기)
 // docs/dev/fishing.md 14-6. 규칙은 market.js, 코인은 서버(account.js fishSell)가 그 순간 시세로.
 // 낚시 화면 오른쪽 위 '🍣 횟집' 버튼(1a) · 선착장 횟집 건물·📈 칠판을 눌러도(1b, ui/fishing.js openMarket) 엶
+import { FOOD_LABEL } from '../props/rules.js';
 import { account, fishBagLoad, fishNews, fishSell, marketNow } from '../../account.js';
 import { liveWx } from '../../plazaSky.js';
 import { CATCH, GENRE_LABEL, SPECIES } from './rules.js';
@@ -137,7 +138,7 @@ async function sell(id, q = null) {
     const big = (r.sold || []).find((s) => CATCH[s.id]?.grade !== 'common');
     const hot = (r.sold || []).find((s) => s.id === history(marketNow(), 1)[0].jackpot);
     const top = (r.sold || []).some((s) => s.q === 3);
-    bossLine = `🪙 +${r.coins}코인! ` + (r.kept ? `오늘은 여기까지 살게요. ${r.kept}마리는 내일 다시 가져와요 🙏` : top && !big ? '★★★! 손질이 필요 없을 만큼 싱싱하네요 ✨' : big ? `${name(big.id)}! 오늘 장사 잘 되겠네요 😆` : hot ? `${name(hot.id)} 오늘 금값인데, 타이밍 좋아요!` : '고마워요, 또 와요~');
+    bossLine = `🪙 +${r.coins}코인! ${r.food_coins ? `(${FOOD_LABEL[r.food] || '간식'} +${r.food_coins}) ` : ''}` + // 49 🐟 붕어빵·🥫 캔 효과 (r.kept ? `오늘은 여기까지 살게요. ${r.kept}마리는 내일 다시 가져와요 🙏` : top && !big ? '★★★! 손질이 필요 없을 만큼 싱싱하네요 ✨' : big ? `${name(big.id)}! 오늘 장사 잘 되겠네요 😆` : hot ? `${name(hot.id)} 오늘 금값인데, 타이밍 좋아요!` : '고마워요, 또 와요~');
     onSold?.(r);
   } else bossLine = r.status === 'capped' ? '오늘은 더 못 사요 😅 내일 다시 와 주세요! (하루 1000코인까지)' : r.status === 'empty' ? '가방이 비었는데요? 😅' : '앗, 계산이 안 됐어요. 다시 눌러 주세요';
   render();

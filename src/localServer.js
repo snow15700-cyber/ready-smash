@@ -9,6 +9,10 @@ import { setOf, setAmount, setLabel } from './sets.js';
 import * as FR from './games/fishing/rules.js';
 import * as MK from './games/fishing/market.js';
 import * as CR from './games/cats/rules.js';
+import { FOOD_FX, FOOD_LABEL, LUCKY_CAN, foodPct } from './games/props/rules.js';
+
+// 49 🚚 광장 음식 효과: at 시각에 남아 있으면 kind의 %
+const foodAt = (p, kind, at, won = false) => (p?.food && (p.foodUntil || 0) > at ? foodPct(p.food, kind, won) : 0);
 
 // 한국 월요일 0시 (이번 주 월척)
 function fishWeekStart(now) {
@@ -129,9 +133,10 @@ function localFish(fn, a, p, db, now) {
     const r = MK.sellPlan(items, nowMs(), MK.DAY_CAP - fishUsed(p));
     if (!r.sold.length) return { status: 'capped', kept: r.kept, bag: bagList(p), ...day };
     for (const [id, k, , q] of r.sold) { bagTake(p, id, q, k); addSold(db, p, id, k); }
-    p.coins = (p.coins || 0) + r.coins;
-    addFishDay(p, r.coins);
-    return { status: 'ok', coins: r.coins, bonus: 0, bonus_pct: 0, sold: r.sold.map(([id, n, price, q]) => ({ id, q, n, price })), kept: r.kept, bag: bagList(p), day_coins: fishUsed(p), day_cap: MK.DAY_CAP };
+    const fp = foodAt(p, 'fish', now), fb = fp ? Math.min(Math.ceil((r.coins * fp) / 100), Math.max(0, MK.DAY_CAP - fishUsed(p) - r.coins)) : 0; // 49 🐟·🥫
+    p.coins = (p.coins || 0) + r.coins + fb;
+    addFishDay(p, r.coins + fb);
+    return { status: 'ok', coins: r.coins + fb, bonus: 0, bonus_pct: 0, food: fb > 0 ? p.food : null, food_coins: fb, food_pct: fp, sold: r.sold.map(([id, n, price, q]) => ({ id, q, n, price })), kept: r.kept, bag: bagList(p), day_coins: fishUsed(p), day_cap: MK.DAY_CAP };
   }
   if (fn === 'pingpong_fish_bag') return { status: 'ok', bag: bagList(p), day_coins: fishUsed(p), day_cap: MK.DAY_CAP };
   if (fn === 'pingpong_fish_dex') {
@@ -236,7 +241,8 @@ export function localServer(fn, a) {
   const now = Date.now();
   db.h2h ||= {};
   const me = () => db.players[db.sessions[a.p_token]];
-  const pj = (p) => ({ id: p.id, nick: p.nick, wins_1v1: p.w1 || 0, losses_1v1: p.l1 || 0, wins_2v2: p.w2 || 0, losses_2v2: p.l2 || 0, best_rally: p.best || 0, coins: p.coins || 0, win_streak: p.streak || 0, pieces: p.pieces || 0, equip: p.equip || {}, title: p.title || null, nemesis: p.achN?.nemesis || null });
+  const pj = (p) => ({ id: p.id, nick: p.nick, wins_1v1: p.w1 || 0, losses_1v1: p.l1 || 0, wins_2v2: p.w2 || 0, losses_2v2: p.l2 || 0, best_rally: p.best || 0, coins: p.coins || 0, win_streak: p.streak || 0, pieces: p.pieces || 0, equip: p.equip || {}, title: p.title || null, nemesis: p.achN?.nemesis || null,
+    food: (p.foodUntil || 0) > now ? p.food : null, food_left: (p.foodUntil || 0) > now ? Math.ceil((p.foodUntil - now) / 1000) : 0 }); // 49
   const shopOut = (p, extra = {}) => ({ status: 'ok', player: pj(p), owned: p.owned || [], pity: { char: p.pityChar || 0, arena: p.pityArena || 0 }, free: p.free ?? 50, ...extra }); // free: 무료 뽑기 50회(25)
   const onSale = (pool, grade) => ITEMS.filter((i) => i.pool === pool && i.grade !== 'default' && (!grade || i.grade === grade));
   const h2h = (p, opp) => { const h = db.h2h[p.id + '>' + opp] || [0, 0]; return { wins: h[0], losses: h[1] }; };
@@ -438,6 +444,9 @@ export function localServer(fn, a) {
       }
       const base = items.reduce((s, i) => s + i.coins, 0);
       const clk = nowMs() - Date.now();
+      // 49 🚚 음식 효과 (경기 시작이나 끝에 남아 있으면) — 쉬는 시간과 더하기 (둘 다 base에 붙음)
+      const fp = Math.max(foodAt(p, 'match', m.at, a.p_won), foodAt(p, 'match', now, a.p_won));
+      if (base > 0 && fp > 0) items.push({ label: `${FOOD_LABEL[p.food]} +${fp}%`, coins: Math.ceil((base * fp) / 100) });
       if (base > 0 && (breakAt(m.at + clk) || breakAt(now + clk))) items.push({ label: `☕ 쉬는 시간 +${brkPct}%`, coins: Math.ceil((base * brkPct) / 100) });
       const total = items.reduce((s, i) => s + i.coins, 0);
       p.coins = (p.coins || 0) + total;
@@ -526,6 +535,19 @@ export function localServer(fn, a) {
         }
       }
     }
+  } else if (fn === 'pingpong_plaza_buy') { // 49 🚚 광장 음식 사기
+    const p = me(), f = FOOD_FX[a.p_item];
+    if (!p) out = { status: 'no_session' };
+    else if (!f) out = { status: 'bad_item' };
+    else if (p.food === a.p_item && (p.foodUntil || 0) > now + f.min * 60e3 - 2000) out = { status: 'busy', player: pj(p) };
+    else {
+      const lucky = a.p_item === 'can' && Math.random() < LUCKY_CAN, price = lucky ? 0 : f.price;
+      if ((p.coins || 0) < price) out = { status: 'coins', price, player: pj(p) };
+      else {
+        p.coins -= price; p.food = a.p_item; p.foodUntil = now + f.min * 60e3;
+        out = { status: 'ok', item: a.p_item, price, lucky, left: f.min * 60, player: pj(p) };
+      }
+    }
   } else if (fn === 'pingpong_ai_start') {
     const p = me();
     if (!p) out = { status: 'no_session' };
@@ -548,10 +570,12 @@ export function localServer(fn, a) {
       const brk = got > 0 && breakAt(nowMs()) ? Math.ceil(((got + sb) * brkPct) / 100) : 0; // 19: 쉬는 시간 +50%
       // 32: 하루 AI_DAY_MAX(250)코인까지 (한국 날짜)
       const today = koreaDay(now), used = p.aiDay === today ? p.aiDayCoins || 0 : 0;
-      const raw = got + sb + brk, give = Math.min(raw, Math.max(AI_DAY_MAX - used, 0));
+      const fp = foodAt(p, 'ai', now), fb = got > 0 && fp ? Math.ceil(((got + sb) * fp) / 100) : 0; // 49 🥤·🥫
+      const raw = got + sb + brk + fb, give = Math.min(raw, Math.max(AI_DAY_MAX - used, 0));
       p.aiDay = today; p.aiDayCoins = used + give;
       p.coins = (p.coins || 0) + give;
       out = { status: 'ok', coins: give, bonus: give < raw ? 0 : brk, bonus_pct: brkPct, set: sb && give === raw ? setLabel(st.set, st.full) : null, set_coins: give === raw ? sb : 0,
+        food: fb > 0 && give === raw ? p.food : null, food_coins: give === raw ? fb : 0, food_pct: fp,
         day_coins: used + give, day_max: AI_DAY_MAX, capped: give < raw || used + give >= AI_DAY_MAX, player: pj(p) };
     }
   } else if (fn === 'local_test_coins') {

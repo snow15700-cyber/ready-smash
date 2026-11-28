@@ -253,6 +253,34 @@ async function sqlCheck() {
     let closed = false;
     try { json(`public.pingpong_match_finish(${ta}, '${m5}', true, 0, 0)`); } catch { closed = true; }
     must(closed, '33: 옛 경기 결과 함수 pingpong_match_finish가 아직 열려 있어요');
+    // 49 🚚 광장 음식: 위에서 32를 다시 실행해 덮였으니 49를 다시 → 사기(값·효과·하나만) + 경기·혼자 하기 효과가 붙는지 (쉬는 시간과 더하기)
+    psql(DB, fs.readFileSync(path.join(ROOT, 'supabase', '49_plaza_food.sql'), 'utf8'));
+    const FR = await import(path.join(ROOT, 'src', 'games', 'props', 'rules.js'));
+    psql(DB, `update public.pingpong_players set coins = 15 where nick = '점검결과갑';`);
+    must(json(`public.pingpong_plaza_buy(${ta}, 'pizza')`).status === 'bad_item', '49: 없는 음식이 팔려요');
+    const f1 = json(`public.pingpong_plaza_buy(${ta}, 'coffee')`);
+    must(f1.status === 'ok' && f1.player.coins === 15 - FR.FOOD_FX.coffee.price && f1.player.food === 'coffee' && f1.player.food_left > 590, '49: 커피 사기가 이상해요: ' + JSON.stringify(f1).slice(0, 200));
+    must(json(`public.pingpong_plaza_buy(${ta}, 'coffee')`).status === 'busy', '49: 두 번 눌러 두 번 샀어요');
+    must(json(`public.pingpong_plaza_buy(${ta}, 'hotdog')`).status === 'coins', '49: 코인이 모자란데 샀어요');
+    const m6 = '00000000-0000-4000-8000-000000000491';
+    start(m6);
+    fin(ta, m6, true); fin(tb, m6, false);
+    const a6 = fin(ta, m6, true), sum6 = (r) => r.coins.items.reduce((x, i) => x + i.coins, 0);
+    const food6 = a6.coins.items.find((i) => /커피/.test(i.label));
+    const base6 = a6.coins.items.filter((i) => !/커피|쉬는 시간/.test(i.label)).reduce((x, i) => x + i.coins, 0);
+    must(a6.status === 'ok' && food6 && food6.coins === Math.ceil(base6 * 0.3) && sum6(a6) === a6.coins.total, '49: 커피 효과(1대1 +30%)가 경기 코인에 안 붙어요: ' + JSON.stringify(a6.coins).slice(0, 300));
+    psql(DB, `update public.pingpong_players set coins = 100, food = 'ade', food_until = now() + interval '5 minutes', ai_at = now() - interval '100 seconds', ai_rem = 0, ai_day_coins = 0 where nick = '점검결과갑';`);
+    json(`public.pingpong_ai_start(${ta})`);
+    psql(DB, `update public.pingpong_players set ai_at = now() - interval '100 seconds' where nick = '점검결과갑';`);
+    const ai6 = json(`public.pingpong_ai_rally(${ta}, 30)`);
+    must(ai6.status === 'ok' && ai6.food === 'ade' && ai6.food_coins === 3 && ai6.coins === 10 + 3 + ai6.bonus, '49: 에이드 효과(혼자 하기 +30%)가 이상해요: ' + JSON.stringify(ai6).slice(0, 200));
+    psql(DB, `update public.pingpong_players set food_until = now() - interval '1 second', ai_at = now() - interval '100 seconds', ai_rem = 0 where nick = '점검결과갑';`);
+    must(json(`public.pingpong_ai_rally(${ta}, 30)`).food_coins === 0, '49: 시간이 끝났는데 효과가 붙어요');
+    // 서버 규칙 == 화면 규칙 (rules.js foodPct)
+    for (const f of [...Object.keys(FR.FOOD_FX), null]) for (const k of ['match', 'ai', 'fish']) for (const w of [true, false]) {
+      const srvP = +psql(DB, `select public.pingpong__food_pct(${f ? `'${f}'` : 'null'}, now() + interval '1 minute', '${k}', now(), ${w});`);
+      must(srvP === FR.foodPct(f, k, w), `49: 음식 효과 %가 서버와 화면이 달라요: ${f} ${k} ${w} 서버 ${srvP}`);
+    }
   }
   // 28 낚시: 기포 자리 서버 == 화면(rules.js), 던지기 → 잡기(최소 시간·코인·도감·업적·탁구채) · 랭킹
   {

@@ -1,13 +1,17 @@
 // 광장 물건 상호작용 ②-1 (docs/dev/plaza.md 10장): 🚚 푸드트럭 · 🥤 자판기 · 🪑 앉기 (트럭 의자·광장 벤치·전망대 벤치)
 //  · 사용자 확정 11/28: 메뉴 창 = 카드 4장 · 손에 든 모양 = 실제 크기(HOLD.A) · 앉기 = 쏙 앉기(SIT.A)
 //  · 남들도 보임: 손에 든 음식·앉은 자리는 광장 상태 칸 'pr' 하나에 (바뀔 때만 sendInfo). 받는 쪽은 clean으로 목록에 있는 값만
-//  · ②-1은 코인 없이 시험 (사도 코인이 안 빠지고 효과도 없음). ②-2에서 서버(pingpong_plaza_buy)·효과를 붙임
+//  · ②-2: 사기는 서버(supabase/49_plaza_food.sql pingpong_plaza_buy)가 코인을 빼고 효과를 적음 → 경기·혼자 하기·횟집 정산에 더해짐 (규칙 ./rules.js)
+//    로그인 안 했으면 못 삼('로그인하면…'). 내 화면 왼쪽 위에 '☕ 대결 +30% · 8:12' 알약
 import * as THREE from 'three';
+import { account, plazaBuy } from '../../account.js';
 import { playUI } from '../../audio.js';
 import { SPOTS, toWorld } from '../../campusLayout.js';
 import { VEND_OUT } from '../../campusProps.js';
 import { hud } from '../../ui/hud.js';
+import { renderMe } from '../../ui/login.js';
 import { addon, plazaApi, registerAddon } from '../../ui/plazaAddons.js';
+import { FOOD_FX, foodSummary } from './rules.js';
 import { EAT, FOOD, HOLD, TRUCK_MENU, foodIconURL, holdFood, makeFood, sitPose } from './models.js';
 
 const HOLD_STYLE = 'A', SIT_STYLE = 'A'; // 사용자 확정 (props.html 6번 · 9번)
@@ -23,9 +27,9 @@ for (const sx of [-1, 1]) {
   const [x, z] = toWorld(T, -0.5 + sx * 0.85, 2.6);
   SEATS.push({ x, z, y: 0.505, yaw: yawTo(x, z, TABLE[0], TABLE[1]), stand: toWorld(T, -0.5 + sx * 1.5, 2.6), group: 'truck' });
 }
-// 🪑 광장 가장자리 벤치 4개 (campusMock.js: x ±21.6, z 9·20, 돌림 π/2 → 앉으면 서쪽을 봄). 벤치마다 2자리. 걸어가는 곳은 광장 안쪽
+// 🪑 광장 가장자리 벤치 4개 (campusMock.js: x ±21.6, z 9·20, 돌림 ±π/2 → 앉으면 광장 쪽을 봄). 벤치마다 2자리. 걸어가는 곳은 광장 안쪽
 for (const sx of [-1, 1]) for (const bz of [9, 20]) {
-  const B = { x: sx * 21.6, z: bz, yaw: Math.PI / 2 };
+  const B = { x: sx * 21.6, z: bz, yaw: sx * Math.PI / 2 }; // 앉으면 광장 쪽을 봄
   for (const lx of [-0.42, 0.42]) {
     const [x, z] = toWorld(B, lx, 0.05);
     SEATS.push({ x, z, y: BENCH_Y, yaw: B.yaw, stand: [sx * 20.7, z], group: `b${sx}${bz}` });
@@ -148,6 +152,10 @@ css.textContent = `
 #prop-pop .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 #prop-pop .card { background: rgba(255,255,255,.9); color: #23304a; border: 0; border-radius: 14px; padding: 8px 6px; text-align: center; cursor: pointer; font: inherit; }
 #prop-pop .card:hover { background: #fff; }
+#prop-pop .card:disabled { opacity: .5; cursor: default; }
+#food-pill { position: fixed; left: 24px; top: 72px; z-index: 12; display: inline-flex; align-items: center; gap: 6px; background: rgba(43,42,51,.55); color: #fff; border-radius: 999px; padding: 4px 12px 4px 4px; font: 700 13px/1.2 'Pretendard Variable', system-ui, sans-serif; backdrop-filter: blur(8px); pointer-events: none; }
+#food-pill img { width: 24px; height: 24px; background: #fff; border-radius: 50%; }
+@media (max-width: 700px) { #food-pill { left: 12px; top: 58px; font-size: 12px; } }
 #prop-pop .card img { width: 58px; height: 58px; display: block; margin: 0 auto 2px; }
 #prop-pop .card b { display: block; font-family: Jua, sans-serif; font-weight: normal; font-size: 16px; }
 #prop-pop .card em { display: block; font-style: normal; font-size: 11px; color: #5a6a80; margin: 2px 0 6px; }
@@ -163,27 +171,62 @@ function openTruck() {
   icons ||= Object.fromEntries(Object.keys(FOOD).map((id) => [id, foodIconURL(id)]));
   const el = document.createElement('div'); el.id = 'prop-pop';
   el.addEventListener('pointerdown', (e) => e.stopPropagation());
-  el.innerHTML = `<button class="x">×</button><h3>🚚 간식 트럭</h3><div class="cards">${TRUCK_MENU.map((id) => `<button class="card" data-id="${id}"><img src="${icons[id]}" alt=""><b>${FOOD[id].name}</b><em>${FOOD[id].fx}</em><span class="coin">${FOOD[id].price}</span></button>`).join('')}</div>
-    <div class="sm">🧪 시험 중: 지금은 코인이 안 빠지고 효과도 아직 없어요</div>`;
+  const coins = account.player?.coins ?? 0, cur = myFood();
+  const note = !account.loggedIn ? '🔒 로그인하면 사 먹고 코인 효과를 받을 수 있어요'
+    : cur ? `지금 ${FOOD[cur.id].emo} ${foodSummary(cur.id)} 중 · 새로 사면 바뀌어요 (효과는 하나만)` : '효과는 한 번에 하나 · 경기·혼자 하기·낚시 판매 코인에 붙어요';
+  el.innerHTML = `<button class="x">×</button><h3>🚚 간식 트럭</h3><div class="cards">${TRUCK_MENU.map((id) => `<button class="card" data-id="${id}"${account.loggedIn && coins < FOOD_FX[id].price ? ' disabled' : ''}><img src="${icons[id]}" alt=""><b>${FOOD[id].name}</b><em>${FOOD[id].fx}</em><span class="coin">${FOOD_FX[id].price}</span></button>`).join('')}</div>
+    <div class="sm">${note}</div>`;
   el.querySelector('.x').onclick = closePop;
   el.querySelectorAll('.card').forEach((b) => (b.onclick = () => buyTruck(b.dataset.id)));
   document.body.appendChild(el);
   pop = { el, at: plazaApi.pos() };
 }
 const COUNTER = (() => { const [x, z] = toWorld(T, -0.27, 1.35); return new THREE.Vector3(x, 1.3, z); })(); // 판매창 계산대 위
-function buyTruck(id) {
+async function buyTruck(id) {
   if (me.busy) return;
+  if (!account.loggedIn) { hud.toast('🔒 로그인하면 사 먹을 수 있어요', 2000); return; }
   closePop();
   playUI('click');
-  me.busy = true; setTimeout(() => (me.busy = false), 900);
-  giveFood(id, COUNTER, { delay: 0.25 });
-  hud.toast(`${FOOD[id].emo} ${FOOD[id].name} 받았어요! 탁자에 앉아 먹어 볼까요`, 2200);
+  me.busy = true;
+  const r = await plazaBuy(id);
+  setTimeout(() => (me.busy = false), 600);
+  if (!bought(r)) return;
+  giveFood(id, COUNTER, { delay: 0.1 });
+  hud.toast(`${FOOD[id].emo} ${FOOD[id].name} · 10분 동안 ${foodSummary(id)}!`, 2400);
   // 받은 뒤 옆 탁자 빈 의자로 (사용자 확정 흐름: 판매창에서 받아 손에 듦 → 옆 탁자 의자에 앉기)
   setTimeout(() => {
     if (me.s != null || plazaApi.seat?.()) return;
     const i = SEATS.findIndex((s) => s.group === 'truck');
     if (freeSeat(i) != null) sitAt(i);
   }, 1000);
+}
+// 서버 결과 → 알림. 산 것이면 true
+function bought(r) {
+  if (r.status === 'ok') { renderMe(); return true; }
+  if (r.status === 'coins') hud.toast(`🪙 코인이 모자라요 (${r.price}코인)`, 2000);
+  else if (r.status === 'guest') hud.toast('🔒 로그인하면 살 수 있어요', 2000);
+  else if (r.status !== 'busy') hud.toast('잠깐 연결이 안 돼요. 다시 눌러 주세요', 2000);
+  return false;
+}
+// 지금 효과 중인 음식 { id, until(이 PC 시각 ms) } — 서버가 준 선수 정보(food·food_left)로
+let foodSeen = null, foodCur = null;
+function myFood() {
+  const pl = account.loggedIn ? account.player : null;
+  if (pl !== foodSeen) { foodSeen = pl; foodCur = pl?.food && pl.food_left > 0 ? { id: pl.food, until: Date.now() + pl.food_left * 1000 } : null; }
+  return foodCur && foodCur.until > Date.now() ? foodCur : null;
+}
+// 왼쪽 위 알약 '☕ 대결 +30% · 8:12'
+let pillEl = null, pillKey = '';
+function pillFrame(on) {
+  const f = on ? myFood() : null;
+  const key = f ? `${f.id}|${Math.ceil((f.until - Date.now()) / 1000)}` : '';
+  if (key === pillKey) return;
+  pillKey = key;
+  if (!f) { pillEl?.remove(); pillEl = null; return; }
+  if (!pillEl) { pillEl = document.createElement('div'); pillEl.id = 'food-pill'; document.body.appendChild(pillEl); }
+  const left = Math.ceil((f.until - Date.now()) / 1000);
+  icons ||= Object.fromEntries(Object.keys(FOOD).map((id) => [id, foodIconURL(id)]));
+  pillEl.innerHTML = `<img src="${icons[f.id]}" alt="">${foodSummary(f.id)} · ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
 }
 // 판매창 앞에 서는 곳 (탁자와 트럭 사이는 좁아서 운전석 쪽 끝)
 const TRUCK_FRONT = toWorld(T, 1.05, 1.95);
@@ -192,12 +235,17 @@ const TRUCK_FRONT = toWorld(T, 1.05, 1.95);
 const V = SPOTS.vending, VEND_FRONT = toWorld(V, -0.12, 1.25);
 const VEND_CAN = (() => { const [x, z] = toWorld(V, VEND_OUT[0], 0.5); return new THREE.Vector3(x, VEND_OUT[1] - 0.12, z); })();
 function useVending() {
-  plazaApi.walkNear(VEND_FRONT, () => {
+  if (!account.loggedIn) { hud.toast(`🔒 로그인하면 뽑을 수 있어요 (🥫 ${FOOD_FX.can.price}코인 · 5분 동안 ${foodSummary('can')})`, 2400); return; }
+  plazaApi.walkNear(VEND_FRONT, async () => {
     if (me.busy) return;
-    me.busy = true; setTimeout(() => (me.busy = false), 1400);
+    me.busy = true;
     playUI('click');
+    const r = await plazaBuy('can');
+    setTimeout(() => (me.busy = false), 1400);
+    if (!bought(r)) return;
     giveFood('can', VEND_CAN, { drop: true });
-    if (Math.random() < 0.01) setTimeout(() => { playUI('rare'); hud.toast('🎉 하나 더! (나중에 코인을 붙이면 1코인 돌려받기)', 2600); }, 700);
+    if (r.lucky) setTimeout(() => { playUI('rare'); hud.toast('🎉 하나 더! 이번 캔은 공짜예요', 2600); }, 700);
+    else setTimeout(() => hud.toast(`🥫 캔 음료 · 5분 동안 ${foodSummary('can')}!`, 2200), 700);
   });
 }
 
@@ -225,6 +273,7 @@ function frame(now, p, walking) {
   if (pop && Math.hypot(p[0] - pop.at[0], p[1] - pop.at[1]) > 2.5) closePop(); // 걸어가면 창 닫기
   if (addon('fishing')?.spot?.()) { if (me.s != null) standUp(); }
   tickFlying(rt);
+  pillFrame(true);
   const people = plazaApi.people(), myId = plazaApi.myId();
   for (const [id, f] of plazaApi.view.figs) {
     const st = id === myId ? myState() : people.get(id)?.pr || null;
@@ -253,7 +302,7 @@ function frame(now, p, walking) {
     if (!P.hold && !P.sit && P.key === '') f.prop = null;
   }
 }
-function hidden() { closePop(); }
+function hidden() { closePop(); pillFrame(false); }
 
 registerAddon({
   id: 'props',

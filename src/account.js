@@ -354,6 +354,13 @@ export async function fishSell(id = null, q = null) {
   setFishDay(r);
   return r;
 }
+// 🚚🥤 광장 음식 (49_plaza_food.sql, plaza.md 10장): 서버가 값을 빼고 효과·끝나는 시각을 적음. 결과 { status: ok | coins | busy | bad_item | guest, lucky, left(초) }
+export async function plazaBuy(item) {
+  if (!account.loggedIn) return { status: 'guest' };
+  const r = await call('pingpong_plaza_buy', { p_token: token(), p_item: item });
+  if (r.player) account.player = { ...EMPTY_STATS, ...r.player };
+  return r;
+}
 // 🐱 고양이 (37_cats.sql, docs/dev/cats.md). account.cats = { id: { pts, readyAt(이 PC 시각 ms) } } · null = 모름
 function setCats(list) {
   if (!Array.isArray(list)) return;
