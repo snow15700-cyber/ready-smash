@@ -148,7 +148,7 @@ export function buildCampus({ game = false } = {}) {
   screen.position.set(-16, 17.2, hall.frontA + 0.42); root.add(screen); screen.name = 'scoreboard'; screen.userData.noBake = true; // 실제 광장: 경기 점수·랭킹 1등 (ui/plazaBoards.js) // 세로 핀(0.06+0.11) 앞으로
   addBox(root, 15.5, 6.1, 0.2, std(0x15191c, { metalness: 0.4, roughness: 0.4 }), -16, 17.2, hall.frontA + 0.3); // 전광판 틀
 
-  // 분수 + 가게 반원 (분수 (0,2) 둘레 반지름 약 8.5)
+  // 분수 + 가게 3개 (구역 배치는 campusLayout.js)
   const place = (g, o) => { g.position.set(o.x, 0, o.z); g.rotation.y = o.yaw || 0; root.add(g); return g; };
   const fnt = fountain(anim); fnt.position.set(FOUNTAIN[0], 0, FOUNTAIN[1]); root.add(fnt);
   const BUILD = { shop: gachaShop, closet: closetShop, rank: fameShop }; // 다듬은 가게 (src/campusShops.js)

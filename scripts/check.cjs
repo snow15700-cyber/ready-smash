@@ -803,9 +803,9 @@ async function browserChecks() {
       const to = await b.evaluate(() => { window.__smash.plaza.walkTo([4, 6]); return window.__smash.plaza.pz.myW.to; });
       await waitFor(a, ([id, x, z]) => { const f = window.__smash.plaza.view.figs.get(id); return f && Math.hypot(f.c.group.position.x - x, f.c.group.position.z - z) < 0.1; }, [bId, to[0], to[1]], 15000, '상대 화면에서 걸어간 곳에 도착');
       // 건물 안으로는 못 들어감 (가게 앞에서 멈춤)
-      // (광장 20장: 꾸미기 옷가게는 분수 북쪽 (0, −7), 앞면 z 약 −3.95 — 분수를 돌아서 가도 마지막 도착점은 가게 앞)
+      // (plaza.md 8장 11/28 구역: 명예의 전당은 분수 북쪽 (0, −7.5), 걷기 막는 네모 앞면 z −4.45 — 분수를 돌아서 가도 마지막 도착점은 가게 앞)
       const clip = await b.evaluate(() => { const pz = window.__smash.plaza.pz; window.__smash.plaza.walkTo([0, -9]); const end = pz.route.length ? pz.route[pz.route.length - 1] : pz.myW.to; return end[1]; });
-      must(clip > -4.0, '가게 건물 안으로 걸어 들어가요: z=' + clip);
+      must(clip > -4.6, '가게 건물 안으로 걸어 들어가요: z=' + clip);
       // 낚시터(fishing.md 12장·14장 1b): 광장 ↔ 전망대 밑 판은 돌계단(데크 서쪽·동쪽 2개, 가까운 쪽)으로만, 바닥 높이 · 데크에서 판으로 뛰어내리기·바다·항구로 걷기 막힘 · ㄷ자 양 팔 끝까지 걸어감
       const pier = await b.evaluate(async () => {
         const m = await import('/src/plaza.js'), { PLAZA } = await import('/src/arena-plaza.js'), h = (p) => +PLAZA.heightAt(p[0], p[1]).toFixed(2);
@@ -861,22 +861,22 @@ async function browserChecks() {
       const camPick = await b.evaluate(() => {
         const { world, plaza } = window.__smash, v = plaza.view, cam = world.camera;
         const p0 = cam.position.clone(), q0 = cam.quaternion.clone();
-        // 카메라를 옷가게 클릭 상자 안(문 앞 바로 앞)에 두고: 바닥을 누르면 바닥, 오른쪽 명예의 전당을 누르면 랭킹
+        // 카메라를 명예의 전당 클릭 상자 안(문 앞 바로 앞)에 두고: 바닥을 누르면 바닥, 서쪽 골목 옷장을 누르면 꾸미기
         cam.position.set(0, 2.2, -3.5); cam.lookAt(0.5, 0, 0); cam.updateMatrixWorld();
         const ground = v.pick(...world.toScreen(0.5, 0, 0));
-        cam.lookAt(7.1, 1.5, -3.5); cam.updateMatrixWorld();
-        const shop = v.pick(...world.toScreen(7.1, 1.5, -3.5));
+        cam.lookAt(-7.6, 1.5, -5.8); cam.updateMatrixWorld();
+        const shop = v.pick(...world.toScreen(-7.6, 1.5, -5.8));
         cam.position.copy(p0); cam.quaternion.copy(q0); cam.updateMatrixWorld();
         return [ground && Object.keys(ground)[0], shop?.shop?.id];
       });
-      must(camPick[0] === 'ground' && camPick[1] === 'rank', '카메라가 건물 앞에 있을 때 클릭이 이상해요: ' + camPick.join(', '));
+      must(camPick[0] === 'ground' && camPick[1] === 'closet', '카메라가 건물 앞에 있을 때 클릭이 이상해요: ' + camPick.join(', '));
       // 정해진 채팅: 목록 번호만, 2초에 한 번
       await b.evaluate(() => { window.__smash.plaza.say('8'); window.__smash.plaza.say('6'); });
       await waitFor(a, (id) => window.__smash.plaza.view.figs.get(id)?.bub.visible, bId, 10000, '상대 머리 위 말풍선');
       must(await b.evaluate(() => document.querySelector('#btn-say').disabled), '말하고 바로 또 말할 수 있어요 (2초에 한 번)');
       // 가게: 랭킹 건물을 클릭 → 걸어가서 랭킹 화면 → 돌아오면 다시 광장
       await a.evaluate(() => { document.querySelector('#lb-free')?.classList.add('hidden'); });
-      const pt = await a.evaluate(() => window.__smash.world.toScreen(7.1, 2.2, -3.5)); // 명예의 전당 (광장 20장: 분수 북동쪽)
+      const pt = await a.evaluate(() => window.__smash.world.toScreen(0, 2.2, -7.5)); // 명예의 전당 (plaza.md 8장: 본관 앞 가운데)
       await a.mouse.click(pt[0], pt[1]);
       await waitFor(a, () => !document.querySelector('#rank').classList.contains('hidden'), null, 20000, '랭킹 가게 → 랭킹 화면');
       must(await a.evaluate(() => !!window.__smash.plaza.pz.link), '랭킹 화면을 보는 동안 광장에서 빠졌어요');

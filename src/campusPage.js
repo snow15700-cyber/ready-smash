@@ -7,7 +7,6 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { fileFor, fitOf, loadModel, MODELS } from './campusModels.js';
-import './campusDraft.js'; // ?lay=A|B 배치 시안 (buildCampus보다 먼저)
 import { buildCampus } from './campusMock.js';
 import { breadLine, BREADS, KIM_FUNNY } from './breads.js';
 
@@ -108,18 +107,18 @@ setSky('day');
 
 const CAMS = {
   spawn: { pos: [0, 5.2, 18.5], look: [0, 4.2, -4] }, // 광장 3인칭(처음 서는 곳 뒤)
-  shops: { pos: [0, 3.2, 8], look: [0, 3.5, -6] },
+  shops: { pos: [-6, 3.2, 6], look: [-13, 3.5, -4] },
   top: { pos: [0, 66, 54], look: [0, 0, 4] },
   south: { pos: [-2, 4.5, 26], look: [14, -4, 60] }, // 바다 전망대 쪽을 바라봄
   hall: { pos: [24, 22, 14], look: [-2, 14, -22] }, // 본관을 비스듬히 위에서
-  gacha: { pos: [-1.8, 2.4, 0.9], look: [-7.1, 2.8, -3.5] }, // 가게 가까이
-  closet: { pos: [0, 2.4, 0.2], look: [0, 3.2, -7] },
-  fame: { pos: [1.8, 2.4, 0.9], look: [7.1, 3.0, -3.5] },
+  gacha: { pos: [-11.5, 2.4, -3], look: [-18.5, 2.8, -6.5] }, // 가게 가까이 (서쪽 상점 골목)
+  closet: { pos: [-14, 2.4, -3], look: [-7.6, 3.2, -5.8] },
+  fame: { pos: [3.5, 2.4, 4], look: [0, 3.0, -7.5] },
   fountain: { pos: [0, 3.6, 10.5], look: [0, 1.4, 2] }, // 나머지 건물 가까이
   clock: { pos: [8, 3, 2], look: [13.5, 5, -6.5] },
-  bakery: { pos: [-12, 3, 27.4], look: [-19.5, 2.6, 30.5] },
-  truck: { pos: [13, 2.6, 25.5], look: [20, 1.4, 24] },
-  photo: { pos: [-3.6, 2.4, 25.7], look: [-7, 2.4, 19.5] },
+  bakery: { pos: [-12, 3, 3.5], look: [-18.5, 2.6, 0.6] },
+  truck: { pos: [12, 2.6, 6], look: [18.6, 1.4, 4.2] },
+  photo: { pos: [1, 2.4, 29], look: [5, 2.4, 24] },
   board: { pos: [3.3, 2.0, 14.3], look: [5, 1.7, 9.6] },
   deck: { pos: [9, 3.2, 27], look: [14, 1, 36] },
   sea: { pos: [13, 3.2, 34], look: [20, -6, 95] },

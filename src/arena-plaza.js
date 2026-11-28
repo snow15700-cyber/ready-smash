@@ -1,6 +1,6 @@
 // 광장 로비 배경 (docs/dev/plaza.md 1장·20장): 배경 아이템과 상관없이 늘 같은 '광장' 하나.
 // 20장(11/25 사용자 확정): '경주캠퍼스 느낌' — 시안(campus.html)과 같은 장면(src/campusMock.js buildCampus({ game: true }))에
-// 탁구대 4대를 더한다. 북쪽 본관(떠 있는 유리 막대·필로티), 가운데 분수 + 반원 가게 3개(뽑기방·옷가게·명예의 전당),
+// 탁구대 4대를 더한다. 북쪽 본관(떠 있는 유리 막대·필로티), 가운데 분수 + 구역(북 명예의 전당 · 서 상점 골목 · 남 경기 · 동 쉼터, plaza.md 8장),
 // 시계탑·게시판·빵집·포토존·푸드트럭·자판기·바다 전망대, 남·동쪽 바다(물결·돌고래). 자리는 src/campusLayout.js.
 // 움직이지 않는 것은 bakeArena로 합쳐서 가볍게 (scene.js의 setPlaza가 합친다). 나무·가로등·벤치 등은 무료 모델(InstancedMesh, src/campusModels.js).
 import * as THREE from 'three';
